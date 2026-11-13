@@ -7,6 +7,10 @@
 - Temporary or test scripts that are not meant to be committed should be created in the `sandbox/` folder.
 - Do not insert hard line breaks inside a sentence; let the editor handle word wrap. Line breaks between sentences are fine.
 
+## Code conventions
+
+- Library-owned names that more than one place has to agree on (model variables, dims, fixed DataFrame columns, InferenceData groups, `idata.attrs` keys, serialization keys such as `__type__`) are `Final` constants in the `pymc_marketing/names/` package (`mmm.py`, `clv.py`, `customer_choice.py`, `bass.py`, and `__init__.py` for the shared ones). Use the constant, not the string literal, and add new names there. `CONTRIBUTING.md` lists the cases that stay literal. The `validate-names` pre-commit hook checks the rule, and `scripts/validate_names.py` lists the exceptions per file. Tests keep the literal strings, and `tests/test_names.py` pins every value.
+
 ## Skills (shared with Cursor)
 
 Read the relevant skill entry listed below **before** starting work in that domain.

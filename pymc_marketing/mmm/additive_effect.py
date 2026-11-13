@@ -240,6 +240,8 @@ from pymc_marketing.mmm.optimization_variables import (
     reject_unknown_coords,
 )
 from pymc_marketing.mmm.validating import _validate_non_numeric_dtype
+from pymc_marketing.names import Key
+from pymc_marketing.names.mmm import Dim, effect_contribution_name
 from pymc_marketing.serialization import SerializableBaseModel, serialization
 
 
@@ -326,7 +328,7 @@ def _get_datetime_coords(
         The converted datetime index
     """
     # Skip validation for non-date coordinates (e.g., numeric "time" indices)
-    validate = coord_name == "date"
+    validate = coord_name == Dim.DATE
     return safe_to_datetime(coords, coord_name, validate_non_numeric=validate)
 
 
@@ -497,7 +499,7 @@ class MuEffect(SerializableBaseModel, ABC):
             raise NotImplementedError(
                 f"{type(self).__name__} must define 'contribution_var_name'."
             )
-        return f"{prefix}_effect_contribution"
+        return effect_contribution_name(prefix)
 
     def incrementality_spec(self) -> IncrementalitySpec | None:
         """Opt this effect in to spend-counterfactual incrementality analysis.
@@ -750,7 +752,7 @@ class DataVarMuEffect(MuEffect, ABC):
             coords = {
                 dim: np.asarray(model.coords[dim]).tolist()
                 for dim in da.dims
-                if dim != "date"
+                if dim != Dim.DATE
                 and dim in da.indexes
                 and model.coords.get(dim) is not None
             }
@@ -823,7 +825,7 @@ class MediaMuEffect(DataVarMuEffect):
         data = mmm.model[var_name]
         effect = self.media_transformation(data, dim="date")
         return pmd.Deterministic(
-            f"{self.prefix}_effect_contribution",
+            effect_contribution_name(self.prefix),
             effect.sum(dim=self.channel_dim),
         )
 
@@ -839,7 +841,7 @@ class MediaMuEffect(DataVarMuEffect):
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "MediaMuEffect":
         """Reconstruct from a dict."""
-        work = {k: v for k, v in data.items() if k != "__type__"}
+        work = {k: v for k, v in data.items() if k != Key.TYPE}
         return cls(
             data_vars=work["data_vars"],
             channel_dim=work.get("channel_dim", "channel"),
@@ -892,11 +894,11 @@ class ControlMuEffect(DataVarMuEffect):
             contributions.append(data * coef)
         total = sum(contributions)
         # Sum over any dims not in {"date", *mmm.dims} (e.g. "control")
-        extra_dims = [d for d in set(total.dims) if d not in {"date", *mmm.dims}]
+        extra_dims = [d for d in set(total.dims) if d not in {Dim.DATE, *mmm.dims}]
         if extra_dims:
             total = total.sum(dim=extra_dims)
         return pmd.Deterministic(
-            f"{self.prefix}_effect_contribution",
+            effect_contribution_name(self.prefix),
             total,
         )
 
@@ -913,9 +915,9 @@ class ControlMuEffect(DataVarMuEffect):
         """Reconstruct from a dict."""
         from pymc_extras.deserialize import deserialize
 
-        work = {k: v for k, v in data.items() if k != "__type__"}
+        work = {k: v for k, v in data.items() if k != Key.TYPE}
         prior_data = work["prior"]
-        if "__type__" in prior_data:
+        if Key.TYPE in prior_data:
             prior = serialization.deserialize(prior_data)
         else:
             prior = deserialize(prior_data)
@@ -949,9 +951,9 @@ class FourierEffect(MuEffect):
         """Reconstruct from a dict, using registry for nested Fourier type."""
         from pymc_marketing.serialization import serialization
 
-        work = {k: v for k, v in data.items() if k != "__type__"}
+        work = {k: v for k, v in data.items() if k != Key.TYPE}
         fourier_data = work["fourier"]
-        if "__type__" in fourier_data:
+        if Key.TYPE in fourier_data:
             fourier = serialization.deserialize(fourier_data)
         else:
             from pymc_extras.deserialize import deserialize
@@ -1162,9 +1164,9 @@ class LinearTrendEffect(MuEffect):
         """Reconstruct from a dict, using registry for nested LinearTrend."""
         from pymc_marketing.serialization import serialization
 
-        work = {k: v for k, v in data.items() if k != "__type__"}
+        work = {k: v for k, v in data.items() if k != Key.TYPE}
         trend_data = work["trend"]
-        if "__type__" in trend_data:
+        if Key.TYPE in trend_data:
             trend = serialization.deserialize(trend_data)
         else:
             from pymc_extras.deserialize import deserialize
@@ -1229,7 +1231,7 @@ class LinearTrendEffect(MuEffect):
         trend_effect = self.trend.apply(t / scale, t_max=t_max / scale)
 
         return pmd.Deterministic(
-            f"{self.prefix}_effect_contribution",
+            effect_contribution_name(self.prefix),
             trend_effect,
         )
 
@@ -1434,7 +1436,7 @@ def _deserialize_event_additive_effect(
         ) from e
 
     effect_data = data["effect"]
-    if "__type__" in effect_data:
+    if Key.TYPE in effect_data:
         effect = serialization.deserialize(effect_data)
     else:
         effect = EventEffect.from_dict(effect_data.get("data", effect_data))

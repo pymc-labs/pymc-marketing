@@ -24,6 +24,15 @@ We follow strict linting and formatting rules enforced by **Ruff** and **MyPy**.
 - **Line Length**: Maximum 120 characters.
 - **Imports**: Sorted automatically by Ruff.
 - **Validation**: Use `pydantic` for runtime validation of user inputs in `__init__` methods.
+- **Names**: Model variable, dimension, fixed column, InferenceData group, `idata.attrs` key and serialization key (`__type__`) names that more than one place in the library has to agree on are `Final` attributes of plain classes in the `pymc_marketing/names/` package (`__init__.py` for the shared names, `mmm.py`, `clv.py`, `customer_choice.py`, `bass.py`). Use the constant instead of the string literal and add new names there. `CONTRIBUTING.md` lists the cases that stay literal, for example a name that a single place uses, a user-chosen name and its default, a `model_config` key, and the MMM dims where a typo raises. The `validate-names` pre-commit hook checks the rule. Do not use `StrEnum` for names: PyMC keeps the enum member as the variable name. Tests keep the literal strings, and `tests/test_names.py` pins every value.
+  ```python
+  # Good
+  from pymc_marketing.names.mmm import Var
+  if Var.CHANNEL_CONTRIBUTION in idata.posterior: ...
+
+  # Bad: a typo returns False instead of raising
+  if "channel_contribution" in idata.posterior: ...
+  ```
 
 ### Docstrings (NumPy Style)
 All public classes and functions must have docstrings following the **NumPy style**.

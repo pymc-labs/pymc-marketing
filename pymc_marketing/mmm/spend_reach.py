@@ -67,6 +67,7 @@ from pymc_marketing.mmm.counterfactual import (
     _even_runs,
     find_named_node,
 )
+from pymc_marketing.names.mmm import Dim, Var
 
 if TYPE_CHECKING:
     from pymc_marketing.mmm.mmm import MMM
@@ -96,10 +97,10 @@ __all__ = [
     "resolve_channel_dependent_effects",
 ]
 
-CHANNEL_CONTRIBUTION = "channel_contribution"
+CHANNEL_CONTRIBUTION = Var.CHANNEL_CONTRIBUTION
 """Response variable holding the per-channel linear-predictor contribution."""
 
-LINEAR_PREDICTOR = "mu"
+LINEAR_PREDICTOR = Var.MU
 """Name the MMM gives its linear predictor, registered or not."""
 
 COMPLETENESS_ACCUMULATION_SAFETY_FACTOR = 100
@@ -207,8 +208,8 @@ def resolve_channel_dependent_effects(
         mistaken for an absent attribute.
     """
     pymc_model = model.model
-    channel_data = pymc_model[CounterfactualEvaluator.CHANNEL_DATA]
-    allowed_dims = {"date", *model.dims}
+    channel_data = pymc_model[Var.CHANNEL_DATA]
+    allowed_dims = {Dim.DATE, *model.dims}
     resolved: list[ChannelDependentEffect] = []
 
     for effect in model.mu_effects:
@@ -297,12 +298,12 @@ def linear_predictor(model: MMM) -> Variable | None:
         enforced that the name is unique.
     """
     pymc_model = model.model
-    if LINEAR_PREDICTOR in pymc_model.named_vars:
-        if LINEAR_PREDICTOR in model.frozen_deterministics:
+    if Var.MU in pymc_model.named_vars:
+        if Var.MU in model.frozen_deterministics:
             # Frozen at its posterior value, so it would not respond to the
             # probe and the completeness check would compare zero to zero.
             return None
-        return pymc_model[LINEAR_PREDICTOR]
+        return pymc_model[Var.MU]
 
     output_var = model.output_var
     if output_var not in pymc_model.named_vars:
@@ -314,7 +315,7 @@ def linear_predictor(model: MMM) -> Variable | None:
     # observed either way, so the wider roots cannot lose it.
     return find_named_node(
         [observed, *pymc_model.deterministics],
-        LINEAR_PREDICTOR,
+        Var.MU,
         exclude=[observed],
     )
 
@@ -613,11 +614,11 @@ class ProbeStatistics:
         moved = {
             name: probed[name] - baseline[name]
             for name in probed
-            if name != LINEAR_PREDICTOR or self.accounted
+            if name != Var.MU or self.accounted
         }
         # The reach is measured on the accounted nodes, never on the predictor.
         for name, values in moved.items():
-            if name == LINEAR_PREDICTOR:
+            if name == Var.MU:
                 continue
             per_date = (
                 np.abs(values)
@@ -639,10 +640,10 @@ class ProbeStatistics:
 
         # channel_contribution carries a channel dimension the predictor does
         # not: it enters mu summed over channels.
-        accounted = as_array(CHANNEL_CONTRIBUTION).sum("channel")
+        accounted = as_array(Var.CHANNEL_CONTRIBUTION).sum("channel")
         for name in self.accounted[1:]:
             accounted = accounted + as_array(name)
-        expected = as_array(LINEAR_PREDICTOR)
+        expected = as_array(Var.MU)
         # Broadcasting only repeats values, so the maxima are taken before it.
         # np.maximum, not max(), and numpy maxima, not xarray's, which skip
         # NaN: a NaN move has to survive the fold, as it survives the maximum
@@ -671,7 +672,7 @@ class ProbeStatistics:
 
         compared = [
             array
-            for name in (LINEAR_PREDICTOR, *self.accounted)
+            for name in (Var.MU, *self.accounted)
             for array in (baseline[name], probed[name])
         ]
         self.node_magnitude = max(
@@ -800,13 +801,13 @@ class SpendProbe:
         # which is what the caller evaluated the probe for:
         # assert_increment_is_complete refuses any other set of effects.
         self._accounted: tuple[str, ...] = ()
-        if LINEAR_PREDICTOR in baseline:
+        if Var.MU in baseline:
             self._accounted = (
-                CHANNEL_CONTRIBUTION,
+                Var.CHANNEL_CONTRIBUTION,
                 *(
                     name
                     for name in baseline
-                    if name not in (CHANNEL_CONTRIBUTION, LINEAR_PREDICTOR)
+                    if name not in (Var.CHANNEL_CONTRIBUTION, Var.MU)
                 ),
             )
         # One probe evaluation alive at a time, and none once its statistics
@@ -1216,13 +1217,13 @@ class SpendProbe:
                 for probe_index, stats in self.probes.items()
             )
             for name in (
-                CHANNEL_CONTRIBUTION,
+                Var.CHANNEL_CONTRIBUTION,
                 *(effect.contribution_var for effect in effects),
             )
         }
         combined = TemporalReach.widest(
             [
-                measured[CHANNEL_CONTRIBUTION],
+                measured[Var.CHANNEL_CONTRIBUTION],
                 *self._reconcile_declarations(effects, measured),
             ]
         )
@@ -1481,8 +1482,8 @@ class SpendProbe:
             return True
 
         # `+ 2` for the sample and date axes the evaluations carry in front.
-        channel_axis = non_date_dims[CHANNEL_CONTRIBUTION].index("channel") + 2
-        baseline = self.baseline[CHANNEL_CONTRIBUTION]
+        channel_axis = non_date_dims[Var.CHANNEL_CONTRIBUTION].index("channel") + 2
+        baseline = self.baseline[Var.CHANNEL_CONTRIBUTION]
         for channel, probe_index in placements.items():
             probed = self._evaluator.evaluate_baseline(
                 self._perturb(
@@ -1492,8 +1493,8 @@ class SpendProbe:
                     dtype=self._evaluator.channel_dtype,
                     channel=channel,
                 )
-            )[CHANNEL_CONTRIBUTION]
-            self._assert_finite(CHANNEL_CONTRIBUTION, probed)
+            )[Var.CHANNEL_CONTRIBUTION]
+            self._assert_finite(Var.CHANNEL_CONTRIBUTION, probed)
 
             # Scaled by the largest move this probe made anywhere, mirroring
             # _reach_of: the threshold is then free of the units the
@@ -1574,17 +1575,17 @@ class SpendProbe:
             return
 
         accounted_names = (
-            CHANNEL_CONTRIBUTION,
+            Var.CHANNEL_CONTRIBUTION,
             *(effect.contribution_var for effect in effects),
         )
         folded_dims = self._evaluator.non_date_dims
         if accounted_names != self._accounted or any(
             tuple(non_date_dims[name]) != tuple(folded_dims[name])
-            for name in (LINEAR_PREDICTOR, *accounted_names)
+            for name in (Var.MU, *accounted_names)
         ):
             raise ValueError(
                 f"The probe was folded for {list(self._accounted)} against "
-                f"{LINEAR_PREDICTOR!r}, with the evaluator's dimensions, so it "
+                f"{Var.MU!r}, with the evaluator's dimensions, so it "
                 f"cannot check {list(accounted_names)} with {dict(non_date_dims)}.  "
                 "Evaluate the baseline on exactly the nodes being checked."
             )

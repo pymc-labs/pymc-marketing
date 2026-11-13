@@ -43,6 +43,7 @@ import pandas as pd
 import xarray as xr
 
 from pymc_marketing.mmm.spend_reach import CHANNEL_CONTRIBUTION
+from pymc_marketing.names.mmm import Dim
 
 if TYPE_CHECKING:
     from pandas.tseries.offsets import BaseOffset
@@ -186,10 +187,10 @@ class LinearPredictorDelta:
         scenario_index: tuple = (row, slice(None), window.window_eval_slice)
         baseline_index: tuple = (slice(None), window.eval_slice)
         if column is not None:
-            to_channel = (slice(None),) * dims.index("channel")
+            to_channel = (slice(None),) * dims.index(Dim.CHANNEL)
             scenario_index = (*scenario_index, *to_channel, column)
             baseline_index = (*baseline_index, *to_channel, column)
-            dims = tuple(dim for dim in dims if dim != "channel")
+            dims = tuple(dim for dim in dims if dim != Dim.CHANNEL)
         return xr.DataArray(
             counterfactual[name][scenario_index] - baseline[name][baseline_index],
             dims=("sample", "date", *dims),

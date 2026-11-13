@@ -31,6 +31,8 @@ from typing import Any, Protocol, Self, runtime_checkable
 
 from pydantic import BaseModel, Field
 
+from pymc_marketing.names import Key
+
 
 class SerializationError(Exception):
     """Raised when serialization or deserialization fails."""
@@ -102,7 +104,7 @@ class DeferredFactory(BaseModel):
     def to_dict(self) -> dict[str, Any]:
         """Serialize the deferred factory to a dict."""
         return {
-            "__deferred__": True,
+            Key.DEFERRED: True,
             "factory": self.factory,
             "kwargs": self.kwargs,
         }
@@ -235,9 +237,11 @@ class TypeRegistry:
             if resolved is not None and not getattr(resolved, "_type_injected", False):
                 original_to_dict = resolved  # resolved through MRO
 
-                def _wrapped_to_dict(instance, _orig=original_to_dict):
+                def _wrapped_to_dict(
+                    instance, _orig=original_to_dict
+                ) -> dict[str, Any]:
                     type_key = self.key_for(instance.__class__)
-                    return {"__type__": type_key, **_orig(instance)}
+                    return {Key.TYPE: type_key, **_orig(instance)}
 
                 _wrapped_to_dict._type_injected = True  # type: ignore[attr-defined]
                 cls.to_dict = _wrapped_to_dict  # type: ignore[attr-defined]
@@ -277,7 +281,7 @@ class TypeRegistry:
             return entry.serializer(obj)
         # The injected ``to_dict`` reads keys from the registry that first
         # wrapped the class, which need not be this one.
-        return {**obj.to_dict(), "__type__": type_key}
+        return {**obj.to_dict(), Key.TYPE: type_key}
 
     def deserialize(
         self,
@@ -295,10 +299,10 @@ class TypeRegistry:
                 f"Expected a dict for deserialization, got {type(data).__name__}"
             )
 
-        if data.get("__deferred__"):
+        if data.get(Key.DEFERRED):
             return DeferredFactory.from_dict(data)
 
-        type_key = data.get("__type__")
+        type_key = data.get(Key.TYPE)
         if type_key is None:
             raise SerializationError(
                 "Dict is missing '__type__' key. Cannot determine which class "
@@ -420,7 +424,7 @@ class TypeRegistry:
         import numpy as np
 
         if isinstance(value, dict):
-            if "__type__" in value:
+            if Key.TYPE in value:
                 return self.deserialize(value)
 
             if isinstance(value.get("dist"), str):
@@ -539,5 +543,5 @@ class SerializableBaseModel(BaseModel):
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
         """Reconstruct from a dict via Pydantic model_validate."""
-        filtered = {k: v for k, v in data.items() if k != "__type__"}
+        filtered = {k: v for k, v in data.items() if k != Key.TYPE}
         return cls.model_validate(filtered)
