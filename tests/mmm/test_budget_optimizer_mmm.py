@@ -2819,49 +2819,46 @@ class TestMonetarySpendVariables:
     def test_every_priced_variable_reports_on_the_result(
         self, funnel_identity_fitted_mmm
     ):
-        """Each monetary variable's delivery report sits on the result, keyed by name,
-        with its own dims and the same money identity and nan-at-zero convention as
-        media."""
+        """The issue's acceptance, end to end: with spend_vars and a price_response dict,
+        every priced decision variable has a labelled report on the result, over its own
+        dims, satisfying the money identity without a special case for media. The spend
+        variable reads its own elasticity, not media's."""
+        gamma = 0.2
         optimizer = self._optimizer(
             funnel_identity_fitted_mmm,
             spend_vars=["lf_budget"],
             price_response={
                 "channel_data": PowerPriceResponse(elasticity=0.0),
                 "lf_budget": PowerPriceResponse(
-                    elasticity=0.2,
+                    elasticity=gamma,
                     assume_delivery_units=True,
                     reference_spend=xr.DataArray(1.0),
                 ),
             },
         )
-        result = optimizer.allocate_budget(total_budget=self.TOTAL)
-        assert result.scipy_result.success, result.scipy_result.message
 
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+
+        assert result.scipy_result.success, result.scipy_result.message
         reports = result.delivery_reports
-        assert set(reports) == {"channel_data", "lf_budget"}
-        xr.testing.assert_equal(
-            reports["channel_data"]["implied_price"], result.implied_price
-        )
-        assert reports["lf_budget"]["implied_delivery"].dims == ("date",)
-        allocations = {
-            "channel_data": result.budgets,
-            "lf_budget": result.spend_var_allocations["lf_budget"],
-        }
+        assert list(reports) == ["channel_data", "lf_budget"]
+        assert reports["lf_budget"].implied_price.dims == ("date",)
+        allocations = {"channel_data": result.budgets, **result.spend_var_allocations}
         for name, report in reports.items():
-            allocation = allocations[name]
-            spent = allocation > 1e-9 * self.TOTAL
-            money = (report["implied_delivery"] * report["implied_price"]).sum("date")
-            np.testing.assert_allclose(
-                money.where(spent),
-                (allocation * optimizer.num_periods).where(spent),
-                rtol=1e-6,
+            paid = xr.where(
+                report.implied_price.isnull(),
+                0.0,
+                report.implied_delivery * report.implied_price,
             )
-            assert report["implied_price"].where(~spent).isnull().all()
-        ratio = (
-            reports["lf_budget"]["implied_marginal_price"]
-            / reports["lf_budget"]["implied_price"]
+            xr.testing.assert_allclose(paid.sum("date"), report.spend.sum("date"))
+            xr.testing.assert_allclose(
+                report.spend.sum("date"), allocations[name] * optimizer.num_periods
+            )
+        spend = reports["lf_budget"]
+        np.testing.assert_allclose(
+            (spend.implied_marginal_price / spend.implied_price).values,
+            1 / (1 - gamma),
         )
-        np.testing.assert_allclose(ratio, 1 / (1 - 0.2))
 
     def test_an_unspent_spend_variable_reports_nan_prices(
         self, funnel_identity_fitted_mmm, monkeypatch

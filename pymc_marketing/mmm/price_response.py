@@ -557,8 +557,9 @@ class PowerPriceResponse(PriceResponse):
     elasticities differ.
 
     **Reading the result.** ``result.implied_delivery`` is per-period delivery before ``channel_scales``.
-    ``result.delivery_reports`` holds the same report for every priced variable, ``spend_vars`` included,
-    keyed by name. Score a plan with
+    With ``spend_vars``, ``result.delivery_reports[name]`` carries the same arrays plus ``spend`` for every
+    priced variable; a spend variable has no ``cost_per_unit``, so its base price is 1 at its
+    ``reference_spend``. Score a plan with
     :meth:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.evaluate_response_distribution`, which runs
     the same graph the solver used, price map included. The deprecated ``sample_response_distribution``
     repeats one date-less allocation over the window, so ``implied_delivery.mean(date_dim)`` passed on its

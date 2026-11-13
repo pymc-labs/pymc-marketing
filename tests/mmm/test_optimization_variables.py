@@ -1078,6 +1078,7 @@ def test_delivery_report_is_labelled_and_nan_where_no_money_is_spent():
     report = variable.delivery_report(x, date_coords=dates)
 
     assert set(report) == {
+        "spend",
         "implied_delivery",
         "implied_price",
         "implied_marginal_price",
@@ -1087,19 +1088,77 @@ def test_delivery_report_is_labelled_and_nan_where_no_money_is_spent():
         np.testing.assert_array_equal(value["date"].values, dates.values)
     delivery, price = report["implied_delivery"], report["implied_price"]
     assert np.all(delivery.sel(channel=["channel_1", "channel_2"]) == 0.0)
+    assert np.all(report["spend"].sel(channel="channel_1") == 0.0)
     assert np.all(np.isnan(price.sel(channel=["channel_1", "channel_2"])))
     assert np.all(np.isfinite(price.sel(channel="channel_0")))
     money = xr.where(np.isnan(price), 0.0, delivery * price).sum("date")
     np.testing.assert_allclose(money.values, variable.unpack(x).values * 4, rtol=1e-12)
+    np.testing.assert_allclose(
+        report["spend"].sum("date").values, variable.unpack(x).values * 4
+    )
 
     tiny = variable.delivery_report(np.array([90.0, 1e-15]))["implied_price"]
     assert np.all(np.isnan(tiny.sel(channel="channel_2")))
     assert np.all(np.isfinite(tiny.sel(channel="channel_0")))
 
 
-def test_delivery_report_is_empty_without_a_price_response():
+def test_delivery_report_is_none_without_a_price_response():
     rng = np.random.default_rng(32)
-    assert make_media_variable(rng).delivery_report(np.ones(3)) == {}
+    assert make_media_variable(rng).delivery_report(np.ones(3)) is None
+
+
+def _priced_spend(elasticity=0.3):
+    """A spend variable decided over date alone, like the funnel's lf_budget."""
+    return MediaVariable(
+        name="lf_budget",
+        mask=xr.DataArray(True),
+        num_periods=4,
+        adstock_periods=2,
+        channel_scales=1.0,
+        scales_dims=(),
+        dtype="float64",
+        price_response=PowerPriceResponse(
+            elasticity=elasticity,
+            reference_spend=xr.DataArray(50.0),
+            assume_delivery_units=True,
+        ),
+    )
+
+
+def test_delivery_reports_are_keyed_by_variable_and_keep_their_own_dims():
+    """Variables differ in dims, so a report per variable rather than a stack. Each
+    report reads its own segment of the flat vector with its own response, levers
+    report nothing, and the money identity holds on each report through ``spend``."""
+    media = _priced_variable(elasticity=0.4, mask_values=[True, False, True])
+    variables = OptimizationVariables([media, _priced_spend(), make_lever_variable()])
+    dates = pd.date_range("2025-01-05", periods=4, freq="7D")
+
+    reports = variables.delivery_reports(
+        np.array([90.0, 30.0, 40.0, 0.3, 0.2]), date_coords=dates
+    )
+
+    assert list(reports) == ["channel_data", "lf_budget"]
+    assert reports["channel_data"].implied_price.dims == ("date", "channel")
+    assert reports["lf_budget"].implied_price.dims == ("date",)
+    np.testing.assert_array_equal(reports["lf_budget"].spend.values, 40.0)
+    for report in reports.values():
+        paid = xr.where(
+            report.implied_price.isnull(),
+            0.0,
+            report.implied_delivery * report.implied_price,
+        )
+        xr.testing.assert_allclose(paid.sum("date"), report.spend.sum("date"))
+    spend = reports["lf_budget"]
+    np.testing.assert_allclose(
+        (spend.implied_marginal_price / spend.implied_price).values, 1 / 0.7
+    )
+
+    at_zero = variables.delivery_reports(np.array([90.0, 30.0, 0.0, 0.3, 0.2]))[
+        "lf_budget"
+    ]
+    assert np.all(at_zero.implied_delivery == 0.0)
+    assert at_zero.implied_price.isnull().all()
+    assert at_zero.implied_marginal_price.isnull().all()
 
 
 def test_delivery_report_compiles_with_the_optimizer_compile_kwargs():
