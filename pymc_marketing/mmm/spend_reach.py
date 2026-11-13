@@ -1369,7 +1369,7 @@ class SpendProbe:
         effects: Sequence[ChannelDependentEffect],
         l_max: int,
         trailing_lags: int,
-        accounting_checked_on_rows: bool = False,
+        accounting_needs_probe: bool = True,
     ) -> SpendReach:
         r"""Measure how far in time a change in spend moves the evaluated nodes.
 
@@ -1409,11 +1409,13 @@ class SpendProbe:
             :func:`~pymc_marketing.mmm.incrementality.kernel_trailing_lags`.
             Passed in rather than derived here, so this module needs nothing
             about convolution modes.
-        accounting_checked_on_rows : bool, default=False
-            Whether the request checks the completeness of its increment on the
-            rows it evaluates, as a request for the direct or the mediated path
-            does.  Only decides what the warning says when no probe could be
-            placed: such a request is not told its accounting goes unverified.
+        accounting_needs_probe : bool, default=True
+            Whether the completeness of the increment rests on the probe.  It
+            does not for a request that checks its own rows, as one for the
+            direct or the mediated path does, nor for a model without
+            ``mu_effects``, where spend reaches the predictor through
+            ``channel_contribution`` alone.  Only decides what the warning
+            says when no probe could be placed.
 
         Returns
         -------
@@ -1425,11 +1427,11 @@ class SpendProbe:
             # established.  Fall back to the only mode that is correct without a
             # measurement rather than trusting an unmeasured one.
             unverified = (
-                ""
-                if accounting_checked_on_rows
-                else "  With no probe, the completeness of the increment -- "
+                "  With no probe, the completeness of the increment -- "
                 "that the evaluated nodes account for the whole move in the "
                 "linear predictor -- also goes unverified."
+                if accounting_needs_probe
+                else ""
             )
             warnings.warn(
                 "Some channel's spend carries no non-zero date after the first or "

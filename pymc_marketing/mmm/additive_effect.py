@@ -421,9 +421,13 @@ class MediatorSpec(BaseModel):
     name : str
         What users pass and what results are labelled with.  A Python
         identifier, since it becomes a variable of a result ``Dataset``, and
-        none of the names a result already uses.
+        none of the names a result already uses.  It names one variable in the
+        whole model, so an effect that can be added more than once puts its
+        prefix in the name.
     variable : str
-        Name of the registered ``Deterministic`` in the model.
+        Name of the registered ``Deterministic`` in the model.  For its
+        movement to be reported it has to be registered through ``pymc.dims``
+        and be numeric.
     units : str, optional
         What a movement is reported in.  Required when ``scale`` is not one or
         ``is_spend`` is set.

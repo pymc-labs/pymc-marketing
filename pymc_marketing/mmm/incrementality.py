@@ -5419,7 +5419,9 @@ class Incrementality:
                 effects=effects,
                 l_max=self.model.adstock.l_max,
                 trailing_lags=trailing_lags,
-                accounting_checked_on_rows=checks_rows,
+                # A request that checks its own rows does not rest on the
+                # probe, and a model without mu_effects has nothing to check.
+                accounting_needs_probe=bool(self.model.mu_effects) and not checks_rows,
             )
             if validate_reach is not None:
                 validate_reach(reach)
@@ -6139,11 +6141,15 @@ class Incrementality:
                     "to report.  A mu_effect declares the nodes spend moves in "
                     "the 'mediators' of its IncrementalitySpec."
                 )
-            left_out = [
-                f"{entry.name!r}: {entry.problem or entry.unreadable}"
-                for entry in registry
-                if not entry.readable
-            ]
+            # A name declared for two variables has an entry for each, with
+            # one reason between them.
+            left_out = list(
+                dict.fromkeys(
+                    f"{entry.name!r}: {entry.problem or entry.unreadable}"
+                    for entry in registry
+                    if not entry.readable
+                )
+            )
             selected = tuple(entry for entry in registry if entry.readable)
             if not selected:
                 raise ValueError(

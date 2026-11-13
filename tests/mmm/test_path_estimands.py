@@ -629,6 +629,24 @@ class TestDefaultTotal:
 
         assert EstimandLabel.read(total).accounting_verified is False
 
+    def test_a_model_without_effects_has_no_accounting_left_open(self, funnel_mmm_data):
+        """Spend reaches its mean through ``channel_contribution`` alone.
+
+        Where no probe can be placed its total is warned that the reach was
+        not measured, and neither the warning nor the label says the
+        accounting is unverified.
+        """
+        data = TestAccountingOnRows._no_probe_data(funnel_mmm_data)
+        mmm = _build_funnel_mmm(data, link="log", effects=[])
+
+        with pytest.warns(UserWarning, match="could not be measured") as caught:
+            total = mmm.incrementality.compute_incremental_contribution(
+                frequency="monthly"
+            )
+
+        assert not any("unverified" in str(warning.message) for warning in caught)
+        assert EstimandLabel.read(total).accounting_verified is True
+
 
 class TestAccountingOnRows:
     """A path request checks, on its own rows, that its terms carry the whole move."""

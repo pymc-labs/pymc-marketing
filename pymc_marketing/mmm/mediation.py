@@ -221,7 +221,10 @@ def resolve_mediators(
     entry.  At most one of them says how to report it.
 
     A fault in a declaration is recorded on its entry and raises nothing here.
-    It matters only to the request that needs the node.
+    It matters only to the request that needs the node.  A name that two
+    effects use for two variables gives one entry per variable: neither can be
+    reported under that name, and each still marks where its own effect's
+    routes are cut.
 
     Parameters
     ----------
@@ -234,7 +237,7 @@ def resolve_mediators(
     Returns
     -------
     tuple of ResolvedMediator
-        One entry per declared name, sorted by name.
+        One entry per declared name and variable, sorted by both.
 
     Raises
     ------
@@ -243,7 +246,10 @@ def resolve_mediators(
         :class:`~pymc_marketing.mmm.additive_effect.IncrementalitySpec`.
     """
     pymc_model = model.model
-    declared: dict[str, dict] = {}
+    # Keyed by the pair, so that a name two effects use for two variables keeps
+    # both: neither can be reported under it, and each still cuts its own
+    # effect's routes.
+    declared: dict[tuple[str, str], dict] = {}
     for effect in model.mu_effects:
         spec = getattr(effect, "incrementality_spec", lambda: None)()
         if spec is None:
@@ -251,7 +257,7 @@ def resolve_mediators(
         label = type(effect).__name__
         for mediator in _validated_spec(spec, label).mediators:
             entry = declared.setdefault(
-                mediator.name,
+                (mediator.name, mediator.variable),
                 {
                     "variable": mediator.variable,
                     "reporting": _DEFAULT_REPORTING,
@@ -261,12 +267,7 @@ def resolve_mediators(
             )
             entry["effects"].append(label)
             reporting = (mediator.units, mediator.scale, mediator.is_spend)
-            if entry["variable"] != mediator.variable:
-                entry["fault"] = (
-                    f"the name {mediator.name!r} is declared for "
-                    f"{entry['variable']!r} and for {mediator.variable!r}"
-                )
-            elif reporting != _DEFAULT_REPORTING:
+            if reporting != _DEFAULT_REPORTING:
                 if entry["reporting"] not in (_DEFAULT_REPORTING, reporting):
                     entry["fault"] = (
                         f"{mediator.variable!r} is declared with two sets of "
@@ -274,15 +275,19 @@ def resolve_mediators(
                     )
                 entry["reporting"] = reporting
 
+    variables_of: dict[str, list[str]] = {}
     names_of: dict[str, list[str]] = {}
-    for name, entry in declared.items():
-        names_of.setdefault(entry["variable"], []).append(name)
-    for variable, names in names_of.items():
-        if len(names) > 1:
-            for name in names:
-                declared[name]["fault"] = (
-                    f"{variable!r} is declared under the names {sorted(names)}"
-                )
+    for name, variable in declared:
+        variables_of.setdefault(name, []).append(variable)
+        names_of.setdefault(variable, []).append(name)
+    for (name, variable), entry in declared.items():
+        if len(variables_of[name]) > 1:
+            listed = " and for ".join(map(repr, sorted(variables_of[name])))
+            entry["fault"] = f"the name {name!r} is declared for {listed}"
+        elif len(names_of[variable]) > 1:
+            entry["fault"] = (
+                f"{variable!r} is declared under the names {sorted(names_of[variable])}"
+            )
 
     channel_data = pymc_model[Var.CHANNEL_DATA]
     terms = _terms(model, effects)
@@ -353,9 +358,8 @@ def resolve_mediators(
         return None
 
     resolved = []
-    for name in sorted(declared):
-        entry = declared[name]
-        variable = entry["variable"]
+    for name, variable in sorted(declared):
+        entry = declared[(name, variable)]
         node = pymc_model.named_vars.get(variable)
         units, scale, is_spend = entry["reporting"]
         resolved.append(

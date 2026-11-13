@@ -602,6 +602,40 @@ class TestResolveMediators:
         assert all(unreadable in entry.unreadable for entry in registry.values())
         assert all(entry.problem is None for entry in registry.values())
 
+    def test_one_name_for_two_nodes_keeps_both_as_cuts(self, funnel_mmm_data):
+        """Two instances of an effect that name their hub alike each cut their own routes.
+
+        Neither node can be reported under the shared name, both are listed,
+        and a path request still gets its plan.
+        """
+
+        def demand(prefix: str) -> IncrementalitySpec:
+            return IncrementalitySpec(
+                role="mediator",
+                mediators=(MediatorSpec(name="demand", variable=f"{prefix}_hub"),),
+            )
+
+        mmm = build(
+            funnel_mmm_data,
+            GraphShape(prefix="f", kind="hub", spec=demand("f")),
+            GraphShape(prefix="g", kind="hub", spec=demand("g")),
+        )
+
+        registry = resolve_mediators(mmm, resolve_channel_dependent_effects(mmm))
+
+        assert [(entry.name, entry.variable) for entry in registry] == [
+            ("demand", "f_hub"),
+            ("demand", "g_hub"),
+        ]
+        assert all(entry.problem is None for entry in registry)
+        assert all(
+            "declared for 'f_hub' and for 'g_hub'" in entry.unreadable
+            for entry in registry
+        )
+        assert plan_of(mmm) == PathPlan(
+            held_terms=("f_effect_contribution", "g_effect_contribution")
+        )
+
     def test_a_hub_two_effects_read_is_one_entry(self, funnel_mmm_data):
         """One of them says how to report it and the other leaves the defaults."""
         reported = MediatorSpec(
