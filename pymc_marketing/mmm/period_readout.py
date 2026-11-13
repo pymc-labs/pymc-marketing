@@ -83,9 +83,7 @@ class LinearPredictorDelta:
     ``channel_contribution`` over channels before differencing would hold less,
     but it would move the rounding error to the scale of the whole
     contribution: differencing first keeps an unperturbed column's change at
-    the rounding of its own evaluation.  That is exactly zero when the scenario
-    and the baseline round alike, as they do with BLAS on one thread; with
-    several, the batch size can change the order of a sum.
+    the rounding of that column's own evaluation.
 
     Parameters
     ----------
