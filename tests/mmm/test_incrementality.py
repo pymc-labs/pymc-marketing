@@ -68,6 +68,7 @@ from pymc_marketing.mmm.incrementality import (
     LogLinkReducer,
     kernel_trailing_lags,
 )
+from pymc_marketing.mmm.period_readout import current_window_end
 from pymc_marketing.mmm.spend_reach import (
     LINEAR_PREDICTOR,
     ProbeStatistics,
@@ -85,6 +86,7 @@ from pymc_marketing.mmm.transformers import (
 from pymc_marketing.model_graph import deterministics_to_flat
 from pymc_marketing.pytensor_utils import ConditionedModel
 from pymc_marketing.serialization import serialization
+from tests.mmm.period_readout_reference import split_band
 from tests.mmm.test_spend_reach import (
     assert_identical_statistics,
     effective_l_max,
@@ -1689,6 +1691,68 @@ class TestIncrementalReducers:
 
         expected = 4.0 * np.expm1(0.5) + 8.0 * np.expm1(0.25)
         np.testing.assert_allclose(result.values, [[expected]])
+
+    @pytest.mark.parametrize(
+        "positions",
+        [[1, 2, 3], [0, 1, 2, 3, 4], [], [3, 2, 1], [0, 2, 4]],
+        ids=["contiguous", "whole-axis", "empty", "descending", "with-gaps"],
+    )
+    def test_log_reducer_weights_each_date_by_its_own_baseline(self, positions):
+        """Every date of the change is weighted by the baseline on that date, whatever their order."""
+        rng = np.random.default_rng(0)
+        all_dates = pd.date_range("2024-01-01", periods=5, freq="W")
+        baseline = xr.DataArray(
+            rng.uniform(1, 2, size=(3, 5, 2)),
+            dims=("sample", "date", "geo"),
+            coords={"date": all_dates},
+        )
+        dates = all_dates[positions]
+        delta = self._delta(rng.normal(size=(3, len(dates), 2)), dates)
+
+        result = LogLinkReducer(baseline_response=baseline).per_date_increment(delta)
+
+        expected = baseline.sel(date=dates) * np.expm1(delta)
+        xr.testing.assert_identical(result, expected)
+
+    def test_log_reducer_refuses_dates_off_the_axis(self):
+        """A date past the baseline's axis raises instead of being dropped."""
+        all_dates = pd.date_range("2024-01-01", periods=5, freq="W")
+        baseline = xr.DataArray(
+            np.ones((2, 5)), dims=("sample", "date"), coords={"date": all_dates}
+        )
+        dates = all_dates[3:].append(all_dates[-1:] + pd.Timedelta(weeks=1))
+        delta = xr.DataArray(
+            np.full((2, len(dates)), 0.1),
+            dims=("sample", "date"),
+            coords={"date": dates},
+        )
+
+        with pytest.raises(KeyError):
+            LogLinkReducer(baseline_response=baseline).per_date_increment(delta)
+
+    @pytest.mark.parametrize(
+        "call",
+        [
+            lambda inc: inc.compute_incremental_contribution(frequency="all_time"),
+            lambda inc: inc.split_incremental_contribution_over_time(
+                frequency="original"
+            ),
+        ],
+        ids=["total", "band"],
+    )
+    def test_a_dim_the_reducer_brings_in_is_refused(
+        self, simple_fitted_mmm, monkeypatch, call
+    ):
+        """The increment is laid out by name, so an unexpected dim raises instead of riding along."""
+        real = IdentityLinkReducer.per_date_increment
+
+        def with_extra_dim(self, delta):
+            return real(self, delta).expand_dims(extra=2)
+
+        monkeypatch.setattr(IdentityLinkReducer, "per_date_increment", with_extra_dim)
+
+        with pytest.raises(ValueError, match="extra"):
+            call(simple_fitted_mmm.incrementality)
 
     def test_log_reducer_zero_perturbation_gives_zero(self):
         """No change in the linear predictor means no incremental response."""
@@ -6605,7 +6669,7 @@ class TestSplitIncrementalContributionHelpers:
     )
     def test_current_window_end(self, lags, expected):
         """A zero lag leaves an off-anchor period end where it is."""
-        end = Incrementality._current_window_end(
+        end = current_window_end(
             pd.Timestamp("2023-01-31"), lags=lags, freq_offset=self.WEEKLY
         )
 
@@ -6640,7 +6704,7 @@ class TestSplitIncrementalContributionHelpers:
         periods = [(date, date) for date in self.WEEKS]
         current_end = pd.DatetimeIndex(
             [
-                Incrementality._current_window_end(end, lags=1, freq_offset=self.WEEKLY)
+                current_window_end(end, lags=1, freq_offset=self.WEEKLY)
                 for _, end in periods
             ]
         )
@@ -6757,7 +6821,7 @@ class TestSplitIncrementalContributionHelpers:
         """Spend on one date: current is lags ``0 .. lags``, future the rest."""
         band = _band([1.0, 2.0, 4.0, 8.0], self.WEEKS[:4])
 
-        got_current, got_future, complete = Incrementality._split_band(
+        got_current, got_future, complete = split_band(
             band,
             start=self.WEEKS[0],
             end=self.WEEKS[0],
@@ -6785,7 +6849,7 @@ class TestSplitIncrementalContributionHelpers:
         """A ``NaN`` date makes the sum it falls in ``NaN``, and the band incomplete."""
         band = _band([1.0, 2.0, 4.0, np.nan], self.WEEKS[:4])
 
-        got_current, got_future, complete = Incrementality._split_band(
+        got_current, got_future, complete = split_band(
             band,
             start=self.WEEKS[0],
             end=self.WEEKS[0],
@@ -6806,7 +6870,7 @@ class TestSplitIncrementalContributionHelpers:
         """
         band = _band([1.0, 1.0, 1.0, 1.0, 1.0, 10.0], self.WEEKS)
 
-        current, future, _ = Incrementality._split_band(
+        current, future, _ = split_band(
             band,
             start=pd.Timestamp("2023-01-01"),
             end=pd.Timestamp("2023-01-31"),

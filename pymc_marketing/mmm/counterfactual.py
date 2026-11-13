@@ -64,6 +64,7 @@ from __future__ import annotations
 import math
 from collections.abc import Generator, Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from functools import cached_property
 from itertools import pairwise
 from typing import Literal, NamedTuple
 
@@ -214,6 +215,37 @@ def find_named_node(
     return found[0] if found else None
 
 
+def _contiguous_run(mask: np.ndarray) -> slice:
+    """Return the slice that selects the same positions as *mask*.
+
+    Parameters
+    ----------
+    mask : np.ndarray
+        One-dimensional boolean mask.
+
+    Returns
+    -------
+    slice
+        From the first selected position to one past the last; ``slice(0, 0)``
+        when nothing is selected.
+
+    Raises
+    ------
+    ValueError
+        If the selected positions are not one contiguous run.
+    """
+    positions = np.flatnonzero(mask)
+    if positions.size == 0:
+        return slice(0, 0)
+    start, stop = int(positions[0]), int(positions[-1]) + 1
+    if stop - start != positions.size:
+        raise ValueError(
+            "The evaluation dates are not one contiguous run of the date axis, "
+            "so they cannot be read as a slice.  The fitted dates must be sorted."
+        )
+    return slice(start, stop)
+
+
 @dataclass(frozen=True)
 class PeriodWindow:
     """The stretch of fitted dates one period is evaluated over.
@@ -222,8 +254,8 @@ class PeriodWindow:
     The *window* is what the graph is handed, wide enough on both sides that the
     perturbation's whole effect is computed correctly.  The *evaluation dates* are
     the subset whose differences are summed into the increment.  Both are recorded
-    here, in the two forms the rest of the code needs them in -- a mask over the
-    full date axis, for slicing a full-axis baseline, and the dates themselves,
+    here, in the two forms the rest of the code needs them in -- positions on the
+    full date axis, for reading a full-axis baseline, and the dates themselves,
     for labelling coordinates -- so that no caller has to recompute either from
     ``l_max`` and a frequency offset and hope it lands on the same answer.
 
@@ -281,9 +313,17 @@ class PeriodWindow:
         PeriodWindow
             The window, with its evaluation subset intersected against it so the
             two cannot disagree.
+
+        Raises
+        ------
+        ValueError
+            If the evaluation dates are not one contiguous run of *dates* or of
+            the window, which happens only when *dates* is not monotonic.
+            Descending dates also give one run, and the slices then select
+            the same dates as the masks.
         """
         in_eval = in_window & (dates >= eval_start) & (dates <= eval_end)
-        return cls(
+        window = cls(
             start=start,
             end=end,
             in_window=in_window,
@@ -291,28 +331,44 @@ class PeriodWindow:
             in_eval=in_eval,
             eval_dates=dates[in_eval],
         )
+        # Read once here, so unsorted dates are refused when the window is
+        # built rather than when it is first read.
+        _ = window.eval_slice, window.window_eval_slice
+        return window
+
+    @cached_property
+    def eval_slice(self) -> slice:
+        """The dates of :attr:`in_eval`, as a slice of the full date axis.
+
+        The evaluation dates are one run of the sorted axis, and reading them
+        through a slice gives a view of a full-axis array where the mask would
+        copy it.  Derived from :attr:`in_eval` rather than stored beside it, so
+        the two cannot disagree.
+
+        Raises
+        ------
+        ValueError
+            If the evaluation dates are not one contiguous run.
+        """
+        return _contiguous_run(self.in_eval)
+
+    @cached_property
+    def window_eval_slice(self) -> slice:
+        """The same dates, as a slice of the padded window.
+
+        For reading a counterfactual evaluated on the window.
+
+        Raises
+        ------
+        ValueError
+            If the evaluation dates are not one contiguous run of the window.
+        """
+        return _contiguous_run(self.in_eval[self.in_window])
 
     @property
     def n_actual(self) -> int:
         """How many fitted dates fall in the window."""
         return len(self.actual_dates)
-
-    def eval_mask(self, max_window: int) -> np.ndarray:
-        """Positions in the padded window that enter the sum.
-
-        Parameters
-        ----------
-        max_window : int
-            Padded window length every period is stacked to.
-
-        Returns
-        -------
-        np.ndarray
-            Boolean mask of length *max_window*.
-        """
-        mask = np.zeros(max_window, dtype=bool)
-        mask[np.flatnonzero(self.in_eval[self.in_window])] = True
-        return mask
 
     def offsets_within(self, first: pd.Timestamp, last: pd.Timestamp) -> np.ndarray:
         """Positions inside the window of the dates in ``[first, last]``.
