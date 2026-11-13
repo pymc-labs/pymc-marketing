@@ -21,6 +21,7 @@ from pydantic import ValidationError
 from pytensor.xtensor.type import XTensorVariable
 from xarray import DataArray
 
+from pymc_marketing.constants import DAYS_IN_YEAR
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm.hsgp import CovFunc, SoftPlusHSGP
 from pymc_marketing.mmm.tvp import (
@@ -440,3 +441,35 @@ class TestCreateHsgpFromConfig:
         np.testing.assert_array_equal(hsgp.X.eval(), time_index)
         assert hsgp.dims == ("date", "channel")
         assert hsgp.X_mid == 26.0
+
+
+@pytest.mark.parametrize("start", [0.0, 1000.0], ids=["zero-start", "offset"])
+def test_hsgp_kwargs_default_L_covers_the_data(start) -> None:
+    # The default L is twice the largest distance of the index from X_mid:
+    # X_mid * 2 for a zero-start index, and the same value for a shifted one.
+    X = np.arange(156.0) + start
+    hsgp = create_hsgp_from_config(
+        X=DataArray(X, dims=("date",)), dims="date", config=HSGPKwargs()
+    )
+    assert hsgp.L == pytest.approx(155.0)
+    assert hsgp.L > np.max(np.abs(X - hsgp.X_mid))
+
+
+@pytest.mark.parametrize("start", [0, 10], ids=["zero-start", "offset"])
+def test_time_varying_gp_multiplier_default_L_does_not_depend_on_where_the_index_starts(
+    start,
+) -> None:
+    index = np.arange(5) + start
+    hsgp_kwargs = HSGPKwargs()
+    with pm.Model(coords={"date": range(5)}):
+        time_index = pmd.Data("X", index, dims="date")
+        create_time_varying_gp_multiplier(
+            name="intercept",
+            dims="date",
+            time_index=time_index,
+            time_index_mid=start + 2,
+            time_resolution=7,
+            hsgp_kwargs=hsgp_kwargs,
+        )
+    # 2 is time_index_mid for the zero-start index, as before.
+    assert hsgp_kwargs.L == pytest.approx(2 + DAYS_IN_YEAR / 7)
