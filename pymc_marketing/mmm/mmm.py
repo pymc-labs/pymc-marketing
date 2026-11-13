@@ -3282,6 +3282,15 @@ class MMM(RegressionModelBuilder):
         effect_data = built[names]
         if self.date_column != Dim.DATE and Dim.DATE in effect_data.sizes:
             effect_data = effect_data.rename({Dim.DATE: self.date_column})
+        date = self.date_column
+        if date in effect_data.sizes and date in fit_data.sizes:
+            # The built model holds converted dates, X can hold them as strings.
+            labels = fit_data.indexes[date]
+            as_dates = pd.to_datetime(labels, errors="coerce")
+            if set(as_dates) == set(effect_data.indexes[date]):
+                effect_data = effect_data.sel({date: as_dates}).assign_coords(
+                    {date: labels}
+                )
         for dim in set(effect_data.sizes) & set(fit_data.sizes):
             if set(effect_data.indexes[dim]) != set(fit_data.indexes[dim]):
                 warnings.warn(

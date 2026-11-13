@@ -895,6 +895,34 @@ class TestFitWithXarrayInput:
         assert got.sizes["date"] == 4
         xr.testing.assert_allclose(got, expected)
 
+    def test_save_load_keeps_mu_effect_data_with_string_dates_in_fit_frame(
+        self, tmp_path, mock_pymc_sample
+    ):
+        """mu_effect data is stored when X holds the dates as strings.
+
+        The model is built from a Dataset with datetime dates and fit on a frame
+        with the same dates as strings, so the labels only differ in type.
+        """
+        ds = self._dataset_with_promo(("date", "geo", "segment"))
+        mmm = self._mmm(("geo",), self.CONTROLS)
+        mmm.add_mu_effect(_SegmentEffect(data_vars=["promo"], prefix="promo"))
+        mmm.build_model(ds)
+        df = self._fit_frame(ds, "date")
+        df["date"] = df["date"].dt.strftime("%Y-%m-%d")
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            mmm.fit(df.drop(columns="y"), df["y"])
+
+        assert "promo" in mmm.idata.fit_data
+        file = str(tmp_path / "string_dates_frame.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        got = loaded.model["promo"].eval()
+        assert not np.isnan(got).any()
+        np.testing.assert_allclose(got, mmm.model["promo"].eval())
+
     def test_fit_warns_when_mu_effect_data_labels_differ(self, mock_pymc_sample):
         """``fit_data`` skips mu_effect data whose labels differ from the fit data."""
         ds = self._dataset_with_promo(("date", "geo", "segment"))
