@@ -1059,6 +1059,12 @@ class TestFitWithXarrayInput:
         (warning,) = [w for w in record if "mu_effect data" in str(w.message)]
         assert warning.filename == __file__
 
+        # create_fit_data is public: a direct call points at its caller too.
+        with pytest.warns(UserWarning, match=r"'geo' labels") as record:
+            mmm.create_fit_data(df.drop(columns="y"), df["y"])
+        (warning,) = [w for w in record if "mu_effect data" in str(w.message)]
+        assert warning.filename == __file__
+
 
 def test_fit_with_dataframe_embedded_target_column(simple_mmm_data, mock_pymc_sample):
     """``fit`` reads the ``target_column`` of ``X`` when ``y`` is omitted (#3227).
