@@ -682,6 +682,27 @@ class TestFitWithXarrayInput:
         xr.testing.assert_allclose(loaded.xarray_dataset, mmm.xarray_dataset)
         xr.testing.assert_equal(loaded.idata.posterior, mmm.idata.posterior)
 
+    @pytest.mark.parametrize("date_column", ["date", "week"])
+    def test_build_from_idata_reads_the_legacy_fit_data_layout(
+        self, inputs, date_column, mock_pymc_sample
+    ):
+        """``fit_data`` with one row dim and the date as a variable still loads.
+
+        Files written before ``fit_data`` had ``(date, *dims)`` coordinates store
+        the flat frame passed to ``fit``.
+        """
+        mmm = self._mmm(inputs["dims"], self.CONTROLS, date_column=date_column)
+        X_df = inputs["X_df"].rename(columns={"date": date_column})
+        mmm.fit(X_df, inputs["y"])
+        legacy = pd.concat([X_df, inputs["y"]], axis=1).to_xarray()
+        idata = mmm.idata.copy()
+        idata["fit_data"] = xr.DataTree(legacy)
+
+        rebuilt = self._mmm(inputs["dims"], self.CONTROLS, date_column=date_column)
+        rebuilt.build_from_idata(idata)
+
+        xr.testing.assert_allclose(rebuilt.xarray_dataset, mmm.xarray_dataset)
+
     def test_build_from_idata_raises_when_posterior_labels_differ(
         self, mock_pymc_sample
     ):

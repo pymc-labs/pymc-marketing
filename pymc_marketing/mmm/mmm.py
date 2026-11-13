@@ -5666,6 +5666,10 @@ class MMM(RegressionModelBuilder):
         # create_fit_data, so mu_effect data keeps its own dims. Dates are
         # converted once, for every variable, as the DataFrame path does.
         fit_data = idata.fit_data.dataset
+        if self.date_column not in fit_data.dims:
+            # Older files store one row dim, with the date and dims as variables.
+            index = [self.date_column, *(d for d in self.dims if d in fit_data)]
+            fit_data = fit_data.to_dataframe().set_index(index).to_xarray()
         if self.date_column != Dim.DATE:
             fit_data = fit_data.rename({self.date_column: Dim.DATE})
         fit_data = fit_data.assign_coords(
