@@ -46,6 +46,7 @@ from pymc_marketing.mmm import (
     TimeSliceCrossValidator,
 )
 from pymc_marketing.mmm.additive_effect import (
+    ControlMuEffect,
     DataVarMuEffect,
     EventAdditiveEffect,
     LinearTrendEffect,
@@ -405,6 +406,20 @@ def test_fit_with_dataset_embedded_target(single_dim_data):
     assert not mmm.xarray_dataset["_channel"].isnull().any()
 
 
+class _SegmentEffect(DataVarMuEffect):
+    """Reads a ``(date, geo, segment)`` variable, which a long frame cannot hold.
+
+    Defined at module level so that ``MMM.load`` can import it by ``__type__``.
+    """
+
+    def create_effect(self, mmm):  # type: ignore[override]
+        coef = pmd.Normal(f"{self.prefix}_coef", 0, 1, dims=("segment",))
+        return pmd.Deterministic(
+            f"{self.prefix}_contribution",
+            (coef * mmm.model[self.data_vars[0]]).sum("segment"),
+        )
+
+
 class TestFitWithXarrayInput:
     """Regression tests for #3227: ``fit`` accepts the documented xarray inputs.
 
@@ -686,6 +701,103 @@ class TestFitWithXarrayInput:
 
         with pytest.raises(ValueError, match=r"'geo' labels of the data .* posterior"):
             self._mmm(("geo",), self.CONTROLS).build_from_idata(idata)
+
+    def _dataset_with_promo(self, promo_dims: tuple[str, ...]) -> xr.Dataset:
+        """Unsorted panel Dataset plus a ``promo`` variable on ``promo_dims``."""
+        ds = self._unsorted_panel_dataset()
+        coords = {
+            "date": ds["date"].values,
+            "geo": ds["geo"].values,
+            "segment": ["s3", "s1", "s2"],
+        }
+        rng = np.random.default_rng(2938)
+        promo = xr.DataArray(
+            rng.normal(size=[len(coords[dim]) for dim in promo_dims]),
+            dims=promo_dims,
+            coords={dim: coords[dim] for dim in promo_dims},
+        )
+        return ds.assign(promo=promo)
+
+    def _fit_frame(self, ds: xr.Dataset, date_column: str) -> pd.DataFrame:
+        """``ds`` as a long frame of media, controls and target, without ``promo``."""
+        return (
+            xr.merge(
+                [
+                    ds["media"].to_dataset("channel"),
+                    ds["_control"].to_dataset("control"),
+                    ds["target"].rename("y"),
+                ]
+            )
+            .to_dataframe()
+            .reset_index()
+            .rename(columns={"date": date_column})
+        )
+
+    @pytest.mark.parametrize("date_column", ["date", "week"])
+    @pytest.mark.parametrize("fit_from", ["dataset", "dataframe"])
+    @pytest.mark.parametrize(
+        "promo_dims, effect",
+        [
+            (("date", "geo"), ControlMuEffect(data_vars=["promo"], prefix="promo")),
+            (("date",), ControlMuEffect(data_vars=["promo"], prefix="promo")),
+            (
+                ("date", "geo", "segment"),
+                _SegmentEffect(data_vars=["promo"], prefix="promo"),
+            ),
+        ],
+        ids=["date-geo", "date-only", "extra-dim"],
+    )
+    def test_save_load_keeps_mu_effect_data(
+        self, promo_dims, effect, fit_from, date_column, tmp_path, mock_pymc_sample
+    ):
+        """``MMM.load`` rebuilds a model whose mu_effect reads data missing from X (#2938).
+
+        The effect data only exists in the Dataset the model was built from, so
+        ``fit_data`` must store it with its own dims and ``load`` must put it back.
+        """
+        ds = self._dataset_with_promo(promo_dims)
+        mmm = self._mmm(("geo",), self.CONTROLS, date_column=date_column)
+        mmm.add_mu_effect(effect)
+        if fit_from == "dataset":
+            mmm.fit(ds)
+        else:
+            mmm.build_model(ds)
+            df = self._fit_frame(ds, date_column)
+            mmm.fit(df.drop(columns="y"), df["y"])
+
+        stored = mmm.idata.fit_data["promo"]
+        assert stored.dims == tuple(
+            date_column if dim == "date" else dim for dim in promo_dims
+        )
+
+        file = str(tmp_path / "mu_effect_data.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        xr.testing.assert_allclose(loaded.xarray_dataset, mmm.xarray_dataset)
+        assert {dim: list(v) for dim, v in loaded.model.coords.items()} == {
+            dim: list(v) for dim, v in mmm.model.coords.items()
+        }
+        dims = loaded.model.named_vars_to_dims["promo"]
+        got = xr.DataArray(
+            loaded.model["promo"].eval(),
+            dims=dims,
+            coords={dim: list(loaded.model.coords[dim]) for dim in dims},
+        )
+        xr.testing.assert_allclose(got, ds["promo"].transpose(*dims).reindex_like(got))
+
+    def test_fit_warns_when_mu_effect_data_labels_differ(self, mock_pymc_sample):
+        """``fit_data`` skips mu_effect data whose labels differ from the fit data."""
+        ds = self._dataset_with_promo(("date", "geo", "segment"))
+        mmm = self._mmm(("geo",), self.CONTROLS)
+        mmm.add_mu_effect(_SegmentEffect(data_vars=["promo"], prefix="promo"))
+        mmm.build_model(ds)
+        df = self._fit_frame(ds, "date").query("geo == 'north'")
+
+        with pytest.warns(UserWarning, match=r"'geo' labels of the built model"):
+            mmm.fit(df.drop(columns="y"), df["y"])
+
+        assert "promo" not in mmm.idata.fit_data
 
 
 def test_fit_with_dataframe_embedded_target_column(simple_mmm_data, mock_pymc_sample):
