@@ -5692,10 +5692,12 @@ class MMM(RegressionModelBuilder):
         X = xr.Dataset(data)
 
         if "posterior" in idata.children:
+            # Every dim the posterior shares with the data, including mu_effect
+            # dims such as an extra dim, follows the posterior's label order.
             self._custom_dim_order = {
                 dim: idata.posterior.indexes[dim]
-                for dim in self.dims
-                if dim in idata.posterior.indexes
+                for dim in X.sizes
+                if dim != Dim.DATE and dim in idata.posterior.indexes
             }
         try:
             self.build_model(X)  # type: ignore

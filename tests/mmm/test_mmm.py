@@ -944,6 +944,37 @@ class TestFitWithXarrayInput:
         assert not np.isnan(got).any()
         np.testing.assert_allclose(got, mmm.model["promo"].eval())
 
+    def test_load_keeps_the_posterior_order_of_a_mu_effect_dim(
+        self, tmp_path, mock_pymc_sample
+    ):
+        """An extra mu_effect dim follows the posterior's label order after load.
+
+        The model is built with ``segment`` unsorted and fit on a Dataset with
+        ``segment`` sorted, so ``fit_data`` and the posterior disagree on order.
+        Posterior draws are matched by position, so the rebuilt model must use
+        the posterior's order.
+        """
+        ds = self._dataset_with_promo(("date", "geo", "segment"))
+        mmm = self._mmm(("geo",), self.CONTROLS)
+        mmm.add_mu_effect(_SegmentEffect(data_vars=["promo"], prefix="promo"))
+        mmm.build_model(ds)
+        mmm.fit(ds.reindex(segment=["s1", "s2", "s3"]))
+
+        file = str(tmp_path / "segment_order.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        posterior_order = list(mmm.idata.posterior.indexes["segment"])
+        assert posterior_order == ["s3", "s1", "s2"]
+        assert list(loaded.model.coords["segment"]) == posterior_order
+        dims = loaded.model.named_vars_to_dims["promo"]
+        got = xr.DataArray(
+            loaded.model["promo"].eval(),
+            dims=dims,
+            coords={dim: list(loaded.model.coords[dim]) for dim in dims},
+        )
+        xr.testing.assert_allclose(got, ds["promo"].transpose(*dims).reindex_like(got))
+
     def test_fit_data_takes_mu_effect_data_from_dataset_x(self, mock_pymc_sample):
         """``fit_data`` stores the mu_effect data of the Dataset passed to fit.
 
