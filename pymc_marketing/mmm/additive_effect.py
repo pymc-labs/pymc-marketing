@@ -211,7 +211,7 @@ coefficients.
 
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
-from typing import Annotated, Any, Literal, Protocol
+from typing import Annotated, Any, Literal, Protocol, Self
 
 import numpy as np
 import numpy.typing as npt
@@ -226,7 +226,11 @@ from pydantic import (
     ConfigDict,
     Field,
     InstanceOf,
+    StrictBool,
     StrictInt,
+    StringConstraints,
+    field_validator,
+    model_validator,
 )
 from pymc_extras.prior import Prior, VariableFactory
 from pytensor.xtensor.type import XTensorVariable
@@ -372,6 +376,121 @@ CarryoverLags = Annotated[
 ]
 """A non-negative window length, tolerant of NumPy integers but not of ``bool``."""
 
+RESERVED_MEDIATOR_NAMES = frozenset(
+    {
+        "total",
+        "direct",
+        "mediated",
+        "spend_change",
+        "induced_spend",
+        "complete",
+        "chain",
+        "draw",
+        Dim.DATE,
+        Dim.CHANNEL,
+    }
+)
+"""Names an incrementality result already uses for a variable, a dimension or a coordinate."""
+
+
+class MediatorSpec(BaseModel):
+    r"""A node of an effect that a spend counterfactual moves, and how to report it.
+
+    Declared in :attr:`IncrementalitySpec.mediators`.  A node is a registered
+    ``Deterministic`` that sits between spend and the term the effect adds to
+    the linear predictor: latent demand in a funnel, or the lower-funnel spend
+    that demand induces.  Declaring it does two things.
+    :class:`~pymc_marketing.mmm.incrementality.Incrementality` can report how far
+    a counterfactual moves it, and for an effect whose ``role`` is
+    ``"mediator"`` the nodes mark where every route from spend into the
+    effect's term is cut.
+
+    The effect has to read the registered variable and not the expression it
+    was registered from: write ``hub = pmd.Deterministic(...)`` and build the
+    next line on ``hub``.
+
+    .. note::
+
+        Provisional.  The fields may change once structural effects
+        (issue #2901) settle their node vocabulary.  Building the
+        declaration in :meth:`MuEffect.incrementality_spec` from fields the
+        effect already saves keeps a saved model independent of this class.
+
+    Parameters
+    ----------
+    name : str
+        What users pass and what results are labelled with.  A Python
+        identifier, since it becomes a variable of a result ``Dataset``, and
+        none of the names a result already uses.
+    variable : str
+        Name of the registered ``Deterministic`` in the model.
+    units : str, optional
+        What a movement is reported in.  Required when ``scale`` is not one or
+        ``is_spend`` is set.
+    scale : float, default 1.0
+        Reported units per model unit.  A movement is multiplied by it before
+        it is summed.  One number: a node scaled differently per geo has to be
+        modelled in its reported units.
+    is_spend : bool, default False
+        Whether the reported movement is money in the currency of channel
+        spend, which is what admits it to the denominator of a ratio.  The
+        author's claim: nothing in the model can verify it.
+
+    Examples
+    --------
+    A spend node tied to observed lower-funnel spend by a likelihood with a
+    unit coefficient:
+
+    .. code-block:: python
+
+        MediatorSpec(
+            name="lf_spend",
+            variable=f"{self.prefix}_spend",
+            units="USD",
+            is_spend=True,
+        )
+
+    A mediator in normalized units, reported in impressions:
+
+    .. code-block:: python
+
+        MediatorSpec(
+            name="sem",
+            variable=f"{self.prefix}_mediator",
+            units="impressions",
+            scale=self.impressions_scale,
+        )
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid", validate_assignment=True)
+
+    name: Annotated[str, StringConstraints(pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")]
+    variable: Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
+    units: (
+        Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)] | None
+    ) = None
+    scale: Annotated[float, Field(strict=True, gt=0, allow_inf_nan=False)] = 1.0
+    is_spend: StrictBool = False
+
+    @model_validator(mode="after")
+    def _reported_quantities_have_units(self) -> Self:
+        if self.name in RESERVED_MEDIATOR_NAMES:
+            raise ValueError(
+                f"The mediator name {self.name!r} is reserved: a result already "
+                f"uses {sorted(RESERVED_MEDIATOR_NAMES)}."
+            )
+        if self.is_spend and self.units is None:
+            raise ValueError(
+                f"The mediator {self.name!r} is declared as spend, so 'units' "
+                "has to name its currency."
+            )
+        if self.scale != 1.0 and self.units is None:
+            raise ValueError(
+                f"The mediator {self.name!r} is rescaled, so 'units' has to "
+                "name what it is reported in."
+            )
+        return self
+
 
 class IncrementalitySpec(BaseModel):
     r"""Declaration that an effect may take part in incrementality analysis.
@@ -411,6 +530,27 @@ class IncrementalitySpec(BaseModel):
         over ``date``, such as a normalisation by ``x.mean("date")`` -- because
         such an effect takes a different value on a truncated axis.  ``"auto"``
         measures which of the two applies.
+    role : {"mediator", "direct"}, optional
+        What the term this effect adds to the linear predictor is, for a
+        request that separates the direct path from the mediated one
+        (``paths="direct"`` or ``"mediated"``).
+
+        - ``"mediator"``: spend reaches the term only through the nodes
+          declared in ``mediators``.  The term is then held at its factual
+          value in a direct effect.  At least one node has to be declared.
+        - ``"direct"``: the term is one more direct function of spend, such as
+          a synergy between channels or a normalization.  It is never held.
+        - ``None``: nothing is claimed.  Totals work, and a request for a
+          path is refused with the effect's name.
+
+        The role is the author's causal claim.  The graph cannot prove it, but
+        it can contradict it, and a path request checks that it does not: a
+        ``"mediator"`` term that spend also reaches past its nodes, or a
+        ``"direct"`` term that reads a declared node, is refused.
+    mediators : tuple of MediatorSpec, default ()
+        Nodes of the effect to report, and for a ``"mediator"`` the nodes its
+        term is built from.  Their order carries no meaning: they are kept
+        sorted by name.
 
     Examples
     --------
@@ -432,12 +572,69 @@ class IncrementalitySpec(BaseModel):
                 return IncrementalitySpec(
                     additional_carryover_lags=self.demand_transform.adstock.l_max
                 )
+
+    Declare the funnel as a mediator, with the demand hub and the lower-funnel
+    spend it induces, so that direct and mediated increments can be asked for
+    and the induced spend can enter a ROAS denominator:
+
+    .. code-block:: python
+
+        class FunnelEffect(DataVarMuEffect):
+            def incrementality_spec(self) -> IncrementalitySpec:
+                return IncrementalitySpec(
+                    role="mediator",
+                    mediators=(
+                        MediatorSpec(name="demand", variable=f"{self.prefix}_hub"),
+                        MediatorSpec(
+                            name="lf_spend",
+                            variable=f"{self.prefix}_spend",
+                            units="USD",
+                            is_spend=True,
+                        ),
+                    ),
+                )
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid", validate_assignment=True)
 
     additional_carryover_lags: CarryoverLags | None = None
     evaluation_mode: Literal["auto", "window", "full"] = "auto"
+    role: Literal["mediator", "direct"] | None = None
+    mediators: tuple[MediatorSpec, ...] = ()
+
+    @field_validator("mediators")
+    @classmethod
+    def _canonical_mediators(
+        cls, mediators: tuple[MediatorSpec, ...]
+    ) -> tuple[MediatorSpec, ...]:
+        names = [mediator.name for mediator in mediators]
+        variables = [mediator.variable for mediator in mediators]
+        for label, values in (("names", names), ("variables", variables)):
+            repeated = sorted({value for value in values if values.count(value) > 1})
+            if repeated:
+                raise ValueError(
+                    f"Mediators need distinct {label}; repeated: {repeated}."
+                )
+        crossed = sorted(
+            mediator.name
+            for mediator in mediators
+            if mediator.name in variables and mediator.name != mediator.variable
+        )
+        if crossed:
+            raise ValueError(
+                f"The mediator names {crossed} are another mediator's variable."
+            )
+        return tuple(sorted(mediators, key=lambda mediator: mediator.name))
+
+    @model_validator(mode="after")
+    def _a_mediator_names_its_nodes(self) -> Self:
+        if self.role == "mediator" and not self.mediators:
+            raise ValueError(
+                "role='mediator' says spend reaches the effect's term only "
+                "through nodes the effect declares, so 'mediators' needs at "
+                "least one of them."
+            )
+        return self
 
 
 class MuEffect(SerializableBaseModel, ABC):
