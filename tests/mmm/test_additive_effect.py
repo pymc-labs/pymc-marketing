@@ -18,6 +18,7 @@ import pymc.dims as pmd
 import pytensor.tensor as pt
 import pytest
 import xarray as xr
+from pydantic import ValidationError
 from pymc_extras.prior import Prior
 from pytensor.graph.traversal import ancestors
 
@@ -25,8 +26,11 @@ from pymc_marketing.mmm.additive_effect import (
     ControlMuEffect,
     DataVarMuEffect,
     FourierEffect,
+    IncrementalitySpec,
     LinearTrendEffect,
     MediaMuEffect,
+    MediatorSpec,
+    MuEffect,
 )
 from pymc_marketing.mmm.components.adstock import GeometricAdstock
 from pymc_marketing.mmm.components.saturation import LogisticSaturation
@@ -1311,3 +1315,205 @@ class TestControlMuEffect:
         assert restored.data_vars == ["ctrl_national"]
         assert restored.prefix == "test_ctrl"
         assert restored == original
+
+
+class TestMediatorSpec:
+    """What a declared node may be called, and what its reporting fields need."""
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "total",
+            "direct",
+            "mediated",
+            "spend_change",
+            "induced_spend",
+            "complete",
+            "chain",
+            "draw",
+            "date",
+            "channel",
+        ],
+    )
+    def test_a_name_a_result_already_uses_is_refused(self, name):
+        """A mediator's name becomes a variable of a ``Dataset`` next to these."""
+        with pytest.raises(ValidationError, match="reserved"):
+            MediatorSpec(name=name, variable="funnel_hub")
+
+    @pytest.mark.parametrize("name", ["", "lf spend", "2nd_hub", "hub-a", "hub.a"])
+    def test_a_name_that_is_not_an_identifier_is_refused(self, name):
+        """The name is what a user types after ``result.``."""
+        with pytest.raises(ValidationError, match="name"):
+            MediatorSpec(name=name, variable="funnel_hub")
+
+    @pytest.mark.parametrize(
+        "fields, missing",
+        [
+            pytest.param({"is_spend": True}, "units", id="spend without a currency"),
+            pytest.param({"scale": 2.5}, "units", id="rescaled without units"),
+        ],
+    )
+    def test_a_reported_quantity_names_its_units(self, fields, missing):
+        """Money and a rescaled movement both say what they are counted in."""
+        with pytest.raises(ValidationError, match=missing):
+            MediatorSpec(name="lf_spend", variable="funnel_spend", **fields)
+
+    @pytest.mark.parametrize(
+        "scale", [0.0, -1.0, float("inf"), float("nan"), True, "2"]
+    )
+    def test_a_scale_is_a_positive_finite_number(self, scale):
+        """A scale multiplies a movement, so zero, a sign and ``inf`` are mistakes."""
+        with pytest.raises(ValidationError, match="scale"):
+            MediatorSpec(
+                name="lf_spend", variable="funnel_spend", units="USD", scale=scale
+            )
+
+    def test_the_variable_is_stripped_and_not_empty(self):
+        """The variable is looked up in the model by this exact text."""
+        spec = MediatorSpec(name="hub", variable=" funnel_hub ")
+
+        assert spec.variable == "funnel_hub"
+        with pytest.raises(ValidationError, match="variable"):
+            MediatorSpec(name="hub", variable="  ")
+
+    def test_a_spec_is_immutable_and_closed(self):
+        """A declaration cannot be edited after it is read, nor carry a typo."""
+        spec = MediatorSpec(name="hub", variable="funnel_hub")
+
+        with pytest.raises(ValidationError):
+            spec.variable = "other"
+        with pytest.raises(ValidationError, match="unit"):
+            MediatorSpec(name="hub", variable="funnel_hub", unit="USD")
+
+
+class TestRoleAndMediators:
+    """The two fields a path request reads off an ``IncrementalitySpec``."""
+
+    def test_an_empty_spec_still_opts_in_and_claims_nothing(self):
+        """Opting in to totals keeps costing one line."""
+        spec = IncrementalitySpec()
+
+        assert spec.role is None
+        assert spec.mediators == ()
+
+    def test_a_mediator_role_names_at_least_one_node(self):
+        """The claim is that spend reaches the term only through declared nodes."""
+        with pytest.raises(ValidationError, match="at least one"):
+            IncrementalitySpec(role="mediator")
+
+    def test_a_direct_role_needs_no_node_and_may_declare_one(self):
+        """A direct effect may still report a node it measures."""
+        indicator = MediatorSpec(name="searches", variable="halo_searches")
+
+        assert IncrementalitySpec(role="direct").mediators == ()
+        assert IncrementalitySpec(role="direct", mediators=(indicator,)).mediators == (
+            indicator,
+        )
+
+    def test_an_unknown_role_is_refused(self):
+        """``"mixed"`` belongs to a later stage, and a typo to none."""
+        with pytest.raises(ValidationError, match="role"):
+            IncrementalitySpec(role="mixed")
+
+    @pytest.mark.parametrize(
+        "second, complaint",
+        [
+            pytest.param(
+                {"name": "hub", "variable": "funnel_spend"},
+                "distinct names",
+                id="one name for two variables",
+            ),
+            pytest.param(
+                {"name": "spend", "variable": "funnel_hub"},
+                "distinct variables",
+                id="one variable under two names",
+            ),
+            pytest.param(
+                {"name": "funnel_hub", "variable": "funnel_spend"},
+                "another mediator's variable",
+                id="a name that is another node's variable",
+            ),
+        ],
+    )
+    def test_names_and_variables_do_not_collide(self, second, complaint):
+        """A result is keyed by name and the graph by variable; neither may repeat."""
+        first = MediatorSpec(name="hub", variable="funnel_hub")
+
+        with pytest.raises(ValidationError, match=complaint):
+            IncrementalitySpec(
+                role="mediator", mediators=(first, MediatorSpec(**second))
+            )
+
+    def test_the_order_of_declaration_carries_no_meaning(self):
+        """Two specs that declare the same nodes are equal, whatever their order."""
+        hub = MediatorSpec(name="hub", variable="funnel_hub")
+        spend = MediatorSpec(
+            name="lf_spend", variable="funnel_spend", units="USD", is_spend=True
+        )
+
+        forward = IncrementalitySpec(role="mediator", mediators=(hub, spend))
+        backward = IncrementalitySpec(role="mediator", mediators=(spend, hub))
+
+        assert forward == backward
+        assert [mediator.name for mediator in backward.mediators] == ["hub", "lf_spend"]
+
+    def test_a_spec_survives_json(self):
+        """A declaration is what a YAML config or a saved effect would hold."""
+        spec = IncrementalitySpec(
+            additional_carryover_lags=4,
+            role="mediator",
+            mediators=(
+                MediatorSpec(name="hub", variable="funnel_hub"),
+                MediatorSpec(
+                    name="sem",
+                    variable="funnel_mediator",
+                    units="impressions",
+                    scale=1250.0,
+                ),
+            ),
+        )
+
+        assert IncrementalitySpec.model_validate_json(spec.model_dump_json()) == spec
+        assert IncrementalitySpec.model_validate(spec.model_dump(mode="json")) == spec
+
+
+class _KeepsItsMediators(MuEffect):
+    """An effect that stores its declaration as a field, with no ``to_dict`` of its own."""
+
+    prefix: str
+    mediators: tuple[MediatorSpec, ...] = ()
+
+    def create_data(self, mmm) -> None:
+        """No data of its own."""
+
+    def create_effect(self, mmm):
+        """Never built here."""
+        raise NotImplementedError
+
+    def set_data(self, mmm, model, X) -> None:
+        """No data of its own."""
+
+    def incrementality_spec(self) -> IncrementalitySpec:
+        """Hand the stored declaration over."""
+        return IncrementalitySpec(role="mediator", mediators=self.mediators)
+
+
+def test_a_declaration_kept_as_a_field_is_saved_with_the_effect():
+    """The default serialization writes the nodes and reads them back.
+
+    The recommended home of a declaration is the method, built from fields the
+    effect already saves.  An effect may keep it as a field instead, and then
+    the plain-dict form a YAML config supplies has to validate too.
+    """
+    effect = _KeepsItsMediators(
+        prefix="funnel",
+        mediators=(
+            MediatorSpec(
+                name="lf_spend", variable="funnel_spend", units="USD", is_spend=True
+            ),
+        ),
+    )
+
+    restored = _KeepsItsMediators.model_validate(effect.model_dump(mode="json"))
+
+    assert restored.incrementality_spec() == effect.incrementality_spec()
