@@ -326,9 +326,10 @@ class TestPeriodReadouts:
     def test_reduce_rows_matches_reducing_each_row(self, link):
         """Stacking the rows before the reduction gives bitwise the same increment.
 
-        A band and a split reduce the stacked rows in one call; a total sums
-        each row over ``date`` first.  Both have to equal reducing every row on
-        its own and stacking the results.
+        A band and a split reduce the stacked rows in one call, and have to
+        equal reducing every row on its own and stacking the results.  A total
+        sums each row over ``date`` first; it is checked against each link's
+        formula.
         """
         rng = np.random.default_rng(0)
         channels = ["c0", "c1", "c2"]
@@ -353,7 +354,22 @@ class TestPeriodReadouts:
                 )
             )
 
-        for readout in (PeriodTotal(), PeriodBand(), PeriodCurrentFuture(0)):
+        # The total against each link's formula, summed over date.
+        values = np.stack([row.values for row in rows], axis=1)
+        if link == "identity":
+            per_date = values * np.array([2.0, 3.0])
+        else:
+            weights = reducer.baseline_response.values[:, :3]
+            per_date = weights[:, np.newaxis] * np.expm1(values)
+        total = PeriodTotal().reduce_rows(iter(rows), reducer, channels)
+        np.testing.assert_allclose(
+            total.transpose("sample", "channel", "geo").values,
+            per_date.sum(axis=2),
+            rtol=1e-14,
+        )
+        assert list(total.indexes["channel"]) == channels
+
+        for readout in (PeriodBand(), PeriodCurrentFuture(0)):
             expected = xr.concat(
                 [readout.reduce_row(row, reducer) for row in rows], dim="channel"
             ).assign_coords(channel=channels)
