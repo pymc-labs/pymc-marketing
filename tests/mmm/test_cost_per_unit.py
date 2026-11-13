@@ -1548,6 +1548,7 @@ class TestPriceResponseAllocation:
 
         assert baseline.implied_delivery is None and baseline.implied_price is None
         assert baseline.implied_marginal_price is None
+        assert baseline.delivery_reports == {}
         spent = identity.budgets > 0
         assert np.all(identity.implied_price.where(spent).fillna(1.0) == 1.0)
         assert np.all(identity.implied_marginal_price.where(spent).fillna(1.0) == 1.0)
@@ -2038,8 +2039,7 @@ class TestPriceResponseOptimality:
             "fixture drifted: the test needs s / s_ref below 0.6 ** 2.5"
         )
 
-        media = aware.optimization_variables.variables[0]
-        report = media.delivery_report(aware.optimization_variables.pack(baseline))
+        report = aware.delivery_reports(baseline)["channel_data"]
         price = float(report["implied_price"].sel(channel="channel_2").mean("date"))
         marginal = float(
             report["implied_marginal_price"].sel(channel="channel_2").mean("date")

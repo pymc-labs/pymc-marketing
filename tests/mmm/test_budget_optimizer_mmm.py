@@ -2816,6 +2816,129 @@ class TestMonetarySpendVariables:
         spent = result.budgets > 0
         assert np.all(result.implied_price.where(spent).fillna(1.0) == 1.0)
 
+    def test_every_priced_variable_reports_on_the_result(
+        self, funnel_identity_fitted_mmm
+    ):
+        """The issue's acceptance, end to end: with spend_vars and a price_response dict,
+        every priced decision variable has a labelled report on the result, over its own
+        dims, satisfying the money identity without a special case for media. The spend
+        variable reads its own elasticity, not media's."""
+        gamma = 0.2
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm,
+            spend_vars=["lf_budget"],
+            price_response={
+                "channel_data": PowerPriceResponse(elasticity=0.0),
+                "lf_budget": PowerPriceResponse(
+                    elasticity=gamma,
+                    assume_delivery_units=True,
+                    reference_spend=xr.DataArray(1.0),
+                ),
+            },
+        )
+
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+
+        assert result.scipy_result.success, result.scipy_result.message
+        reports = result.delivery_reports
+        assert list(reports) == ["channel_data", "lf_budget"]
+        assert reports["lf_budget"].implied_price.dims == ("date",)
+        allocations = {"channel_data": result.budgets, **result.spend_var_allocations}
+        for name, report in reports.items():
+            paid = xr.where(
+                report.implied_price.isnull(),
+                0.0,
+                report.implied_delivery * report.implied_price,
+            )
+            xr.testing.assert_allclose(paid.sum("date"), report.spend.sum("date"))
+            xr.testing.assert_allclose(
+                report.spend.sum("date"), allocations[name] * optimizer.num_periods
+            )
+        spend = reports["lf_budget"]
+        np.testing.assert_allclose(
+            (spend.implied_marginal_price / spend.implied_price).values,
+            1 / (1 - gamma),
+        )
+
+    def test_an_unspent_spend_variable_reports_nan_prices(
+        self, funnel_identity_fitted_mmm, monkeypatch
+    ):
+        """A spend variable held at zero bought nothing, so its report has zero
+        delivery and nan prices, the same convention as an unspent media cell."""
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm,
+            spend_vars=["lf_budget"],
+            price_response={
+                "channel_data": PowerPriceResponse(elasticity=0.0),
+                "lf_budget": PowerPriceResponse(
+                    elasticity=0.2,
+                    assume_delivery_units=True,
+                    reference_spend=xr.DataArray(1.0),
+                ),
+            },
+        )
+        (spend,) = (
+            variable
+            for variable in optimizer.optimization_variables.variables
+            if variable.name == "lf_budget"
+        )
+        # allocate_budget takes bounds for media only; pin the spend variable here.
+        monkeypatch.setattr(
+            spend, "default_bounds", lambda total: [(0.0, 0.0)] * spend.size
+        )
+
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+
+        assert result.scipy_result.success, result.scipy_result.message
+        np.testing.assert_allclose(
+            result.spend_var_allocations["lf_budget"], 0.0, atol=1e-9
+        )
+        report = result.delivery_reports["lf_budget"]
+        np.testing.assert_allclose(report["implied_delivery"], 0.0, atol=1e-9)
+        assert report["implied_price"].isnull().all()
+        assert report["implied_marginal_price"].isnull().all()
+
+    def test_delivery_reports_at_a_plan_match_the_result_at_its_solution(
+        self, funnel_identity_fitted_mmm
+    ):
+        """Reports at a labelled plan come from the same code as the result's, so at
+        the solution they agree; a positional plan is refused as in evaluate_plan."""
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm,
+            spend_vars=["lf_budget"],
+            price_response={
+                "channel_data": PowerPriceResponse(elasticity=0.0),
+                "lf_budget": PowerPriceResponse(
+                    elasticity=0.2,
+                    assume_delivery_units=True,
+                    reference_spend=xr.DataArray(1.0),
+                ),
+            },
+        )
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+        assert result.scipy_result.success, result.scipy_result.message
+
+        reports = optimizer.delivery_reports(
+            {"channel_data": result.budgets, **result.spend_var_allocations}
+        )
+
+        assert list(reports) == list(result.delivery_reports)
+        for name, report in reports.items():
+            xr.testing.assert_allclose(report, result.delivery_reports[name])
+        with pytest.raises(TypeError, match="delivery_reports takes a labelled plan"):
+            optimizer.delivery_reports(result.scipy_result.x)
+
+    def test_no_price_response_means_no_delivery_reports(
+        self, funnel_identity_fitted_mmm
+    ):
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm, spend_vars=["lf_budget"]
+        )
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+        assert result.delivery_reports == {}
+        plan = {"channel_data": result.budgets, **result.spend_var_allocations}
+        assert optimizer.delivery_reports(plan) == {}
+
     def test_an_identity_spend_variable_response_needs_nothing(
         self, funnel_identity_fitted_mmm
     ):
