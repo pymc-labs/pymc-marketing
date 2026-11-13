@@ -106,6 +106,7 @@ from pymc_marketing.mmm.plotting._helpers import (
     _select_dims,
 )
 from pymc_marketing.mmm.summary.helpers import compute_residuals
+from pymc_marketing.names.mmm import Var
 
 
 class DiagnosticsPlots:
@@ -182,7 +183,7 @@ class DiagnosticsPlots:
         -------
         PlotCollection
         """
-        var_name = "y_original_scale" if original_scale else "y"
+        var_name = Var.Y_ORIGINAL_SCALE if original_scale else Var.Y
         var_da = _select_dims(var_da, dims)
         extra_dims = list(data.custom_dims)
         mean_da = var_da.mean(dim=("chain", "draw"))

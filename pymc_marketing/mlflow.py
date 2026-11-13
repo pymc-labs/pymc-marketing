@@ -240,6 +240,7 @@ from pymc_marketing.data.idata.io import (
 )
 from pymc_marketing.mmm import MMM
 from pymc_marketing.mmm.evaluation import compute_summary_metrics
+from pymc_marketing.names.mmm import Attr
 from pymc_marketing.version import __version__
 
 logger = logging.getLogger(__name__)
@@ -1385,7 +1386,7 @@ def log_mmm_configuration(mmm: MMM) -> None:
     attrs = mmm.create_idata_attrs()
     calibrations = {
         name: attrs.pop(name, None)
-        for name in ("lift_test_calibrations", "cost_per_target_calibrations")
+        for name in (Attr.LIFT_TEST_CALIBRATIONS, Attr.COST_PER_TARGET_CALIBRATIONS)
     }
     mlflow.log_params(attrs)
     for name, records in calibrations.items():

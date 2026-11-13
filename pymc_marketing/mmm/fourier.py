@@ -270,6 +270,8 @@ from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.constants import DAYS_IN_MONTH, DAYS_IN_WEEK, DAYS_IN_YEAR
 from pymc_marketing.mmm.dims import XTensorLike
+from pymc_marketing.names import Key
+from pymc_marketing.names.mmm import Dim
 from pymc_marketing.plot import (
     SelToString,
     plot_curve,
@@ -577,7 +579,7 @@ class FourierBase(BaseModel):
         coords: dict[str, npt.NDArray[Any]] = {}
         date_dim: str
         if use_dates:
-            date_dim = "date"
+            date_dim = Dim.DATE
             start_date = self.get_default_start_date(start_date=start_date)
             date_range = pd.date_range(
                 start=start_date,
@@ -660,8 +662,8 @@ class FourierBase(BaseModel):
             Matplotlib figure and axes.
 
         """
-        if "date" in curve.coords:
-            x_coord_name = "date"
+        if Dim.DATE in curve.coords:
+            x_coord_name = Dim.DATE
         elif "day" in curve.coords:
             x_coord_name = "day"
         else:
@@ -735,8 +737,8 @@ class FourierBase(BaseModel):
             Matplotlib figure and axes.
 
         """
-        if "date" in curve.coords:
-            x_coord_name = "date"
+        if Dim.DATE in curve.coords:
+            x_coord_name = Dim.DATE
         elif "day" in curve.coords:
             x_coord_name = "day"
         else:
@@ -796,8 +798,8 @@ class FourierBase(BaseModel):
         tuple[plt.Figure, npt.NDArray[plt.Axes]]
 
         """
-        if "date" in curve.coords:
-            x_coord_name = "date"
+        if Dim.DATE in curve.coords:
+            x_coord_name = Dim.DATE
         elif "day" in curve.coords:
             x_coord_name = "day"
         else:
@@ -844,8 +846,8 @@ class FourierBase(BaseModel):
             Matplotlib figure and axes.
 
         """
-        if "date" in curve.coords:
-            x_coord_name = "date"
+        if Dim.DATE in curve.coords:
+            x_coord_name = Dim.DATE
         elif "day" in curve.coords:
             x_coord_name = "day"
         else:
@@ -891,8 +893,8 @@ class FourierBase(BaseModel):
 
         """
         inner = data.get("data", data)
-        if "__type__" in inner:
-            inner = {k: v for k, v in inner.items() if k != "__type__"}
+        if Key.TYPE in inner:
+            inner = {k: v for k, v in inner.items() if k != Key.TYPE}
         inner["prior"] = deserialize(inner["prior"])
         return cls(**inner)
 
