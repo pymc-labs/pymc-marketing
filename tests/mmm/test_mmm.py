@@ -787,6 +787,40 @@ class TestFitWithXarrayInput:
         )
         xr.testing.assert_allclose(got, ds["promo"].transpose(*dims).reindex_like(got))
 
+    @pytest.mark.parametrize("date_column", ["date", "week"])
+    def test_save_load_keeps_mu_effect_data_from_fit_frame(
+        self, date_column, tmp_path, mock_pymc_sample
+    ):
+        """``MMM.load`` rebuilds a model whose mu_effect data is a column of X (#2938).
+
+        Case 1 of the issue: ``promo`` is on ``(date, geo)`` and the frame passed
+        to ``fit`` holds it, so ``fit_data`` stores it from that frame.
+        """
+        ds = self._dataset_with_promo(("date", "geo"))
+        mmm = self._mmm(("geo",), self.CONTROLS, date_column=date_column)
+        mmm.add_mu_effect(ControlMuEffect(data_vars=["promo"], prefix="promo"))
+        mmm.build_model(ds)
+        promo = ds["promo"].to_dataframe().reset_index()
+        df = self._fit_frame(ds, date_column).merge(
+            promo.rename(columns={"date": date_column}), on=[date_column, "geo"]
+        )
+        mmm.fit(df.drop(columns="y"), df["y"])
+
+        assert mmm.idata.fit_data["promo"].dims == (date_column, "geo")
+
+        file = str(tmp_path / "mu_effect_frame.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        xr.testing.assert_allclose(loaded.xarray_dataset, mmm.xarray_dataset)
+        dims = loaded.model.named_vars_to_dims["promo"]
+        got = xr.DataArray(
+            loaded.model["promo"].eval(),
+            dims=dims,
+            coords={dim: list(loaded.model.coords[dim]) for dim in dims},
+        )
+        xr.testing.assert_allclose(got, ds["promo"].transpose(*dims).reindex_like(got))
+
     def test_fit_warns_when_mu_effect_data_labels_differ(self, mock_pymc_sample):
         """``fit_data`` skips mu_effect data whose labels differ from the fit data."""
         ds = self._dataset_with_promo(("date", "geo", "segment"))
