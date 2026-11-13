@@ -196,11 +196,11 @@ def _scenario_data(
 def _fitted_cadence(scm: SCM) -> str | pd.Timedelta:
     """Infer a regular cadence from the fitted dates, including a two-date fit."""
     training = cast(xr.Dataset, scm._training_data)
-    if Dim.DATE not in training.dims or training.sizes["date"] < 2:
+    if Dim.DATE not in training.dims or training.sizes[Dim.DATE] < 2:
         raise ValueError(
             "Temporal scenarios require at least two training dates to infer the fitted cadence."
         )
-    dates = _dates(training.get_index("date")).as_unit("us")
+    dates = _dates(training.get_index(Dim.DATE)).as_unit("us")
     frequency = pd.infer_freq(dates) if len(dates) >= 3 else dates[1] - dates[0]
     if frequency is None:
         raise ValueError("Temporal scenarios require regularly spaced training dates.")
@@ -211,14 +211,14 @@ def _check_cadence(scm: SCM, data: xr.Dataset, frequency: str | pd.Timedelta) ->
     """Require consecutive scenario rows in the fitted cadence's original phase."""
     if Dim.DATE not in data.dims:
         raise ValueError("Temporal scenarios require labeled date coordinates.")
-    dates = _dates(data.get_index("date")).as_unit("us")
+    dates = _dates(data.get_index(Dim.DATE)).as_unit("us")
     expected = pd.date_range(dates[0], periods=len(dates), freq=frequency).as_unit("us")
     if not dates.equals(expected):
         raise ValueError(
             "Temporal history, decided, and carryover dates must be consecutive at the fitted cadence."
         )
     training = cast(xr.Dataset, scm._training_data)
-    anchor = _dates(training.get_index("date")).as_unit("us")[0]
+    anchor = _dates(training.get_index(Dim.DATE)).as_unit("us")[0]
     start, end = sorted((anchor, dates[0]))
     phase = pd.date_range(start, end, freq=frequency).as_unit("us")
     if not len(phase) or phase[0] != start or phase[-1] != end:
@@ -260,7 +260,7 @@ def _append_carryover(
         if Dim.DATE not in scenario.dims:
             raise ValueError("Carryover requires labeled decided dates.")
         dates = pd.date_range(
-            scenario.get_index("date")[-1], periods=int(carryover) + 1, freq=frequency
+            scenario.get_index(Dim.DATE)[-1], periods=int(carryover) + 1, freq=frequency
         )[1:].as_unit("us")
         tail = xr.Dataset(
             {
@@ -281,11 +281,11 @@ def _append_carryover(
                 for name, value in templates.items()
                 if name in dated
             },
-            coords={"date": dates},
+            coords={Dim.DATE: dates},
         )
     if Dim.DATE not in scenario.dims:
         raise ValueError("Carryover requires labeled decided dates.")
-    if tail.get_index("date")[0] <= scenario.get_index("date")[-1]:
+    if tail.get_index(Dim.DATE)[0] <= scenario.get_index(Dim.DATE)[-1]:
         raise ValueError("Carryover dates must strictly follow decided dates.")
     arrays = dict(templates)
     fixed = {}
@@ -303,14 +303,14 @@ def _append_carryover(
         fixed[name] = as_xtensor(value)
         arrays[name] = xr.concat(
             [template, value],
-            dim="date",
+            dim=Dim.DATE,
             coords="minimal",
             compat="override",
             join="exact",
         )
     coords = dict(scenario.coords)
-    coords["date"] = np.concatenate(
-        [scenario.coords["date"].values, tail.coords["date"].values]
+    coords[Dim.DATE] = np.concatenate(
+        [scenario.coords[Dim.DATE].values, tail.coords[Dim.DATE].values]
     )
     combined = xr.Dataset(arrays, coords=coords)
     _check_cadence(scm, combined, frequency)
@@ -331,11 +331,11 @@ def _prepend_history(
     missing = set(dated).difference(history.data_vars)
     if missing:
         raise ValueError(f"History is missing date-indexed inputs: {sorted(missing)}.")
-    history_variables = [*dated, "date"] if Dim.DATE in history.coords else dated
+    history_variables = [*dated, Dim.DATE] if Dim.DATE in history.coords else dated
     history = validate_dataset(history[history_variables])
     if Dim.DATE not in history.dims:
         raise ValueError("History must contain labeled dates.")
-    if history.get_index("date")[-1] >= scenario.get_index("date")[0]:
+    if history.get_index(Dim.DATE)[-1] >= scenario.get_index(Dim.DATE)[0]:
         raise ValueError("History dates must strictly precede scenario dates.")
     arrays = dict(templates)
     fixed = {}
@@ -354,16 +354,16 @@ def _prepend_history(
         fixed[name] = as_xtensor(value)
         arrays[name] = xr.concat(
             [value, template],
-            dim="date",
+            dim=Dim.DATE,
             coords="minimal",
             compat="override",
             join="exact",
         )
     coords = dict(scenario.coords)
-    coords["date"] = np.concatenate(
-        [history.coords["date"].values, scenario.coords["date"].values]
+    coords[Dim.DATE] = np.concatenate(
+        [history.coords[Dim.DATE].values, scenario.coords[Dim.DATE].values]
     )
-    return xr.Dataset(arrays, coords=coords), fixed, history.sizes["date"]
+    return xr.Dataset(arrays, coords=coords), fixed, history.sizes[Dim.DATE]
 
 
 def _dated_constant_replacements(
@@ -488,7 +488,7 @@ def _tensor_date_axis(
 ) -> int | None:
     """Infer one operation's date axis without caching or proving source provenance."""
     if isinstance(value, XTensorVariable):
-        return value.dims.index("date") if Dim.DATE in value.dims else None
+        return value.dims.index(Dim.DATE) if Dim.DATE in value.dims else None
     owner = value.owner
     if owner is None:
         return None
@@ -584,7 +584,7 @@ def _date_axis_proof(
         if owner is None:
             return False
         if not history and isinstance(owner.op, XTensorFromTensor):
-            return tensor_preserves_dates(owner.inputs[0], value.dims.index("date"))
+            return tensor_preserves_dates(owner.inputs[0], value.dims.index(Dim.DATE))
         dated = [
             item
             for item in owner.inputs
@@ -607,7 +607,7 @@ def _date_axis_proof(
             safe = Dim.DATE not in op.dims
         elif isinstance(op, Rename):
             original = cast(XTensorVariable, owner.inputs[0])
-            safe = original.dims.index("date") == value.dims.index("date")
+            safe = original.dims.index(Dim.DATE) == value.dims.index(Dim.DATE)
         elif isinstance(op, XBlockwise):
             safe = all(Dim.DATE not in dims for group in op.core_dims for dims in group)
         else:
@@ -1033,9 +1033,9 @@ class _Evaluator:
                 )
             value = value.transpose(*container.dims)
             if name in self._history:
-                value = ptx.concat([self._history[name], value], dim="date")
+                value = ptx.concat([self._history[name], value], dim=Dim.DATE)
             if name in self._carryover:
-                value = ptx.concat([value, self._carryover[name]], dim="date")
+                value = ptx.concat([value, self._carryover[name]], dim=Dim.DATE)
             replacements[container] = value
         values = clone_replace(
             list(self.outputs.values()), replace=replacements, rebuild_strict=False
@@ -1079,11 +1079,11 @@ class _Evaluator:
                 )
         coords = self.coords
         if Dim.DATE in value.dims:
-            labels = _dates(value.get_index("date")).as_unit("us")
+            labels = _dates(value.get_index(Dim.DATE)).as_unit("us")
             for candidate in (self.coords, self.output_coords):
                 if Dim.DATE not in candidate:
                     continue
-                target = _dates(candidate["date"]).as_unit("us")
+                target = _dates(candidate[Dim.DATE]).as_unit("us")
                 if (
                     labels.is_unique
                     and len(labels) == len(target)
@@ -1098,8 +1098,8 @@ class _Evaluator:
                 )
         reference = xr.Dataset(coords=_coordinates(coords))
         result = as_xtensor(_align_labels(value, reference).astype(float))
-        if Dim.DATE in result.dims and len(coords["date"]) == len(
-            self.output_coords["date"]
+        if Dim.DATE in result.dims and len(coords[Dim.DATE]) == len(
+            self.output_coords[Dim.DATE]
         ):
             self._full_date_sources.add(result)
         return result
@@ -1114,14 +1114,14 @@ class _Evaluator:
             self._full_date_sources,
             self._full_date_sources,
             self._full_date_sources,
-            len(self.output_coords["date"]),
+            len(self.output_coords[Dim.DATE]),
         )
         if not preserves_dates(value):
             raise ValueError(
                 "decided expects the full output date axis in its original order; "
                 "call evaluate.decided on the full ordered output before slicing or permuting dates."
             )
-        return value.isel(date=slice(0, len(self.coords["date"])))
+        return value.isel(date=slice(0, len(self.coords[Dim.DATE])))
 
     def validate_plan(
         self, plan: xr.Dataset | Mapping[str, xr.DataArray]
@@ -1348,8 +1348,8 @@ def _bind_terms(
                 raise ValueError(
                     "Selected Fourier terms require scenario date coordinates."
                 )
-            days = fourier._get_days_in_period(_dates(combined.coords["date"].values))
-            replacements[original] = as_xtensor(days.to_numpy(), dims=("date",))
+            days = fourier._get_days_in_period(_dates(combined.coords[Dim.DATE].values))
+            replacements[original] = as_xtensor(days.to_numpy(), dims=(Dim.DATE,))
     values = clone_replace(
         list(built.values()), replace=replacements, rebuild_strict=False
     )
@@ -1391,7 +1391,7 @@ def _bind_terms(
         coords["sample"] = samples
     output_coords = dict(coords)
     if Dim.DATE in output_scenario.dims:
-        output_coords["date"] = output_scenario.get_index("date")
+        output_coords[Dim.DATE] = output_scenario.get_index(Dim.DATE)
     missing = {
         dim
         for output in outputs.values()
