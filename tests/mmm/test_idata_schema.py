@@ -524,7 +524,7 @@ def test_schema_factory_creates_basic_schema():
     assert "mu" in posterior_group.variables, "posterior should include mu"
 
     # Verify no control variables (not requested)
-    assert "control_data_" not in constant_data_group.variables, (
+    assert "control_data" not in constant_data_group.variables, (
         "Should not include control variables when has_controls=False"
     )
 
@@ -541,13 +541,38 @@ def test_schema_factory_includes_controls():
 
     # Assert
     constant_data_group = schema.groups["constant_data"]
-    assert "control_data_" in constant_data_group.variables, (
-        "Should include control_data_ when has_controls=True"
+    assert "control_data" in constant_data_group.variables, (
+        "Should include control_data when has_controls=True"
     )
 
     posterior_group = schema.groups["posterior"]
     assert "control_contribution" in posterior_group.variables, (
         "Should include control_contribution when has_controls=True"
+    )
+
+
+@pytest.mark.parametrize("custom_dims", [(), ("geo",)])
+def test_schema_checks_control_data_when_has_controls(custom_dims):
+    """The schema checks the ``control_data`` variable that the MMM creates."""
+    schema = MMMIdataSchema.from_model_config(
+        custom_dims=custom_dims,
+        has_controls=True,
+        has_seasonality=False,
+        time_varying=False,
+    )
+    group = schema.groups["constant_data"]
+    dims = ("date", *custom_dims, "control")
+    control_data = xr.DataArray(rng.uniform(size=(4,) * len(dims)), dims=dims)
+
+    with_controls = xr.DataTree.from_dict(
+        {"/constant_data": xr.Dataset({"control_data": control_data})}
+    )
+    without_controls = xr.DataTree.from_dict({"/constant_data": xr.Dataset()})
+
+    assert not [e for e in group.validate_group(with_controls) if "control" in e]
+    assert (
+        "Required variable 'control_data' not found in group 'constant_data'"
+        in group.validate_group(without_controls)
     )
 
 
