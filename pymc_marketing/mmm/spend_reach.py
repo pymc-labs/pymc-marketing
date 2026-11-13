@@ -1369,6 +1369,7 @@ class SpendProbe:
         effects: Sequence[ChannelDependentEffect],
         l_max: int,
         trailing_lags: int,
+        accounting_checked_on_rows: bool = False,
     ) -> SpendReach:
         r"""Measure how far in time a change in spend moves the evaluated nodes.
 
@@ -1408,6 +1409,11 @@ class SpendProbe:
             :func:`~pymc_marketing.mmm.incrementality.kernel_trailing_lags`.
             Passed in rather than derived here, so this module needs nothing
             about convolution modes.
+        accounting_checked_on_rows : bool, default=False
+            Whether the request checks the completeness of its increment on the
+            rows it evaluates, as a request for the direct or the mediated path
+            does.  Only decides what the warning says when no probe could be
+            placed: such a request is not told its accounting goes unverified.
 
         Returns
         -------
@@ -1418,15 +1424,19 @@ class SpendProbe:
             # No date could be perturbed, so nothing about the window was
             # established.  Fall back to the only mode that is correct without a
             # measurement rather than trusting an unmeasured one.
+            unverified = (
+                ""
+                if accounting_checked_on_rows
+                else "  With no probe, the completeness of the increment -- "
+                "that the evaluated nodes account for the whole move in the "
+                "linear predictor -- also goes unverified."
+            )
             warnings.warn(
                 "Some channel's spend carries no non-zero date after the first or "
                 "before the last, so the reach of a spend counterfactual could "
                 "not be measured.  "
                 "Every period will be evaluated on the full date axis, which is "
-                "correct but slower than a window.  With no probe, the "
-                "completeness of the increment -- that the evaluated nodes "
-                "account for the whole move in the linear predictor -- also "
-                "goes unverified.",
+                "correct but slower than a window." + unverified,
                 UserWarning,
                 skip_file_prefixes=(_PKG_PREFIX,),
             )

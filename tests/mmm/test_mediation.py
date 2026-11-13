@@ -319,6 +319,8 @@ class GraphShape(MuEffect):
                     f"{prefix}_hub", pt.tanh(spend.values), dims=spend.dims
                 )
                 return term(beta * ptx.as_xtensor(classic, dims=spend.dims))
+            case "flag_hub":
+                return term(beta * hub(spend > 0.5))
             case "random_hub":
                 return term(beta * pmd.Normal(f"{prefix}_hub", mu=spend, sigma=0.1))
             case "noisy_hub":
@@ -510,6 +512,8 @@ class TestResolveMediators:
             pytest.param(
                 "segment_hub", "node", "('segment',)", id="a dimension of its own"
             ),
+            pytest.param("classic_hub", "node", "pymc.dims", id="a plain tensor"),
+            pytest.param("flag_hub", "node", "boolean", id="an on/off flag"),
             pytest.param(
                 "hub",
                 "y",
@@ -806,6 +810,20 @@ class TestRoleChecks:
                 ],
                 "'g_effect_contribution'.*none of its declared nodes",
                 id="a mediator that declares another effect's node",
+            ),
+            pytest.param(
+                [
+                    GraphShape(prefix="f", kind="hub", spec=mediator("f", "hub")),
+                    GraphShape(
+                        prefix="g",
+                        kind="reads",
+                        reads="f_effect_contribution",
+                        spec=mediator("f", "hub"),
+                    ),
+                ],
+                "'g_effect_contribution'.*none of its declared nodes"
+                ".*through the mediator term.*'f_effect_contribution'.*node of its own",
+                id="a mediator term built on another mediator's term",
             ),
             pytest.param(
                 [

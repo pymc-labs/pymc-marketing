@@ -446,6 +446,33 @@ class TestIncrementalMediator:
             moved["index"], movement_oracle(full, "funnel_index", frequency="monthly")
         )
 
+    def test_a_declared_full_axis_keeps_the_measured_marks(self, funnel_mmm_data):
+        """Evaluating on the full date axis does not change how far a period reaches.
+
+        The probe still measures the last lag at which each node moves, and the
+        marks are read off those lags, as they are on a window.
+        """
+        mmm = _build_funnel_mmm(
+            funnel_mmm_data,
+            link="log",
+            effects=[_funnel_effect(FullAxisMemoryNodeFunnelEffect)],
+        )
+        incr = mmm.incrementality
+
+        ratio = incr.contribution_over_spend(
+            frequency="monthly", induced_spend=[LF_SPEND]
+        )
+        moved = incr.compute_incremental_mediator(
+            frequency="monthly", mediators=[LF_SPEND]
+        )
+
+        assert ratio["complete"].values.tolist() == expected_complete(
+            mmm, "monthly", 2 * (FUNNEL_L_MAX - 1)
+        )
+        assert moved[LF_SPEND]["complete"].values.tolist() == expected_complete(
+            mmm, "monthly", FUNNEL_L_MAX - 1
+        )
+
     def test_a_node_that_cannot_be_reported_is_named(self, two_hubs_fitted_mmm):
         """Left out of the default with a warning, and refused when asked for."""
         incr = two_hubs_fitted_mmm.incrementality

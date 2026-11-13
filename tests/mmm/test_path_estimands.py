@@ -693,18 +693,22 @@ class TestAccountingOnRows:
         return data
 
     def test_a_model_the_probe_cannot_place_is_still_checked(self, funnel_mmm_data):
-        """The rows need no probe, so a path is verified where a total is not."""
+        """The rows need no probe, so a path is verified where a total is not.
+
+        Both are warned that the reach could not be measured.  Only the total
+        is told that its accounting goes unverified.
+        """
         mmm = _build_funnel_mmm(self._no_probe_data(funnel_mmm_data), link="log")
         incr = mmm.incrementality
 
-        with pytest.warns(UserWarning, match="could not be measured"):
+        with pytest.warns(UserWarning, match="goes unverified"):
             total = incr.compute_incremental_contribution(frequency="monthly")
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", UserWarning)
+        with pytest.warns(UserWarning, match="could not be measured") as caught:
             direct = incr.compute_incremental_contribution(
                 frequency="monthly", paths="direct"
             )
 
+        assert not any("unverified" in str(warning.message) for warning in caught)
         assert EstimandLabel.read(total).accounting_verified is False
         assert EstimandLabel.read(direct).accounting_verified is True
 

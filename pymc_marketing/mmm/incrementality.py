@@ -233,11 +233,13 @@ reports.  ``induced_spend=`` on the ratio methods adds the movement of the
 mediators that are spend to the denominator, for a return on all the spend a
 channel accounts for rather than on its own budget.
 
-Every result carries an
-:class:`~pymc_marketing.mmm.estimand_label.EstimandLabel` as its one
+The increments, the ratios, the decomposition and the mediator movements carry
+an :class:`~pymc_marketing.mmm.estimand_label.EstimandLabel` as their one
 attribute.  It records the request, the terms held, the mediators in the
-denominator and whether the accounting was checked, so a number read later,
-from a file or a table, still says which of these it is.
+denominator and whether the accounting was checked, so an array read back from
+a file still says which of these it is.  A table made from a result does not
+keep it, and the two ``split_`` methods describe their results in attributes
+of their own.
 
 Examples
 --------
@@ -2293,11 +2295,13 @@ class Incrementality:
         The movement is that of the whole node under the total counterfactual.
         It is not split by the path spend took to reach the node.
 
-        ``complete`` is read off the reach the spend probe measured for the
-        nodes of the request.  Where every period is evaluated on the full
-        date axis no reach is measured and the adstock's own kernel stands in
-        for it, so a period marked complete can still be cut short by a path
-        that reaches further than the kernel.
+        ``complete`` is read off the last lag at which the spend probe measured
+        each node of the request to move, also for a model evaluated on the
+        full date axis.  For a model no probe can be placed on, the adstock's
+        own kernel stands in for the measurement, and a period marked complete
+        can then be cut short by a path that reaches further than the kernel.
+        A node the probe finds still moving at the last fitted date has no
+        last lag, and no period is marked complete.
 
         Examples
         --------
@@ -5148,6 +5152,7 @@ class Incrementality:
             validate_reach=validate_reach,
             mediator_responses=mediator_responses,
             mediators_read=tuple(mediator.variable for mediator in mediators),
+            checks_rows=reads.is_path,
         )
 
         # The stretch of dates each period is evaluated over, which of them enter
@@ -5237,6 +5242,7 @@ class Incrementality:
         validate_reach: Callable[[SpendReach], None] | None,
         mediator_responses: Sequence[str] = (),
         mediators_read: Sequence[str] = (),
+        checks_rows: bool = False,
     ) -> ProbedReach:
         """Compile the batched evaluator, evaluate the baseline and probe the reach.
 
@@ -5263,6 +5269,10 @@ class Incrementality:
         mediators_read : sequence of str, default ()
             Those among them this request reads.  Only they enter the
             baseline, the probe and the window.
+        checks_rows : bool, default=False
+            Whether the request checks its accounting on its own rows, which
+            the warning for a model no probe can be placed on takes into
+            account.
 
         Returns
         -------
@@ -5409,6 +5419,7 @@ class Incrementality:
                 effects=effects,
                 l_max=self.model.adstock.l_max,
                 trailing_lags=trailing_lags,
+                accounting_checked_on_rows=checks_rows,
             )
             if validate_reach is not None:
                 validate_reach(reach)
@@ -5759,25 +5770,35 @@ class Incrementality:
             complete = None
             if mediators:
                 # How far the carryover of what the request reads is known to
-                # land.  Under full-axis evaluation no reach was measured, and
-                # the kernel's own trailing lags stand in for it from below.
-                if reach.max_lag is None:
-                    lags = trailing_lags
-                elif reads.wanted:
-                    lags = reach.max_lag
-                else:
-                    lags = max(
-                        reach.measured[mediator.variable].max_lag
-                        for mediator in mediators
-                    )
+                # land: the last lag the probe measured each node to move at.
+                # A declared full axis changes how a period is evaluated and
+                # not these measurements.  Where no probe could be placed the
+                # kernel's own trailing lags stand in from below, and they are
+                # the floor for a response in every case.
+                read = [mediator.variable for mediator in mediators]
+                if reads.wanted:
+                    read += [Var.CHANNEL_CONTRIBUTION, *effect_names]
+                measured = [
+                    reach.measured[node] for node in read if node in reach.measured
+                ]
+                lags = max((node.max_lag for node in measured), default=0)
+                if reads.wanted or len(measured) < len(read):
+                    lags = max(lags, trailing_lags)
+                # A node the probe found still moving at the end of the axis,
+                # or before the perturbed date, has no last lag, and no period
+                # can be vouched for.
+                unbounded = any(node.requires_full_axis for node in measured)
                 complete = [
                     not include_carryover
-                    or not len(
-                        self._tail_dates(
-                            window=window,
-                            dates=self.data.dates,
-                            tail_lags=lags,
-                            freq_offset=freq_offset,
+                    or not (
+                        unbounded
+                        or len(
+                            self._tail_dates(
+                                window=window,
+                                dates=self.data.dates,
+                                tail_lags=lags,
+                                freq_offset=freq_offset,
+                            )
                         )
                     )
                     for window in windows.windows

@@ -58,6 +58,7 @@ from pytensor.compile.ops import ViewOp
 from pytensor.graph.basic import Variable
 from pytensor.graph.traversal import ancestors, toposort
 from pytensor.xtensor.basic import TensorFromXTensor, XTensorFromTensor
+from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.mmm.additive_effect import IncrementalitySpec
 from pymc_marketing.mmm.spend_reach import (
@@ -327,6 +328,16 @@ def resolve_mediators(
         variable = entry["variable"]
         if variable not in pymc_model.named_vars:
             return None
+        if not isinstance(pymc_model[variable], XTensorVariable):
+            return (
+                f"{variable!r} is a plain tensor, and a movement is read "
+                "off a variable registered through pymc.dims"
+            )
+        if pymc_model[variable].type.dtype == "bool":
+            return (
+                f"{variable!r} is boolean, and a movement is a difference: "
+                "register it as a number to report how often it changes"
+            )
         dims = tuple(pymc_model.named_vars_to_dims.get(variable, ()))
         if Dim.DATE not in dims:
             return f"{variable!r} has no 'date' dimension"
@@ -378,9 +389,9 @@ def check_roles(
     2. No ``"direct"`` term has among its ancestors anything a ``"mediator"``
        term owes to its nodes: the nodes, the expressions under them, and
        whatever lies between them and the term, the term included.
-    3. Every ``"mediator"`` term reads at least one of its own declared nodes,
-       and spend does not reach the term once those nodes and the other
-       mediators' terms are cut out.
+    3. Every ``"mediator"`` term reads at least one of its own declared nodes
+       without passing through another term, and spend does not reach the term
+       once those nodes and the other mediators' terms are cut out.
 
     What lies upstream of a mediator's nodes is a transform of spend, and a
     direct effect may share it.  Another mediator's term counts as a cut because
@@ -491,9 +502,23 @@ def check_roles(
                 faults = "; ".join(
                     problems[variable] for variable in own if variable in problems
                 )
+                upstream = set(ancestors([term]))
+                through = [
+                    other
+                    for other in mediator_terms
+                    if other != name and terms[other] in upstream
+                ]
+                via = (
+                    f"; spend reaches it through the mediator term {through}, and "
+                    "it needs a node of its own between that term and itself: "
+                    "register what it takes from the term as a Deterministic and "
+                    "declare that"
+                    if through
+                    else ""
+                )
                 found.append(
                     f"the mediator term {name!r} reads none of its declared "
-                    f"nodes {own}" + (f" ({faults})" if faults else "") + hint
+                    f"nodes {own}" + (f" ({faults})" if faults else "") + hint + via
                 )
             elif channel_data in set(
                 ancestors([term], blockers=[*feeding[name], *others])
