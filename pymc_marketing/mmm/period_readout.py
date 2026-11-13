@@ -26,6 +26,9 @@ evaluations out, one period of one block at a time:
   it lands on (:class:`PeriodBand`), or its current and future value
   (:class:`PeriodCurrentFuture`).  Each reduces as soon as its output allows,
   so nothing larger than that is held across blocks of samples.
+
+The module is internal to :class:`~pymc_marketing.mmm.incrementality.Incrementality`
+and exports nothing.
 """
 
 from __future__ import annotations
@@ -47,15 +50,9 @@ if TYPE_CHECKING:
     from pymc_marketing.mmm.counterfactual import PeriodWindow
     from pymc_marketing.mmm.incrementality import IncrementalReducer
 
-__all__ = [
-    "CurrentFuture",
-    "LinearPredictorDelta",
-    "PeriodBand",
-    "PeriodCurrentFuture",
-    "PeriodReadout",
-    "PeriodTotal",
-    "ReadoutContext",
-]
+# Internal: no public method takes or returns these names, so they can change
+# without notice.
+__all__: list[str] = []
 
 
 @dataclass(frozen=True)
