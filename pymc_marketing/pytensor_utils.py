@@ -39,7 +39,7 @@ from pytensor.graph.basic import Constant, Variable
 from pytensor.graph.fg import FunctionGraph
 from pytensor.graph.replace import clone_replace
 from pytensor.graph.rewriting import rewrite_graph
-from pytensor.graph.traversal import ancestors
+from pytensor.graph.traversal import ancestors, toposort
 from pytensor.tensor.random.op import RNGConsumerOp
 from pytensor.xtensor import xtensor_constant
 from pytensor.xtensor.type import XTensorVariable, as_xtensor
@@ -610,7 +610,13 @@ def blocked_between(
         ]
     )
     upstream = set(ancestors(targets))
-    return [var for var in held if var in upstream and source in set(ancestors([var]))]
+    # One pass over the graph in topological order marks every variable that
+    # depends on the source, instead of one walk to the roots per variable held.
+    downstream = {source}
+    for node in toposort(targets):
+        if not downstream.isdisjoint(node.inputs):
+            downstream.update(node.outputs)
+    return [var for var in held if var in upstream and var in downstream]
 
 
 def reorder_to_model_coords(
