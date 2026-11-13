@@ -307,6 +307,15 @@ def refuse_blocked_spend_paths(
     through a ``pm.Potential`` is not refused, because that dependence is a term
     of the log-probability and not an edge of the graph.
 
+    The anchor is the linear predictor, so a variable that reaches the target
+    only through the likelihood, such as a scale computed from spend, is left
+    alone.  Every model :meth:`~pymc_marketing.mmm.mmm.MMM.build_model` builds
+    has a linear predictor.  In a model without one the anchor is the observed
+    variable, whose ancestors include the likelihood's own parameters, and such
+    a variable is refused as well: with nothing to tell the two routes apart,
+    refusing is the only option that cannot drop part of the increment without
+    saying so.
+
     Parameters
     ----------
     model : MMM
