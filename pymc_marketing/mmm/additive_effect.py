@@ -530,6 +530,13 @@ class MuEffect(SerializableBaseModel, ABC):
         does not depend on spend, and list a date-indexed noise term in
         :attr:`frozen_deterministics`.
 
+        A ``pm.Potential`` is not a spend path.  It adds a term to the
+        log-probability, not an edge to the graph, so a variable tied to spend
+        only through a Potential keeps its draws in the counterfactual, and
+        incrementality does not refuse the model.  This is right for a soft
+        constraint, such as a ROAS calibration prior on a saturation parameter.
+        For a mediator, use the deterministic form above.
+
         Returns
         -------
         IncrementalitySpec or None
