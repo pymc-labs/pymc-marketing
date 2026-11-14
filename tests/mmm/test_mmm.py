@@ -2809,6 +2809,71 @@ def test_monthly_incrementality_cuts_a_frozen_path(
     np.testing.assert_allclose(incremental, expected.transpose(*incremental.dims))
 
 
+class _DateLevelEffect(_ZeroEffect):
+    """A free random variable over the model's dates, added to ``mu``."""
+
+    prefix: str = "level"
+    freeze: bool = False
+
+    @property
+    def frozen_deterministics(self) -> list[str]:
+        """The free random variable itself, when asked to freeze it."""
+        return [f"{self.prefix}_draws"] if self.freeze else []
+
+    def create_effect(self, mmm):
+        """One free value per date."""
+        level = pmd.Normal(f"{self.prefix}_draws", sigma=0.1, dims="date")
+        return pmd.Deterministic(self.contribution_var_name, level)
+
+
+@pytest.fixture
+def fit_date_level_mmm(simple_mmm_data, mock_pymc_sample):
+    """Fit an MMM carrying a ``_DateLevelEffect`` built from *kwargs*."""
+
+    def fit(**kwargs):
+        X, y = simple_mmm_data["X"], simple_mmm_data["y"]
+        mmm = MMM(
+            date_column="date",
+            target_column="target",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            adstock=GeometricAdstock(l_max=1),
+            saturation=LogisticSaturation(),
+        ).add_mu_effect(_DateLevelEffect(**kwargs))
+        mmm.fit(X, y, draws=50, chains=1, random_seed=42)
+        return mmm
+
+    return fit
+
+
+def test_monthly_incrementality_names_an_unfrozen_date_variable(fit_date_level_mmm):
+    """A free random variable over the dates is not cut to a window, so it is named."""
+    mmm = fit_date_level_mmm()
+
+    with pytest.raises(
+        ValueError,
+        match=r"^The evaluation runs on windows shorter than the fitted dates, but "
+        r"the graph reads 'level_draws', which has a 'date' dimension",
+    ):
+        mmm.incrementality.compute_incremental_contribution(frequency="monthly")
+
+    # The full date axis needs no cut.
+    incremental = mmm.incrementality.compute_incremental_contribution(
+        frequency="all_time"
+    )
+    assert np.isfinite(incremental).all()
+
+
+def test_monthly_incrementality_cuts_a_frozen_date_variable(fit_date_level_mmm):
+    """Listed in ``frozen_deterministics``, the variable is cut to each window."""
+    mmm = fit_date_level_mmm(freeze=True)
+
+    incremental = mmm.incrementality.compute_incremental_contribution(
+        frequency="monthly"
+    )
+
+    assert np.isfinite(incremental).all()
+
+
 def test_sample_posterior_predictive_same_data_with_include_last_observations(
     single_dim_data, mock_pymc_sample
 ):

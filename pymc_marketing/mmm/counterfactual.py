@@ -1127,6 +1127,20 @@ class CounterfactualEvaluator:
                 )
             )
 
+        # Any other posterior variable with a date dim, such as a free random
+        # variable, is bound to its draws over the full fitted axis and is not
+        # cut to a window.  Record the ones the graph reads, so that a windowed
+        # evaluation names them instead of failing on a shape mismatch.
+        shared_posterior = self._conditioned.shared_posterior
+        posterior_dims = shared_posterior.dims
+        self._uncut_date_paths: list[str] = [
+            name
+            for name, source in shared_posterior.variables.items()
+            if name not in frozen_paths
+            and source in graph_ancestors
+            and Dim.DATE in posterior_dims[name]
+        ]
+
         # A response that reads none of the inputs replaced above has no
         # scenario axis: it has one value whatever a scenario sets or a window
         # cuts, and vectorizing it fails on a batch dimension that is not
@@ -1960,11 +1974,46 @@ class CounterfactualEvaluator:
         """
         self._refuse_while_bound_to_block()
         self._check_expected_aux_values()
+        self._refuse_uncut_date_paths(windows)
         args: list[np.ndarray] = [scenarios.spend]
         if self.time_dtype is not None:
             args.append(windows.time_index(self.time_dtype)[scenarios.period_index])
         args.extend(aux.cut(windows)[scenarios.period_index] for aux in self._aux)
         return args
+
+    def _refuse_uncut_date_paths(self, windows: EvaluationWindows) -> None:
+        """Refuse a windowed evaluation of a graph that reads an uncut date path.
+
+        Parameters
+        ----------
+        windows : EvaluationWindows
+            The windows the evaluation runs on.
+
+        Raises
+        ------
+        ValueError
+            If a window does not span the fitted date axis and the graph reads
+            a posterior variable with a ``date`` dimension that is not cut to
+            windows, such as a date-indexed free random variable.  Its draws
+            span the fitted dates, so the compiled graph would fail on its
+            shape.
+        """
+        if not self._uncut_date_paths or all(
+            window.n_actual == len(self._dates) for window in windows.windows
+        ):
+            return
+        listing = ", ".join(repr(name) for name in self._uncut_date_paths)
+        one = len(self._uncut_date_paths) == 1
+        it, has, is_ = ("it", "has", "is") if one else ("them", "have", "are")
+        raise ValueError(
+            "The evaluation runs on windows shorter than the fitted dates, but "
+            f"the graph reads {listing}, which {has} a 'date' dimension and "
+            f"{is_} held at the posterior draws over all fitted dates, so {it} "
+            f"cannot be cut to a window.  List {it}, or a Deterministic "
+            f"computed from {it}, in the effect's 'frozen_deterministics' to cut "
+            f"{it} to each window.  An evaluation over the full date axis, such "
+            "as frequency='all_time', is not affected."
+        )
 
     def _frozen_args(
         self, scenarios: CounterfactualScenarios, windows: EvaluationWindows
