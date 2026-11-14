@@ -522,7 +522,8 @@ class PowerPriceResponse(PriceResponse):
     bought far below its reference looks cheap and can attract budget: anchor ``reference_spend`` where you plan
     to buy (raising ``reference_spend_tolerance`` if that is far from the fitted spend) and read
     ``implied_price`` on every channel before trusting the allocation. A variant flat below the reference is
-    #3089.
+    #3089. The :ref:`cost-per-unit notebook <mmm_cost_per_unit_price_response>` shows this case and the
+    precondition end to end.
 
     **Not a rate schedule.** One smooth curve cannot hold a committed tranche at a contracted rate while the
     increment clears at another: calibrated to that case, its marginal price keeps climbing where the true rate
