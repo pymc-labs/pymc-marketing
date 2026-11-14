@@ -182,7 +182,7 @@ from __future__ import annotations
 import io
 import json
 import warnings
-from collections.abc import Callable, Hashable, Sequence
+from collections.abc import Callable, Hashable, Mapping, Sequence
 from copy import deepcopy
 from typing import TYPE_CHECKING, Annotated, Any, Literal, NamedTuple, Self, cast
 
@@ -196,6 +196,7 @@ import xarray as xr
 from pydantic import ConfigDict, Field, InstanceOf, StrictBool, validate_call
 from pymc.model.transform.optimization import freeze_dims_and_data
 from pymc.util import RandomState
+from pymc_extras.deserialize import DeserializableError
 from pymc_extras.prior import Prior
 from pytensor.graph.traversal import ancestors
 from pytensor.xtensor import as_xtensor
@@ -212,6 +213,7 @@ from pymc_marketing.mmm import SoftPlusHSGP
 from pymc_marketing.mmm.additive_effect import (
     EventAdditiveEffect,
     MuEffect,
+    fitted_dates_only_effects,
     safe_to_datetime,
 )
 from pymc_marketing.mmm.budget_optimizer import (
@@ -234,8 +236,13 @@ from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.hsgp import HSGPBase
 from pymc_marketing.mmm.incrementality import Incrementality
 from pymc_marketing.mmm.lift_test import (
+    _LIFT_LIKELIHOODS,
+    _add_cost_per_target_likelihood,
+    _gather_cost_per_target_means,
     _resolve_likelihood,
-    add_cost_per_target_observations,
+    _validate_cost_per_target_likelihood,
+    _validate_likelihood_prior,
+    _validate_positive_cost_per_target_means,
     add_lift_measurements_to_likelihood_from_saturation,
     scale_lift_measurements,
     validate_cost_per_target_rows,
@@ -273,7 +280,21 @@ from pymc_marketing.mmm.utils import (
 from pymc_marketing.model_builder import RegressionModelBuilder, SamplingMethod
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.model_graph import deterministics_to_flat
-from pymc_marketing.serialization import DeserializationContext, serialization
+from pymc_marketing.names import Key
+from pymc_marketing.names.mmm import (
+    ORIGINAL_SCALE_SUFFIX,
+    RESERVED_DIMS,
+    Attr,
+    DatasetVar,
+    Dim,
+    Var,
+    original_scale_name,
+)
+from pymc_marketing.serialization import (
+    DeserializationContext,
+    SerializationError,
+    serialization,
+)
 from pymc_marketing.special_priors import LogNormalPrior
 from pymc_marketing.version import __version__
 
@@ -298,6 +319,210 @@ def _deserialize_cost_per_unit(json_str: str) -> pd.DataFrame:
         if hasattr(dt_accessor, "tz") and dt_accessor.tz is not None:
             df["date"] = dt_accessor.tz_localize(None)
     return df
+
+
+def _calibration_frame_to_record(df: pd.DataFrame) -> dict[str, Any]:
+    """Persist calibration rows as the ``data``/``dtypes`` pair of a calibration record.
+
+    This is the convention of the lift-test records in ``idata.attrs``; the
+    ``dtypes`` map restores column dtypes that JSON cannot carry.
+    """
+    return {
+        "data": df.to_json(
+            orient="split", date_format="iso", date_unit="ns", double_precision=15
+        ),
+        "dtypes": {column: str(dtype) for column, dtype in df.dtypes.items()},
+    }
+
+
+def _calibration_frame_from_record(record: dict[str, Any]) -> pd.DataFrame:
+    """Rebuild the rows written by :func:`_calibration_frame_to_record`."""
+    df = pd.read_json(
+        io.StringIO(record["data"]),
+        orient="split",
+        dtype=False,
+        convert_dates=False,
+        precise_float=True,
+    )
+    for column, dtype in record["dtypes"].items():
+        if dtype.startswith("datetime64"):
+            if "," in dtype:
+                timezone = dtype.split(",", maxsplit=1)[1].strip(" ]")
+                df[column] = pd.to_datetime(df[column], utc=True).dt.tz_convert(
+                    timezone
+                )
+            else:
+                df[column] = pd.to_datetime(df[column]).astype(dtype)
+        else:
+            df[column] = df[column].astype(dtype)
+    return df
+
+
+def _canonical_calibration_records(
+    records: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Return calibration records in a form that compares by content.
+
+    JSON turns tuples into lists, and earlier releases wrote lift-test dates
+    in milliseconds rather than nanoseconds, so the rows are re-encoded: two
+    records holding the same calibration compare equal.
+    """
+    return [
+        {
+            **record,
+            **_calibration_frame_to_record(_calibration_frame_from_record(record)),
+        }
+        for record in json.loads(json.dumps(records))
+    ]
+
+
+def _label_indexer(labels: pd.Index, reference: pd.Index) -> np.ndarray | None:
+    """Return the position in ``labels`` of each label of ``reference``.
+
+    ``None`` unless ``labels`` holds exactly the labels of ``reference``,
+    each once, in any order.
+    """
+    if len(labels) != len(reference) or not labels.is_unique:
+        return None
+    indexer = labels.get_indexer(reference)
+    return None if (indexer < 0).any() else indexer
+
+
+def _calibrations_by_name(
+    records: list[dict[str, Any]], key: str, spend: Mapping[Any, xr.DataArray]
+) -> dict[str, tuple[dict[str, Any], xr.DataArray | None]]:
+    """Key calibration records by name, each with the spend array it points to.
+
+    A shared spend array is named after the first calibration that used it, so
+    ``spend_var`` depends on the order calibrations were added in; the array
+    itself is what the likelihood consumes and takes its place here.
+    """
+    return {
+        record[key]: (
+            {field: value for field, value in record.items() if field != "spend_var"},
+            spend.get(record["spend_var"]) if "spend_var" in record else None,
+        )
+        for record in _canonical_calibration_records(records)
+    }
+
+
+def _reject_infinite_target(target: npt.NDArray) -> None:
+    """Raise if the canonical ``_target`` holds an infinite value.
+
+    Runs on ``xarray_dataset["_target"]``, which :func:`to_mmm_dataset` builds
+    from every place the target can come from (``y``, a ``target_column`` of a
+    DataFrame ``X``, a ``target`` / ``_target`` variable of a Dataset ``X``).
+    An infinite target reaches the clamp in ``build_model``, which rewrites it
+    to 0, and ``+inf`` also makes a ``max`` scale infinite, which zeroes its
+    whole slice.
+
+    NaN is not rejected: ``fillna(0)`` has already run, and it also fills the
+    cells a sparse panel leaves empty, which come back as NaN when a saved
+    model is rebuilt from ``fit_data``.
+    """
+    n_infinite = int(np.count_nonzero(np.isinf(target)))
+    if n_infinite:
+        raise ValueError(
+            f"The target has {n_infinite} infinite value(s). "
+            "build_model would fit each of them as 0, and +inf "
+            "also makes a 'max' target scale infinite, which "
+            "zeroes its whole slice. Drop or replace them before "
+            "fitting."
+        )
+
+
+COST_PER_TARGET_SPEND_GROUP = "cost_per_target_spend"
+"""DataTree group holding the spend arrays of cost-per-target calibrations.
+
+One data variable per distinct spend array, named by the ``name_prefix`` of the
+first calibration that used it; the records in
+``idata.attrs["cost_per_target_calibrations"]`` point at them via ``spend_var``.
+"""
+
+_CPT_METADATA_RECOVERY_HINT = (
+    "To reach the posterior anyway, open the file with "
+    "`pymc_marketing.data.idata.load_idata`, repair or delete "
+    "`idata.attrs['cost_per_target_calibrations']`, and pass the result to "
+    "`MMM.load_from_idata`; a deleted record loads without its likelihood."
+)
+
+_LIFT_METADATA_RECOVERY_HINT = (
+    "To reach the posterior anyway, open the file with "
+    "`pymc_marketing.data.idata.load_idata`, repair or delete the record in "
+    "`idata.attrs['lift_test_calibrations']`, and pass the result to "
+    "`MMM.load_from_idata`; a deleted record loads without its likelihood."
+)
+
+
+def _parse_cost_per_target_record(
+    record: dict[str, Any], dims: tuple[str, ...]
+) -> dict[str, Any]:
+    """Validate one saved calibration record; see :func:`_parse_cost_per_target_records`."""
+    if record.get("format_version") != 2:
+        raise ValueError(
+            "Unsupported cost-per-target calibration format version: "
+            f"{record.get('format_version')!r}"
+        )
+    name_prefix, target_column, spend_var = (
+        record["name_prefix"],
+        record["target_column"],
+        record["spend_var"],
+    )
+    if not all(isinstance(v, str) for v in (name_prefix, target_column, spend_var)):
+        raise ValueError("name_prefix, target_column and spend_var must be strings")
+    if not isinstance(record["target_per_cost"], bool):
+        raise ValueError("target_per_cost must be a boolean")
+    if record["central_tendency"] not in ("mean", "median"):
+        raise ValueError(
+            "central_tendency must be 'mean' or 'median', got "
+            f"{record['central_tendency']!r}"
+        )
+    try:
+        likelihood = serialization.deserialize_model_config(
+            {"likelihood": record["likelihood"]}
+        )["likelihood"]
+    except (SerializationError, DeserializableError) as error:
+        raise ValueError(f"likelihood: {error}") from error
+    if not isinstance(likelihood, Prior):
+        raise ValueError(f"likelihood must be a Prior, got {record['likelihood']!r}")
+    _validate_cost_per_target_likelihood(likelihood)
+    rows = _calibration_frame_from_record(record)
+    if missing := {"channel", "sigma", target_column, *dims} - set(rows.columns):
+        raise ValueError(f"measurement rows lack columns {sorted(missing)}")
+    return {
+        "name_prefix": name_prefix,
+        "target_column": target_column,
+        "target_per_cost": record["target_per_cost"],
+        "central_tendency": record["central_tendency"],
+        "likelihood": likelihood,
+        "spend_var": spend_var,
+        "rows": rows,
+    }
+
+
+def _parse_cost_per_target_records(
+    raw: str, dims: tuple[str, ...]
+) -> list[dict[str, Any]]:
+    """Validate the ``cost_per_target_calibrations`` attribute of a saved model.
+
+    Returns one dict per calibration with the keyword arguments of
+    :meth:`MMM.add_cost_per_target_calibration` other than the spend
+    (``name_prefix``, ``target_column``, ``target_per_cost``,
+    ``central_tendency``, ``likelihood``), the ``spend_var`` naming the spend
+    array in the :data:`COST_PER_TARGET_SPEND_GROUP` group, and the
+    measurement ``rows``. Everything derived from the attribute string is
+    checked here, so the caller only sees ``ValueError`` for corrupt metadata.
+    """
+    try:
+        records = json.loads(raw)
+        if not isinstance(records, list):
+            raise ValueError("expected a list of calibration records")
+        return [_parse_cost_per_target_record(record, dims) for record in records]
+    except (KeyError, TypeError, AttributeError, ValueError) as error:
+        raise ValueError(
+            f"Invalid cost-per-target calibration metadata: {error}. "
+            f"{_CPT_METADATA_RECOVERY_HINT}"
+        ) from error
 
 
 _EVALUATOR_CACHE_ATTR = "_incrementality_evaluators"
@@ -359,8 +584,10 @@ class MMM(RegressionModelBuilder):
     Notes
     -----
     1. Before fitting, the target variable and media channels are scaled
-       (by default using max-absolute scaling).  Control variables are **not**
-       scaled automatically — apply your own preprocessing if needed.
+       (by default dividing by the signed per-slice maximum, see
+       :class:`~pymc_marketing.mmm.scaling.DataDerivedScaling`).  Control
+       variables are **not** scaled automatically — apply your own
+       preprocessing if needed.
 
     2. Yearly seasonality can be added as Fourier modes via the
        ``yearly_seasonality`` parameter.
@@ -400,7 +627,8 @@ class MMM(RegressionModelBuilder):
         dates for every combination).
     scaling : Scaling or dict or None
         Scaling methods for the target variable and the marketing channels.
-        Defaults to max-absolute scaling for both.
+        Defaults to ``DataDerivedScaling(method="max")`` for both, a signed
+        maximum rather than a maximum of absolute values.
     model_config : dict or None
         Configuration settings for the model priors and likelihood.
     sampler_config : dict or None
@@ -436,7 +664,7 @@ class MMM(RegressionModelBuilder):
 
     _model_type: str = "MMMM (Multi-Dimensional Marketing Mix Model)"
     version: str = "0.0.2"
-    output_var = "y"
+    output_var = Var.Y
 
     @validate_call
     def __init__(
@@ -552,8 +780,7 @@ class MMM(RegressionModelBuilder):
         self.adstock_first = adstock_first
 
         dims = dims if dims is not None else ()
-        core_dims = {"date", "channel", "control", "fourier_mode"}
-        if invalid_dims := core_dims & set(dims):
+        if invalid_dims := RESERVED_DIMS & set(dims):
             raise ValueError(
                 f"Dims {sorted(invalid_dims)} are reserved for internal use"
             )
@@ -583,12 +810,14 @@ class MMM(RegressionModelBuilder):
             channel=DataDerivedScaling(method="max", dims=self.dims),
         )
 
-        if set(self.scaling.target.dims).difference([*self.dims, "date"]):
+        if set(self.scaling.target.dims).difference([*self.dims, Dim.DATE]):
             raise ValueError(
                 f"Target scaling dims {self.scaling.target.dims} must contain {self.dims} and 'date'"
             )
 
-        if set(self.scaling.channel.dims).difference([*self.dims, "channel", "date"]):
+        if set(self.scaling.channel.dims).difference(
+            [*self.dims, Dim.CHANNEL, Dim.DATE]
+        ):
             raise ValueError(
                 f"Channel scaling dims {self.scaling.channel.dims} must contain {self.dims}, 'channel', and 'date'"
             )
@@ -601,7 +830,7 @@ class MMM(RegressionModelBuilder):
             isinstance(self.scaling.channel, FixedScaling)
             and isinstance(self.scaling.channel.value, dict)
             and len(rem_ch) == 1
-            and rem_ch[0] == "channel"
+            and rem_ch[0] == Dim.CHANNEL
         ):
             validate_fixed_scaling_keys(
                 self.scaling.channel, channel_columns, "channel"
@@ -690,13 +919,15 @@ class MMM(RegressionModelBuilder):
         if self.yearly_seasonality is not None:
             self.yearly_fourier = YearlyFourier(
                 n_order=self.yearly_seasonality,
-                prefix="fourier_mode",
+                prefix=Dim.FOURIER_MODE,
                 prior=self.model_config["gamma_fourier"],
                 variable_name="gamma_fourier",
             )
 
         self.mu_effects: list[MuEffect] = []
         self._lift_test_calibrations: list[dict[str, Any]] = []
+        self._cost_per_target_calibrations: list[dict[str, Any]] = []
+        self._cost_per_target_spend: dict[str, xr.DataArray] = {}
 
     def add_mu_effect(
         self: Self,
@@ -820,13 +1051,8 @@ class MMM(RegressionModelBuilder):
             return False
         # Length check above ensures zip lengths match, suppressing B905 warning
         for self_effect, other_effect in zip(self.mu_effects, other.mu_effects):  # noqa: B905
-            if self_effect.__class__ is not other_effect.__class__:
+            if self_effect != other_effect:
                 return False
-            if hasattr(self_effect, "model_dump") and hasattr(
-                other_effect, "model_dump"
-            ):
-                if self_effect.model_dump() != other_effect.model_dump():
-                    return False
 
         # Causal graph
         if (
@@ -859,7 +1085,7 @@ class MMM(RegressionModelBuilder):
         return True
 
     def _check_compatible_media_dims(self) -> None:
-        allowed_dims = set(self.dims).union({"channel"})
+        allowed_dims = set(self.dims).union({Dim.CHANNEL})
 
         if not set(self.adstock.combined_dims).issubset(allowed_dims):
             raise ValueError(
@@ -1097,32 +1323,35 @@ class MMM(RegressionModelBuilder):
     def create_idata_attrs(self) -> dict[str, str]:
         """Return the idata attributes for the model."""
         attrs = super().create_idata_attrs()
-        attrs["model_config"] = json.dumps(
+        attrs[Attr.MODEL_CONFIG] = json.dumps(
             serialization.serialize_model_config(self.model_config)
         )
-        attrs["__serialization_version__"] = "1"
+        attrs[Attr.SERIALIZATION_VERSION] = "1"
         attrs["dims"] = json.dumps(self.dims)
         attrs["date_column"] = self.date_column
-        attrs["adstock"] = json.dumps(serialization.serialize(self.adstock))
-        attrs["saturation"] = json.dumps(serialization.serialize(self.saturation))
+        attrs[Attr.ADSTOCK] = json.dumps(serialization.serialize(self.adstock))
+        attrs[Attr.SATURATION] = json.dumps(serialization.serialize(self.saturation))
         attrs["adstock_first"] = json.dumps(self.adstock_first)
         attrs["control_columns"] = json.dumps(self.control_columns)
         attrs["channel_columns"] = json.dumps(self.channel_columns)
         attrs["yearly_seasonality"] = json.dumps(self.yearly_seasonality)
-        attrs["time_varying_intercept"] = json.dumps(
+        attrs[Attr.TIME_VARYING_INTERCEPT] = json.dumps(
             serialization.serialize(self.time_varying_intercept)
             if isinstance(self.time_varying_intercept, HSGPBase)
             else self.time_varying_intercept
         )
-        attrs["time_varying_media"] = json.dumps(
+        attrs[Attr.TIME_VARYING_MEDIA] = json.dumps(
             serialization.serialize(self.time_varying_media)
             if isinstance(self.time_varying_media, HSGPBase)
             else self.time_varying_media
         )
         attrs["target_column"] = self.target_column
-        attrs["link"] = self.link.value
+        attrs[Attr.LINK] = self.link.value
         attrs["scaling"] = json.dumps(serialization.serialize(self.scaling))
-        attrs["lift_test_calibrations"] = json.dumps(self._lift_test_calibrations)
+        attrs[Attr.LIFT_TEST_CALIBRATIONS] = json.dumps(self._lift_test_calibrations)
+        attrs[Attr.COST_PER_TARGET_CALIBRATIONS] = json.dumps(
+            self._cost_per_target_calibrations
+        )
         attrs["dag"] = json.dumps(getattr(self, "dag", None))
         attrs["treatment_nodes"] = json.dumps(getattr(self, "treatment_nodes", None))
         attrs["outcome_node"] = json.dumps(getattr(self, "outcome_node", None))
@@ -1130,7 +1359,7 @@ class MMM(RegressionModelBuilder):
         mu_effects_list = [
             serialization.serialize(effect) for effect in self.mu_effects
         ]
-        attrs["mu_effects"] = json.dumps(mu_effects_list)
+        attrs[Attr.MU_EFFECTS] = json.dumps(mu_effects_list)
 
         if self._cost_per_unit_input is not None:
             cpu_df = self._cost_per_unit_input
@@ -1146,25 +1375,107 @@ class MMM(RegressionModelBuilder):
                     UserWarning,
                     stacklevel=2,
                 )
-            attrs["cost_per_unit"] = cpu_df.to_json(orient="split", date_format="iso")
+            attrs[Attr.COST_PER_UNIT] = cpu_df.to_json(
+                orient="split", date_format="iso"
+            )
         else:
-            attrs["cost_per_unit"] = json.dumps(None)
+            attrs[Attr.COST_PER_UNIT] = json.dumps(None)
 
         return attrs
 
+    def _warn_if_calibration_changed_since_fit(self, idata: xr.DataTree) -> None:
+        """Warn when the live calibration differs from the one recorded at fit time.
+
+        Compares each lift-test and cost-per-target record of the model with the
+        record of the same name in the fit-time ``idata.attrs``, and each
+        cost-per-target spend array with the one its record points to in the
+        ``cost_per_target_spend`` group, so a calibration re-added under the
+        same name with other inputs is caught. A model restored by
+        :meth:`build_from_idata` replays those inputs and does not warn on
+        re-save.
+        """
+        saved_spend = (
+            idata[COST_PER_TARGET_SPEND_GROUP].to_dataset()
+            if COST_PER_TARGET_SPEND_GROUP in idata.children
+            else xr.Dataset()
+        )
+        changed = []
+        for label, attr, key, records in (
+            (
+                "lift-test",
+                Attr.LIFT_TEST_CALIBRATIONS,
+                "name",
+                self._lift_test_calibrations,
+            ),
+            (
+                "cost-per-target",
+                Attr.COST_PER_TARGET_CALIBRATIONS,
+                "name_prefix",
+                self._cost_per_target_calibrations,
+            ),
+        ):
+            live = _calibrations_by_name(records, key, self._cost_per_target_spend)
+            saved = _calibrations_by_name(
+                json.loads(idata.attrs.get(attr, "[]")), key, saved_spend
+            )
+            if live.keys() != saved.keys() or any(
+                record != saved[name][0]
+                or (spend is None) != (saved[name][1] is None)
+                or (spend is not None and not spend.equals(saved[name][1]))
+                for name, (record, spend) in live.items()
+            ):
+                changed.append(label)
+        if changed:
+            warnings.warn(
+                f"The model's {' and '.join(changed)} calibration differs from the "
+                "calibration recorded at fit time; the saved file carries the "
+                "fit-time records. Refit before saving to persist the current "
+                "calibration.",
+                UserWarning,
+                stacklevel=3,
+            )
+
+    def _store_effect_idata_groups(self, idata: xr.DataTree, *, replace: bool) -> None:
+        """Write each mu effect's supplementary groups, from ``idata_groups``, to idata.
+
+        Parameters
+        ----------
+        idata : xr.DataTree
+            The idata the groups are written to.
+        replace : bool
+            Whether a group already in ``idata`` is replaced. Fitting replaces an
+            earlier fit's groups. Saving writes only the missing ones, so the file
+            holds the data the effects were fitted with even if it has changed since.
+        """
+        for effect in self.mu_effects:
+            # A duck-typed effect, which the additive-effect module allows, may not
+            # define the hook.
+            for group_name, ds in getattr(effect, "idata_groups", dict)().items():
+                if group_name in idata.children:
+                    if not replace:
+                        continue
+                    del idata[group_name]
+                # A group built from an effect's frame can share its memory, and an
+                # edit of the frame in place would then change what was fitted.
+                idata[f"/{group_name}"] = ds.copy(deep=True)
+
     def save(self, fname: str, **kwargs) -> None:
-        """Save the model, including supplementary idata groups from mu_effects."""
+        """Save the model, including supplementary idata groups from mu_effects.
+
+        The groups that fitting stored are saved as they are, so they hold the data
+        the effects were fitted with; a missing one is taken from its effect now.
+        Warns when calibration was added, removed or changed since the last fit,
+        because the file carries the calibration recorded at fit time.
+        """
         if self.idata is None or "posterior" not in self.idata:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
+        self._warn_if_calibration_changed_since_fit(self.idata)
 
-        for effect in self.mu_effects:
-            for group_name, ds in effect.idata_groups().items():
-                if not hasattr(self.idata, group_name):
-                    self.idata["/" + group_name] = ds
+        self._store_effect_idata_groups(self.idata, replace=False)
 
         # Persist the base names of any *_original_scale Deterministics so they
         # can be faithfully re-added by build_from_idata on load.
-        suffix = "_original_scale"
+        suffix = ORIGINAL_SCALE_SUFFIX
         original_scale_vars = [
             name[: -len(suffix)]
             for name in self.model.named_vars
@@ -1174,7 +1485,7 @@ class MMM(RegressionModelBuilder):
                 or name[: -len(suffix)] == self.output_var
             )
         ]
-        self.idata.attrs["original_scale_vars"] = json.dumps(original_scale_vars)
+        self.idata.attrs[Attr.ORIGINAL_SCALE_VARS] = json.dumps(original_scale_vars)
 
         super().save(fname, **kwargs)
 
@@ -1186,7 +1497,7 @@ class MMM(RegressionModelBuilder):
             migrate_idata,
         )
 
-        version = int(idata.attrs.get("__serialization_version__", "0"))
+        version = int(idata.attrs.get(Attr.SERIALIZATION_VERSION, "0"))
         if version < CURRENT_VERSION:
             warnings.warn(
                 f"Loading a model saved with serialization format v{version}. "
@@ -1205,47 +1516,47 @@ class MMM(RegressionModelBuilder):
 
         def _deser(raw: str, fallback=None):
             data = json.loads(raw)
-            if isinstance(data, dict) and "__type__" in data:
+            if isinstance(data, dict) and Key.TYPE in data:
                 return serialization.deserialize(data)
             return fallback if fallback is not None else data
 
-        tvi_raw = attrs.get("time_varying_intercept", "false")
-        tvm_raw = attrs.get("time_varying_media", "false")
+        tvi_raw = attrs.get(Attr.TIME_VARYING_INTERCEPT, "false")
+        tvm_raw = attrs.get(Attr.TIME_VARYING_MEDIA, "false")
         tvi_data = json.loads(tvi_raw)
         tvm_data = json.loads(tvm_raw)
 
         return {
             "model_config": cls._model_config_formatting(
-                json.loads(attrs["model_config"])
+                json.loads(attrs[Attr.MODEL_CONFIG])
             ),
             "date_column": attrs["date_column"],
             "control_columns": json.loads(attrs["control_columns"]),
             "channel_columns": json.loads(attrs["channel_columns"]),
-            "adstock": _deser(attrs["adstock"]),
-            "saturation": _deser(attrs["saturation"]),
+            "adstock": _deser(attrs[Attr.ADSTOCK]),
+            "saturation": _deser(attrs[Attr.SATURATION]),
             "adstock_first": json.loads(attrs.get("adstock_first", "true")),
-            "link": attrs.get("link", "identity"),
+            "link": attrs.get(Attr.LINK, "identity"),
             "yearly_seasonality": json.loads(attrs["yearly_seasonality"]),
             "time_varying_intercept": (
                 serialization.deserialize(tvi_data)
-                if isinstance(tvi_data, dict) and "__type__" in tvi_data
+                if isinstance(tvi_data, dict) and Key.TYPE in tvi_data
                 else tvi_data
             ),
             "target_column": attrs["target_column"],
             "time_varying_media": (
                 serialization.deserialize(tvm_data)
-                if isinstance(tvm_data, dict) and "__type__" in tvm_data
+                if isinstance(tvm_data, dict) and Key.TYPE in tvm_data
                 else tvm_data
             ),
-            "sampler_config": json.loads(attrs["sampler_config"]),
+            "sampler_config": json.loads(attrs[Attr.SAMPLER_CONFIG]),
             "dims": tuple(json.loads(attrs.get("dims", "[]"))),
             "scaling": _deser(attrs.get("scaling", "null")),
             "dag": json.loads(attrs.get("dag", "null")),
             "treatment_nodes": json.loads(attrs.get("treatment_nodes", "null")),
             "outcome_node": json.loads(attrs.get("outcome_node", "null")),
             "cost_per_unit": (
-                _deserialize_cost_per_unit(attrs["cost_per_unit"])
-                if attrs.get("cost_per_unit") and attrs["cost_per_unit"] != "null"
+                _deserialize_cost_per_unit(attrs[Attr.COST_PER_UNIT])
+                if attrs.get(Attr.COST_PER_UNIT) and attrs[Attr.COST_PER_UNIT] != "null"
                 else None
             ),
         }
@@ -1537,14 +1848,14 @@ class MMM(RegressionModelBuilder):
 
         idata: xr.DataTree = cast(xr.DataTree, self.idata)
         posterior: xr.Dataset = idata["/posterior"].dataset
-        target_scale: xr.DataArray = idata.constant_data["target_scale"].squeeze(
+        target_scale: xr.DataArray = idata.constant_data[Var.TARGET_SCALE].squeeze(
             drop=True
         )
 
         counterfactual_fn: Callable[[xr.DataArray], xr.DataArray]
 
         if self.link == LinkFunction.LOG:
-            mu_total: xr.DataArray = posterior["mu"]
+            mu_total: xr.DataArray = posterior[Var.MU]
 
             def _log_counterfactual(component: xr.DataArray) -> xr.DataArray:
                 return log_counterfactual_remove_component(
@@ -1566,22 +1877,22 @@ class MMM(RegressionModelBuilder):
 
         parts: dict[str, xr.DataArray] = {}
 
-        channel_da: xr.DataArray = posterior["channel_contribution"]
+        channel_da: xr.DataArray = posterior[Var.CHANNEL_CONTRIBUTION]
         for ch in channel_da.coords["channel"].values:
-            ch_comp = channel_da.sel(channel=ch).drop_vars("channel", errors="ignore")
+            ch_comp = channel_da.sel(channel=ch).drop_vars(Dim.CHANNEL, errors="ignore")
             parts[str(ch)] = counterfactual_fn(ch_comp)
 
-        if "control_contribution" in posterior:
-            control_da: xr.DataArray = posterior["control_contribution"]
+        if Var.CONTROL_CONTRIBUTION in posterior:
+            control_da: xr.DataArray = posterior[Var.CONTROL_CONTRIBUTION]
             for ctrl in control_da.coords["control"].values:
                 ctrl_comp = control_da.sel(control=ctrl).drop_vars(
-                    "control", errors="ignore"
+                    Dim.CONTROL, errors="ignore"
                 )
                 parts[str(ctrl)] = counterfactual_fn(ctrl_comp)
 
-        if "yearly_seasonality_contribution" in posterior:
+        if Var.YEARLY_SEASONALITY_CONTRIBUTION in posterior:
             parts["yearly_seasonality"] = counterfactual_fn(
-                posterior["yearly_seasonality_contribution"]
+                posterior[Var.YEARLY_SEASONALITY_CONTRIBUTION]
             )
 
         for mu_effect in self.mu_effects:
@@ -1602,7 +1913,7 @@ class MMM(RegressionModelBuilder):
                     stacklevel=2,
                 )
 
-        parts[BASELINE_PART] = counterfactual_fn(posterior["intercept_contribution"])
+        parts[BASELINE_PART] = counterfactual_fn(posterior[Var.INTERCEPT_CONTRIBUTION])
 
         dataset = xr.Dataset(parts)
 
@@ -1826,10 +2137,10 @@ class MMM(RegressionModelBuilder):
             "intercept": self._link_spec.default_intercept(self.dims),
             "likelihood": self._link_spec.default_likelihood(self.dims),
             "gamma_control": Prior(
-                "Normal", mu=0, sigma=2, dims=(*self.dims, "control")
+                "Normal", mu=0, sigma=2, dims=(*self.dims, Dim.CONTROL)
             ),
             "gamma_fourier": Prior(
-                "Laplace", mu=0, b=1, dims=(*self.dims, "fourier_mode")
+                "Laplace", mu=0, b=1, dims=(*self.dims, Dim.FOURIER_MODE)
             ),
         }
 
@@ -1867,6 +2178,9 @@ class MMM(RegressionModelBuilder):
         evaluation.  Recomputing them with a different dimension size would
         give wrong results; instead their posterior values should be
         substituted directly.
+
+        They include the names each mu effect declares through
+        :attr:`MuEffect.frozen_deterministics`.
         """
         names: list[str] = []
         if self.time_varying_intercept:
@@ -1879,6 +2193,10 @@ class MMM(RegressionModelBuilder):
                     "media_temporal_latent_multiplier"
                 )
             )
+        for effect in self.mu_effects:
+            # A duck-typed effect, which the additive-effect module allows, may not
+            # define the hook.
+            names.extend(getattr(effect, "frozen_deterministics", []))
         return names
 
     def _validate_idata_exists(self) -> None:
@@ -1963,17 +2281,20 @@ class MMM(RegressionModelBuilder):
             dims=self.dims,
             channel_columns=self.channel_columns,
             control_columns=self.control_columns,
+            extra_vars=self._effect_extra_vars(X),
             target_column=self.target_column,
         ).fillna(0)
         self.xarray_dataset = self._reindex_custom_dims(self.xarray_dataset)
 
-        self.xarray_dataset["_channel"] = self.xarray_dataset["_channel"].astype(float)
+        self.xarray_dataset[DatasetVar.CHANNEL] = self.xarray_dataset[
+            DatasetVar.CHANNEL
+        ].astype(float)
         # Integer control columns (0/1 flags) would otherwise make `control_data`
         # an int node, and later values written into it would be truncated.
-        if "_control" in self.xarray_dataset:
-            self.xarray_dataset["_control"] = self.xarray_dataset["_control"].astype(
-                float
-            )
+        if DatasetVar.CONTROL in self.xarray_dataset:
+            self.xarray_dataset[DatasetVar.CONTROL] = self.xarray_dataset[
+                DatasetVar.CONTROL
+            ].astype(float)
 
         self.model_coords = {
             dim: self.xarray_dataset.coords[dim].values
@@ -1995,7 +2316,7 @@ class MMM(RegressionModelBuilder):
         self._validate_model_was_built()
         return cast(
             npt.NDArray[np.floating],
-            self.xarray_dataset["_target"].values,
+            self.xarray_dataset[DatasetVar.TARGET].values,
         )
 
     def forward_pass(
@@ -2044,12 +2365,12 @@ class MMM(RegressionModelBuilder):
         """Compute and save scaling factors for channels and target."""
         self.scalers = xr.Dataset()
 
-        self.scalers["_channel"] = self._compute_scale_for_variable(
-            self.xarray_dataset["_channel"],
+        self.scalers[DatasetVar.CHANNEL] = self._compute_scale_for_variable(
+            self.xarray_dataset[DatasetVar.CHANNEL],
             self.scaling.channel,
         )
-        self.scalers["_target"] = self._compute_scale_for_variable(
-            self.xarray_dataset["_target"],
+        self.scalers[DatasetVar.TARGET] = self._compute_scale_for_variable(
+            self.xarray_dataset[DatasetVar.TARGET],
             self.scaling.target,
         )
 
@@ -2071,7 +2392,9 @@ class MMM(RegressionModelBuilder):
                     UserWarning,
                     stacklevel=2,
                 )
-            self.scalers["_channel"] = xr.ones_like(self.scalers["_channel"])
+            self.scalers[DatasetVar.CHANNEL] = xr.ones_like(
+                self.scalers[DatasetVar.CHANNEL]
+            )
 
     def _compute_scale_for_variable(
         self,
@@ -2262,8 +2585,8 @@ class MMM(RegressionModelBuilder):
             )
 
         return {
-            "channel_scale": self.scalers._channel,
-            "target_scale": self.scalers._target,
+            Var.CHANNEL_SCALE: self.scalers._channel,
+            Var.TARGET_SCALE: self.scalers._target,
         }
 
     def _validate_model_was_built(self) -> None:
@@ -2378,12 +2701,12 @@ class MMM(RegressionModelBuilder):
                     stacklevel=2,
                 )
 
-        target_scale = self.model["target_scale"]
+        target_scale = self.model[Var.TARGET_SCALE]
 
         with self.model:
             for v in var:
                 self._validate_contribution_variable(v)
-                name = f"{v}_original_scale"
+                name = original_scale_name(v)
 
                 if name in self.model.named_vars:
                     warnings.warn(
@@ -2403,7 +2726,7 @@ class MMM(RegressionModelBuilder):
                     )
 
                 pmd.Deterministic(
-                    name, value.transpose("date", ..., missing_dims="ignore")
+                    name, value.transpose(Dim.DATE, ..., missing_dims="ignore")
                 )
 
         return self
@@ -2462,6 +2785,25 @@ class MMM(RegressionModelBuilder):
         -------
         xr.DataTree
             Inference data of the fitted model.
+
+        Raises
+        ------
+        ValueError
+            If the model carries cost-per-target calibration and ``X`` has dates
+            or dimension labels other than those the model was built with; the
+            built model is reused, and its calibration spend covers only those.
+
+        Notes
+        -----
+        Calibration added with :meth:`add_lift_test_measurements` or
+        :meth:`add_cost_per_target_calibration` is recorded with the posterior:
+        the rows and options in ``idata.attrs``, and the cost-per-target spend
+        in the ``cost_per_target_spend`` group, one variable per distinct spend
+        array. :meth:`build_from_idata` replays them when the model is loaded.
+
+        Each mu effect's supplementary groups, from its ``idata_groups``, are stored
+        too, replacing those of an earlier fit, so the idata holds the data the
+        effects were fitted with.
         """
         # A refit replaces the posterior and can move its coordinate labels, which
         # the evaluator's shared binding would refuse; build against it from scratch.
@@ -2486,6 +2828,17 @@ class MMM(RegressionModelBuilder):
             sample_kwargs=sample_kwargs,
             **kwargs,
         )
+        # Snapshot the calibration spend alongside the records that
+        # ``set_idata_attrs`` just wrote, replacing any group left by an
+        # earlier fit so the file never carries spend of a calibration that is
+        # no longer in the graph.
+        if COST_PER_TARGET_SPEND_GROUP in idata.children:
+            del idata[COST_PER_TARGET_SPEND_GROUP]
+        if self._cost_per_target_spend:
+            idata[f"/{COST_PER_TARGET_SPEND_GROUP}"] = xr.Dataset(
+                self._cost_per_target_spend
+            )
+        self._store_effect_idata_groups(idata, replace=True)
         if self._cost_per_unit_input is not None:
             self.set_cost_per_unit(self._cost_per_unit_input)
         return idata
@@ -2597,6 +2950,8 @@ class MMM(RegressionModelBuilder):
         # Calibration rows belong to a particular graph. A rebuild creates a
         # fresh graph, so callers must re-add any lift tests they want to use.
         self._lift_test_calibrations = []
+        self._cost_per_target_calibrations = []
+        self._cost_per_target_spend = {}
         self._generate_and_preprocess_model_data(
             X=X,
             y=y,
@@ -2604,12 +2959,19 @@ class MMM(RegressionModelBuilder):
         self._target_is_placeholder = False
 
         likelihood = self.model_config["likelihood"]
-        if "_target" in self.xarray_dataset.data_vars:
-            self._link_spec.validate_target(self.xarray_dataset["_target"].values)
+        if DatasetVar.TARGET in self.xarray_dataset.data_vars:
+            # Link-independent: every link and likelihood would fit an
+            # infinite target as 0 after the clamp below.
+            _reject_infinite_target(self.xarray_dataset[DatasetVar.TARGET].values)
+            self._link_spec.validate_target(
+                self.xarray_dataset[DatasetVar.TARGET].values
+            )
             # LogNormalPrior observes the raw target on the strictly positive
             # support, which the link-level validate_target cannot know about.
             if isinstance(likelihood, LogNormalPrior):
-                likelihood.validate_observed(self.xarray_dataset["_target"].values)
+                likelihood.validate_observed(
+                    self.xarray_dataset[DatasetVar.TARGET].values
+                )
         LinkSpec.validate_likelihood_compatibility(self.link, likelihood)
 
         if self.link == LinkFunction.LOG and self.mu_effects:
@@ -2631,12 +2993,12 @@ class MMM(RegressionModelBuilder):
                     self.yearly_fourier.prefix, self.yearly_fourier.nodes
                 )
 
-            _channel_scale = pmd.Data("channel_scale", self.scalers._channel)
-            _target_scale = pmd.Data("target_scale", self.scalers._target)
+            _channel_scale = pmd.Data(Var.CHANNEL_SCALE, self.scalers._channel)
+            _target_scale = pmd.Data(Var.TARGET_SCALE, self.scalers._target)
 
-            _channel_data = pmd.Data("channel_data", self.xarray_dataset._channel)
+            _channel_data = pmd.Data(Var.CHANNEL_DATA, self.xarray_dataset._channel)
 
-            _target = pmd.Data("target_data", self.xarray_dataset._target)
+            _target = pmd.Data(Var.TARGET_DATA, self.xarray_dataset._target)
 
             # Scale `channel_data` and `target`. The switches guard against
             # NaN (0/0 when a channel/target is all-zero) and against +/-inf
@@ -2681,11 +3043,11 @@ class MMM(RegressionModelBuilder):
             # (`model_builder.py:1546`, `:1772`). It has no support to respect,
             # and failing it would break building a model in order to look at
             # its prior, so skip the check rather than reject the placeholder.
-            if np.any(self.xarray_dataset["_target"].values != 0):
+            if np.any(self.xarray_dataset[DatasetVar.TARGET].values != 0):
                 LinkSpec.validate_likelihood_support(
                     self.model_config["likelihood"],
                     target_data_scaled,
-                    target_scale=self.scalers["_target"].values,
+                    target_scale=self.scalers[DatasetVar.TARGET].values,
                 )
 
             # DataVarMuEffect inputs may be shared by several effects, but must
@@ -2697,12 +3059,12 @@ class MMM(RegressionModelBuilder):
                 mu_effect.create_data(self)
 
             if self.time_varying_intercept or self.time_varying_media:
-                time_index = pmd.Data("time_index", self._time_index)
+                time_index = pmd.Data(Var.TIME_INDEX, self._time_index)
 
             # Add intercept logic
             if self.time_varying_intercept:
                 intercept_baseline = self.model_config["intercept"].create_variable(
-                    "intercept_baseline", xdist=True
+                    Var.INTERCEPT_BASELINE, xdist=True
                 )
 
                 if isinstance(self.time_varying_intercept, HSGPBase):
@@ -2721,7 +3083,7 @@ class MMM(RegressionModelBuilder):
                     ).create_variable("intercept_latent_process", xdist=True)
 
                 intercept = pmd.Deterministic(
-                    "intercept_contribution",
+                    Var.INTERCEPT_CONTRIBUTION,
                     (intercept_baseline * intercept_latent_process).transpose(
                         "date", ...
                     ),
@@ -2729,7 +3091,7 @@ class MMM(RegressionModelBuilder):
 
             else:
                 intercept = self.model_config["intercept"].create_variable(
-                    name="intercept_contribution", xdist=True
+                    name=Var.INTERCEPT_CONTRIBUTION, xdist=True
                 )
 
             # Add media logic
@@ -2763,7 +3125,7 @@ class MMM(RegressionModelBuilder):
                 )
 
             channel_contribution = pmd.Deterministic(
-                "channel_contribution",
+                Var.CHANNEL_CONTRIBUTION,
                 channel_contribution.transpose("date", ...),
             )
 
@@ -2775,10 +3137,10 @@ class MMM(RegressionModelBuilder):
                     name="gamma_control", xdist=True
                 )
 
-                control_data_ = pmd.Data("control_data", self.xarray_dataset._control)
+                control_data_ = pmd.Data(Var.CONTROL_DATA, self.xarray_dataset._control)
 
                 control_contribution = pmd.Deterministic(
-                    "control_contribution",
+                    Var.CONTROL_CONTRIBUTION,
                     control_data_ * gamma_control,
                 )
 
@@ -2786,7 +3148,7 @@ class MMM(RegressionModelBuilder):
 
             if self.yearly_seasonality is not None:
                 dayofyear = pmd.Data(
-                    "dayofyear",
+                    Var.DAYOFYEAR,
                     pd.to_datetime(self.model_coords["date"]).dayofyear.to_numpy(),
                     dims="date",
                 )
@@ -2801,7 +3163,7 @@ class MMM(RegressionModelBuilder):
                 )
 
                 yearly_seasonality_contribution = pmd.Deterministic(
-                    "yearly_seasonality_contribution",
+                    Var.YEARLY_SEASONALITY_CONTRIBUTION,
                     fourier_contributions.sum(dim=fourier_dim),
                 )
 
@@ -2811,7 +3173,7 @@ class MMM(RegressionModelBuilder):
                 mu_var += mu_effect.create_effect(self)
 
             if self.link == LinkFunction.LOG:
-                mu_var = pmd.Deterministic("mu", mu_var.transpose("date", ...))
+                mu_var = pmd.Deterministic(Var.MU, mu_var.transpose("date", ...))
             else:
                 # Registered rather than merely named, because the identity-link
                 # mean correction is pointwise in mu and reconstructing it by
@@ -2822,7 +3184,7 @@ class MMM(RegressionModelBuilder):
                 # Not transposed, unlike the log branch, which would change the
                 # dims order the likelihood sees, so "date" stays wherever the
                 # linear predictor already put it rather than moving to front.
-                mu_var = pmd.Deterministic("mu", mu_var)
+                mu_var = pmd.Deterministic(Var.MU, mu_var)
 
             self._link_spec.create_media_contribution_deterministic(
                 mu_var=mu_var,
@@ -2870,6 +3232,31 @@ class MMM(RegressionModelBuilder):
                 f"Either set include_last_observations=False or use input dates that don't overlap with training data."
             )
 
+    def _effect_extra_vars(
+        self, X: pd.DataFrame | xr.Dataset | xr.DataArray
+    ) -> list[str] | None:
+        """Columns of a DataFrame ``X`` that mu_effects read as data variables.
+
+        ``xr.Dataset`` inputs keep all their data variables, so this only
+        matters for DataFrames, whose extra columns are otherwise dropped.
+        """
+        if not isinstance(X, pd.DataFrame):
+            return None
+        reserved = {
+            self.date_column,
+            self.target_column,
+            *self.dims,
+            *self.channel_columns,
+            *(self.control_columns or []),
+        }
+        names = [
+            var_name
+            for effect in self.mu_effects
+            for var_name in getattr(effect, "data_vars", [])
+            if var_name in X.columns and var_name not in reserved
+        ]
+        return list(dict.fromkeys(names)) or None
+
     def _posterior_predictive_data_transformation(
         self,
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
@@ -2883,6 +3270,7 @@ class MMM(RegressionModelBuilder):
             dims=self.dims,
             channel_columns=self.channel_columns,
             control_columns=self.control_columns,
+            extra_vars=self._effect_extra_vars(X),
             target_column=self.target_column,
         )
 
@@ -2902,7 +3290,7 @@ class MMM(RegressionModelBuilder):
         reject_unknown_coords(ds, model_coords, label="X")
         ds = ds.reindex(model_coords, fill_value=0)
 
-        if y is None and "_target" not in ds.data_vars:
+        if y is None and DatasetVar.TARGET not in ds.data_vars:
             target_dtype = self.xarray_dataset._target.dtype
             n_dates = ds.sizes["date"]
             shape = (n_dates, *[ds.sizes[dim] for dim in self.dims])
@@ -2913,7 +3301,7 @@ class MMM(RegressionModelBuilder):
                     if dim in ds.indexes
                     else self.xarray_dataset.coords[dim].values
                 )
-            ds["_target"] = xr.DataArray(
+            ds[DatasetVar.TARGET] = xr.DataArray(
                 np.zeros(shape, dtype=target_dtype),
                 dims=("date", *self.dims),
                 coords=coords,
@@ -2951,42 +3339,42 @@ class MMM(RegressionModelBuilder):
         channel_values = dataset_xarray._channel.transpose(
             "date", *self.dims, "channel"
         )
-        if "channel_data" in model.named_vars:
-            original_dtype = model.named_vars["channel_data"].type.dtype
+        if Var.CHANNEL_DATA in model.named_vars:
+            original_dtype = model.named_vars[Var.CHANNEL_DATA].type.dtype
             channel_values = channel_values.astype(original_dtype)
 
-        data = {"channel_data": channel_values}
+        data = {Var.CHANNEL_DATA: channel_values}
         coords = self.model.coords.copy()
         coords["date"] = dataset_xarray["date"].to_numpy()
 
-        if "_control" in dataset_xarray:
-            control_values = dataset_xarray["_control"].transpose(
+        if DatasetVar.CONTROL in dataset_xarray:
+            control_values = dataset_xarray[DatasetVar.CONTROL].transpose(
                 "date", *self.dims, "control"
             )
-            if "control_data" in model.named_vars:
-                original_dtype = model.named_vars["control_data"].type.dtype
+            if Var.CONTROL_DATA in model.named_vars:
+                original_dtype = model.named_vars[Var.CONTROL_DATA].type.dtype
                 control_values = control_values.astype(original_dtype)
-            data["control_data"] = control_values
+            data[Var.CONTROL_DATA] = control_values
             coords["control"] = dataset_xarray["control"].to_numpy()
         if self.yearly_seasonality is not None:
-            data["dayofyear"] = dataset_xarray["date"].dt.dayofyear.to_numpy()
+            data[Var.DAYOFYEAR] = dataset_xarray["date"].dt.dayofyear.to_numpy()
 
         if self.time_varying_intercept or self.time_varying_media:
-            data["time_index"] = infer_time_index(
+            data[Var.TIME_INDEX] = infer_time_index(
                 pd.Series(dataset_xarray["date"]),
                 pd.Series(self.model_coords["date"]),
                 self._time_resolution,
             )
 
-        if "_target" in dataset_xarray:
+        if DatasetVar.TARGET in dataset_xarray:
             target_values = dataset_xarray._target.transpose("date", *self.dims)
             # Get the original dtype from the model's shared variable
-            if "target_data" in model.named_vars:
-                original_dtype = model.named_vars["target_data"].type.dtype
+            if Var.TARGET_DATA in model.named_vars:
+                original_dtype = model.named_vars[Var.TARGET_DATA].type.dtype
                 # Convert to the original dtype to avoid precision loss errors
-                data["target_data"] = target_values.astype(original_dtype)
+                data[Var.TARGET_DATA] = target_values.astype(original_dtype)
             else:
-                data["target_data"] = target_values
+                data[Var.TARGET_DATA] = target_values
 
         pm.set_data(data, coords=coords, model=model)
 
@@ -3206,6 +3594,12 @@ class MMM(RegressionModelBuilder):
         dates after it they are 0 unless *control_data* gives their planned
         values.
 
+        A :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer` built on
+        the model should take the MMM's ``frozen_deterministics``, as
+        :meth:`budget_optimizer` passes them. It then refuses an objective that
+        reaches one over ``date``, a path that exists only on the dates the MMM
+        was fitted on.
+
         Parameters
         ----------
         start_date : str or pd.Timestamp
@@ -3258,16 +3652,18 @@ class MMM(RegressionModelBuilder):
         )
 
         if control_data is not None:
-            if "_control" not in zero_data:
+            if DatasetVar.CONTROL not in zero_data:
                 raise ValueError(
                     "control_data was passed, but this model has no control_columns."
                 )
-            planned = self._future_control_values(control_data, zero_data["_control"])
-            zero_data["_control"].loc[{"date": planned.coords["date"].values}] = (
-                planned.values
+            planned = self._future_control_values(
+                control_data, zero_data[DatasetVar.CONTROL]
             )
-        elif "_control" in zero_data:
-            self._warn_zero_filled_future_controls(zero_data["_control"])
+            zero_data[DatasetVar.CONTROL].loc[
+                {"date": planned.coords["date"].values}
+            ] = planned.values
+        elif DatasetVar.CONTROL in zero_data:
+            self._warn_zero_filled_future_controls(zero_data[DatasetVar.CONTROL])
 
         dataset_xarray = self._posterior_predictive_data_transformation(
             X=zero_data,
@@ -3280,6 +3676,7 @@ class MMM(RegressionModelBuilder):
         )
 
         for mu_effect in self.mu_effects:
+            mu_effect.check_scenario_use(self)
             mu_effect.set_data(self, pymc_model, dataset_xarray)
 
         return pymc_model
@@ -3300,9 +3697,9 @@ class MMM(RegressionModelBuilder):
         """
         if not self.mu_effects or self.model is None:
             return False
-        if "channel_data" not in self.model.named_vars:
+        if Var.CHANNEL_DATA not in self.model.named_vars:
             return False
-        media = self.model["channel_data"]
+        media = self.model[Var.CHANNEL_DATA]
         for effect in self.mu_effects:
             try:
                 name = effect.contribution_var_name
@@ -3390,6 +3787,15 @@ class MMM(RegressionModelBuilder):
         -------
         BudgetOptimizer
             A configured optimizer ready for :meth:`BudgetOptimizer.allocate_budget`.
+
+        Raises
+        ------
+        NotImplementedError
+            If the objective, ``response_variable``, reaches a frozen deterministic
+            over ``date``, a path that exists only on the dates the MMM was fitted
+            on, as ``total_response_original_scale`` does with the contribution of a
+            mu effect that freezes one. The optimizer refuses it on any window,
+            including one within the fitted dates.
         """
         from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 
@@ -3474,7 +3880,7 @@ class MMM(RegressionModelBuilder):
         ):
             # The base class only builds when no model exists, so the
             # placeholder is needed only then. Observed values enter prior
-            # sampling only through the max-abs target scale, so ones
+            # sampling only through the max target scale, so ones
             # (scale = 1) is an inert placeholder.
             if isinstance(X, xr.Dataset | xr.DataArray):
                 target_dims = ("date", *self.dims)
@@ -3512,6 +3918,37 @@ class MMM(RegressionModelBuilder):
             prior_predictive_samples, group_label="prior-predictive"
         )
         return prior_predictive_samples
+
+    def _validate_mu_effects_support_dates(self, dataset: xr.Dataset) -> None:
+        """Refuse dates other than the fitted ones when a mu effect takes only those.
+
+        Parameters
+        ----------
+        dataset : xr.Dataset
+            The data to predict on, as the model will receive it.
+
+        Raises
+        ------
+        NotImplementedError
+            If the dates of ``dataset`` are not the dates the MMM was fitted on and
+            a mu effect has ``supports_new_dates=False``.
+        """
+        names = [name for name, _ in fitted_dates_only_effects(self.mu_effects)]
+        if not names:
+            return
+
+        fitted_dates = safe_to_datetime(self.model_coords["date"], "date")
+        dates = safe_to_datetime(dataset.coords["date"].values, "date")
+        if dates.equals(fitted_dates):
+            return
+
+        verb = "takes" if len(names) == 1 else "take"
+        raise NotImplementedError(
+            f"{', '.join(names)} {verb} only the {len(fitted_dates)} dates the MMM "
+            f"was fitted on, {fitted_dates[0]:%Y-%m-%d} to "
+            f"{fitted_dates[-1]:%Y-%m-%d}, so prediction on any other set of dates "
+            "is not supported."
+        )
 
     def sample_posterior_predictive(
         self,
@@ -3555,6 +3992,10 @@ class MMM(RegressionModelBuilder):
         ------
         ValueError
             If ``X`` is ``None``, or has custom-dim labels the model was not fit on.
+        NotImplementedError
+            If ``X`` is not on the dates the MMM was fitted on and a mu effect takes
+            only those dates (``supports_new_dates=False``). With
+            ``include_last_observations=True`` the dates always differ.
         """
         # Update model data with xarray
         if X is None:
@@ -3563,6 +4004,7 @@ class MMM(RegressionModelBuilder):
             X=X,
             include_last_observations=include_last_observations,
         )
+        self._validate_mu_effects_support_dates(dataset_xarray)
         if names := self.frozen_deterministics:
             # This always clone
             model = deterministics_to_flat(self.model, names=names)
@@ -3981,6 +4423,7 @@ class MMM(RegressionModelBuilder):
             pymc_model=self.model,
             idata=self.idata,
             dims=self.dims,
+            frozen_deterministics=self.frozen_deterministics,
         )
 
     @property
@@ -4176,8 +4619,12 @@ class MMM(RegressionModelBuilder):
             Use ``Prior("StudentT", nu=...)`` for a heavier-tailed sampling
             model. A Prior-valued ``nu`` adds a free variable named from ``name``
             (for example ``lift_measurements_nu``) to the posterior. Lift
-            estimates retain their signs; custom ``sigma``, ``mu``, and ``dims``
-            are rejected because they are determined by the lift data and model.
+            estimates retain their signs. ``nu`` is the only parameter the
+            ``Prior`` takes, since the lift data and model determine the
+            others; they, ``dims`` (on the ``Prior`` or inside ``nu``) and
+            ``centered=False`` are rejected, as is a ``nu`` that is a
+            non-positive constant or has a prior that can go negative. A ``transform``
+            only renames the observed variable to ``<name>_raw``.
         dist : pymc.dims.DimDistribution, optional
             Deprecated alias for selecting a distribution by class. Prefer a
             ``Prior`` passed to ``likelihood``.
@@ -4279,21 +4726,18 @@ class MMM(RegressionModelBuilder):
                 + (["date"] if "date" in df_lift_test.columns else [])
             )
         )
-        persisted_df = df_lift_test.loc[:, columns]
         calibration = {
             "format_version": 1,
-            "data": persisted_df.to_json(
-                orient="split", date_format="iso", double_precision=15
-            ),
-            "dtypes": {
-                column: str(dtype) for column, dtype in persisted_df.dtypes.items()
-            },
+            **_calibration_frame_to_record(df_lift_test.loc[:, columns]),
             "likelihood": serialization.serialize_model_config(
                 {"likelihood": likelihood}
             )["likelihood"],
             "name": name,
         }
         json.dumps(calibration)
+
+        for mu_effect in self.mu_effects:
+            mu_effect.check_lift_tests(self, df_lift_test)
 
         # Function to scale "delta_y", and "sigma" to same scale as target in model.
         target_transform = self._make_target_transform(df_lift_test)
@@ -4330,7 +4774,7 @@ class MMM(RegressionModelBuilder):
 
         with self.model:
             pmd.Deterministic(
-                f"{name}_model_estimated_lift_original_scale",
+                original_scale_name(f"{name}_model_estimated_lift"),
                 self.model[f"{name}_model_estimated_lift"]
                 * as_xtensor(target_scale_factor, dims=(f"_{name}_dim",)),
             )
@@ -4339,49 +4783,124 @@ class MMM(RegressionModelBuilder):
 
         return self
 
-    def _channel_incremental_contribution(self) -> XTensorVariable:
-        """Return the per-channel increment, registering it on first use.
+    def _channel_increment(self) -> XTensorVariable:
+        """Return the per-channel increment, registered or not.
 
-        Registered under :attr:`LinkSpec.channel_increment_var`: the identity
-        link reuses ``channel_contribution_original_scale``, which is the same
-        tensor, while the log link registers ``channel_incremental_contribution``
-        on the median scale.  Later calibrations share the node.
+        The node registered under :attr:`LinkSpec.channel_increment_var` when
+        there is one, otherwise the unregistered tensor: the identity link's
+        is ``channel_contribution_original_scale``, the same tensor
+        :meth:`add_original_scale_contribution_variable` builds, the log
+        link's is ``channel_incremental_contribution`` on the median scale.
+        A calibration checks what it can on this tensor and registers it with
+        :meth:`_register_channel_increment` only once nothing is left to
+        refuse, so a refused calibration leaves no node behind.
         """
         name = self._link_spec.channel_increment_var
         if name in self.model.named_vars:
             return self.model[name]
+        return self._link_spec.channel_incremental_contribution(
+            mu_var=self.model[Var.MU],
+            channel_contribution=self.model[Var.CHANNEL_CONTRIBUTION],
+            target_scale=self.model[Var.TARGET_SCALE],
+        ).transpose("date", ...)
 
+    def _register_channel_increment(
+        self, increment: XTensorVariable
+    ) -> XTensorVariable:
+        """Register *increment* from :meth:`_channel_increment` and return the node.
+
+        Returns the node already registered under the same name, if any, so
+        that every calibration's likelihood depends on that one node.
+        """
+        name = self._link_spec.channel_increment_var
+        if name in self.model.named_vars:
+            return self.model[name]
         with self.model:
-            return pmd.Deterministic(
-                name,
-                self._link_spec.channel_incremental_contribution(
-                    mu_var=self.model["mu"],
-                    channel_contribution=self.model["channel_contribution"],
-                    target_scale=self.model["target_scale"],
-                ).transpose("date", ...),
-            )
+            return pmd.Deterministic(name, increment)
 
     def add_cost_per_target_calibration(
         self: Self,
-        data: pd.DataFrame,
+        data: pd.DataFrame | xr.Dataset | xr.DataArray,
         calibration_data: pd.DataFrame,
         name_prefix: str = "cpt_calibration",
         *,
         target_column: str = "cost_per_target",
         target_per_cost: bool = False,
         central_tendency: Literal["median", "mean"] = "mean",
+        likelihood: Prior | None = None,
     ) -> Self:
-        r"""Calibrate cost-per-target (or ROAS) using an observed Normal likelihood.
+        r"""Calibrate cost-per-target (or ROAS) with an observed likelihood on the ratio.
 
         By default this computes cost-per-target as
         ``mean(spend) / mean(contribution)`` over the date dimension and adds
-        an observed ``Normal`` likelihood for each calibration row:
+        one observed likelihood term per calibration row, centred on that
+        ratio :math:`r` and matched to the table's ``sigma``, the standard
+        error of the calibration value :math:`t` in the units the table
+        states it in. ``likelihood`` picks the family:
 
-        ``Normal(mu=cpt_mean, sigma=sigma, observed=target)``
+        ==============  =================  ================  ============  ==================================
+        ``likelihood``  ``mu``             ``sigma``         ``observed``  penalty as :math:`r \to 0`
+        ==============  =================  ================  ============  ==================================
+        ``Normal``      :math:`r`          :math:`\sigma`    :math:`t`     capped at :math:`t^2 / (2\sigma^2)`
+        ``StudentT``    :math:`r`          :math:`\sigma`    :math:`t`     capped lower; needs ``nu``
+        ``LogNormal``   :math:`\log r`     :math:`\sigma/t`  :math:`t`     grows as :math:`(\log(r/t))^2`
+        ==============  =================  ================  ============  ==================================
+
+        A ``Normal`` on a ratio is bounded on one side.  Its negative log
+        density tends to :math:`t^2 / (2\sigma^2)` as the ratio goes to zero,
+        8 nats at :math:`\sigma = t/4`, so a cost-per-target calibration is a
+        floor on ROAS but not a ceiling: once the sales likelihood gains more
+        than that from inflating a channel, the calibration no longer holds
+        it, and tightening ``sigma`` only raises the cap.  ``StudentT`` caps
+        lower on purpose; it is the choice when the experiment itself may be
+        wrong.  ``LogNormal`` measures the error on the log scale, so a 2x
+        miss costs the same in either direction and the cost keeps growing
+        as :math:`(\log(r/t))^2`.
+
+        Near the target the families charge similar amounts: at
+        :math:`\sigma = t/4` a 25% miss costs 0.50 nats under ``Normal``,
+        0.56 under ``StudentT(nu=4)`` and 0.40 (over) or 0.66 (under) under
+        ``LogNormal``.  At the same width the ``Normal`` charges more than
+        ``LogNormal`` for every ratio above the target and less for every
+        ratio below it, since :math:`\log x \le x - 1`.
+
+        Pick the family by the error the experiment reports.  A ROAS read off
+        a lift test, an incremental outcome with a Normal standard error over
+        a spend the test knows, has an additive error: the ``Normal`` on a
+        ROAS table is then the sampling model, it pulls harder than
+        ``LogNormal`` against an overstated channel, and its cap as the ROAS
+        goes to zero is what the experiment says about zero.  A CPA :math:`t`
+        from such a test has the same error on the ROAS scale, so invert it
+        to a ROAS :math:`1/t` with standard error :math:`\sigma / t^2` and
+        calibrate that with the ``Normal``; see the examples.  The
+        conversion is exact for the delta-method standard error of
+        :math:`\text{spend} / \Delta y` with :math:`\Delta y` Normal and the
+        spend known, and close while :math:`\sigma / t` is about 0.3 or less;
+        a CPA reported as bootstrap replicates or posterior draws is inverted
+        draw by draw (the mean and standard deviation of the reciprocals).
+        ``LogNormal`` is the model for a value reported with a relative,
+        asymmetric or log-scale interval, a CPA included, where a CPA-table
+        ``Normal`` would be capped on the side an overstated channel moves
+        toward.  Its width :math:`\sigma / t` is the first-order translation
+        of the table's standard error into a relative one, accurate while
+        :math:`\sigma / t` is about 0.3 or less: at 0.5 the ratios within 1.96
+        widths of the target run from :math:`0.38\,t` to :math:`2.66\,t`,
+        against :math:`0.02\,t` to :math:`1.98\,t` under the ``Normal``.  A
+        log-scale standard error :math:`s` is entered exactly as
+        :math:`\sigma = s\,t`.  ``LogNormal`` also assumes contributions that
+        stay positive, as positive-support channel priors keep them: each
+        mean is floored at :math:`10^{-12}` before the log, so the log-scale
+        penalty keeps growing until a mean reaches that floor, and a negative
+        contribution costs a large finite penalty with no gradient.
 
         Set ``target_per_cost=True`` to flip the ratio to
         ``mean(contribution) / mean(spend)``, which is ROAS when the target is
         revenue (or conversions per dollar when the target is conversions).
+        Under ``Normal`` and ``StudentT`` the direction decides which side is
+        capped (a ROAS table is a ceiling without a floor); under
+        ``LogNormal`` the two directions give the same term while the
+        contributions stay positive, so the flag only says how the table is
+        written.
 
         The numerator and denominator are meaned separately because the ratio of
         means is the definition of the aggregate cost-per-target (or ROAS) over
@@ -4433,21 +4952,30 @@ class MMM(RegressionModelBuilder):
 
         Parameters
         ----------
-        data : pd.DataFrame
-            Feature-like DataFrame with columns matching training ``X`` but with
-            channel values representing spend (original units). Must include the
-            same ``date`` and any model ``dims`` columns.
+        data : pd.DataFrame | xr.Dataset | xr.DataArray
+            Spend in original units, laid out like the training ``X``: a
+            DataFrame with the ``date_column``, one column per model dim and one
+            per channel; an ``xr.Dataset`` with the spend in a ``_channel`` (or
+            ``media``) variable; or an ``xr.DataArray`` of the spend alone. An
+            xarray input is on ``date``, the model ``dims`` and ``channel``.
+            Its dates and dimension labels must be exactly the model's and it
+            must hold every model channel; labels are matched by value and
+            reordered to the model's coordinate order. Missing values count as
+            zero spend.
         calibration_data : pd.DataFrame
             DataFrame with rows specifying calibration targets. Must include:
 
             - ``channel``: channel name in ``self.channel_columns``
             - the column named by the ``target_column`` argument (default
               ``"cost_per_target"``): the CPT (or ROAS) value to calibrate to
-            - ``sigma``: accepted deviation; larger => weaker penalty
+            - ``sigma``: standard error of that value, in the same units;
+              larger means a weaker pull. Must be positive, as must the value
+              under ``LogNormal``.
 
             and one column per dimension in ``self.dims``.
         name_prefix : str
-            Prefix to use for generated potential names.
+            Name of the observed likelihood variable; its rows sit on the
+            ``_<name_prefix>`` coordinate.
         target_column : str
             Column in ``calibration_data`` holding the calibration values.
             Defaults to ``"cost_per_target"``.
@@ -4482,6 +5010,17 @@ class MMM(RegressionModelBuilder):
             appropriate only when the calibration values are themselves such
             latent-median quantities.  An observed experiment readout cannot
             be calibrated on such a model with this method.
+        likelihood : Prior, optional
+            Family of the calibration term, by default ``Prior("Normal")``;
+            ``Prior("StudentT", nu=...)`` and ``Prior("LogNormal")`` are the
+            alternatives (see the table above). ``nu`` is the only parameter
+            it takes: the others come from the model and the table, and they,
+            ``dims``, a ``transform`` and ``centered=False`` are refused.
+            ``nu`` must be positive: a non-positive constant, or a prior that
+            can go negative (``Normal``, ``StudentT``, ...), is refused. A
+            Prior-valued ``nu`` (without dims) adds a free variable named
+            ``{name_prefix}_nu`` to the posterior. The family is saved with
+            the calibration record and restored by :meth:`load`.
 
         Raises
         ------
@@ -4496,22 +5035,48 @@ class MMM(RegressionModelBuilder):
             (:class:`~pymc_marketing.mmm.lift_test.UnalignedValuesError`).
         ValueError
             If ``central_tendency`` is not ``"mean"`` or ``"median"``; if
-            ``name_prefix`` is the name of the increment node or of any model
-            variable other than a prior calibration with that prefix; if a
-            calibration value or ``sigma`` is not numeric; if the spend
-            coordinates do not match the model's; or if
-            ``central_tendency="mean"`` with a wrapped likelihood, or under
+            ``likelihood`` sets any parameter other than ``StudentT``'s
+            ``nu``, ``dims``, a ``transform`` or ``centered=False``, is a
+            ``StudentT`` without ``nu`` or with a ``nu`` that carries dims or
+            arrays, is a non-positive constant or a prior that can go
+            negative, or is not one of the three families;
+            if ``target_column`` is ``"channel"``, ``"sigma"`` or a model dim;
+            if ``name_prefix`` is the name of the increment node or of any
+            model variable other than a prior calibration with that prefix;
+            if a calibration value or ``sigma`` is not numeric, or a
+            calibration value is not positive under ``LogNormal``; if the
+            spend labels differ from the model's or the spend is not finite;
+            if ``central_tendency="mean"`` with a wrapped likelihood, or under
             the log link with a likelihood scale that is fixed rather than a
-            model variable.
+            model variable; or if, under ``LogNormal``, a calibrated row does
+            not have a positive mean spend and a positive mean contribution at
+            the model's initial point (a channel with no spend over the dates,
+            or whose contribution is zero there).
+        TypeError
+            If ``likelihood`` is not a :class:`~pymc_extras.prior.Prior`.
 
         Notes
         -----
         Every error is raised before the increment node is registered, so a
         refused call leaves the model unchanged.
 
+        Calibration rows and options are saved in ``idata.attrs`` and the spend
+        in the ``cost_per_target_spend`` group when fitting, and restored by
+        :meth:`load`. Adding calibration after a fit changes the graph but not
+        the saved posterior or these records; refit before saving that change
+        (:meth:`save` warns when they differ).
+
+        The spend covers the model's dates and dimension labels. :meth:`fit`
+        reuses a built model, so it refuses ``X`` with other dates or labels
+        while this calibration is present; to fit new data, call
+        :meth:`build_model` with it, re-add the calibration with spend for its
+        dates, and fit.
+
         Examples
         --------
-        Build a model and calibrate CPT for selected (dims, channel):
+        Build a model and calibrate CPT for selected (dims, channel) with the
+        default ``Normal``, which reads ``sigma`` as an additive error on the
+        CPA scale:
 
         .. code-block:: python
 
@@ -4535,7 +5100,9 @@ class MMM(RegressionModelBuilder):
                 name_prefix="cpt_calibration",
             )
 
-        Calibrate ROAS instead, using experiment-derived estimates:
+        Calibrate ROAS instead. For a ROAS read off a lift test, with a Normal
+        standard error on the incremental outcome, the default ``Normal`` is
+        the sampling model:
 
         .. code-block:: python
 
@@ -4555,12 +5122,51 @@ class MMM(RegressionModelBuilder):
                 target_column="roas",
                 target_per_cost=True,
             )
+
+        A CPA from a lift test is calibrated as the ROAS it inverts to, with
+        the default ``Normal``:
+
+        .. code-block:: python
+
+            cpa = calibration_df["cost_per_target"]
+            roas_from_cpa = calibration_df.assign(
+                roas=1 / cpa, sigma=calibration_df["sigma"] / cpa**2
+            )
+
+            mmm.add_cost_per_target_calibration(
+                data=spend_df,
+                calibration_data=roas_from_cpa,
+                name_prefix="cpa_as_roas",
+                target_column="roas",
+                target_per_cost=True,
+            )
+
+        For a CPA reported with a relative or log-scale interval, measure the
+        error on the log scale instead, so that the pull keeps growing however
+        far the channel's ROAS moves from the experiment:
+
+        .. code-block:: python
+
+            from pymc_extras.prior import Prior
+
+            mmm.add_cost_per_target_calibration(
+                data=spend_df,
+                calibration_data=calibration_df,
+                name_prefix="cpa_lognormal",
+                likelihood=Prior("LogNormal"),
+            )
         """
         if not hasattr(self, "model"):
             raise RuntimeError("Model must be built before adding calibration.")
         if central_tendency not in ("median", "mean"):
             raise ValueError(
                 f"central_tendency must be 'median' or 'mean', got {central_tendency!r}"
+            )
+        if target_column in {"channel", "sigma", *self.dims}:
+            raise ValueError(
+                f"target_column {target_column!r} collides with a label or sigma "
+                "column of calibration_data; use a distinct column for the "
+                "calibration values."
             )
 
         # A name that is, or will be, a model variable is refused before any
@@ -4599,14 +5205,18 @@ class MMM(RegressionModelBuilder):
                 raise KeyError(
                     f"The {dim} column is required in calibration_data to map to model dims."
                 )
-        # The checks add_cost_per_target_observations makes (sigma column,
-        # channel and dim labels, numeric values), run here first so a bad
-        # table is refused before the increment node is registered.
-        validate_cost_per_target_rows(
-            calibration_data, self.model, target_column=target_column
+        # The table and likelihood checks (sigma column, channel and dim
+        # labels, numeric values, likelihood contents) run before anything
+        # touches the graph, so a bad table is refused before the increment
+        # node is registered.
+        indices, targets, sigmas, likelihood = validate_cost_per_target_rows(
+            calibration_data,
+            self.model,
+            target_column=target_column,
+            likelihood=likelihood,
         )
 
-        channel_data_dims = self.model.named_vars_to_dims["channel_data"]
+        channel_data_dims = self.model.named_vars_to_dims[Var.CHANNEL_DATA]
 
         # Prepare spend data as xarray (original units)
         spend_ds = (
@@ -4620,16 +5230,70 @@ class MMM(RegressionModelBuilder):
             .fillna(0)
         )
 
-        spend_xarray = spend_ds._channel
+        # Only the dimension coordinates take part in the likelihood or in the
+        # saved spend group; auxiliary coordinates would make value-identical
+        # spend arrays look different and could not share one Dataset.
+        spend_xarray = spend_ds._channel.reset_coords(drop=True)
 
+        # The spend is combined with model tensors by dimension name, not by
+        # label, so it is aligned to the model's coordinate order here. Labels
+        # must match exactly; only their order may differ.
         for dim in channel_data_dims:
-            spend_labels = np.asarray(spend_xarray.coords[dim].values)
-            model_labels = np.asarray(self.model.coords[dim])
-            if not np.array_equal(spend_labels, model_labels):
+            model_labels = pd.Index(self.model.coords[dim])
+            spend_labels = pd.Index(spend_xarray.coords[dim].values)
+            indexer = _label_indexer(spend_labels, model_labels)
+            if indexer is None:
                 raise ValueError(
-                    f"Spend data coordinates for dim {dim!r} do not match model coords: "
-                    f"expected {model_labels.tolist()}, got {spend_labels.tolist()}"
+                    f"Spend data coordinates for dim {dim!r} do not match model "
+                    f"coords: expected {model_labels.tolist()}, got "
+                    f"{spend_labels.tolist()}"
                 )
+            spend_xarray = spend_xarray.isel({dim: indexer})
+        if not np.isfinite(spend_xarray.values).all():
+            raise ValueError(
+                "Spend data must contain finite values after missing entries are "
+                "filled with 0."
+            )
+
+        # Record the inputs this likelihood consumes before any graph change.
+        # Label columns hold the model coordinates matched by the validator, in
+        # their coordinate dtype (object Timestamp selectors become temporal
+        # columns, so they compare correctly after a NetCDF load); the values
+        # and sigma are the float arrays the likelihood uses. The spend array is
+        # kept once per distinct array and referenced by name from the record.
+        rows = pd.DataFrame(
+            {
+                **{
+                    column: pd.Series(self.model.coords[column]).to_numpy()[
+                        indices[column]
+                    ]
+                    for column in ("channel", *self.dims)
+                },
+                target_column: targets,
+                "sigma": sigmas,
+            }
+        )
+        spend_var = next(
+            (
+                key
+                for key, stored in self._cost_per_target_spend.items()
+                if stored.equals(spend_xarray)
+            ),
+            name_prefix,
+        )
+        calibration = {
+            "format_version": 2,
+            "name_prefix": name_prefix,
+            "target_column": target_column,
+            "target_per_cost": bool(target_per_cost),
+            "central_tendency": central_tendency,
+            "likelihood": serialization.serialize_model_config(
+                {"likelihood": likelihood}
+            )["likelihood"],
+            "spend_var": spend_var,
+            **_calibration_frame_to_record(rows),
+        }
+        json.dumps(calibration)
 
         # Built before the increment is registered, so a model that cannot give
         # the mean scale fails without changing the graph.
@@ -4640,21 +5304,72 @@ class MMM(RegressionModelBuilder):
             if central_tendency == "mean"
             else None
         )
-        target_value = self._channel_incremental_contribution()
-        if mean_ratio is not None:
-            target_value = target_value * mean_ratio
-
-        add_cost_per_target_observations(
-            calibration_df=calibration_data,
-            model=self.model,
-            cost_value=as_xtensor(spend_xarray),
-            target_value=target_value,
-            target_column=target_column,
+        # Under LogNormal the calibration can still be refused on the model
+        # ratio at the initial point, so that check runs on the unregistered
+        # increment and a refused call leaves no node behind. The likelihood
+        # is then built on the registered node, so every calibration depends
+        # on it. These are the steps of add_cost_per_target_observations with
+        # the registration in between; a new family-specific check belongs in
+        # both places.
+        cost_value = as_xtensor(spend_xarray)
+        increment = self._channel_increment()
+        if likelihood.distribution == "LogNormal":
+            _validate_positive_cost_per_target_means(
+                self.model,
+                *_gather_cost_per_target_means(
+                    cost_value,
+                    increment if mean_ratio is None else increment * mean_ratio,
+                    indices,
+                    dim=f"_{name_prefix}",
+                ),
+            )
+        increment = self._register_channel_increment(increment)
+        _add_cost_per_target_likelihood(
+            self.model,
+            cost_value,
+            increment if mean_ratio is None else increment * mean_ratio,
+            indices,
+            targets,
+            sigmas,
+            likelihood,
             name_prefix=name_prefix,
             target_per_cost=target_per_cost,
         )
 
+        self._cost_per_target_spend.setdefault(spend_var, spend_xarray.copy())
+        self._cost_per_target_calibrations.append(calibration)
+
         return self
+
+    def _prepare_fit(self, data: Any = None) -> None:
+        """Refuse fit data whose labels the cost-per-target spend does not cover.
+
+        :meth:`fit` reuses a built model, and the cost-per-target spend of that
+        model covers the dates and dimension labels it was built with. The fit
+        data is what :meth:`build_from_idata` rebuilds the model from on load,
+        where spend for other labels could not be replayed, so such data is
+        refused before sampling.
+
+        Raises
+        ------
+        ValueError
+            If the model carries cost-per-target calibration and the fit data
+            has dates or dimension labels other than the model's.
+        """
+        super()._prepare_fit(data)
+        fit_data = self.create_fit_data_group()
+        if not self._cost_per_target_calibrations or fit_data is None:
+            return
+        for dim, coord in (("date", self.date_column), *((d, d) for d in self.dims)):
+            fit_labels = pd.Index(fit_data[coord].values)
+            if _label_indexer(fit_labels, pd.Index(self.model.coords[dim])) is None:
+                raise ValueError(
+                    f"X has {dim!r} labels other than those the model was built "
+                    "with. fit reuses the built model, whose cost-per-target "
+                    "calibration spend covers its labels only, so a model saved "
+                    "from this fit could not be loaded. Call `build_model(X, y)`, "
+                    "re-add the calibration with spend for X, then fit."
+                )
 
     def _validate_fit_inputs(
         self,
@@ -4753,19 +5468,19 @@ class MMM(RegressionModelBuilder):
                 control_columns=self.control_columns,
                 target_column=self.target_column,
             )
-            if "_target" not in ds:
+            if DatasetVar.TARGET not in ds:
                 raise ValueError(
                     "y was not provided and X has no 'target' / '_target' variable"
                 )
             parts = [
-                ds["_channel"].to_dataset("channel"),
-                ds["_target"].rename(self.target_column).to_dataset(),
+                ds[DatasetVar.CHANNEL].to_dataset("channel"),
+                ds[DatasetVar.TARGET].rename(self.target_column).to_dataset(),
             ]
-            if "_control" in ds:
-                parts.append(ds["_control"].to_dataset("control"))
+            if DatasetVar.CONTROL in ds:
+                parts.append(ds[DatasetVar.CONTROL].to_dataset("control"))
             fit_data = xr.merge(parts, combine_attrs="drop")
-            if self.date_column != "date":
-                fit_data = fit_data.rename({"date": self.date_column})
+            if self.date_column != Dim.DATE:
+                fit_data = fit_data.rename({Dim.DATE: self.date_column})
             return fit_data.transpose(
                 self.date_column, *self.dims, missing_dims="ignore"
             )
@@ -4867,8 +5582,11 @@ class MMM(RegressionModelBuilder):
             the posterior. Posterior draws are matched to the model by position,
             and a model fit from an ``xr.Dataset`` keeps the Dataset's order,
             while the DataFrame built from ``fit_data`` is sorted.
-        - Restores lift-test calibration. Cost-per-target calibration is not
-            currently restored because its input data are not saved.
+        - Restores lift-test calibration from ``idata.attrs`` and
+            cost-per-target/ROAS calibration from ``idata.attrs`` plus the
+            ``cost_per_target_spend`` group. Files written before these records
+            existed, or saved with ``groups=`` that drops the spend group, load
+            without those likelihoods and emit a ``UserWarning``.
 
         Examples
         --------
@@ -4878,8 +5596,8 @@ class MMM(RegressionModelBuilder):
 
         """
         self.idata = idata
-        if "mu_effects" in idata.attrs:
-            mu_effects_data = json.loads(idata.attrs["mu_effects"])
+        if Attr.MU_EFFECTS in idata.attrs:
+            mu_effects_data = json.loads(idata.attrs[Attr.MU_EFFECTS])
             ctx = DeserializationContext(idata=idata)
             self.mu_effects = [
                 serialization.deserialize(effect_data, context=ctx)
@@ -4910,35 +5628,73 @@ class MMM(RegressionModelBuilder):
         # Lift-test rows are model inputs, rather than part of fit_data. Restore
         # them after rebuilding the base MMM so their likelihood and posterior
         # model-implied-lift diagnostic are present again.
-        if "lift_test_calibrations" in idata.attrs:
-            for calibration in json.loads(idata.attrs["lift_test_calibrations"]):
-                df_lift_test = pd.read_json(
-                    io.StringIO(calibration["data"]),
-                    orient="split",
-                    dtype=False,
-                    convert_dates=False,
-                    precise_float=True,
-                )
-                for column, dtype in calibration["dtypes"].items():
-                    if dtype.startswith("datetime64"):
-                        if "," in dtype:
-                            timezone = dtype.split(",", maxsplit=1)[1].strip(" ]")
-                            df_lift_test[column] = pd.to_datetime(
-                                df_lift_test[column], utc=True
-                            ).dt.tz_convert(timezone)
-                        else:
-                            df_lift_test[column] = pd.to_datetime(
-                                df_lift_test[column]
-                            ).astype(dtype)
-                    else:
-                        df_lift_test[column] = df_lift_test[column].astype(dtype)
+        if Attr.LIFT_TEST_CALIBRATIONS in idata.attrs:
+            for calibration in json.loads(idata.attrs[Attr.LIFT_TEST_CALIBRATIONS]):
+                df_lift_test = _calibration_frame_from_record(calibration)
                 likelihood = serialization.deserialize_model_config(
                     {"likelihood": calibration["likelihood"]}
                 )["likelihood"]
+                # A record saved before the likelihood checks tightened can
+                # hold a Prior they now refuse; name the record, not the call.
+                if isinstance(likelihood, Prior):
+                    try:
+                        _validate_likelihood_prior(likelihood, _LIFT_LIKELIHOODS)
+                    except ValueError as error:
+                        raise ValueError(
+                            "Invalid lift-test calibration metadata for "
+                            f"{calibration['name']!r}: {error} "
+                            f"{_LIFT_METADATA_RECOVERY_HINT}"
+                        ) from error
                 self.add_lift_test_measurements(
                     df_lift_test,
                     likelihood=likelihood,
                     name=calibration["name"],
+                )
+
+        # Cost-per-target rows and options live in attrs, the spend in its own
+        # group. Metadata errors are raised by the parser; the replay below goes
+        # through the public method so model-state errors keep their messages.
+        records = _parse_cost_per_target_records(
+            idata.attrs.get(Attr.COST_PER_TARGET_CALIBRATIONS, "[]"), self.dims
+        )
+        unrestored_cpt: set[str] = set()
+        if records and COST_PER_TARGET_SPEND_GROUP not in idata.children:
+            unrestored_cpt = {record["name_prefix"] for record in records}
+            warnings.warn(
+                "The saved model records cost-per-target calibration "
+                f"{sorted(unrestored_cpt)} but the {COST_PER_TARGET_SPEND_GROUP!r} "
+                "group holding its spend is missing (for example dropped through "
+                "`save(groups=...)`); those likelihoods are not restored. Re-save "
+                "the fitted model including the "
+                f"{COST_PER_TARGET_SPEND_GROUP!r} group, or re-add the calibration "
+                "and refit.",
+                UserWarning,
+                stacklevel=2,
+            )
+        elif records:
+            spend_group = idata[COST_PER_TARGET_SPEND_GROUP].to_dataset()
+            missing_spend = [
+                record["spend_var"]
+                for record in records
+                if record["spend_var"] not in spend_group
+            ]
+            if missing_spend:
+                raise ValueError(
+                    "Invalid cost-per-target calibration metadata: spend variables "
+                    f"{missing_spend} are not in the {COST_PER_TARGET_SPEND_GROUP!r} "
+                    f"group. {_CPT_METADATA_RECOVERY_HINT}"
+                )
+            for record in records:
+                self.add_cost_per_target_calibration(
+                    data=spend_group[record["spend_var"]].to_dataset(
+                        name=DatasetVar.CHANNEL
+                    ),
+                    calibration_data=record["rows"],
+                    name_prefix=record["name_prefix"],
+                    target_column=record["target_column"],
+                    target_per_cost=record["target_per_cost"],
+                    central_tendency=record["central_tendency"],
+                    likelihood=record["likelihood"],
                 )
 
         # Re-add any *_original_scale Deterministics that were present when the
@@ -4949,11 +5705,11 @@ class MMM(RegressionModelBuilder):
         # Primary path  : read the explicit list stored by save() in idata.attrs.
         # Fallback path : infer from idata.posterior for models saved before this
         #                 fix (original_scale_vars attr absent).
-        suffix = "_original_scale"
-        if "original_scale_vars" in idata.attrs:
+        suffix = ORIGINAL_SCALE_SUFFIX
+        if Attr.ORIGINAL_SCALE_VARS in idata.attrs:
             vars_to_restore = [
                 v
-                for v in json.loads(idata.attrs["original_scale_vars"])
+                for v in json.loads(idata.attrs[Attr.ORIGINAL_SCALE_VARS])
                 if v in self.model.named_vars
                 and (v.endswith("_contribution") or v == self.output_var)
             ]
@@ -4971,8 +5727,39 @@ class MMM(RegressionModelBuilder):
         else:
             vars_to_restore = []
 
+        # Cost-per-target restoration under the identity link already registered
+        # ``channel_contribution_original_scale`` (and a calibration may itself be
+        # named ``<var>_original_scale``); skip those so the call below does not
+        # warn about them.
+        vars_to_restore = [
+            var
+            for var in vars_to_restore
+            if original_scale_name(var) not in self.model.named_vars
+        ]
         if vars_to_restore:
             self.add_original_scale_contribution_variable(var=vars_to_restore)
+
+        # Every observed term of the fitted graph should be back. Anything left
+        # over is most likely calibration whose inputs the file does not carry
+        # (saved before calibration persistence, or with `groups=` that dropped
+        # them), though an observed variable added by hand looks the same.
+        if "observed_data" in idata.children:
+            missing_terms = sorted(
+                set(idata.observed_data.data_vars)
+                - {rv.name for rv in self.model.observed_RVs}
+                - unrestored_cpt
+            )
+            if missing_terms:
+                warnings.warn(
+                    f"The saved observed data has likelihood terms {missing_terms} "
+                    "that the rebuilt model lacks. These are likely calibration "
+                    "terms whose inputs were not stored with the model (files "
+                    "saved before calibration persistence, or saved with "
+                    "`groups=` that dropped them); those likelihoods are not "
+                    "restored.",
+                    UserWarning,
+                    stacklevel=2,
+                )
 
     def set_cost_per_unit(
         self,
@@ -5019,17 +5806,17 @@ class MMM(RegressionModelBuilder):
         if not hasattr(self.idata, "constant_data"):
             raise ValueError("DataTree missing constant_data group")
 
-        if "channel_data" not in self.idata.constant_data:
+        if Var.CHANNEL_DATA not in self.idata.constant_data:
             raise ValueError(
                 "DataTree constant_data is missing 'channel_data'. "
                 "Cannot compute channel_spend without channel_data."
             )
 
         cost_per_unit_array = self._build_cost_per_unit_array(cost_per_unit)
-        channel_data = self.idata.constant_data["channel_data"]
-        self.idata.constant_data["channel_spend"] = channel_data * cost_per_unit_array
+        channel_data = self.idata.constant_data[Var.CHANNEL_DATA]
+        self.idata.constant_data[Var.CHANNEL_SPEND] = channel_data * cost_per_unit_array
         self._cost_per_unit_input = cost_per_unit
-        self.idata.attrs["cost_per_unit"] = cost_per_unit.to_json(
+        self.idata.attrs[Attr.COST_PER_UNIT] = cost_per_unit.to_json(
             orient="split", date_format="iso"
         )
 
@@ -5146,6 +5933,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             model=self.model_class.model.copy(),
         )
         for mu_effect in self.model_class.mu_effects:
+            mu_effect.check_scenario_use(self.model_class)
             mu_effect.set_data(self.model_class, pymc_model, dataset_xarray)
         return pymc_model
 
@@ -5282,6 +6070,16 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             Result object with ``budgets``, ``scipy_result``, ``optimized_vars``
             and ``callback_info`` attributes. Iterating it yields
             ``(budgets, scipy_result)``, so two-element unpacking keeps working.
+
+        Raises
+        ------
+        TypeError
+            If ``cost_per_unit`` is neither a DataFrame nor a DataArray.
+        NotImplementedError
+            If ``response_variable`` reaches a frozen deterministic over ``date``, a
+            path that exists only on the dates the MMM was fitted on, as
+            ``total_response_original_scale`` does with the contribution of a mu
+            effect that freezes one. The optimizer refuses it.
         """
         from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 
@@ -5307,12 +6105,14 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
                 stacklevel=2,
             )
 
+        response_variable = self.model_class._resolve_response_variable(
+            response_variable
+        )
+
         allocator = BudgetOptimizer(
             num_periods=self.num_periods,
             utility_function=utility_function,
-            response_variable=self.model_class._resolve_response_variable(
-                response_variable
-            ),
+            response_variable=response_variable,
             constraints=constraints,
             budgets_to_optimize=budgets_to_optimize,
             budget_distribution_over_period=budget_distribution_over_period,
@@ -5354,7 +6154,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             _budget_distribution = budget_distribution
 
         result = data_with_noise.copy()
-        result["_channel"] = data_with_noise["_channel"] * (
+        result[DatasetVar.CHANNEL] = data_with_noise[DatasetVar.CHANNEL] * (
             _budget_distribution * self.num_periods
         )
         return result
@@ -5380,7 +6180,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         )
 
         result = data_with_noise.copy()
-        result["_channel"] = data_with_noise["_channel"].where(
+        result[DatasetVar.CHANNEL] = data_with_noise[DatasetVar.CHANNEL].where(
             data_with_noise.coords["date"] <= cutoff_date, 0
         )
         return result
@@ -5422,6 +6222,13 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         -------
         xr.Dataset
             The posterior predictive samples based on the synthetic dataset.
+
+        Raises
+        ------
+        NotImplementedError
+            If a mu effect takes only the dates the MMM was fitted on
+            (``supports_new_dates=False``), since this samples the posterior
+            predictive on the window's dates, as prediction on any other dates is.
         """
         data = create_zero_dataset(
             model=self,
@@ -5448,7 +6255,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         if include_carryover:
             data_with_noise = self._apply_carryover_effect(data_with_noise)
 
-        if "channel_contribution_original_scale" not in self.model.named_vars:
+        if Var.CHANNEL_CONTRIBUTION_ORIGINAL_SCALE not in self.model.named_vars:
             raise ValueError(
                 "'channel_contribution_original_scale' is not in the model. "
                 "Call `mmm.add_original_scale_contribution_variable(['channel_contribution'])` "
@@ -5457,19 +6264,19 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
 
         constant_data = xr.merge(
             [
-                allocation_strategy.to_dataset(name="allocation"),
+                allocation_strategy.to_dataset(name=Var.ALLOCATION),
                 (allocation_strategy * self.num_periods).to_dataset(
-                    name="total_allocation"
+                    name=Var.TOTAL_ALLOCATION
                 ),
             ]
         )
-        _dataset = data_with_noise["_channel"].to_dataset(dim="channel")
+        _dataset = data_with_noise[DatasetVar.CHANNEL].to_dataset(dim="channel")
 
         var_names = [
             self.output_var,
-            "channel_contribution",
-            "channel_contribution_original_scale",
-            "total_media_contribution_original_scale",
+            Var.CHANNEL_CONTRIBUTION,
+            Var.CHANNEL_CONTRIBUTION_ORIGINAL_SCALE,
+            Var.TOTAL_MEDIA_CONTRIBUTION_ORIGINAL_SCALE,
         ]
         if additional_var_names is not None:
             var_names.extend(additional_var_names)

@@ -92,7 +92,9 @@ exclude_patterns = [
 # notebook output cells. Our config sets the same key, so myst flags it; the
 # resulting behaviour is what we want, so we silence the warning rather than
 # remove the explicit setting (which we keep for clarity).
-suppress_warnings = ["myst.mathjax"]
+# sphinx-design 0.8 deprecated the `^^^`/`+++` card separators used in index.md;
+# the replacement `card-header`/`card-footer` directives need sphinx-design >= 0.8.
+suppress_warnings = ["myst.mathjax", "design.card_legacy"]
 
 # The reST default role (used for this markup: `text`) to use for all documents.
 # This sets the behaviour to be the same as in markdown
@@ -326,6 +328,14 @@ html_theme_options = {
     # navbar_persistent is the only header slot shown at every width. Setting
     # it replaces the theme default, so keep the search button first.
     "navbar_persistent": ["search-button-field", "navbar-contact-button.html"],
+    # Render only the path to the current page (plus siblings) in the primary
+    # sidebar instead of the whole expandable tree of the section. With the
+    # default, each of the ~4200 pages embeds every API entry of its section
+    # (1386 nav items on a method stub), so the write cost grows with
+    # pages x sidebar size: generate_toctree_html took 76 of 96 s of a profiled
+    # write and the RTD build hit its 40 min limit. Collapsed, writing all pages
+    # took 54 s instead of 406 s locally and the HTML shrank from 1.4 GB to 398 MB.
+    "collapse_navigation": True,
 }
 html_context = {
     "github_user": "pymc-labs",

@@ -282,6 +282,7 @@ from pymc_marketing.mmm.optimization_variables import (
 from pymc_marketing.mmm.price_response import PriceResponse
 from pymc_marketing.mmm.spend_reach import _PKG_PREFIX
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
+from pymc_marketing.names.mmm import Attr, Dim, Var
 from pymc_marketing.pytensor_utils import (
     ConditionedModel,
     SharedPosterior,
@@ -299,12 +300,12 @@ attributed to the first frame outside both this package and pydantic: the
 caller's.
 """
 
-DEFAULT_RESPONSE_VARIABLE = "total_media_contribution_original_scale"
+DEFAULT_RESPONSE_VARIABLE = Var.TOTAL_MEDIA_CONTRIBUTION_ORIGINAL_SCALE
 """Objective used when no ``response_variable`` is given: the media contribution
 alone. A model whose response also travels through a ``MuEffect`` wants
 ``"total_response_original_scale"`` instead."""
 
-MMM_CHANNEL_DATA_VAR = "channel_data"
+MMM_CHANNEL_DATA_VAR = Var.CHANNEL_DATA
 """The node ``MMM`` fits its channels on, and the only one its historical
 ``cost_per_unit`` table (``idata.attrs["cost_per_unit"]``) describes."""
 
@@ -681,7 +682,7 @@ def merge_inference_data(
     idatas: Sequence[DataTree],
     prefixes: Sequence[str] | None = None,
     *,
-    merge_on: str | None = "channel_data",
+    merge_on: str | None = Var.CHANNEL_DATA,
     use_every_n_draw: int = 1,
 ) -> DataTree:
     """Merge multiple :class:`xarray.DataTree` objects with per-model prefixes.
@@ -870,7 +871,7 @@ def merge_models_and_idata(
     idatas: Sequence[DataTree],
     *,
     prefixes: Sequence[str] | None = None,
-    merge_on: str | None = "channel_data",
+    merge_on: str | None = Var.CHANNEL_DATA,
     use_every_n_draw: int = 1,
 ) -> tuple[Model, DataTree]:
     """Merge multiple PyMC models and their DataTree objects in one call.
@@ -1143,7 +1144,7 @@ class BuildMergedModel(OptimizerCompatibleModel):
         self,
         models: list[OptimizerCompatibleModel],
         prefixes: list[str] | None = None,
-        merge_on: str | None = "channel_data",
+        merge_on: str | None = Var.CHANNEL_DATA,
         use_every_n_draw: int = 1,
     ) -> None:
         warnings.warn(
@@ -1387,7 +1388,10 @@ class BudgetOptimizer(BaseModel):
     frozen_deterministics : list of str, optional
         Names of ``Deterministic`` variables to freeze at their posterior values
         instead of recomputing them from the graph. Required for models with HSGP
-        or time-varying components. Defaults to ``None``.
+        or time-varying components. One with the ``date_dim`` dimension is a path
+        over the dates the model was fitted on, which a window cannot evaluate, so
+        construction raises a ``NotImplementedError`` if ``response_variable``
+        reaches it. Defaults to ``None``.
     response_variable : str, optional
         The response variable to optimize. Default is
         ``"total_media_contribution_original_scale"``, which is built from the
@@ -1481,6 +1485,7 @@ class BudgetOptimizer(BaseModel):
             # flank effective_carryover_lags() wide; the three must add up to it.
             carry_in_periods=mmm.effective_carryover_lags(),
             adstock_periods=mmm.effective_carryover_lags(),
+            frozen_deterministics=mmm.frozen_deterministics,
             response_variable="total_media_contribution_original_scale",
         )
         optimal, result = optimizer.allocate_budget(total_budget=100_000)
@@ -1662,7 +1667,7 @@ class BudgetOptimizer(BaseModel):
     )
 
     channel_data_var: str = Field(
-        default="channel_data",
+        default=Var.CHANNEL_DATA,
         description=(
             "Name of the PyMC Data variable in the model that holds channel spend/media inputs. "
             "Defaults to 'channel_data'. Override if your model uses a different variable name "
@@ -1671,7 +1676,7 @@ class BudgetOptimizer(BaseModel):
     )
 
     channel_contribution_var: str = Field(
-        default="channel_contribution",
+        default=Var.CHANNEL_CONTRIBUTION,
         description=(
             "Name of the per-channel contribution variable in the model's posterior. "
             "Used to automatically detect which channels are non-zero when "
@@ -2031,12 +2036,70 @@ class BudgetOptimizer(BaseModel):
                     "response variable that includes their contribution."
                 )
 
+        # 8c. A frozen path over the date dim holds its posterior draws on the
+        # fitted dates, which do not line up with the window's.
+        if reached := self._frozen_date_paths(self.response_variable):
+            paths = (
+                f"a frozen path over {self.date_dim!r} that exists"
+                if len(reached) == 1
+                else f"frozen paths over {self.date_dim!r} that exist"
+            )
+            message = (
+                f"response_variable {self.response_variable!r} includes "
+                f"{' and '.join(map(repr, reached))}, {paths} only on the dates the "
+                "model was fitted on, so it cannot be optimized on a window."
+            )
+            default = DEFAULT_RESPONSE_VARIABLE
+            if (
+                self.response_variable != default
+                and default in self._pymc_model.named_vars
+                and not self._frozen_date_paths(default)
+            ):
+                message += (
+                    f" The default objective, {default!r}, does not include "
+                    f"{'it' if len(reached) == 1 else 'them'}."
+                )
+            raise NotImplementedError(message)
+
         # 9. Compile objective & gradient
         self._compile_objective_and_grad()
 
         # 10. Build constraints
         self._constraints = {}
         self.set_constraints(constraints=self.constraints)
+
+    def _frozen_date_paths(self, response_variable: str) -> list[str]:
+        """Return the frozen deterministics over ``date_dim`` an objective reaches.
+
+        The traversal stops at every frozen deterministic, as the evaluation does
+        when it substitutes their posterior draws, so a path that enters the
+        objective only through another frozen deterministic is not reached.
+
+        Parameters
+        ----------
+        response_variable : str
+            The objective, a variable of the optimization model.
+
+        Returns
+        -------
+        list of str
+            The names, in the order of ``frozen_deterministics``.
+        """
+        model = self._pymc_model
+        frozen = {
+            name: model[name]
+            for name in self.frozen_deterministics or ()
+            if name in model.named_vars
+        }
+        upstream = set(
+            ancestors([model[response_variable]], blockers=list(frozen.values()))
+        )
+        return [
+            name
+            for name, var in frozen.items()
+            if self.date_dim in (model.named_vars_to_dims.get(name) or ())
+            and var in upstream
+        ]
 
     def __copy__(self) -> "BudgetOptimizer":
         """Return a copy that owns its posterior binding and compiled functions.
@@ -2540,7 +2603,7 @@ class BudgetOptimizer(BaseModel):
                 "channel_scales must be a scalar or a 1-D array over channels, got "
                 f"an array with shape {scales.shape}."
             )
-        n_channels = len(self.model.coords.get("channel", ()))
+        n_channels = len(self.model.coords.get(Dim.CHANNEL, ()))
         if n_channels and scales.shape[0] != n_channels:
             raise ValueError(
                 f"channel_scales has length {scales.shape[0]} but the model has "
@@ -2759,7 +2822,7 @@ class BudgetOptimizer(BaseModel):
         is not usable for this: ``_parse_cost_per_unit_df`` fills absent channels with 1.0 and so
         writes spend for every channel.
         """
-        raw = self.idata.attrs.get("cost_per_unit")
+        raw = self.idata.attrs.get(Attr.COST_PER_UNIT)
         try:
             table = json.loads(raw) if isinstance(raw, str) else None
             columns = {str(column) for column in table["columns"]} if table else None
@@ -2769,7 +2832,7 @@ class BudgetOptimizer(BaseModel):
         if columns is None:
             return None
         # "channel" is the axis itself, so a channel named "channel" stays priced.
-        return columns - {"date"} - (set(self._budget_dims) - {"channel"}) or None
+        return columns - {"date"} - (set(self._budget_dims) - {Dim.CHANNEL}) or None
 
     def _media_price_reference(self, response: PriceResponse) -> DataArray | None:
         """Require attestation for a curved media response and derive its reference spend.
@@ -2797,7 +2860,7 @@ class BudgetOptimizer(BaseModel):
         if not curved.any():
             return None
         name = self.channel_data_var
-        has_channel_dim = "channel" in self._budget_dims
+        has_channel_dim = Dim.CHANNEL in self._budget_dims
         who = (
             f"channels {self._curved_channels(curved)}"
             if has_channel_dim
@@ -2864,7 +2927,7 @@ class BudgetOptimizer(BaseModel):
         a missing or malformed spend array asks for a reference, not for the attestation.
         """
         try:
-            spend = _extract_dataset(self.idata, "constant_data")["channel_spend"]
+            spend = _extract_dataset(self.idata, "constant_data")[Var.CHANNEL_SPEND]
         except KeyError:
             problem = "is missing"
             spend = None
@@ -3768,7 +3831,7 @@ class CustomModelWrapper(BaseModel):
         ),
     )
     channel_data_var: str = Field(
-        default="channel_data",
+        default=Var.CHANNEL_DATA,
         description=(
             "Name of the shared channel-data variable inside ``base_model``. "
             "Defaults to ``'channel_data'``."
@@ -3799,7 +3862,7 @@ class CustomModelWrapper(BaseModel):
         idata: Any,
         channels: Sequence[str],
         adstock_periods: int = 0,
-        channel_data_var: str = "channel_data",
+        channel_data_var: str = Var.CHANNEL_DATA,
         adstock: Any = None,
         **kwargs,
     ) -> None:

@@ -255,3 +255,33 @@ def test_make_change_plot_returns_figure(nstL, sample_change_df):
     fig = nstL.plot_change(sample_change_df, title="Test Intervention")
 
     assert isinstance(fig, plt.Figure)
+
+
+@pytest.mark.parametrize("lam", [1.0, 0.5])
+def test_nest_probs_match_closed_form(nstL, sample_df, lam):
+    nstL._set_choice_inputs(sample_df)
+    nstL.build_model()
+    model = nstL.model
+    fixed = pm.do(
+        model,
+        {
+            "lambdas_nests": np.full(2, lam),
+            "alphas_": np.zeros(model["alphas_"].shape.eval()),
+            "betas": np.array([0.3, -0.2]),
+            "betas_fixed_": np.zeros(model["betas_fixed_"].shape.eval()),
+        },
+    )
+    p, U = pm.draw([fixed["p"], fixed["U"]], random_seed=0)
+
+    # Closed form nested logit with nests [alt, other] and [option, another]
+    nests = [[0, 1], [2, 3]]
+    inclusive = np.stack(
+        [lam * np.log(np.exp(U[:, idx] / lam).sum(axis=1)) for idx in nests], axis=1
+    )
+    p_nest = np.exp(inclusive) / np.exp(inclusive).sum(axis=1, keepdims=True)
+    expected = np.empty_like(U)
+    for k, idx in enumerate(nests):
+        within = np.exp(U[:, idx] / lam)
+        expected[:, idx] = p_nest[:, [k]] * within / within.sum(axis=1, keepdims=True)
+
+    np.testing.assert_allclose(p, expected, rtol=1e-6)

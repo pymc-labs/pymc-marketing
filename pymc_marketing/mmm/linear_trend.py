@@ -71,6 +71,7 @@ from pytensor.xtensor.type import XTensorVariable
 from xarray import DataArray
 
 from pymc_marketing.mmm.dims import XTensorLike
+from pymc_marketing.names import Key
 from pymc_marketing.plot import SelToString, plot_curve
 from pymc_marketing.serialization import serialization
 
@@ -315,20 +316,26 @@ class LinearTrend(BaseModel):
         """Reconstruct from a dict."""
         from pymc_extras.deserialize import deserialize
 
-        work = {k: v for k, v in data.items() if k != "__type__"}
+        work = {k: v for k, v in data.items() if k != Key.TYPE}
         if "priors" in work and work["priors"] is not None:
             work["priors"] = {k: deserialize(v) for k, v in work["priors"].items()}
         if "dims" in work and isinstance(work["dims"], list):
             work["dims"] = tuple(work["dims"])
         return cls.model_validate(work)
 
-    def apply(self, t: XTensorLike) -> XTensorVariable:
+    def apply(self, t: XTensorLike, t_max: float | None = None) -> XTensorVariable:
         """Create the linear trend for the given x values.
 
         Parameters
         ----------
         t : XTensorLike
             1D array of strictly increasing time values for the trend starting from 0.
+        t_max : float, optional
+            End of the range over which the changepoints are spread evenly,
+            ``[0, t_max]``. By default the maximum of ``t``. Pass the training
+            maximum when ``t`` is data that is replaced for out-of-sample
+            predictions, so the changepoints stay where they were fitted and
+            the trend continues from the last one.
 
         Returns
         -------
@@ -347,8 +354,9 @@ class LinearTrend(BaseModel):
         model = pm.modelcontext(None)
         model.add_coord(changepoint_dim, range(self.n_changepoints))
 
+        end = t.max().values if t_max is None else t_max
         s = as_xtensor(
-            pt.linspace(0, t.max().values, self.n_changepoints),
+            pt.linspace(0, end, self.n_changepoints),
             dims=(changepoint_dim,),
         )
         A = t > s

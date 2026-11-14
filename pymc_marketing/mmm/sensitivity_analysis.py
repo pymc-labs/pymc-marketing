@@ -88,6 +88,7 @@ Notes
 
 import math
 import warnings
+from collections.abc import Sequence
 from typing import Literal
 
 import numpy as np
@@ -100,18 +101,40 @@ from pytensor.xtensor.type import XTensorVariable, as_xtensor
 from pytensor.xtensor.vectorization import vectorize_graph
 from xarray import DataArray
 
+from pymc_marketing.names.mmm import Dim, Group, Var
 from pymc_marketing.pytensor_utils import extract_response_distribution
 
 
 class SensitivityAnalysis:
-    """SensitivityAnalysis class is used to perform counterfactual analysis on MMM's."""
+    """SensitivityAnalysis class is used to perform counterfactual analysis on MMM's.
+
+    Parameters
+    ----------
+    pymc_model : Model
+        The PyMC model whose response is swept.
+    idata : xr.DataTree
+        The inference data holding the model's posterior.
+    dims : tuple of str, default ()
+        The non-date dims of the swept input, used when the model does not record
+        that input's dims.
+    frozen_deterministics : sequence of str, default ()
+        Deterministics taken from the posterior rather than recomputed, such as a
+        latent path over the dates the model was fitted on. A sweep keeps those
+        dates, so their posterior draws hold in every sweep.
+        :attr:`MMM.frozen_deterministics` lists an MMM's.
+    """
 
     def __init__(
-        self, pymc_model: Model, idata: xr.DataTree, dims: tuple[str, ...] = ()
-    ):
+        self,
+        pymc_model: Model,
+        idata: xr.DataTree,
+        dims: tuple[str, ...] = (),
+        frozen_deterministics: Sequence[str] = (),
+    ) -> None:
         self.model = pymc_model
         self.idata = idata
         self.dims = dims
+        self.frozen_deterministics = tuple(frozen_deterministics)
 
     def _compute_dims_order_from_varinput(self, var_input: str) -> list[str]:
         """Compute non-date dims order directly from the model's var_input dims.
@@ -124,7 +147,7 @@ class SensitivityAnalysis:
             # Fallback: try to infer from the shared variable shape and model coords order
             # This is a best-effort path; in practice PyMC populates named_vars_to_dims
             return list(self.dims)
-        non_date_dims = [d for d in var_dims if d != "date"]
+        non_date_dims = [d for d in var_dims if d != Dim.DATE]
         return non_date_dims
 
     def _coord_to_index(self, dims_order: list[str]) -> dict[str, dict]:
@@ -172,6 +195,7 @@ class SensitivityAnalysis:
             pymc_model=self.model,
             idata=self.idata.isel(draw=draw_selection),
             response_variable=response_variable,
+            frozen_deterministics=list(self.frozen_deterministics),
         )
 
     def _prepare_response_mask(
@@ -240,7 +264,7 @@ class SensitivityAnalysis:
         (e.g., 'uplift_curve', 'marginal_effects').
         """
         dataset = xr.Dataset({"x": result})
-        if hasattr(self.idata, "sensitivity_analysis"):
+        if hasattr(self.idata, Group.SENSITIVITY_ANALYSIS):
             warnings.warn(
                 "'sensitivity_analysis' group already exists; updating variable 'x' with new results.",
                 UserWarning,
@@ -254,14 +278,14 @@ class SensitivityAnalysis:
                 # Legacy case: replace DataArray with Dataset for consistency
                 self.idata.sensitivity_analysis = dataset  # type: ignore[attr-defined]
         else:
-            self.idata["/sensitivity_analysis"] = dataset
+            self.idata[f"/{Group.SENSITIVITY_ANALYSIS}"] = dataset
 
     def run_sweep(
         self,
         var_input: str,
         sweep_values: np.ndarray,
         *,
-        var_names: str = "channel_contribution",
+        var_names: str = Var.CHANNEL_CONTRIBUTION,
         sweep_type: Literal[
             "multiplicative", "additive", "absolute"
         ] = "multiplicative",
@@ -359,7 +383,7 @@ class SensitivityAnalysis:
         dims = sweep_response_summed.dims
         coords = {}
         for dim, shape in zip(dims, result.shape, strict=True):
-            if dim == "sweep":
+            if dim == Dim.SWEEP:
                 dim_coords = np.asarray(sweep_values)
             else:
                 dim_coords = self.model.coords.get(dim)
@@ -426,7 +450,7 @@ class SensitivityAnalysis:
 
         xr_result = results_aligned - ref_aligned
         if extend_idata:
-            if not hasattr(self.idata, "sensitivity_analysis"):
+            if not hasattr(self.idata, Group.SENSITIVITY_ANALYSIS):
                 raise ValueError(
                     "No sensitivity analysis results found in 'self.idata'. "
                     "Run 'mmm.sensitivity.run_sweep()' first."
@@ -451,7 +475,7 @@ class SensitivityAnalysis:
         """
         xr_result = results.differentiate(coord="sweep")
         if extend_idata:
-            if not hasattr(self.idata, "sensitivity_analysis"):
+            if not hasattr(self.idata, Group.SENSITIVITY_ANALYSIS):
                 raise ValueError(
                     "No sensitivity analysis results found in 'self.idata'. "
                     "Run 'mmm.sensitivity.run_sweep()' first."

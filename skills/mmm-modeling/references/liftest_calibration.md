@@ -177,15 +177,26 @@ axes[1].set_title("Adstock Alpha")
 
 ## How It Works Internally
 
-The `add_lift_test_measurements()` method adds a Gamma likelihood that constrains the saturation curve:
+`add_lift_test_measurements()` adds one observed likelihood term per row, centred on the model's incremental effect of moving spend from `x` to `x + delta_x`:
 
 ```
-saturation(x + delta_x) - saturation(x) ~ Gamma(mu=delta_y, sigma=sigma)
+delta_y ~ Normal(mu=saturation(x + delta_x) - saturation(x), sigma=sigma)
 ```
 
-This means: the model's predicted incremental effect of changing spend from `x` to `x + delta_x` must be consistent with the experimentally observed lift `delta_y`, within uncertainty `sigma`.
+The observation is the signed `delta_y` as measured, `sigma` comes from the `sigma` column, and `Normal` is the default (`likelihood=None` resolves to `Prior("Normal")`). Parameter draws whose implied lift sits far from the experiment score badly, so the posterior is pulled toward it; the sales likelihood is still in play and `sigma` sets the exchange rate. A negative `delta_y` (a spend decrease that lowered the target, or a null result) is accepted as is.
 
-The Gamma distribution is used because lift effects are non-negative (more spend should not decrease the target).
+The family is a `Prior` passed as `likelihood`, and the alternatives are opt-in:
+
+```python
+from pymc_extras.prior import Prior
+
+mmm.add_lift_test_measurements(df_lift_test, likelihood=Prior("StudentT", nu=4))  # heavier tails
+mmm.add_lift_test_measurements(df_lift_test, likelihood=Prior("Gamma"))           # positive support
+```
+
+- `StudentT` needs `nu`; it lets the model walk away from an experiment that may itself be wrong.
+- `Gamma` is only valid when every `delta_y` and `delta_x` in the table is strictly positive, and the model-implied lift must be positive as well: every free variable upstream of it needs a positive-support prior and the lift must be positive at the initial point. A spend decrease or a null result is refused under `Gamma` and accepted under the default `Normal`.
+- `StudentT`'s `nu` is the only parameter the `Prior` takes: the model, the `sigma` column and the rows decide the others, so they, `dims` (also inside `nu`) and `centered=False` are refused, as is a `nu` that is a non-positive number or has a prior that can go negative (`Normal`, `StudentT`, a `Uniform` or `TruncatedNormal` with a lower bound below zero, ...). A `transform` only renames the observed variable to `{name}_raw`. A `Prior`-valued `nu` adds a free variable named `{name}_nu`.
 
 ## Geo-Level Lift Tests
 
@@ -219,28 +230,64 @@ This gives larger geos tighter uncertainty (smaller sigma) and smaller geos wide
 
 ## Cost-Per-Target Calibration
 
-An alternative to lift test calibration is `add_cost_per_target_calibration`, which constrains the model's cost-per-target (CPT) estimates via `pm.Potential` penalties:
+`add_cost_per_target_calibration` calibrates a whole-period ratio instead of a point on the saturation curve: cost per target (CPA, cost per conversion) or, with `target_per_cost=True`, target per cost (ROAS). The model side is `mean(spend) / mean(contribution)` over the fitted dates, and each row of the table becomes an observed likelihood term on that ratio, the same mechanism as a lift test with less information (one number per channel, averaged over the whole period):
 
 ```python
 import pandas as pd
+from pymc_extras.prior import Prior
 
-calibration_data = pd.DataFrame({
-    "channel": ["tv", "social"],
-    "cost_per_target": [25.0, 12.0],   # desired CPT
-    "sigma": [5.0, 3.0],               # tolerance (larger = weaker penalty)
+cpa_from_lift_test = pd.DataFrame({
+    "channel": ["tv"],
+    "cost_per_target": [25.0],          # CPA read off a lift test
+    "sigma": [5.0],                     # its standard error, in the same units
+})
+cpa_relative = pd.DataFrame({
+    "channel": ["social"],
+    "cost_per_target": [12.0],          # CPA reported as 12 +/- 25% (relative)
+    "sigma": [3.0],
 })
 
 mmm.build_model(X, y)
+# A CPA from a lift test has its error on the ROAS scale: invert it and keep
+# the default Normal, the experiment's sampling model.
+cpa = cpa_from_lift_test["cost_per_target"]
 mmm.add_cost_per_target_calibration(
-    data=X,                        # feature DataFrame with spend in original units
-    calibration_data=calibration_data,
+    data=X,                        # spend in original units, same layout as X
+    calibration_data=cpa_from_lift_test.assign(
+        roas=1 / cpa, sigma=cpa_from_lift_test["sigma"] / cpa**2
+    ),
+    name_prefix="tv_roas",
+    target_column="roas",
+    target_per_cost=True,
+)
+# A CPA with a relative interval: measure the error on the log scale. Under
+# the default Normal a CPA table is capped where an overstated channel goes.
+mmm.add_cost_per_target_calibration(
+    data=X,
+    calibration_data=cpa_relative,
+    name_prefix="social_cpa",
+    likelihood=Prior("LogNormal"),
 )
 mmm.fit(X=X, y=y, nuts_sampler="nutpie", target_accept=0.9, random_seed=rng)
 ```
 
-The method adds a quadratic penalty: `penalty = -|cpt_mean - target|^2 / (2 * sigma^2)`, pulling the model's CPT toward the calibration target. This is useful when you have cost-efficiency benchmarks but not full lift test data.
+The `calibration_data` DataFrame requires `channel`, the value column (`cost_per_target` by default, or `target_column`), `sigma`, plus one column per model dimension (e.g., `geo`). `sigma` is the standard error of the value in the table's units under every family.
 
-The `calibration_data` DataFrame requires columns: `channel`, `cost_per_target`, `sigma`, plus one column per model dimension (e.g., `geo`).
+`likelihood` picks the family of the term; `Normal` is the default. A Normal on a ratio is capped on one side: its penalty tends to `t**2 / (2 * sigma**2)` as the ratio goes to zero (8 nats at `sigma = t / 4`), so a CPA table is a floor on ROAS but not a ceiling, and a ROAS table is the reverse. `Prior("LogNormal")` measures the error on the log scale (`mu = log(ratio)`, `sigma / target` as the log-scale width), so a 2x miss costs the same in either direction and the penalty keeps growing; under it the table direction only decides how the table is written. `Prior("StudentT", nu=...)` caps lower on purpose, for an experiment that may itself be wrong.
+
+Pick the family by the error the experiment reports:
+
+| Calibration value | Family |
+|---|---|
+| ROAS read off a lift test (Normal standard error on the incremental outcome, known spend) | `Normal` on a ROAS table (`target_per_cost=True`): it is the sampling model, and it pulls harder than `LogNormal` against an overstated channel |
+| CPA from a lift test | Invert it to a ROAS table (`roas = 1 / cpa`, `sigma_roas = sigma_cpa / cpa**2`) and use the row above. Exact for the delta-method standard error of `spend / delta_y`, close while `sigma_cpa / cpa` is about 0.3 or less; a CPA given as bootstrap replicates or posterior draws is inverted draw by draw (mean and SD of `1 / draws`) |
+| CPA with a relative, asymmetric or log-scale interval, or of unknown provenance | `LogNormal`: the CPA-table `Normal` is capped on the side an overstated channel moves toward. Inverting first changes nothing under `LogNormal` (the two terms differ by a constant) |
+| Other value reported with a relative, asymmetric or log-scale interval | `LogNormal`; a log-scale standard error `s` goes in as `sigma = s * target` |
+| Experiment you only partly trust | `StudentT` |
+
+`LogNormal`'s `sigma / target` width translates an additive standard error to first order, which is accurate while `sigma / target` is about 0.3 or less; at 0.5 it allows ratios from 0.38x to 2.66x the target where the Normal allows 0.02x to 1.98x. It requires positive values, a positive mean spend and mean contribution for every calibrated row at the initial point (a channel with no spend over the dates is refused), and contributions that stay positive while sampling (positive-support channel priors); past a `1e-12` floor a negative contribution gets a large finite penalty with no gradient. The family is saved with the model and restored on load.
+
+Use the mean scale (`central_tendency="mean"`, the default) when the values come from an experiment; see the [ROAS calibration notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_roas_calibration.html) for the full argument, including a comparison of the families on a confounded dataset.
 
 ## Practical Guidelines
 

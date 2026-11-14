@@ -43,6 +43,14 @@ why the questions live in the same module -- and why they live apart from
 windows, spend and the link-specific reduction, and has nothing to say about any
 of them.
 
+All three are measured on evaluations conditioned on the posterior, and one
+thing cannot be measured that way.  A random variable keeps its posterior draws
+and a frozen deterministic its posterior values whatever spend is set to, so a
+path from spend to :math:`\mu` through either is missing from every evaluation,
+the baseline and the probe included, and the second check closes without it.
+:func:`refuse_blocked_spend_paths` reads that off the graph, before anything is
+evaluated.
+
 The entry points are :meth:`SpendProbe.measure`, which returns a
 :class:`SpendReach`: an evaluation-window length and whether a window is usable
 at all, and :meth:`SpendProbe.mixes_channels`, which answers the third question.
@@ -55,14 +63,20 @@ import warnings
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, ClassVar, Literal
 
 import numpy as np
 import xarray as xr
 from pytensor.graph.basic import Variable
 from pytensor.graph.traversal import ancestors
 
-from pymc_marketing.mmm.counterfactual import CounterfactualEvaluator, find_named_node
+from pymc_marketing.mmm.counterfactual import (
+    CounterfactualEvaluator,
+    _even_runs,
+    find_named_node,
+)
+from pymc_marketing.names.mmm import Dim, Var
+from pymc_marketing.pytensor_utils import blocked_between
 
 if TYPE_CHECKING:
     from pymc_marketing.mmm.mmm import MMM
@@ -84,17 +98,19 @@ __all__ = [
     "CHANNEL_CONTRIBUTION",
     "LINEAR_PREDICTOR",
     "ChannelDependentEffect",
+    "ProbeStatistics",
     "SpendProbe",
     "SpendReach",
     "TemporalReach",
     "linear_predictor",
+    "refuse_blocked_spend_paths",
     "resolve_channel_dependent_effects",
 ]
 
-CHANNEL_CONTRIBUTION = "channel_contribution"
+CHANNEL_CONTRIBUTION = Var.CHANNEL_CONTRIBUTION
 """Response variable holding the per-channel linear-predictor contribution."""
 
-LINEAR_PREDICTOR = "mu"
+LINEAR_PREDICTOR = Var.MU
 """Name the MMM gives its linear predictor, registered or not."""
 
 COMPLETENESS_ACCUMULATION_SAFETY_FACTOR = 100
@@ -202,8 +218,8 @@ def resolve_channel_dependent_effects(
         mistaken for an absent attribute.
     """
     pymc_model = model.model
-    channel_data = pymc_model[CounterfactualEvaluator.CHANNEL_DATA]
-    allowed_dims = {"date", *model.dims}
+    channel_data = pymc_model[Var.CHANNEL_DATA]
+    allowed_dims = {Dim.DATE, *model.dims}
     resolved: list[ChannelDependentEffect] = []
 
     for effect in model.mu_effects:
@@ -262,6 +278,119 @@ def resolve_channel_dependent_effects(
     return tuple(resolved)
 
 
+def refuse_blocked_spend_paths(
+    model: MMM, effects: Sequence[ChannelDependentEffect]
+) -> None:
+    """Refuse a model in which the posterior holds a spend path fixed.
+
+    The counterfactual is evaluated conditioned on the posterior: a free random
+    variable is replaced by its draws and a frozen deterministic by its posterior
+    values, and an observed variable cannot be recomputed from its parents at
+    all.  A path from ``channel_data`` to the linear predictor that passes
+    through one of them does not respond to the counterfactual.  A mediator
+    written as a structural equation with noise, ``demand ~ Normal(f(spend),
+    sigma)``, is the motivating case: spend moves ``demand`` in the model and
+    not in the evaluation.
+
+    The probe cannot see this.
+    :meth:`SpendProbe.assert_increment_is_complete` compares the move in the
+    linear predictor against the move in the evaluated nodes, and both are
+    computed with the same variables held, so the blocked path is missing from
+    both sides and the comparison closes.  The refusal is read off the graph
+    instead.
+
+    Dependence is plain graph ancestry, as it is in
+    :func:`resolve_channel_dependent_effects`, and that cuts both ways.  A
+    parameter whose prior is computed from ``channel_data`` inside the graph is
+    refused, although holding it at its draws is what its author meant: the
+    graph does not tell it from a mediator.  A variable tied to spend only
+    through a ``pm.Potential`` is not refused, because that dependence is a term
+    of the log-probability and not an edge of the graph.
+
+    The anchor is the linear predictor, so a variable that reaches the target
+    only through the likelihood, such as a scale computed from spend, is left
+    alone.  Every model :meth:`~pymc_marketing.mmm.mmm.MMM.build_model` builds
+    has a linear predictor.  In a model without one the anchor is the observed
+    variable, whose ancestors include the likelihood's own parameters, and such
+    a variable is refused as well: with nothing to tell the two routes apart,
+    refusing is the only option that cannot drop part of the increment without
+    saying so.
+
+    Parameters
+    ----------
+    model : MMM
+        The model whose graph is read.
+    effects : sequence of ChannelDependentEffect
+        The effects :func:`resolve_channel_dependent_effects` returned for it.
+
+    Raises
+    ------
+    NotImplementedError
+        If a random variable or a frozen deterministic has ``channel_data``
+        among its ancestors and is an ancestor of the linear predictor, of
+        ``channel_contribution`` or of an effect's contribution, or is itself
+        one of the last two.  The linear predictor is the node
+        :func:`linear_predictor` looks up, and a model in which there is none
+        is anchored on its observed variable in its place.  The anchor itself
+        is exempt: a frozen linear predictor leaves nothing to check against,
+        which :func:`linear_predictor` already reports.
+    ValueError
+        If the graph carries more than one node named ``mu``; see
+        :func:`linear_predictor`.
+    """
+    pymc_model = model.model
+    endpoint = _find_linear_predictor(model)
+    if endpoint is None:
+        endpoint = pymc_model.named_vars.get(model.output_var)
+    targets = [
+        pymc_model[name]
+        for name in (
+            CHANNEL_CONTRIBUTION,
+            *(effect.contribution_var for effect in effects),
+        )
+    ]
+    if endpoint is not None:
+        targets.append(endpoint)
+
+    blocked = [
+        var
+        for var in blocked_between(
+            pymc_model,
+            pymc_model[Var.CHANNEL_DATA],
+            targets,
+            frozen_deterministics=model.frozen_deterministics,
+        )
+        if var is not endpoint
+    ]
+    if not blocked:
+        return
+
+    kinds = {
+        **dict.fromkeys(pymc_model.free_RVs, "random variable"),
+        **dict.fromkeys(pymc_model.observed_RVs, "observed variable"),
+    }
+    listing = ", ".join(
+        f"{kinds.get(var, 'frozen deterministic')} {var.name!r}" for var in blocked
+    )
+    it = "it" if len(blocked) == 1 else "them"
+    raise NotImplementedError(
+        f"Spend reaches the linear predictor through {listing}.  An evaluation "
+        "conditioned on the posterior cannot carry a change in spend through "
+        f"{it}: a random variable keeps its posterior draws, a frozen "
+        "deterministic its posterior values, and an observed variable is not "
+        "recomputed from spend.  The increment would be missing that path and "
+        "would report the rest of the response as if it were the whole.  For "
+        "a structural equation with noise, such as a mediator "
+        "Normal(f(spend), sigma), write the node as a Deterministic of spend "
+        "plus a noise term that does not depend on spend, and list a "
+        "date-indexed noise term in the effect's 'frozen_deterministics' so "
+        "that it is cut to each evaluation window.  For a quantity meant to "
+        "stay fixed while spend moves, such as a prior scale or a normalizer "
+        "computed from the channel data, compute it outside the graph and "
+        "pass the value in."
+    )
+
+
 def linear_predictor(model: MMM) -> Variable | None:
     """Find the node the increment is assembled to reproduce.
 
@@ -291,13 +420,21 @@ def linear_predictor(model: MMM) -> Variable | None:
         ``named_vars`` lookup below settles it first and PyMC has already
         enforced that the name is unique.
     """
+    if Var.MU in model.model.named_vars and Var.MU in model.frozen_deterministics:
+        # Frozen at its posterior value, so it would not respond to the probe
+        # and the completeness check would compare zero to zero.
+        return None
+    return _find_linear_predictor(model)
+
+
+def _find_linear_predictor(model: MMM) -> Variable | None:
+    """Return the node named ``mu``, registered or found in the graph, frozen or not.
+
+    See :func:`linear_predictor`, which leaves a frozen one out.
+    """
     pymc_model = model.model
-    if LINEAR_PREDICTOR in pymc_model.named_vars:
-        if LINEAR_PREDICTOR in model.frozen_deterministics:
-            # Frozen at its posterior value, so it would not respond to the
-            # probe and the completeness check would compare zero to zero.
-            return None
-        return pymc_model[LINEAR_PREDICTOR]
+    if Var.MU in pymc_model.named_vars:
+        return pymc_model[Var.MU]
 
     output_var = model.output_var
     if output_var not in pymc_model.named_vars:
@@ -309,7 +446,7 @@ def linear_predictor(model: MMM) -> Variable | None:
     # observed either way, so the wider roots cannot lose it.
     return find_named_node(
         [observed, *pymc_model.deterministics],
-        LINEAR_PREDICTOR,
+        Var.MU,
         exclude=[observed],
     )
 
@@ -474,6 +611,229 @@ class SpendReach:
             )
 
 
+def _sample_runs(n_samples: int, per_sample: int) -> list[slice]:
+    """Split the sample axis into runs that fit :attr:`ProbeStatistics.FOLD_ELEMENTS`.
+
+    Parameters
+    ----------
+    n_samples : int
+        Length of the sample axis.
+    per_sample : int
+        Elements one sample of the largest array holds.
+
+    Returns
+    -------
+    list of slice
+        Consecutive runs covering every sample once; a single sample larger than
+        the budget is a run of its own.
+    """
+    size = max(1, ProbeStatistics.FOLD_ELEMENTS // max(per_sample, 1))
+    return _even_runs(n_samples, size)
+
+
+@dataclass(eq=False)
+class ProbeStatistics:
+    """What :class:`SpendProbe` reads off one probe, kept in place of the evaluation.
+
+    Every decision the probe makes is a maximum over samples: the reach is the
+    last date some sample moves on, and the completeness check compares the
+    largest residual against a tolerance built from the largest moves and node
+    values.  So the statistics can be folded over slices of samples, one slice at
+    a time, and come out the same however the samples are sliced, while the
+    evaluation itself is dropped.
+
+    Attributes
+    ----------
+    accounted : tuple of str
+        The nodes summed against the linear predictor, ``channel_contribution``
+        first; empty when the baseline carries no predictor, and nothing is
+        folded for the completeness check then.
+    per_date_move : dict
+        Per node, the largest ``|probed - baseline|`` over samples and every
+        non-date dimension, one value per date.
+    max_expected : float
+        Largest move of the linear predictor.
+    max_accounted : float
+        Largest move of the accounted nodes' sum.
+    max_residual : float
+        Largest ``|accounted - expected|``, computed in the dtype
+        :func:`numpy.allclose` computes it in.
+    expected_dtype : np.dtype or None
+        The dtype :func:`numpy.allclose` rounds the tolerance to: the predictor
+        move's, made inexact.  ``None`` until a slice with a predictor is
+        folded.
+    node_magnitude : float
+        Largest ``|value|`` of any compared node, baseline or probed.
+    dtype : np.dtype or None
+        The result type of the compared arrays, which sets the rounding floor.
+    """
+
+    FOLD_ELEMENTS: ClassVar[int] = 4_000_000
+    """Elements one slice of the largest node may hold while it is folded.
+
+    Smaller than :attr:`CounterfactualEvaluator.MAX_BATCH_ELEMENTS`, which sizes
+    a compiled call's output: here the evaluation already exists, and the slice
+    only bounds the temporaries the fold builds from it.
+    """
+
+    accounted: tuple[str, ...] = ()
+    per_date_move: dict[str, np.ndarray] = field(default_factory=dict)
+    max_expected: float = 0.0
+    max_accounted: float = 0.0
+    max_residual: float = 0.0
+    expected_dtype: np.dtype | None = None
+    node_magnitude: float = 0.0
+    dtype: np.dtype | None = None
+
+    @classmethod
+    def fold(
+        cls,
+        probed: Mapping[str, np.ndarray],
+        baseline: Mapping[str, np.ndarray],
+        *,
+        accounted: Sequence[str],
+        non_date_dims: Mapping[str, tuple[str, ...]],
+    ) -> ProbeStatistics:
+        """Fold one probe evaluation over slices of its samples.
+
+        Parameters
+        ----------
+        probed, baseline : mapping
+            Per node, the probe and baseline evaluations,
+            ``(n_samples, n_dates, *non_date_dims)``.
+        accounted : sequence of str
+            Nodes summed against the linear predictor, ``channel_contribution``
+            first; empty to skip the completeness statistics.
+        non_date_dims : mapping
+            Per node, its dimensions after ``sample`` and ``date``.  Read only
+            for the compared nodes.
+
+        Returns
+        -------
+        ProbeStatistics
+            The statistics of the whole evaluation.
+        """
+        stats = cls(accounted=tuple(accounted))
+        n_samples = next(iter(probed.values())).shape[0]
+        per_sample = max(int(np.prod(array.shape[1:])) for array in probed.values())
+        for samples in _sample_runs(n_samples, per_sample):
+            stats.update(
+                {name: array[samples] for name, array in probed.items()},
+                {name: baseline[name][samples] for name in probed},
+                non_date_dims=non_date_dims,
+            )
+        return stats
+
+    def update(
+        self,
+        probed: Mapping[str, np.ndarray],
+        baseline: Mapping[str, np.ndarray],
+        *,
+        non_date_dims: Mapping[str, tuple[str, ...]],
+    ) -> None:
+        """Fold one slice of samples into the statistics.
+
+        Parameters
+        ----------
+        probed, baseline : mapping
+            Per node, the probe and baseline evaluations restricted to the same
+            samples.
+        non_date_dims : mapping
+            Per node, its dimensions after ``sample`` and ``date``.
+        """
+        # Each node's move, taken once and read by both statistics below.
+        moved = {
+            name: probed[name] - baseline[name]
+            for name in probed
+            if name != Var.MU or self.accounted
+        }
+        # The reach is measured on the accounted nodes, never on the predictor.
+        for name, values in moved.items():
+            if name == Var.MU:
+                continue
+            per_date = (
+                np.abs(values)
+                .reshape(values.shape[0], values.shape[1], -1)
+                .max(axis=(0, 2))
+            )
+            previous = self.per_date_move.get(name)
+            self.per_date_move[name] = (
+                per_date if previous is None else np.maximum(previous, per_date)
+            )
+
+        if not self.accounted:
+            return
+
+        def as_array(name: str) -> xr.DataArray:
+            return xr.DataArray(
+                moved[name], dims=("sample", "date", *non_date_dims[name])
+            )
+
+        # channel_contribution carries a channel dimension the predictor does
+        # not: it enters mu summed over channels.
+        accounted = as_array(Var.CHANNEL_CONTRIBUTION).sum("channel")
+        for name in self.accounted[1:]:
+            accounted = accounted + as_array(name)
+        expected = as_array(Var.MU)
+        # Broadcasting only repeats values, so the maxima are taken before it.
+        # np.maximum, not max(), and numpy maxima, not xarray's, which skip
+        # NaN: a NaN move has to survive the fold, as it survives the maximum
+        # over the whole evaluation.
+        self.max_expected = float(
+            np.maximum(self.max_expected, np.abs(expected.values).max())
+        )
+        self.max_accounted = float(
+            np.maximum(self.max_accounted, np.abs(accounted.values).max())
+        )
+        expected, accounted = xr.broadcast(expected, accounted)
+        # The difference numpy.allclose takes, in the dtype it takes it in.
+        self.expected_dtype = np.result_type(expected.values, 1.0)
+        accounted_values = accounted.values
+        expected_values = expected.values.astype(self.expected_dtype, copy=False)
+        # numpy.allclose with rtol=0: |x - y| <= atol where y is finite, x == y
+        # where it is not.  A non-finite y is 0 when matched, NaN when not.
+        residual = np.where(
+            np.isfinite(expected_values),
+            np.abs(accounted_values - expected_values),
+            np.where(accounted_values == expected_values, 0.0, np.nan),
+        ).max()
+        # A NaN residual stays NaN, so it is never within atol, as in
+        # numpy.allclose.
+        self.max_residual = float(np.maximum(self.max_residual, residual))
+
+        compared = [
+            array
+            for name in (Var.MU, *self.accounted)
+            for array in (baseline[name], probed[name])
+        ]
+        self.node_magnitude = max(
+            self.node_magnitude, *(float(np.abs(array).max()) for array in compared)
+        )
+        self.dtype = np.result_type(*compared)
+
+    def residual_within(self, atol: float) -> bool:
+        """Whether the largest residual is within *atol*, as :func:`numpy.allclose` decides it.
+
+        ``np.allclose(accounted, expected, rtol=0.0, atol=atol)`` compares each
+        ``|accounted - expected|`` against ``atol`` cast to the predictor's dtype,
+        so *atol* is rounded to that dtype first.  Both sides are then exact in
+        float64, so comparing them there decides it the same way.
+
+        Parameters
+        ----------
+        atol : float
+            Absolute tolerance.
+
+        Returns
+        -------
+        bool
+            True when no residual exceeds *atol*.
+        """
+        if self.expected_dtype is None:
+            return True
+        return self.max_residual <= float(self.expected_dtype.type(atol))
+
+
 class SpendProbe:
     """Single-date spend perturbations, and the two facts read off them.
 
@@ -514,7 +874,8 @@ class SpendProbe:
         Indices of the perturbed dates, empty if no date could be perturbed --
         see :meth:`_select_probe_indices`.
     probes : dict
-        Per probed date, the evaluation of the perturbed spend.
+        Per probed date, the :class:`ProbeStatistics` of the evaluation of the
+        perturbed spend.  The evaluation itself is not kept.
 
     Raises
     ------
@@ -567,8 +928,24 @@ class SpendProbe:
         self._counterfactual_spend_factor = counterfactual_spend_factor
         self._mixes_channels: bool | None = None
         self.probe_indices = self._select_probe_indices(baseline_array)
-        self.probes: dict[int, dict[str, np.ndarray]] = {
-            probe_index: evaluator.evaluate_baseline(
+        # The completeness check sums every node but the predictor against it,
+        # which is what the caller evaluated the probe for:
+        # assert_increment_is_complete refuses any other set of effects.
+        self._accounted: tuple[str, ...] = ()
+        if Var.MU in baseline:
+            self._accounted = (
+                Var.CHANNEL_CONTRIBUTION,
+                *(
+                    name
+                    for name in baseline
+                    if name not in (Var.CHANNEL_CONTRIBUTION, Var.MU)
+                ),
+            )
+        # One probe evaluation alive at a time, and none once its statistics
+        # are folded: every decision below reads the statistics.
+        self.probes: dict[int, ProbeStatistics] = {}
+        for probe_index in self.probe_indices:
+            probed = evaluator.evaluate_baseline(
                 self._perturb(
                     baseline_array=baseline_array,
                     probe_index=probe_index,
@@ -576,11 +953,17 @@ class SpendProbe:
                     dtype=evaluator.channel_dtype,
                 )
             )
-            for probe_index in self.probe_indices
-        }
-        for probed in self.probes.values():
-            for name, array in probed.items():
-                self._assert_finite(name, array)
+            # By name, so no loop variable keeps one of the arrays alive into
+            # the next probe's evaluation.
+            for name in probed:
+                self._assert_finite(name, probed[name])
+            self.probes[probe_index] = ProbeStatistics.fold(
+                probed,
+                baseline,
+                accounted=self._accounted,
+                non_date_dims=evaluator.non_date_dims if self._accounted else {},
+            )
+            del probed
 
     @staticmethod
     def _assert_finite(name: str, array: np.ndarray) -> None:
@@ -961,19 +1344,17 @@ class SpendProbe:
         # channel, and the probe that does cover it is the one that saw truth.
         measured = {
             name: TemporalReach.widest(
-                self._reach_of(
-                    name, probed=probed, probe_index=probe_index, l_max=l_max
-                )
-                for probe_index, probed in self.probes.items()
+                self._reach_of(name, stats=stats, probe_index=probe_index, l_max=l_max)
+                for probe_index, stats in self.probes.items()
             )
             for name in (
-                CHANNEL_CONTRIBUTION,
+                Var.CHANNEL_CONTRIBUTION,
                 *(effect.contribution_var for effect in effects),
             )
         }
         combined = TemporalReach.widest(
             [
-                measured[CHANNEL_CONTRIBUTION],
+                measured[Var.CHANNEL_CONTRIBUTION],
                 *self._reconcile_declarations(effects, measured),
             ]
         )
@@ -1001,7 +1382,7 @@ class SpendProbe:
         self,
         name: str,
         *,
-        probed: dict[str, np.ndarray],
+        stats: ProbeStatistics,
         probe_index: int,
         l_max: int,
     ) -> TemporalReach:
@@ -1011,8 +1392,8 @@ class SpendProbe:
         ----------
         name : str
             Node to measure.
-        probed : dict
-            The probe evaluation, per node.
+        stats : ProbeStatistics
+            The probe's statistics.
         probe_index : int
             Index of the perturbed date.
         l_max : int
@@ -1023,11 +1404,10 @@ class SpendProbe:
         TemporalReach
             The node's measured reach.
         """
-        # Collapse samples and every non-date dim: the question is which dates
-        # moved, not which cells.
-        per_date = np.abs(probed[name] - self.baseline[name])
-        n_dates = per_date.shape[1]
-        per_date = per_date.reshape(per_date.shape[0], n_dates, -1).max(axis=(0, 2))
+        # Samples and every non-date dim are already collapsed: the question is
+        # which dates moved, not which cells.
+        per_date = stats.per_date_move[name]
+        n_dates = per_date.shape[0]
         largest = per_date.max()
         if largest == 0.0:
             return TemporalReach.none()
@@ -1233,8 +1613,8 @@ class SpendProbe:
             return True
 
         # `+ 2` for the sample and date axes the evaluations carry in front.
-        channel_axis = non_date_dims[CHANNEL_CONTRIBUTION].index("channel") + 2
-        baseline = self.baseline[CHANNEL_CONTRIBUTION]
+        channel_axis = non_date_dims[Var.CHANNEL_CONTRIBUTION].index("channel") + 2
+        baseline = self.baseline[Var.CHANNEL_CONTRIBUTION]
         for channel, probe_index in placements.items():
             probed = self._evaluator.evaluate_baseline(
                 self._perturb(
@@ -1244,17 +1624,30 @@ class SpendProbe:
                     dtype=self._evaluator.channel_dtype,
                     channel=channel,
                 )
-            )[CHANNEL_CONTRIBUTION]
-            self._assert_finite(CHANNEL_CONTRIBUTION, probed)
+            )[Var.CHANNEL_CONTRIBUTION]
+            self._assert_finite(Var.CHANNEL_CONTRIBUTION, probed)
 
-            moved = np.abs(probed - baseline)
             # Scaled by the largest move this probe made anywhere, mirroring
             # _reach_of: the threshold is then free of the units the
-            # contribution happens to be in.
-            largest = float(moved.max())
+            # contribution happens to be in.  Both are maxima, so they are
+            # folded over slices of samples rather than held full size.
+            other_axes = tuple(
+                axis for axis in range(probed.ndim) if axis != channel_axis
+            )
+            per_channel = np.zeros(probed.shape[channel_axis], dtype=probed.dtype)
+            for samples in _sample_runs(
+                probed.shape[0], int(np.prod(probed.shape[1:]))
+            ):
+                # Unnamed, so the last slice's move does not outlive the loop.
+                per_channel = np.maximum(
+                    per_channel,
+                    np.abs(probed[samples] - baseline[samples]).max(axis=other_axes),
+                )
+            largest = float(per_channel.max())
+            others = float(np.delete(per_channel, channel).max())
+            del probed
             if largest == 0.0:
                 continue
-            others = float(np.delete(moved, channel, axis=channel_axis).max())
             if others > self.REACH_TOLERANCE * largest:
                 return True
         return False
@@ -1304,37 +1697,40 @@ class SpendProbe:
         ------
         NotImplementedError
             If the accounted nodes do not reproduce the predictor's move.
+        ValueError
+            If *effects* or *non_date_dims* differ from what the probe was folded
+            for: every node of the baseline but the predictor, with the
+            evaluator's dimensions.
         """
-        if LINEAR_PREDICTOR not in self.baseline:
+        if not self.probes or not self._accounted:
             return
+
+        accounted_names = (
+            Var.CHANNEL_CONTRIBUTION,
+            *(effect.contribution_var for effect in effects),
+        )
+        folded_dims = self._evaluator.non_date_dims
+        if accounted_names != self._accounted or any(
+            tuple(non_date_dims[name]) != tuple(folded_dims[name])
+            for name in (Var.MU, *accounted_names)
+        ):
+            raise ValueError(
+                f"The probe was folded for {list(self._accounted)} against "
+                f"{Var.MU!r}, with the evaluator's dimensions, so it "
+                f"cannot check {list(accounted_names)} with {dict(non_date_dims)}.  "
+                "Evaluate the baseline on exactly the nodes being checked."
+            )
 
         # Every probe has to satisfy the identity: an unattributed path from one
         # channel is visible only under a probe at a date that channel spends.
-        for probed in self.probes.values():
-
-            def moved(
-                name: str, probed: dict[str, np.ndarray] = probed
-            ) -> xr.DataArray:
-                return xr.DataArray(
-                    probed[name] - self.baseline[name],
-                    dims=("sample", "date", *non_date_dims[name]),
-                )
-
-            # channel_contribution carries a channel dimension the predictor does
-            # not: it enters mu summed over channels.
-            accounted = moved(CHANNEL_CONTRIBUTION).sum("channel")
-            for effect in effects:
-                accounted = accounted + moved(effect.contribution_var)
-
-            expected = moved(LINEAR_PREDICTOR)
-            expected, accounted = xr.broadcast(expected, accounted)
+        for stats in self.probes.values():
             # Scaled by whichever side moved more, so that a predictor which did
             # not move cannot excuse accounted nodes that did.  Taking the
             # predictor's scale alone would pass a misattribution vacuously.
-            scale = max(float(np.abs(expected).max()), float(np.abs(accounted).max()))
+            scale = max(stats.max_expected, stats.max_accounted)
 
-            # `expected` and `accounted` are each a difference of two
-            # full-magnitude evaluations, so their rounding floor is
+            # The predictor's move and the accounted move are each a difference
+            # of two full-magnitude evaluations, so their rounding floor is
             # eps * |node|, not eps * |move|: two sums of the same terms
             # assembled through different chains of operations (adstock,
             # saturation, one reduction per mu_effect) round independently, and
@@ -1348,23 +1744,11 @@ class SpendProbe:
             # where cancellation inside the accounted sum sets the true floor
             # when large terms offset -- the predictor alone would understate
             # it.
-            compared_names = (
-                LINEAR_PREDICTOR,
-                CHANNEL_CONTRIBUTION,
-                *(effect.contribution_var for effect in effects),
-            )
-            compared_arrays = [
-                array
-                for name in compared_names
-                for array in (self.baseline[name], probed[name])
-            ]
-            node_magnitude = max(
-                float(np.abs(array).max()) for array in compared_arrays
-            )
+            node_magnitude = stats.node_magnitude
             # The dtype actually produced by the compared arrays, not an
             # assumption: nothing here gates on the model's floatX, and a
             # float64 model must not be loosened by a float32-sized floor.
-            eps = np.finfo(np.result_type(*compared_arrays)).eps
+            eps = np.finfo(stats.dtype).eps
             # Unavoidable tradeoff: under float32 a real unattributed path
             # smaller than roughly
             # COMPLETENESS_ACCUMULATION_SAFETY_FACTOR * eps * |node| / |move|
@@ -1375,21 +1759,14 @@ class SpendProbe:
                 self.COMPLETENESS_TOLERANCE * scale,
                 COMPLETENESS_ACCUMULATION_SAFETY_FACTOR * eps * node_magnitude,
             )
-            if scale == 0.0 or np.allclose(
-                accounted.values,
-                expected.values,
-                rtol=0.0,
-                atol=atol,
-            ):
+            if scale == 0.0 or stats.residual_within(atol):
                 continue
 
-            accounted_names = ", ".join(
-                [CHANNEL_CONTRIBUTION, *(effect.contribution_var for effect in effects)]
-            )
-            largest = float(np.abs(accounted - expected).max()) / scale
+            largest = stats.max_residual / scale
             raise NotImplementedError(
                 "Perturbing channel spend moved the linear predictor by more than "
-                f"the variables incrementality is evaluating ({accounted_names}) "
+                f"the variables incrementality is evaluating "
+                f"({', '.join(accounted_names)}) "
                 f"account for -- by {largest:.1%} of the largest move either side "
                 "makes.  Some path from spend to the response is unattributed, so "
                 "the increment would report part of it as the whole.  Every "

@@ -42,6 +42,7 @@ from pymc_marketing.pytensor_utils import (
     _prefix_model,
     align_posterior_dim,
     aligned_posterior,
+    blocked_between,
     check_aligned_dims,
     check_aligned_shape,
     extract_response_distribution,
@@ -1003,6 +1004,75 @@ def test_needed_posterior_names_stops_at_a_frozen_deterministic():
     )
 
     assert sorted(names) == ["gamma", "scaled"]
+
+
+def _spend_path_model() -> pm.Model:
+    """``spend`` reaches the responses directly and through three kinds of variable.
+
+    ``latent`` is a free random variable, ``held`` a deterministic that may be
+    frozen and ``measured`` an observed random variable.  ``offset`` is upstream
+    of ``resp`` without being downstream of ``spend``, and ``aside`` is downstream
+    of ``spend`` without feeding a response.
+    """
+    with pm.Model(coords={"date": [0, 1, 2]}) as model:
+        spend = pmd.Data("spend", np.ones(3), dims="date")
+        offset = pmd.Normal("offset")
+        latent = pmd.Normal("latent", mu=spend, sigma=1.0)
+        pmd.Normal("aside", mu=spend, sigma=1.0)
+        measured = pmd.Normal(
+            "measured",
+            mu=spend,
+            sigma=1.0,
+            observed=xr.DataArray(np.zeros(3), dims="date"),
+        )
+        held = pmd.Deterministic("held", 2.0 * spend)
+        pmd.Deterministic("resp", offset + latent + held + spend)
+        pmd.Deterministic("resp_measured", measured + spend)
+    return model
+
+
+@pytest.mark.parametrize(
+    "targets, frozen, expected",
+    [
+        pytest.param(["resp"], (), ["latent"], id="a random variable on the path"),
+        pytest.param(
+            ["resp"],
+            ("held", "missing"),
+            ["latent", "held"],
+            id="a frozen deterministic, once it is named",
+        ),
+        pytest.param(
+            ["resp_measured"], (), ["measured"], id="an observed variable on the path"
+        ),
+        pytest.param(["latent"], (), ["latent"], id="a target that is itself held"),
+        pytest.param(["held"], ("held",), ["held"], id="a target that is frozen"),
+        pytest.param(
+            ["resp", "resp_measured", "latent"],
+            ("held", "held"),
+            ["latent", "measured", "held"],
+            id="several targets, each variable once",
+        ),
+    ],
+)
+def test_blocked_between_lists_what_conditioning_holds_fixed_on_the_path(
+    targets, frozen, expected
+):
+    """Only what is downstream of the source and upstream of, or among, the targets.
+
+    ``offset`` and ``aside`` are held fixed too, and neither is ever listed: the
+    first does not depend on ``spend`` and the second feeds no target.  A frozen
+    name the model does not have is ignored.
+    """
+    model = _spend_path_model()
+
+    blocked = blocked_between(
+        model,
+        model["spend"],
+        [model[name] for name in targets],
+        frozen_deterministics=frozen,
+    )
+
+    assert [var.name for var in blocked] == expected
 
 
 def test_reorder_to_model_coords_puts_a_matching_label_set_in_the_model_order():
