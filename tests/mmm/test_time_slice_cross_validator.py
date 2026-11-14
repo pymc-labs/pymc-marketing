@@ -1347,6 +1347,7 @@ def test_plot_property_legacy_default_returns_mmm_plot_suite():
     )
 
     cv = TimeSliceCrossValidator.__new__(TimeSliceCrossValidator)
+    cv.date_column = "date"
     cv._cv_results = [r1, r2]
     cv._plot_suite = "legacy"
     cv._plot_suite_warned = False
@@ -1380,6 +1381,7 @@ def test_plot_property_new_mode_returns_mmm_cv_plot_suite():
     )
 
     cv = TimeSliceCrossValidator.__new__(TimeSliceCrossValidator)
+    cv.date_column = "date"
     cv._cv_results = [r1, r2]
     cv._plot_suite = "new"
     cv._combine_idata([r1, r2], ["fold_0", "fold_1"])
@@ -1391,6 +1393,7 @@ def test_plot_property_new_mode_returns_mmm_cv_plot_suite():
 def test_plot_suite_setter_rejects_invalid():
     """TimeSliceCrossValidator.plot_suite setter raises ValueError for unknown values."""
     cv = TimeSliceCrossValidator.__new__(TimeSliceCrossValidator)
+    cv.date_column = "date"
     cv._plot_suite = "legacy"
     with pytest.raises(ValueError, match="plot_suite must be"):
         cv.plot_suite = "invalid"
@@ -1399,6 +1402,7 @@ def test_plot_suite_setter_rejects_invalid():
 def test_plot_legacy_raises_when_no_idata():
     """TimeSliceCrossValidator.plot raises ValueError in legacy mode if idata not available."""
     cv = TimeSliceCrossValidator.__new__(TimeSliceCrossValidator)
+    cv.date_column = "date"
     # Use a mock with idata=None so _validate_model_was_built does not set self.idata
     fold_mock = MagicMock()
     fold_mock.idata = None
@@ -1431,6 +1435,7 @@ def _make_legacy_cv_with_idata():
         idata=_build_simple_idata(dates2),
     )
     cv = TimeSliceCrossValidator.__new__(TimeSliceCrossValidator)
+    cv.date_column = "date"
     cv._cv_results = [r1, r2]
     cv._plot_suite = "legacy"
     cv._plot_suite_warned = False
