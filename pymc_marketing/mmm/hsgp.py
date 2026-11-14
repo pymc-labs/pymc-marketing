@@ -37,6 +37,7 @@ from xarray import DataArray
 
 from pymc_marketing.hsgp_kwargs import CovFunc
 from pymc_marketing.mmm.dims import XTensorLike
+from pymc_marketing.names import Key
 from pymc_marketing.plot import SelToString, plot_curve
 from pymc_marketing.serialization import DeferredFactory, serialization
 
@@ -951,13 +952,13 @@ class HSGP(HSGPBase):
 
         """
         data = data.copy()
-        data.pop("__type__", None)
+        data.pop(Key.TYPE, None)
         data.pop("hsgp_class", None)
 
         for key in ["eta", "ls"]:
             value = data.get(key)
             if isinstance(value, dict):
-                if value.get("__deferred__"):
+                if value.get(Key.DEFERRED):
                     data[key] = DeferredFactory.from_dict(value)
                 else:
                     data[key] = Prior.from_dict(value)
@@ -1313,13 +1314,13 @@ class HSGPPeriodic(HSGPBase):
 
         """
         data = data.copy()
-        data.pop("__type__", None)
+        data.pop(Key.TYPE, None)
         data.pop("hsgp_class", None)
 
         for key in ["scale", "ls"]:
             value = data.get(key)
             if isinstance(value, dict):
-                if value.get("__deferred__"):
+                if value.get(Key.DEFERRED):
                     data[key] = DeferredFactory.from_dict(value)
                 else:
                     data[key] = Prior.from_dict(value)

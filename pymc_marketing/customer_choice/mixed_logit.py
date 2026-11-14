@@ -30,10 +30,10 @@ from pytensor.tensor.variable import TensorVariable
 from pymc_marketing.customer_choice._choice_helpers import stable_softmax
 from pymc_marketing.model_builder import ModelBuilder, SamplingMethod
 from pymc_marketing.model_config import parse_model_config
+from pymc_marketing.names import Group
+from pymc_marketing.names.customer_choice import Attr, Dim, Var
 from pymc_marketing.utils import InstalledSamplers
 from pymc_marketing.version import __version__
-
-HDI_ALPHA = 0.5
 
 
 class MixedLogit(ModelBuilder):
@@ -162,8 +162,10 @@ class MixedLogit(ModelBuilder):
             The default model configuration.
 
         """
-        alphas = Prior("Normal", mu=0, sigma=5, dims="alts")
-        betas_fixed = Prior("Normal", mu=0, sigma=1, dims=("alts", "fixed_covariates"))
+        alphas = Prior("Normal", mu=0, sigma=5, dims=Dim.ALTS)
+        betas_fixed = Prior(
+            "Normal", mu=0, sigma=1, dims=(Dim.ALTS, Dim.FIXED_COVARIATES)
+        )
         betas_non_random = Prior("Normal", mu=0, sigma=1, dims="normal_covariates")
 
         # Random coefficient priors (population level)
@@ -175,12 +177,12 @@ class MixedLogit(ModelBuilder):
             "Normal",
             mu=0,  # Will be set to mu_random in make_random_coefs
             sigma=1,  # Will be set to sigma_random in make_random_coefs
-            dims=("individuals", "random_covariates"),
+            dims=(Dim.INDIVIDUALS, "random_covariates"),
         )
 
         # Control function parameters (for price endogeneity)
-        gamma = Prior("Normal", mu=0, sigma=5, dims=("instruments", "alts"))
-        lambda_cf = Prior("Normal", mu=0, sigma=1, dims="alts")
+        gamma = Prior("Normal", mu=0, sigma=5, dims=("instruments", Dim.ALTS))
+        lambda_cf = Prior("Normal", mu=0, sigma=1, dims=Dim.ALTS)
         sigma_eta = Prior("HalfNormal", sigma=1)
 
         return {
@@ -196,7 +198,7 @@ class MixedLogit(ModelBuilder):
             "likelihood": Prior(
                 "Categorical",
                 p=0,
-                dims="obs",
+                dims=Dim.OBS,
             ),
         }
 
@@ -211,7 +213,7 @@ class MixedLogit(ModelBuilder):
     @property
     def output_var(self) -> str:
         """The output variable of the model."""
-        return "y"
+        return Var.Y
 
     @property
     def _serializable_model_config(self) -> dict[str, int | float | dict]:
@@ -486,14 +488,14 @@ class MixedLogit(ModelBuilder):
         normal_covar_names = [c for c in covariates if c not in random_covar_names]
 
         coords = {
-            "alts": alternatives,
-            "alts_probs": alternatives[:-1],
-            "covariates": covariates,
+            Dim.ALTS: alternatives,
+            Dim.ALTS_PROBS: alternatives[:-1],
+            Dim.COVARIATES: covariates,
             "normal_covariates": normal_covar_names,
             "random_covariates": random_covar_names,
-            "fixed_covariates": f_cov,
-            "obs": range(len(df)),
-            "individuals": range(n_individuals),
+            Dim.FIXED_COVARIATES: f_cov,
+            Dim.OBS: range(len(df)),
+            Dim.INDIVIDUALS: range(n_individuals),
         }
 
         if self.instrumental_vars is not None:
@@ -587,7 +589,7 @@ class MixedLogit(ModelBuilder):
         """
         alphas_ = self.model_config["alphas_"].create_variable(name="alphas_")
         alphas = pm.Deterministic(
-            "alphas", pt.set_subtensor(alphas_[-1], 0), dims="alts"
+            Var.ALPHAS, pt.set_subtensor(alphas_[-1], 0), dims=Dim.ALTS
         )
         return alphas
 
@@ -618,20 +620,20 @@ class MixedLogit(ModelBuilder):
         if X_fixed is None or len(X_fixed) == 0:
             W_contrib = pt.zeros((n_obs, n_alts))
         else:
-            W_data = pm.Data("W", X_fixed, dims=("obs", "fixed_covariates"))
+            W_data = pm.Data(Var.W, X_fixed, dims=(Dim.OBS, Dim.FIXED_COVARIATES))
             betas_fixed_ = self.model_config["betas_fixed_"].create_variable(
                 "betas_fixed_"
             )
             # Set reference alternative coefficients to zero for identification
             betas_fixed = pm.Deterministic(
-                "betas_fixed",
+                Var.BETAS_FIXED,
                 pt.set_subtensor(betas_fixed_[-1, :], 0),
-                dims=("alts", "fixed_covariates"),
+                dims=(Dim.ALTS, Dim.FIXED_COVARIATES),
             )
             W_contrib = pm.Deterministic(
                 "W_interaction",
                 pm.math.dot(W_data, betas_fixed.T),
-                dims=("obs", "alts"),
+                dims=(Dim.OBS, Dim.ALTS),
             )
         return W_contrib
 
@@ -692,13 +694,13 @@ class MixedLogit(ModelBuilder):
                     "z_random",
                     0.0,
                     1.0,
-                    dims=("obs", "random_covariates"),
+                    dims=(Dim.OBS, "random_covariates"),
                 )
 
                 betas_random = pm.Deterministic(
                     "betas_random_individual",
                     mu_random + z * sigma_random,
-                    dims=("obs", "random_covariates"),
+                    dims=(Dim.OBS, "random_covariates"),
                 )
 
             else:
@@ -706,19 +708,19 @@ class MixedLogit(ModelBuilder):
                     "z_random_group",
                     0.0,
                     1.0,
-                    dims=("individuals", "random_covariates"),
+                    dims=(Dim.INDIVIDUALS, "random_covariates"),
                 )
 
                 betas_random_grp = pm.Deterministic(
                     "betas_random_group",
                     mu_random + z_grp * sigma_random,
-                    dims=("individuals", "random_covariates"),
+                    dims=(Dim.INDIVIDUALS, "random_covariates"),
                 )
 
                 betas_random = pm.Deterministic(
                     "betas_random_individual",
                     betas_random_grp[grp_idx],
-                    dims=("obs", "random_covariates"),
+                    dims=(Dim.OBS, "random_covariates"),
                 )
 
         else:
@@ -728,7 +730,7 @@ class MixedLogit(ModelBuilder):
                     "betas_random_individual",
                     mu=mu_random,
                     sigma=sigma_random,
-                    dims=("obs", "random_covariates"),
+                    dims=(Dim.OBS, "random_covariates"),
                 )
 
             else:
@@ -736,13 +738,13 @@ class MixedLogit(ModelBuilder):
                     "betas_random_group",
                     mu=mu_random,
                     sigma=sigma_random,
-                    dims=("individuals", "random_covariates"),
+                    dims=(Dim.INDIVIDUALS, "random_covariates"),
                 )
 
                 betas_random = pm.Deterministic(
                     "betas_random_individual",
                     betas_random_grp[grp_idx],
-                    dims=("obs", "random_covariates"),
+                    dims=(Dim.OBS, "random_covariates"),
                 )
 
         return betas_random, self.random_covar_names
@@ -790,7 +792,7 @@ class MixedLogit(ModelBuilder):
             B_full = pt.set_subtensor(B_full[:, non_random_idx], betas_non_random)
 
         B_full = pm.Deterministic(
-            "betas_individuals", B_full, dims=("obs", "covariates")
+            "betas_individuals", B_full, dims=(Dim.OBS, Dim.COVARIATES)
         )
 
         return B_full
@@ -848,14 +850,14 @@ class MixedLogit(ModelBuilder):
         price_error = pm.Deterministic(
             "price_error",
             raw_residual - raw_residual.mean(axis=0),
-            dims=("obs", "alts"),
+            dims=(Dim.OBS, Dim.ALTS),
         )
 
         # Control function: include correlated errors in utility
         lambda_cf = self.model_config["lambda_cf"].create_variable("lambda_cf")
         price_error_contrib = lambda_cf * price_error
         price_error_contrib = pm.Deterministic(
-            "price_error_contrib", price_error_contrib, dims=("obs", "alts")
+            "price_error_contrib", price_error_contrib, dims=(Dim.OBS, Dim.ALTS)
         )
 
         return price_error_contrib
@@ -902,7 +904,9 @@ class MixedLogit(ModelBuilder):
 
         # Combine all utility components
         U = pm.Deterministic(
-            "U", U_cov + W_contrib + alphas + price_error_contrib, dims=("obs", "alts")
+            Var.U,
+            U_cov + W_contrib + alphas + price_error_contrib,
+            dims=(Dim.OBS, Dim.ALTS),
         )
         return U
 
@@ -919,7 +923,7 @@ class MixedLogit(ModelBuilder):
         p : TensorVariable
             Choice probabilities, shape (n_obs, n_alts)
         """
-        return stable_softmax(U, axis=1, name="p", dims=("obs", "alts"))
+        return stable_softmax(U, axis=1, name=Var.P, dims=(Dim.OBS, Dim.ALTS))
 
     def make_model(
         self, X: np.ndarray, F: np.ndarray | None, y: np.ndarray, observed: bool = True
@@ -944,10 +948,10 @@ class MixedLogit(ModelBuilder):
         """
         with pm.Model(coords=self.coords) as model:
             # Instantiate data
-            X_data = pm.Data("X", X, dims=("obs", "alts", "covariates"))
-            observed_data = pm.Data("y", y, dims="obs")
+            X_data = pm.Data(Var.X, X, dims=(Dim.OBS, Dim.ALTS, Dim.COVARIATES))
+            observed_data = pm.Data(Var.Y, y, dims=Dim.OBS)
             if self.grp_idx is not None:
-                grp_idx_data = pm.Data("grp_idx", self.grp_idx, dims="obs")
+                grp_idx_data = pm.Data(Var.GRP_IDX, self.grp_idx, dims=Dim.OBS)
             else:
                 grp_idx_data = self.grp_idx
             n_obs, n_alts = X_data.shape[0], X_data.shape[1]
@@ -977,10 +981,10 @@ class MixedLogit(ModelBuilder):
             # Likelihood
             if observed:
                 _ = pm.Categorical(
-                    "likelihood", p=p, observed=observed_data, dims="obs"
+                    Var.LIKELIHOOD, p=p, observed=observed_data, dims=Dim.OBS
                 )
             else:
-                _ = pm.Categorical("likelihood", p=p, dims="obs")
+                _ = pm.Categorical(Var.LIKELIHOOD, p=p, dims=Dim.OBS)
 
         return model
 
@@ -993,11 +997,11 @@ class MixedLogit(ModelBuilder):
             The attributes for the DataTree.
         """
         attrs = super().create_idata_attrs()
-        attrs["covariates"] = json.dumps(self.covariates)
+        attrs[Attr.COVARIATES] = json.dumps(self.covariates)
         attrs["random_covariates"] = json.dumps(self.random_covar_names)
-        attrs["depvar"] = json.dumps(self.depvar)
+        attrs[Attr.DEPVAR] = json.dumps(self.depvar)
         attrs["choice_df"] = json.dumps("Placeholder for DF")
-        attrs["utility_equations"] = json.dumps(self.utility_equations)
+        attrs[Attr.UTILITY_EQUATIONS] = json.dumps(self.utility_equations)
         attrs["group_id"] = json.dumps(self.group_id)
         attrs["instrumental_vars"] = json.dumps(
             "Placeholder for instrumental_vars" if self.instrumental_vars else None
@@ -1069,7 +1073,7 @@ class MixedLogit(ModelBuilder):
             Choice data as xarray Dataset with 'obs' dimension
         """
         df_xr = self.choice_df.to_xarray()
-        df_xr = df_xr.rename({"index": "obs"})
+        df_xr = df_xr.rename({"index": Dim.OBS})
         return df_xr
 
     def fit(  # type: ignore[override]
@@ -1134,7 +1138,7 @@ class MixedLogit(ModelBuilder):
         idata : xr.DataTree
             Loaded inference data
         """
-        self.choice_df = idata["fit_data"].dataset.to_dataframe()
+        self.choice_df = idata[Group.FIT_DATA].dataset.to_dataframe()
         if not hasattr(self, "model"):
             self.build_model()
 
@@ -1167,9 +1171,9 @@ class MixedLogit(ModelBuilder):
                 choice_df, self.utility_equations
             )
             with self.model:
-                data_dict = {"X": new_X, "y": new_y}
+                data_dict = {Var.X: new_X, Var.Y: new_y}
                 if new_F is not None and len(new_F) > 0:
-                    data_dict["W"] = new_F
+                    data_dict[Var.W] = new_F
                 pm.set_data(data_dict)
 
         if self.idata is None:
@@ -1177,7 +1181,7 @@ class MixedLogit(ModelBuilder):
 
         with self.model:
             post_pred = pm.sample_posterior_predictive(
-                self.idata, var_names=["likelihood", "p"], **kwargs
+                self.idata, var_names=[Var.LIKELIHOOD, Var.P], **kwargs
             )
 
         if extend_idata:
@@ -1285,15 +1289,15 @@ class MixedLogit(ModelBuilder):
             )
 
             with self.model:
-                data_dict = {"X": new_X, "y": new_y}
+                data_dict = {Var.X: new_X, Var.Y: new_y}
                 if new_F is not None:
-                    data_dict["W"] = new_F
+                    data_dict[Var.W] = new_F
                 pm.set_data(data_dict)
 
                 # Use existing random coefficient draws for counterfactual
                 idata_new_policy = pm.sample_posterior_predictive(
                     self.idata,
-                    var_names=["p", "likelihood"],
+                    var_names=[Var.P, Var.LIKELIHOOD],
                     return_inferencedata=True,
                     extend_inferencedata=False,
                     random_seed=100,
@@ -1312,7 +1316,7 @@ class MixedLogit(ModelBuilder):
                 idata_new_policy.update(pm.sample(**fit_kwargs))
                 idata_new_policy.update(
                     pm.sample_posterior_predictive(
-                        idata_new_policy, var_names=["p", "likelihood"]
+                        idata_new_policy, var_names=[Var.P, Var.LIKELIHOOD]
                     ),
                 )
 
@@ -1344,16 +1348,15 @@ class MixedLogit(ModelBuilder):
             - 'new_policy_share': mean predicted share under new policy
             - 'relative_change': relative change in share
         """
-        expected = idata["posterior_predictive"].mean(dim=("chain", "draw", "obs"))["p"]
-        expected_new = new_idata["posterior_predictive"].mean(
-            dim=("chain", "draw", "obs")
-        )["p"]
+        mean_dims = ("chain", "draw", Dim.OBS)
+        expected = idata["posterior_predictive"].mean(dim=mean_dims)[Var.P]
+        expected_new = new_idata["posterior_predictive"].mean(dim=mean_dims)[Var.P]
 
         shares_df = pd.DataFrame(
-            {"product": expected["alts"], "policy_share": expected}
+            {"product": expected[Dim.ALTS], "policy_share": expected}
         )
         shares_df_new = pd.DataFrame(
-            {"product": expected_new["alts"], "new_policy_share": expected_new}
+            {"product": expected_new[Dim.ALTS], "new_policy_share": expected_new}
         )
         shares_df = shares_df.merge(
             shares_df_new, left_on="product", right_on="product", how="left"

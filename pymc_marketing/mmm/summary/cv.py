@@ -44,6 +44,7 @@ from pymc_marketing.mmm.summary.helpers import (
     convert_output,
 )
 from pymc_marketing.mmm.xarray_utils import _select_dims
+from pymc_marketing.names.mmm import Dim, Group, Var
 
 __all__ = [
     "MMMCVSummaryFactory",
@@ -56,7 +57,7 @@ def _validate_cv_results(cv_data: xr.DataTree) -> None:
     """Raise if cv_data is not a valid CV DataTree."""
     if not isinstance(cv_data, xr.DataTree):
         raise TypeError(f"cv_data must be xr.DataTree, got {type(cv_data).__name__}.")
-    if not hasattr(cv_data, "cv_metadata"):
+    if not hasattr(cv_data, Group.CV_METADATA):
         raise ValueError(
             "cv_data must have a 'cv_metadata' group. "
             "Ensure TimeSliceCrossValidator.run() has been called and the "
@@ -73,7 +74,7 @@ def _read_fold_meta(
     cv_data: xr.DataTree, cv_label: str
 ) -> tuple[pd.DataFrame, pd.Series, pd.DataFrame, pd.Series]:
     """Return (X_train, y_train, X_test, y_test) for a given fold label."""
-    meta = cv_data.cv_metadata["metadata"].sel(cv=cv_label).values.item()
+    meta = cv_data.cv_metadata[Var.METADATA].sel(cv=cv_label).values.item()
     return meta["X_train"], meta["y_train"], meta["X_test"], meta["y_test"]
 
 
@@ -141,9 +142,9 @@ def _pred_matrix_for_rows(
     rows_df: pd.DataFrame,
 ) -> np.ndarray:
     """Build (n_samples, n_rows) prediction matrix for CRPS computation."""
-    da = cv_data["/posterior_predictive"].dataset["y_original_scale"].sel(cv=cv_label)
+    da = cv_data["/posterior_predictive"].dataset[Var.Y_ORIGINAL_SCALE].sel(cv=cv_label)
 
-    base_dims = {"chain", "draw", "date"}
+    base_dims = {"chain", "draw", Dim.DATE}
     extra_dims = [d for d in da.dims if d not in base_dims]
 
     da_s = da.stack(sample=("chain", "draw"))
@@ -266,13 +267,13 @@ class MMMCVSummaryFactory:
 
         if (
             not hasattr(self.cv_data, "posterior_predictive")
-            or "y_original_scale" not in self.cv_data.posterior_predictive
+            or Var.Y_ORIGINAL_SCALE not in self.cv_data.posterior_predictive
         ):
             raise ValueError(
                 "cv_data must have posterior_predictive['y_original_scale']."
             )
 
-        pp = self.cv_data.posterior_predictive["y_original_scale"]
+        pp = self.cv_data.posterior_predictive[Var.Y_ORIGINAL_SCALE]
         y_train_da, y_test_da, y_obs_da, _ = _build_predictions_arrays(self.cv_data, pp)
 
         if dims:
@@ -326,7 +327,7 @@ class MMMCVSummaryFactory:
 
         if not hasattr(self.cv_data, "posterior"):
             raise ValueError("cv_data has no 'posterior' group.")
-        if "cv" not in self.cv_data.posterior.dims:
+        if Dim.CV not in self.cv_data.posterior.dims:
             raise ValueError(
                 "No 'cv' coordinate found in cv_data.posterior. "
                 "Ensure the DataTree was produced by TimeSliceCrossValidator.run()."
@@ -392,20 +393,20 @@ class MMMCVSummaryFactory:
             Table with ``split``, ``cv``, optional extra-dimension columns,
             and ``mean_crps``.
         """
-        if not hasattr(self.cv_data, "cv_metadata"):
+        if not hasattr(self.cv_data, Group.CV_METADATA):
             raise ValueError("cv_data must have a 'cv_metadata' group.")
         if (
             not hasattr(self.cv_data, "posterior_predictive")
-            or "y_original_scale" not in self.cv_data.posterior_predictive
+            or Var.Y_ORIGINAL_SCALE not in self.cv_data.posterior_predictive
         ):
             raise ValueError(
                 "cv_data must have posterior_predictive['y_original_scale']."
             )
 
-        pp = self.cv_data.posterior_predictive["y_original_scale"]
+        pp = self.cv_data.posterior_predictive[Var.Y_ORIGINAL_SCALE]
         cv_labels = _extract_cv_labels(self.cv_data)
 
-        base_dims = {"cv", "chain", "draw", "date"}
+        base_dims = {Dim.CV, "chain", "draw", Dim.DATE}
         extra_dims = [d for d in pp.dims if d not in base_dims]
 
         combo_coords: dict[str, list[Any]] = {

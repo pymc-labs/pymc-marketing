@@ -34,10 +34,9 @@ from pymc_marketing.model_builder import (
     SamplingMethod,
 )
 from pymc_marketing.model_config import parse_model_config
+from pymc_marketing.names.customer_choice import Attr, Dim, Var
 from pymc_marketing.utils import InstalledSamplers
 from pymc_marketing.version import __version__
-
-HDI_ALPHA = 0.5
 
 
 @dataclass(frozen=True)
@@ -181,7 +180,7 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
     version = "0.2.0"
 
     #: Name of the ``pm.Data`` container holding the fixed covariates.
-    _fixed_data_name = "W"
+    _fixed_data_name = Var.W
 
     #: Attribute holding the design matrix stored by :meth:`build_model`.
     _X_data_name = "X_data"
@@ -251,9 +250,11 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
             The default model configuration.
 
         """
-        alphas = Prior("Normal", mu=0, sigma=5, dims="alts")
-        betas = Prior("Normal", mu=0, sigma=1, dims="alt_covariates")
-        betas_fixed = Prior("Normal", mu=0, sigma=1, dims=("alts", "fixed_covariates"))
+        alphas = Prior("Normal", mu=0, sigma=5, dims=Dim.ALTS)
+        betas = Prior("Normal", mu=0, sigma=1, dims=Dim.ALT_COVARIATES)
+        betas_fixed = Prior(
+            "Normal", mu=0, sigma=1, dims=(Dim.ALTS, Dim.FIXED_COVARIATES)
+        )
         lambdas_nests = Prior("Beta", alpha=1, beta=1, dims="nests")
         alphas_nests = Prior("Normal", mu=0, sigma=1, dims="nests")
 
@@ -266,7 +267,7 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
             "likelihood": Prior(
                 "Categorical",
                 p=0,
-                dims="obs",
+                dims=Dim.OBS,
             ),
         }
 
@@ -281,7 +282,7 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
     @property
     def output_var(self) -> str:
         """The output variable of the model."""
-        return "y"
+        return Var.Y
 
     @property
     def _serializable_model_config(self) -> dict[str, int | float | dict]:  # type: ignore
@@ -468,7 +469,12 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
 
     @staticmethod
     def _prepare_coords(
-        df, alternatives, covariates, f_covariates, nests, nest_indices
+        df: pd.DataFrame,
+        alternatives: list[str],
+        covariates: list[str],
+        f_covariates: np.ndarray,
+        nests: list[str],
+        nest_indices: dict[str, np.ndarray],
     ):
         """Prepare coordinates for PyMC nested logit model.
 
@@ -498,12 +504,12 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
             f_cov = []
 
         coords = {
-            "alts": alternatives,
-            "alts_probs": alternatives[:-1],
-            "alt_covariates": covariates,
-            "fixed_covariates": f_cov,
+            Dim.ALTS: alternatives,
+            Dim.ALTS_PROBS: alternatives[:-1],
+            Dim.ALT_COVARIATES: covariates,
+            Dim.FIXED_COVARIATES: f_cov,
             "nests": nests,
-            "obs": range(len(df)),
+            Dim.OBS: range(len(df)),
         }
 
         # Add nest-specific alternative dimensions
@@ -643,7 +649,7 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
         """
         alphas_ = self.model_config["alphas_"].create_variable(name="alphas_")
         alphas = pm.Deterministic(
-            "alphas", pt.set_subtensor(alphas_[-1], 0), dims="alts"
+            Var.ALPHAS, pt.set_subtensor(alphas_[-1], 0), dims=Dim.ALTS
         )
         return alphas
 
@@ -686,7 +692,7 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
         if X_fixed is None or len(X_fixed) == 0:
             W_contrib = pt.zeros((n_obs, n_alts))
         else:
-            W_data = pm.Data("W", X_fixed, dims=("obs", "fixed_covariates"))
+            W_data = pm.Data(Var.W, X_fixed, dims=(Dim.OBS, Dim.FIXED_COVARIATES))
             betas_fixed_ = self.model_config["betas_fixed_"].create_variable(
                 "betas_fixed_"
             )
@@ -694,12 +700,12 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
             # This creates a (n_alts, n_fixed_covariates) matrix where each
             # alternative has its own response to each fixed covariate
             betas_fixed = pm.Deterministic(
-                "betas_fixed",
+                Var.BETAS_FIXED,
                 pt.set_subtensor(betas_fixed_[-1, :], 0),
-                dims=("alts", "fixed_covariates"),
+                dims=(Dim.ALTS, Dim.FIXED_COVARIATES),
             )
             W_contrib = pm.Deterministic(
-                "w_nest", pm.math.dot(W_data, betas_fixed.T), dims=("obs", "alts")
+                "w_nest", pm.math.dot(W_data, betas_fixed.T), dims=(Dim.OBS, Dim.ALTS)
             )
         return W_contrib
 
@@ -757,7 +763,7 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
 
         # Store utilities in deterministic for inspection
         y_nest = pm.Deterministic(
-            f"y_{nest_name}", u_nest, dims=("obs", f"{nest_name}_alts")
+            f"y_{nest_name}", u_nest, dims=(Dim.OBS, f"{nest_name}_alts")
         )
 
         # Numerical stability: subtract max across alternatives for each observation
@@ -769,7 +775,7 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
         P_y_given_nest = pm.Deterministic(
             f"p_y_given_{nest_name}",
             pm.math.softmax((y_nest - max_y_nest) / lambdas[nest_idx], axis=1),
-            dims=("obs", f"{nest_name}_alts"),
+            dims=(Dim.OBS, f"{nest_name}_alts"),
         )
 
         # Inclusive value (log-sum-exp) for each observation
@@ -831,7 +837,9 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
         nest_probs = {}
         for i, nest_name in enumerate(nest_indices.keys()):
             nest_probs[nest_name] = pm.Deterministic(
-                f"P_{nest_name}", exp_inclusive_values[i] / total_inclusive, dims="obs"
+                f"P_{nest_name}",
+                exp_inclusive_values[i] / total_inclusive,
+                dims=Dim.OBS,
             )
 
         return nest_probs, conditional_probs
@@ -879,8 +887,8 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
                 alphas_nests_ = pt.zeros(len(nest_indices.keys()))
 
             # Data containers
-            X_data = pm.Data("X", X, dims=("obs", "alts", "alt_covariates"))
-            y_data = pm.Data("y", y, dims="obs")
+            X_data = pm.Data(Var.X, X, dims=(Dim.OBS, Dim.ALTS, Dim.ALT_COVARIATES))
+            y_data = pm.Data(Var.Y, y, dims=Dim.OBS)
 
             # Fixed covariate contribution. The row count is taken from the data
             # container so a swapped data set with a different number of rows
@@ -889,9 +897,9 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
 
             # Systematic utility
             U = pm.Deterministic(
-                "U",
+                Var.U,
                 alphas + pm.math.dot(X_data, betas) + W_contrib,
-                dims=("obs", "alts"),
+                dims=(Dim.OBS, Dim.ALTS),
             )
 
             # Nest probabilities and conditional probabilities
@@ -909,9 +917,9 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
                     p[:, indices],
                     conditional_probs[nest_name] * nest_probs[nest_name][:, None],
                 )
-            p = pm.Deterministic("p", p, dims=("obs", "alts"))
+            p = pm.Deterministic(Var.P, p, dims=(Dim.OBS, Dim.ALTS))
             # Likelihood
-            _ = pm.Categorical("likelihood", p=p, observed=y_data, dims="obs")
+            _ = pm.Categorical(Var.LIKELIHOOD, p=p, observed=y_data, dims=Dim.OBS)
 
         return model
 
@@ -925,13 +933,13 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
 
         """
         attrs = super().create_idata_attrs()
-        attrs["covariates"] = json.dumps(self.covariates)
-        attrs["depvar"] = json.dumps(self.depvar)
+        attrs[Attr.COVARIATES] = json.dumps(self.covariates)
+        attrs[Attr.DEPVAR] = json.dumps(self.depvar)
         # The choice data is persisted in the fit_data group rather than duplicated here.
         # The base class still requires one attr per __init__ argument, so keep the key.
         attrs["choice_df"] = json.dumps(None)
         attrs["nesting_structure"] = json.dumps(self.nesting_structure)
-        attrs["utility_equations"] = json.dumps(self.utility_equations)
+        attrs[Attr.UTILITY_EQUATIONS] = json.dumps(self.utility_equations)
         attrs["alphas_nests"] = json.dumps(self.alphas_nests)
 
         return attrs
@@ -1093,7 +1101,7 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
         with self._prediction_model_data(choice_df):
             with self.model:
                 post_pred = pm.sample_posterior_predictive(
-                    self.idata, var_names=["likelihood", "p"], **kwargs
+                    self.idata, var_names=[Var.LIKELIHOOD, Var.P], **kwargs
                 )
 
         if extend_idata:
@@ -1213,7 +1221,7 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
                     # use the updated values and predict outcomes and probabilities:
                     idata_new_policy = pm.sample_posterior_predictive(
                         self.idata,
-                        var_names=["p", "likelihood"],
+                        var_names=[Var.P, Var.LIKELIHOOD],
                         return_inferencedata=True,
                         extend_inferencedata=False,
                         random_seed=100,
@@ -1234,7 +1242,7 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
                 idata_new_policy.update(pm.sample(**fit_kwargs))
                 idata_new_policy.update(
                     pm.sample_posterior_predictive(
-                        idata_new_policy, var_names=["p", "likelihood"]
+                        idata_new_policy, var_names=[Var.P, Var.LIKELIHOOD]
                     ),
                 )
 
@@ -1267,15 +1275,14 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
             - 'new_policy_share': mean predicted share under the new policy
             - 'relative_change': relative change in share due to the intervention
         """
-        expected = idata["posterior_predictive"].mean(dim=("chain", "draw", "obs"))["p"]
-        expected_new = new_idata["posterior_predictive"].mean(
-            dim=("chain", "draw", "obs")
-        )["p"]
+        mean_dims = ("chain", "draw", Dim.OBS)
+        expected = idata["posterior_predictive"].mean(dim=mean_dims)[Var.P]
+        expected_new = new_idata["posterior_predictive"].mean(dim=mean_dims)[Var.P]
         shares_df = pd.DataFrame(
-            {"product": expected["alts"], "policy_share": expected}
+            {"product": expected[Dim.ALTS], "policy_share": expected}
         )
         shares_df_new = pd.DataFrame(
-            {"product": expected_new["alts"], "new_policy_share": expected_new}
+            {"product": expected_new[Dim.ALTS], "new_policy_share": expected_new}
         )
         shares_df = shares_df.merge(
             shares_df_new, left_on="product", right_on="product", how="left"

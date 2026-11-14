@@ -40,6 +40,7 @@ from pymc_marketing.experimental.terms._graph import Data, Equation, GraphTerm
 from pymc_marketing.experimental.terms._terms import MediaTransform
 from pymc_marketing.mmm.components.base import Transformation
 from pymc_marketing.mmm.fourier import FourierBase
+from pymc_marketing.names import Key
 from pymc_marketing.serialization import (
     DeferredFactory,
     SerializationError,
@@ -139,7 +140,7 @@ class _Writer:
                         f"Cannot save {type(term).__name__}.{name}: {error}"
                     ) from error
             self.nodes[identifier] = {
-                "__type__": serialization.key_for(term.__class__),
+                Key.TYPE: serialization.key_for(term.__class__),
                 "fields": encoded,
             }
         return {"$ref": self.ids[key]}
@@ -208,9 +209,9 @@ class _Reader:
         if identifier not in self.nodes:
             raise SerializationError(f"The saved model has no node {identifier!r}.")
         entry = self.nodes[identifier]
-        cls = serialization.lookup(entry["__type__"])
+        cls = serialization.lookup(entry[Key.TYPE])
         if not issubclass(cls, (ModelTerm, Sum, Product, FourierBase)):
-            raise SerializationError(f"{entry['__type__']!r} is not a model term.")
+            raise SerializationError(f"{entry[Key.TYPE]!r} is not a model term.")
         self.active.add(identifier)
         try:
             term = cls(
@@ -251,7 +252,7 @@ class _Reader:
             priors = {
                 name: self.value(item) for name, item in payload["priors"].items()
             }
-            cls = serialization.lookup(payload["__type__"])
+            cls = serialization.lookup(payload[Key.TYPE])
             return cls.from_dict({**payload, "priors": priors})  # type: ignore[attr-defined]
         if tag == "$value":
             return _deserialize_child(payload)
