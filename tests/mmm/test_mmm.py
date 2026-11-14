@@ -3487,6 +3487,18 @@ def test_mmm_with_events(
 
     assert "holiday_total_effect" in mmm.posterior
     assert "another_event_type_total_effect" in mmm.posterior
+    # The name each effect reports is the one it registered (#3357)
+    assert [effect.contribution_var_name for effect in mmm.mu_effects] == [
+        "holiday_total_effect",
+        "another_event_type_total_effect",
+    ]
+    assert not mmm._effects_carry_media_response()
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", message=".*was not found in the posterior")
+        decomposition = mmm.compute_counterfactual_contributions_dataset()
+    assert {"holiday_total_effect", "another_event_type_total_effect"} <= set(
+        decomposition.data_vars
+    )
 
     kwargs = dict(
         extend_idata=False,
