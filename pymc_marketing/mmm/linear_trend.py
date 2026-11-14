@@ -71,6 +71,7 @@ from pytensor.xtensor.type import XTensorVariable
 from xarray import DataArray
 
 from pymc_marketing.mmm.dims import XTensorLike
+from pymc_marketing.names import Key
 from pymc_marketing.plot import SelToString, plot_curve
 from pymc_marketing.serialization import serialization
 
@@ -315,7 +316,7 @@ class LinearTrend(BaseModel):
         """Reconstruct from a dict."""
         from pymc_extras.deserialize import deserialize
 
-        work = {k: v for k, v in data.items() if k != "__type__"}
+        work = {k: v for k, v in data.items() if k != Key.TYPE}
         if "priors" in work and work["priors"] is not None:
             work["priors"] = {k: deserialize(v) for k, v in work["priors"].items()}
         if "dims" in work and isinstance(work["dims"], list):

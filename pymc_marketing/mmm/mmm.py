@@ -213,6 +213,7 @@ from pymc_marketing.mmm import SoftPlusHSGP
 from pymc_marketing.mmm.additive_effect import (
     EventAdditiveEffect,
     MuEffect,
+    fitted_dates_only_effects,
     safe_to_datetime,
 )
 from pymc_marketing.mmm.budget_optimizer import (
@@ -279,6 +280,16 @@ from pymc_marketing.mmm.utils import (
 from pymc_marketing.model_builder import RegressionModelBuilder, SamplingMethod
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.model_graph import deterministics_to_flat
+from pymc_marketing.names import Key
+from pymc_marketing.names.mmm import (
+    ORIGINAL_SCALE_SUFFIX,
+    RESERVED_DIMS,
+    Attr,
+    DatasetVar,
+    Dim,
+    Var,
+    original_scale_name,
+)
 from pymc_marketing.serialization import (
     DeserializationContext,
     SerializationError,
@@ -653,7 +664,7 @@ class MMM(RegressionModelBuilder):
 
     _model_type: str = "MMMM (Multi-Dimensional Marketing Mix Model)"
     version: str = "0.0.2"
-    output_var = "y"
+    output_var = Var.Y
 
     @validate_call
     def __init__(
@@ -769,8 +780,7 @@ class MMM(RegressionModelBuilder):
         self.adstock_first = adstock_first
 
         dims = dims if dims is not None else ()
-        core_dims = {"date", "channel", "control", "fourier_mode"}
-        if invalid_dims := core_dims & set(dims):
+        if invalid_dims := RESERVED_DIMS & set(dims):
             raise ValueError(
                 f"Dims {sorted(invalid_dims)} are reserved for internal use"
             )
@@ -800,12 +810,14 @@ class MMM(RegressionModelBuilder):
             channel=DataDerivedScaling(method="max", dims=self.dims),
         )
 
-        if set(self.scaling.target.dims).difference([*self.dims, "date"]):
+        if set(self.scaling.target.dims).difference([*self.dims, Dim.DATE]):
             raise ValueError(
                 f"Target scaling dims {self.scaling.target.dims} must contain {self.dims} and 'date'"
             )
 
-        if set(self.scaling.channel.dims).difference([*self.dims, "channel", "date"]):
+        if set(self.scaling.channel.dims).difference(
+            [*self.dims, Dim.CHANNEL, Dim.DATE]
+        ):
             raise ValueError(
                 f"Channel scaling dims {self.scaling.channel.dims} must contain {self.dims}, 'channel', and 'date'"
             )
@@ -818,7 +830,7 @@ class MMM(RegressionModelBuilder):
             isinstance(self.scaling.channel, FixedScaling)
             and isinstance(self.scaling.channel.value, dict)
             and len(rem_ch) == 1
-            and rem_ch[0] == "channel"
+            and rem_ch[0] == Dim.CHANNEL
         ):
             validate_fixed_scaling_keys(
                 self.scaling.channel, channel_columns, "channel"
@@ -907,7 +919,7 @@ class MMM(RegressionModelBuilder):
         if self.yearly_seasonality is not None:
             self.yearly_fourier = YearlyFourier(
                 n_order=self.yearly_seasonality,
-                prefix="fourier_mode",
+                prefix=Dim.FOURIER_MODE,
                 prior=self.model_config["gamma_fourier"],
                 variable_name="gamma_fourier",
             )
@@ -1073,7 +1085,7 @@ class MMM(RegressionModelBuilder):
         return True
 
     def _check_compatible_media_dims(self) -> None:
-        allowed_dims = set(self.dims).union({"channel"})
+        allowed_dims = set(self.dims).union({Dim.CHANNEL})
 
         if not set(self.adstock.combined_dims).issubset(allowed_dims):
             raise ValueError(
@@ -1311,33 +1323,33 @@ class MMM(RegressionModelBuilder):
     def create_idata_attrs(self) -> dict[str, str]:
         """Return the idata attributes for the model."""
         attrs = super().create_idata_attrs()
-        attrs["model_config"] = json.dumps(
+        attrs[Attr.MODEL_CONFIG] = json.dumps(
             serialization.serialize_model_config(self.model_config)
         )
-        attrs["__serialization_version__"] = "1"
+        attrs[Attr.SERIALIZATION_VERSION] = "1"
         attrs["dims"] = json.dumps(self.dims)
         attrs["date_column"] = self.date_column
-        attrs["adstock"] = json.dumps(serialization.serialize(self.adstock))
-        attrs["saturation"] = json.dumps(serialization.serialize(self.saturation))
+        attrs[Attr.ADSTOCK] = json.dumps(serialization.serialize(self.adstock))
+        attrs[Attr.SATURATION] = json.dumps(serialization.serialize(self.saturation))
         attrs["adstock_first"] = json.dumps(self.adstock_first)
         attrs["control_columns"] = json.dumps(self.control_columns)
         attrs["channel_columns"] = json.dumps(self.channel_columns)
         attrs["yearly_seasonality"] = json.dumps(self.yearly_seasonality)
-        attrs["time_varying_intercept"] = json.dumps(
+        attrs[Attr.TIME_VARYING_INTERCEPT] = json.dumps(
             serialization.serialize(self.time_varying_intercept)
             if isinstance(self.time_varying_intercept, HSGPBase)
             else self.time_varying_intercept
         )
-        attrs["time_varying_media"] = json.dumps(
+        attrs[Attr.TIME_VARYING_MEDIA] = json.dumps(
             serialization.serialize(self.time_varying_media)
             if isinstance(self.time_varying_media, HSGPBase)
             else self.time_varying_media
         )
         attrs["target_column"] = self.target_column
-        attrs["link"] = self.link.value
+        attrs[Attr.LINK] = self.link.value
         attrs["scaling"] = json.dumps(serialization.serialize(self.scaling))
-        attrs["lift_test_calibrations"] = json.dumps(self._lift_test_calibrations)
-        attrs["cost_per_target_calibrations"] = json.dumps(
+        attrs[Attr.LIFT_TEST_CALIBRATIONS] = json.dumps(self._lift_test_calibrations)
+        attrs[Attr.COST_PER_TARGET_CALIBRATIONS] = json.dumps(
             self._cost_per_target_calibrations
         )
         attrs["dag"] = json.dumps(getattr(self, "dag", None))
@@ -1347,7 +1359,7 @@ class MMM(RegressionModelBuilder):
         mu_effects_list = [
             serialization.serialize(effect) for effect in self.mu_effects
         ]
-        attrs["mu_effects"] = json.dumps(mu_effects_list)
+        attrs[Attr.MU_EFFECTS] = json.dumps(mu_effects_list)
 
         if self._cost_per_unit_input is not None:
             cpu_df = self._cost_per_unit_input
@@ -1363,9 +1375,11 @@ class MMM(RegressionModelBuilder):
                     UserWarning,
                     stacklevel=2,
                 )
-            attrs["cost_per_unit"] = cpu_df.to_json(orient="split", date_format="iso")
+            attrs[Attr.COST_PER_UNIT] = cpu_df.to_json(
+                orient="split", date_format="iso"
+            )
         else:
-            attrs["cost_per_unit"] = json.dumps(None)
+            attrs[Attr.COST_PER_UNIT] = json.dumps(None)
 
         return attrs
 
@@ -1389,13 +1403,13 @@ class MMM(RegressionModelBuilder):
         for label, attr, key, records in (
             (
                 "lift-test",
-                "lift_test_calibrations",
+                Attr.LIFT_TEST_CALIBRATIONS,
                 "name",
                 self._lift_test_calibrations,
             ),
             (
                 "cost-per-target",
-                "cost_per_target_calibrations",
+                Attr.COST_PER_TARGET_CALIBRATIONS,
                 "name_prefix",
                 self._cost_per_target_calibrations,
             ),
@@ -1421,9 +1435,35 @@ class MMM(RegressionModelBuilder):
                 stacklevel=3,
             )
 
+    def _store_effect_idata_groups(self, idata: xr.DataTree, *, replace: bool) -> None:
+        """Write each mu effect's supplementary groups, from ``idata_groups``, to idata.
+
+        Parameters
+        ----------
+        idata : xr.DataTree
+            The idata the groups are written to.
+        replace : bool
+            Whether a group already in ``idata`` is replaced. Fitting replaces an
+            earlier fit's groups. Saving writes only the missing ones, so the file
+            holds the data the effects were fitted with even if it has changed since.
+        """
+        for effect in self.mu_effects:
+            # A duck-typed effect, which the additive-effect module allows, may not
+            # define the hook.
+            for group_name, ds in getattr(effect, "idata_groups", dict)().items():
+                if group_name in idata.children:
+                    if not replace:
+                        continue
+                    del idata[group_name]
+                # A group built from an effect's frame can share its memory, and an
+                # edit of the frame in place would then change what was fitted.
+                idata[f"/{group_name}"] = ds.copy(deep=True)
+
     def save(self, fname: str, **kwargs) -> None:
         """Save the model, including supplementary idata groups from mu_effects.
 
+        The groups that fitting stored are saved as they are, so they hold the data
+        the effects were fitted with; a missing one is taken from its effect now.
         Warns when calibration was added, removed or changed since the last fit,
         because the file carries the calibration recorded at fit time.
         """
@@ -1431,14 +1471,11 @@ class MMM(RegressionModelBuilder):
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
         self._warn_if_calibration_changed_since_fit(self.idata)
 
-        for effect in self.mu_effects:
-            for group_name, ds in effect.idata_groups().items():
-                if not hasattr(self.idata, group_name):
-                    self.idata["/" + group_name] = ds
+        self._store_effect_idata_groups(self.idata, replace=False)
 
         # Persist the base names of any *_original_scale Deterministics so they
         # can be faithfully re-added by build_from_idata on load.
-        suffix = "_original_scale"
+        suffix = ORIGINAL_SCALE_SUFFIX
         original_scale_vars = [
             name[: -len(suffix)]
             for name in self.model.named_vars
@@ -1448,7 +1485,7 @@ class MMM(RegressionModelBuilder):
                 or name[: -len(suffix)] == self.output_var
             )
         ]
-        self.idata.attrs["original_scale_vars"] = json.dumps(original_scale_vars)
+        self.idata.attrs[Attr.ORIGINAL_SCALE_VARS] = json.dumps(original_scale_vars)
 
         super().save(fname, **kwargs)
 
@@ -1460,7 +1497,7 @@ class MMM(RegressionModelBuilder):
             migrate_idata,
         )
 
-        version = int(idata.attrs.get("__serialization_version__", "0"))
+        version = int(idata.attrs.get(Attr.SERIALIZATION_VERSION, "0"))
         if version < CURRENT_VERSION:
             warnings.warn(
                 f"Loading a model saved with serialization format v{version}. "
@@ -1479,47 +1516,47 @@ class MMM(RegressionModelBuilder):
 
         def _deser(raw: str, fallback=None):
             data = json.loads(raw)
-            if isinstance(data, dict) and "__type__" in data:
+            if isinstance(data, dict) and Key.TYPE in data:
                 return serialization.deserialize(data)
             return fallback if fallback is not None else data
 
-        tvi_raw = attrs.get("time_varying_intercept", "false")
-        tvm_raw = attrs.get("time_varying_media", "false")
+        tvi_raw = attrs.get(Attr.TIME_VARYING_INTERCEPT, "false")
+        tvm_raw = attrs.get(Attr.TIME_VARYING_MEDIA, "false")
         tvi_data = json.loads(tvi_raw)
         tvm_data = json.loads(tvm_raw)
 
         return {
             "model_config": cls._model_config_formatting(
-                json.loads(attrs["model_config"])
+                json.loads(attrs[Attr.MODEL_CONFIG])
             ),
             "date_column": attrs["date_column"],
             "control_columns": json.loads(attrs["control_columns"]),
             "channel_columns": json.loads(attrs["channel_columns"]),
-            "adstock": _deser(attrs["adstock"]),
-            "saturation": _deser(attrs["saturation"]),
+            "adstock": _deser(attrs[Attr.ADSTOCK]),
+            "saturation": _deser(attrs[Attr.SATURATION]),
             "adstock_first": json.loads(attrs.get("adstock_first", "true")),
-            "link": attrs.get("link", "identity"),
+            "link": attrs.get(Attr.LINK, "identity"),
             "yearly_seasonality": json.loads(attrs["yearly_seasonality"]),
             "time_varying_intercept": (
                 serialization.deserialize(tvi_data)
-                if isinstance(tvi_data, dict) and "__type__" in tvi_data
+                if isinstance(tvi_data, dict) and Key.TYPE in tvi_data
                 else tvi_data
             ),
             "target_column": attrs["target_column"],
             "time_varying_media": (
                 serialization.deserialize(tvm_data)
-                if isinstance(tvm_data, dict) and "__type__" in tvm_data
+                if isinstance(tvm_data, dict) and Key.TYPE in tvm_data
                 else tvm_data
             ),
-            "sampler_config": json.loads(attrs["sampler_config"]),
+            "sampler_config": json.loads(attrs[Attr.SAMPLER_CONFIG]),
             "dims": tuple(json.loads(attrs.get("dims", "[]"))),
             "scaling": _deser(attrs.get("scaling", "null")),
             "dag": json.loads(attrs.get("dag", "null")),
             "treatment_nodes": json.loads(attrs.get("treatment_nodes", "null")),
             "outcome_node": json.loads(attrs.get("outcome_node", "null")),
             "cost_per_unit": (
-                _deserialize_cost_per_unit(attrs["cost_per_unit"])
-                if attrs.get("cost_per_unit") and attrs["cost_per_unit"] != "null"
+                _deserialize_cost_per_unit(attrs[Attr.COST_PER_UNIT])
+                if attrs.get(Attr.COST_PER_UNIT) and attrs[Attr.COST_PER_UNIT] != "null"
                 else None
             ),
         }
@@ -1811,14 +1848,14 @@ class MMM(RegressionModelBuilder):
 
         idata: xr.DataTree = cast(xr.DataTree, self.idata)
         posterior: xr.Dataset = idata["/posterior"].dataset
-        target_scale: xr.DataArray = idata.constant_data["target_scale"].squeeze(
+        target_scale: xr.DataArray = idata.constant_data[Var.TARGET_SCALE].squeeze(
             drop=True
         )
 
         counterfactual_fn: Callable[[xr.DataArray], xr.DataArray]
 
         if self.link == LinkFunction.LOG:
-            mu_total: xr.DataArray = posterior["mu"]
+            mu_total: xr.DataArray = posterior[Var.MU]
 
             def _log_counterfactual(component: xr.DataArray) -> xr.DataArray:
                 return log_counterfactual_remove_component(
@@ -1840,22 +1877,22 @@ class MMM(RegressionModelBuilder):
 
         parts: dict[str, xr.DataArray] = {}
 
-        channel_da: xr.DataArray = posterior["channel_contribution"]
+        channel_da: xr.DataArray = posterior[Var.CHANNEL_CONTRIBUTION]
         for ch in channel_da.coords["channel"].values:
-            ch_comp = channel_da.sel(channel=ch).drop_vars("channel", errors="ignore")
+            ch_comp = channel_da.sel(channel=ch).drop_vars(Dim.CHANNEL, errors="ignore")
             parts[str(ch)] = counterfactual_fn(ch_comp)
 
-        if "control_contribution" in posterior:
-            control_da: xr.DataArray = posterior["control_contribution"]
+        if Var.CONTROL_CONTRIBUTION in posterior:
+            control_da: xr.DataArray = posterior[Var.CONTROL_CONTRIBUTION]
             for ctrl in control_da.coords["control"].values:
                 ctrl_comp = control_da.sel(control=ctrl).drop_vars(
-                    "control", errors="ignore"
+                    Dim.CONTROL, errors="ignore"
                 )
                 parts[str(ctrl)] = counterfactual_fn(ctrl_comp)
 
-        if "yearly_seasonality_contribution" in posterior:
+        if Var.YEARLY_SEASONALITY_CONTRIBUTION in posterior:
             parts["yearly_seasonality"] = counterfactual_fn(
-                posterior["yearly_seasonality_contribution"]
+                posterior[Var.YEARLY_SEASONALITY_CONTRIBUTION]
             )
 
         for mu_effect in self.mu_effects:
@@ -1876,7 +1913,7 @@ class MMM(RegressionModelBuilder):
                     stacklevel=2,
                 )
 
-        parts[BASELINE_PART] = counterfactual_fn(posterior["intercept_contribution"])
+        parts[BASELINE_PART] = counterfactual_fn(posterior[Var.INTERCEPT_CONTRIBUTION])
 
         dataset = xr.Dataset(parts)
 
@@ -2100,10 +2137,10 @@ class MMM(RegressionModelBuilder):
             "intercept": self._link_spec.default_intercept(self.dims),
             "likelihood": self._link_spec.default_likelihood(self.dims),
             "gamma_control": Prior(
-                "Normal", mu=0, sigma=2, dims=(*self.dims, "control")
+                "Normal", mu=0, sigma=2, dims=(*self.dims, Dim.CONTROL)
             ),
             "gamma_fourier": Prior(
-                "Laplace", mu=0, b=1, dims=(*self.dims, "fourier_mode")
+                "Laplace", mu=0, b=1, dims=(*self.dims, Dim.FOURIER_MODE)
             ),
         }
 
@@ -2141,6 +2178,9 @@ class MMM(RegressionModelBuilder):
         evaluation.  Recomputing them with a different dimension size would
         give wrong results; instead their posterior values should be
         substituted directly.
+
+        They include the names each mu effect declares through
+        :attr:`MuEffect.frozen_deterministics`.
         """
         names: list[str] = []
         if self.time_varying_intercept:
@@ -2153,6 +2193,10 @@ class MMM(RegressionModelBuilder):
                     "media_temporal_latent_multiplier"
                 )
             )
+        for effect in self.mu_effects:
+            # A duck-typed effect, which the additive-effect module allows, may not
+            # define the hook.
+            names.extend(getattr(effect, "frozen_deterministics", []))
         return names
 
     def _validate_idata_exists(self) -> None:
@@ -2242,13 +2286,15 @@ class MMM(RegressionModelBuilder):
         ).fillna(0)
         self.xarray_dataset = self._reindex_custom_dims(self.xarray_dataset)
 
-        self.xarray_dataset["_channel"] = self.xarray_dataset["_channel"].astype(float)
+        self.xarray_dataset[DatasetVar.CHANNEL] = self.xarray_dataset[
+            DatasetVar.CHANNEL
+        ].astype(float)
         # Integer control columns (0/1 flags) would otherwise make `control_data`
         # an int node, and later values written into it would be truncated.
-        if "_control" in self.xarray_dataset:
-            self.xarray_dataset["_control"] = self.xarray_dataset["_control"].astype(
-                float
-            )
+        if DatasetVar.CONTROL in self.xarray_dataset:
+            self.xarray_dataset[DatasetVar.CONTROL] = self.xarray_dataset[
+                DatasetVar.CONTROL
+            ].astype(float)
 
         self.model_coords = {
             dim: self.xarray_dataset.coords[dim].values
@@ -2270,7 +2316,7 @@ class MMM(RegressionModelBuilder):
         self._validate_model_was_built()
         return cast(
             npt.NDArray[np.floating],
-            self.xarray_dataset["_target"].values,
+            self.xarray_dataset[DatasetVar.TARGET].values,
         )
 
     def forward_pass(
@@ -2319,12 +2365,12 @@ class MMM(RegressionModelBuilder):
         """Compute and save scaling factors for channels and target."""
         self.scalers = xr.Dataset()
 
-        self.scalers["_channel"] = self._compute_scale_for_variable(
-            self.xarray_dataset["_channel"],
+        self.scalers[DatasetVar.CHANNEL] = self._compute_scale_for_variable(
+            self.xarray_dataset[DatasetVar.CHANNEL],
             self.scaling.channel,
         )
-        self.scalers["_target"] = self._compute_scale_for_variable(
-            self.xarray_dataset["_target"],
+        self.scalers[DatasetVar.TARGET] = self._compute_scale_for_variable(
+            self.xarray_dataset[DatasetVar.TARGET],
             self.scaling.target,
         )
 
@@ -2346,7 +2392,9 @@ class MMM(RegressionModelBuilder):
                     UserWarning,
                     stacklevel=2,
                 )
-            self.scalers["_channel"] = xr.ones_like(self.scalers["_channel"])
+            self.scalers[DatasetVar.CHANNEL] = xr.ones_like(
+                self.scalers[DatasetVar.CHANNEL]
+            )
 
     def _compute_scale_for_variable(
         self,
@@ -2537,8 +2585,8 @@ class MMM(RegressionModelBuilder):
             )
 
         return {
-            "channel_scale": self.scalers._channel,
-            "target_scale": self.scalers._target,
+            Var.CHANNEL_SCALE: self.scalers._channel,
+            Var.TARGET_SCALE: self.scalers._target,
         }
 
     def _validate_model_was_built(self) -> None:
@@ -2653,12 +2701,12 @@ class MMM(RegressionModelBuilder):
                     stacklevel=2,
                 )
 
-        target_scale = self.model["target_scale"]
+        target_scale = self.model[Var.TARGET_SCALE]
 
         with self.model:
             for v in var:
                 self._validate_contribution_variable(v)
-                name = f"{v}_original_scale"
+                name = original_scale_name(v)
 
                 if name in self.model.named_vars:
                     warnings.warn(
@@ -2678,7 +2726,7 @@ class MMM(RegressionModelBuilder):
                     )
 
                 pmd.Deterministic(
-                    name, value.transpose("date", ..., missing_dims="ignore")
+                    name, value.transpose(Dim.DATE, ..., missing_dims="ignore")
                 )
 
         return self
@@ -2752,6 +2800,10 @@ class MMM(RegressionModelBuilder):
         the rows and options in ``idata.attrs``, and the cost-per-target spend
         in the ``cost_per_target_spend`` group, one variable per distinct spend
         array. :meth:`build_from_idata` replays them when the model is loaded.
+
+        Each mu effect's supplementary groups, from its ``idata_groups``, are stored
+        too, replacing those of an earlier fit, so the idata holds the data the
+        effects were fitted with.
         """
         # A refit replaces the posterior and can move its coordinate labels, which
         # the evaluator's shared binding would refuse; build against it from scratch.
@@ -2786,6 +2838,7 @@ class MMM(RegressionModelBuilder):
             idata[f"/{COST_PER_TARGET_SPEND_GROUP}"] = xr.Dataset(
                 self._cost_per_target_spend
             )
+        self._store_effect_idata_groups(idata, replace=True)
         if self._cost_per_unit_input is not None:
             self.set_cost_per_unit(self._cost_per_unit_input)
         return idata
@@ -2906,15 +2959,19 @@ class MMM(RegressionModelBuilder):
         self._target_is_placeholder = False
 
         likelihood = self.model_config["likelihood"]
-        if "_target" in self.xarray_dataset.data_vars:
+        if DatasetVar.TARGET in self.xarray_dataset.data_vars:
             # Link-independent: every link and likelihood would fit an
             # infinite target as 0 after the clamp below.
-            _reject_infinite_target(self.xarray_dataset["_target"].values)
-            self._link_spec.validate_target(self.xarray_dataset["_target"].values)
+            _reject_infinite_target(self.xarray_dataset[DatasetVar.TARGET].values)
+            self._link_spec.validate_target(
+                self.xarray_dataset[DatasetVar.TARGET].values
+            )
             # LogNormalPrior observes the raw target on the strictly positive
             # support, which the link-level validate_target cannot know about.
             if isinstance(likelihood, LogNormalPrior):
-                likelihood.validate_observed(self.xarray_dataset["_target"].values)
+                likelihood.validate_observed(
+                    self.xarray_dataset[DatasetVar.TARGET].values
+                )
         LinkSpec.validate_likelihood_compatibility(self.link, likelihood)
 
         if self.link == LinkFunction.LOG and self.mu_effects:
@@ -2936,12 +2993,12 @@ class MMM(RegressionModelBuilder):
                     self.yearly_fourier.prefix, self.yearly_fourier.nodes
                 )
 
-            _channel_scale = pmd.Data("channel_scale", self.scalers._channel)
-            _target_scale = pmd.Data("target_scale", self.scalers._target)
+            _channel_scale = pmd.Data(Var.CHANNEL_SCALE, self.scalers._channel)
+            _target_scale = pmd.Data(Var.TARGET_SCALE, self.scalers._target)
 
-            _channel_data = pmd.Data("channel_data", self.xarray_dataset._channel)
+            _channel_data = pmd.Data(Var.CHANNEL_DATA, self.xarray_dataset._channel)
 
-            _target = pmd.Data("target_data", self.xarray_dataset._target)
+            _target = pmd.Data(Var.TARGET_DATA, self.xarray_dataset._target)
 
             # Scale `channel_data` and `target`. The switches guard against
             # NaN (0/0 when a channel/target is all-zero) and against +/-inf
@@ -2986,11 +3043,11 @@ class MMM(RegressionModelBuilder):
             # (`model_builder.py:1546`, `:1772`). It has no support to respect,
             # and failing it would break building a model in order to look at
             # its prior, so skip the check rather than reject the placeholder.
-            if np.any(self.xarray_dataset["_target"].values != 0):
+            if np.any(self.xarray_dataset[DatasetVar.TARGET].values != 0):
                 LinkSpec.validate_likelihood_support(
                     self.model_config["likelihood"],
                     target_data_scaled,
-                    target_scale=self.scalers["_target"].values,
+                    target_scale=self.scalers[DatasetVar.TARGET].values,
                 )
 
             # DataVarMuEffect inputs may be shared by several effects, but must
@@ -3002,12 +3059,12 @@ class MMM(RegressionModelBuilder):
                 mu_effect.create_data(self)
 
             if self.time_varying_intercept or self.time_varying_media:
-                time_index = pmd.Data("time_index", self._time_index)
+                time_index = pmd.Data(Var.TIME_INDEX, self._time_index)
 
             # Add intercept logic
             if self.time_varying_intercept:
                 intercept_baseline = self.model_config["intercept"].create_variable(
-                    "intercept_baseline", xdist=True
+                    Var.INTERCEPT_BASELINE, xdist=True
                 )
 
                 if isinstance(self.time_varying_intercept, HSGPBase):
@@ -3026,7 +3083,7 @@ class MMM(RegressionModelBuilder):
                     ).create_variable("intercept_latent_process", xdist=True)
 
                 intercept = pmd.Deterministic(
-                    "intercept_contribution",
+                    Var.INTERCEPT_CONTRIBUTION,
                     (intercept_baseline * intercept_latent_process).transpose(
                         "date", ...
                     ),
@@ -3034,7 +3091,7 @@ class MMM(RegressionModelBuilder):
 
             else:
                 intercept = self.model_config["intercept"].create_variable(
-                    name="intercept_contribution", xdist=True
+                    name=Var.INTERCEPT_CONTRIBUTION, xdist=True
                 )
 
             # Add media logic
@@ -3068,7 +3125,7 @@ class MMM(RegressionModelBuilder):
                 )
 
             channel_contribution = pmd.Deterministic(
-                "channel_contribution",
+                Var.CHANNEL_CONTRIBUTION,
                 channel_contribution.transpose("date", ...),
             )
 
@@ -3080,10 +3137,10 @@ class MMM(RegressionModelBuilder):
                     name="gamma_control", xdist=True
                 )
 
-                control_data_ = pmd.Data("control_data", self.xarray_dataset._control)
+                control_data_ = pmd.Data(Var.CONTROL_DATA, self.xarray_dataset._control)
 
                 control_contribution = pmd.Deterministic(
-                    "control_contribution",
+                    Var.CONTROL_CONTRIBUTION,
                     control_data_ * gamma_control,
                 )
 
@@ -3091,7 +3148,7 @@ class MMM(RegressionModelBuilder):
 
             if self.yearly_seasonality is not None:
                 dayofyear = pmd.Data(
-                    "dayofyear",
+                    Var.DAYOFYEAR,
                     pd.to_datetime(self.model_coords["date"]).dayofyear.to_numpy(),
                     dims="date",
                 )
@@ -3106,7 +3163,7 @@ class MMM(RegressionModelBuilder):
                 )
 
                 yearly_seasonality_contribution = pmd.Deterministic(
-                    "yearly_seasonality_contribution",
+                    Var.YEARLY_SEASONALITY_CONTRIBUTION,
                     fourier_contributions.sum(dim=fourier_dim),
                 )
 
@@ -3116,7 +3173,7 @@ class MMM(RegressionModelBuilder):
                 mu_var += mu_effect.create_effect(self)
 
             if self.link == LinkFunction.LOG:
-                mu_var = pmd.Deterministic("mu", mu_var.transpose("date", ...))
+                mu_var = pmd.Deterministic(Var.MU, mu_var.transpose("date", ...))
             else:
                 # Registered rather than merely named, because the identity-link
                 # mean correction is pointwise in mu and reconstructing it by
@@ -3127,7 +3184,7 @@ class MMM(RegressionModelBuilder):
                 # Not transposed, unlike the log branch, which would change the
                 # dims order the likelihood sees, so "date" stays wherever the
                 # linear predictor already put it rather than moving to front.
-                mu_var = pmd.Deterministic("mu", mu_var)
+                mu_var = pmd.Deterministic(Var.MU, mu_var)
 
             self._link_spec.create_media_contribution_deterministic(
                 mu_var=mu_var,
@@ -3233,7 +3290,7 @@ class MMM(RegressionModelBuilder):
         reject_unknown_coords(ds, model_coords, label="X")
         ds = ds.reindex(model_coords, fill_value=0)
 
-        if y is None and "_target" not in ds.data_vars:
+        if y is None and DatasetVar.TARGET not in ds.data_vars:
             target_dtype = self.xarray_dataset._target.dtype
             n_dates = ds.sizes["date"]
             shape = (n_dates, *[ds.sizes[dim] for dim in self.dims])
@@ -3244,7 +3301,7 @@ class MMM(RegressionModelBuilder):
                     if dim in ds.indexes
                     else self.xarray_dataset.coords[dim].values
                 )
-            ds["_target"] = xr.DataArray(
+            ds[DatasetVar.TARGET] = xr.DataArray(
                 np.zeros(shape, dtype=target_dtype),
                 dims=("date", *self.dims),
                 coords=coords,
@@ -3282,42 +3339,42 @@ class MMM(RegressionModelBuilder):
         channel_values = dataset_xarray._channel.transpose(
             "date", *self.dims, "channel"
         )
-        if "channel_data" in model.named_vars:
-            original_dtype = model.named_vars["channel_data"].type.dtype
+        if Var.CHANNEL_DATA in model.named_vars:
+            original_dtype = model.named_vars[Var.CHANNEL_DATA].type.dtype
             channel_values = channel_values.astype(original_dtype)
 
-        data = {"channel_data": channel_values}
+        data = {Var.CHANNEL_DATA: channel_values}
         coords = self.model.coords.copy()
         coords["date"] = dataset_xarray["date"].to_numpy()
 
-        if "_control" in dataset_xarray:
-            control_values = dataset_xarray["_control"].transpose(
+        if DatasetVar.CONTROL in dataset_xarray:
+            control_values = dataset_xarray[DatasetVar.CONTROL].transpose(
                 "date", *self.dims, "control"
             )
-            if "control_data" in model.named_vars:
-                original_dtype = model.named_vars["control_data"].type.dtype
+            if Var.CONTROL_DATA in model.named_vars:
+                original_dtype = model.named_vars[Var.CONTROL_DATA].type.dtype
                 control_values = control_values.astype(original_dtype)
-            data["control_data"] = control_values
+            data[Var.CONTROL_DATA] = control_values
             coords["control"] = dataset_xarray["control"].to_numpy()
         if self.yearly_seasonality is not None:
-            data["dayofyear"] = dataset_xarray["date"].dt.dayofyear.to_numpy()
+            data[Var.DAYOFYEAR] = dataset_xarray["date"].dt.dayofyear.to_numpy()
 
         if self.time_varying_intercept or self.time_varying_media:
-            data["time_index"] = infer_time_index(
+            data[Var.TIME_INDEX] = infer_time_index(
                 pd.Series(dataset_xarray["date"]),
                 pd.Series(self.model_coords["date"]),
                 self._time_resolution,
             )
 
-        if "_target" in dataset_xarray:
+        if DatasetVar.TARGET in dataset_xarray:
             target_values = dataset_xarray._target.transpose("date", *self.dims)
             # Get the original dtype from the model's shared variable
-            if "target_data" in model.named_vars:
-                original_dtype = model.named_vars["target_data"].type.dtype
+            if Var.TARGET_DATA in model.named_vars:
+                original_dtype = model.named_vars[Var.TARGET_DATA].type.dtype
                 # Convert to the original dtype to avoid precision loss errors
-                data["target_data"] = target_values.astype(original_dtype)
+                data[Var.TARGET_DATA] = target_values.astype(original_dtype)
             else:
-                data["target_data"] = target_values
+                data[Var.TARGET_DATA] = target_values
 
         pm.set_data(data, coords=coords, model=model)
 
@@ -3537,6 +3594,12 @@ class MMM(RegressionModelBuilder):
         dates after it they are 0 unless *control_data* gives their planned
         values.
 
+        A :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer` built on
+        the model should take the MMM's ``frozen_deterministics``, as
+        :meth:`budget_optimizer` passes them. It then refuses an objective that
+        reaches one over ``date``, a path that exists only on the dates the MMM
+        was fitted on.
+
         Parameters
         ----------
         start_date : str or pd.Timestamp
@@ -3589,16 +3652,18 @@ class MMM(RegressionModelBuilder):
         )
 
         if control_data is not None:
-            if "_control" not in zero_data:
+            if DatasetVar.CONTROL not in zero_data:
                 raise ValueError(
                     "control_data was passed, but this model has no control_columns."
                 )
-            planned = self._future_control_values(control_data, zero_data["_control"])
-            zero_data["_control"].loc[{"date": planned.coords["date"].values}] = (
-                planned.values
+            planned = self._future_control_values(
+                control_data, zero_data[DatasetVar.CONTROL]
             )
-        elif "_control" in zero_data:
-            self._warn_zero_filled_future_controls(zero_data["_control"])
+            zero_data[DatasetVar.CONTROL].loc[
+                {"date": planned.coords["date"].values}
+            ] = planned.values
+        elif DatasetVar.CONTROL in zero_data:
+            self._warn_zero_filled_future_controls(zero_data[DatasetVar.CONTROL])
 
         dataset_xarray = self._posterior_predictive_data_transformation(
             X=zero_data,
@@ -3632,9 +3697,9 @@ class MMM(RegressionModelBuilder):
         """
         if not self.mu_effects or self.model is None:
             return False
-        if "channel_data" not in self.model.named_vars:
+        if Var.CHANNEL_DATA not in self.model.named_vars:
             return False
-        media = self.model["channel_data"]
+        media = self.model[Var.CHANNEL_DATA]
         for effect in self.mu_effects:
             try:
                 name = effect.contribution_var_name
@@ -3722,6 +3787,15 @@ class MMM(RegressionModelBuilder):
         -------
         BudgetOptimizer
             A configured optimizer ready for :meth:`BudgetOptimizer.allocate_budget`.
+
+        Raises
+        ------
+        NotImplementedError
+            If the objective, ``response_variable``, reaches a frozen deterministic
+            over ``date``, a path that exists only on the dates the MMM was fitted
+            on, as ``total_response_original_scale`` does with the contribution of a
+            mu effect that freezes one. The optimizer refuses it on any window,
+            including one within the fitted dates.
         """
         from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 
@@ -3845,6 +3919,37 @@ class MMM(RegressionModelBuilder):
         )
         return prior_predictive_samples
 
+    def _validate_mu_effects_support_dates(self, dataset: xr.Dataset) -> None:
+        """Refuse dates other than the fitted ones when a mu effect takes only those.
+
+        Parameters
+        ----------
+        dataset : xr.Dataset
+            The data to predict on, as the model will receive it.
+
+        Raises
+        ------
+        NotImplementedError
+            If the dates of ``dataset`` are not the dates the MMM was fitted on and
+            a mu effect has ``supports_new_dates=False``.
+        """
+        names = [name for name, _ in fitted_dates_only_effects(self.mu_effects)]
+        if not names:
+            return
+
+        fitted_dates = safe_to_datetime(self.model_coords["date"], "date")
+        dates = safe_to_datetime(dataset.coords["date"].values, "date")
+        if dates.equals(fitted_dates):
+            return
+
+        verb = "takes" if len(names) == 1 else "take"
+        raise NotImplementedError(
+            f"{', '.join(names)} {verb} only the {len(fitted_dates)} dates the MMM "
+            f"was fitted on, {fitted_dates[0]:%Y-%m-%d} to "
+            f"{fitted_dates[-1]:%Y-%m-%d}, so prediction on any other set of dates "
+            "is not supported."
+        )
+
     def sample_posterior_predictive(
         self,
         X: pd.DataFrame | xr.Dataset | None = None,  # type: ignore
@@ -3887,6 +3992,10 @@ class MMM(RegressionModelBuilder):
         ------
         ValueError
             If ``X`` is ``None``, or has custom-dim labels the model was not fit on.
+        NotImplementedError
+            If ``X`` is not on the dates the MMM was fitted on and a mu effect takes
+            only those dates (``supports_new_dates=False``). With
+            ``include_last_observations=True`` the dates always differ.
         """
         # Update model data with xarray
         if X is None:
@@ -3895,6 +4004,7 @@ class MMM(RegressionModelBuilder):
             X=X,
             include_last_observations=include_last_observations,
         )
+        self._validate_mu_effects_support_dates(dataset_xarray)
         if names := self.frozen_deterministics:
             # This always clone
             model = deterministics_to_flat(self.model, names=names)
@@ -4313,6 +4423,7 @@ class MMM(RegressionModelBuilder):
             pymc_model=self.model,
             idata=self.idata,
             dims=self.dims,
+            frozen_deterministics=self.frozen_deterministics,
         )
 
     @property
@@ -4663,7 +4774,7 @@ class MMM(RegressionModelBuilder):
 
         with self.model:
             pmd.Deterministic(
-                f"{name}_model_estimated_lift_original_scale",
+                original_scale_name(f"{name}_model_estimated_lift"),
                 self.model[f"{name}_model_estimated_lift"]
                 * as_xtensor(target_scale_factor, dims=(f"_{name}_dim",)),
             )
@@ -4688,9 +4799,9 @@ class MMM(RegressionModelBuilder):
         if name in self.model.named_vars:
             return self.model[name]
         return self._link_spec.channel_incremental_contribution(
-            mu_var=self.model["mu"],
-            channel_contribution=self.model["channel_contribution"],
-            target_scale=self.model["target_scale"],
+            mu_var=self.model[Var.MU],
+            channel_contribution=self.model[Var.CHANNEL_CONTRIBUTION],
+            target_scale=self.model[Var.TARGET_SCALE],
         ).transpose("date", ...)
 
     def _register_channel_increment(
@@ -5105,7 +5216,7 @@ class MMM(RegressionModelBuilder):
             likelihood=likelihood,
         )
 
-        channel_data_dims = self.model.named_vars_to_dims["channel_data"]
+        channel_data_dims = self.model.named_vars_to_dims[Var.CHANNEL_DATA]
 
         # Prepare spend data as xarray (original units)
         spend_ds = (
@@ -5357,19 +5468,19 @@ class MMM(RegressionModelBuilder):
                 control_columns=self.control_columns,
                 target_column=self.target_column,
             )
-            if "_target" not in ds:
+            if DatasetVar.TARGET not in ds:
                 raise ValueError(
                     "y was not provided and X has no 'target' / '_target' variable"
                 )
             parts = [
-                ds["_channel"].to_dataset("channel"),
-                ds["_target"].rename(self.target_column).to_dataset(),
+                ds[DatasetVar.CHANNEL].to_dataset("channel"),
+                ds[DatasetVar.TARGET].rename(self.target_column).to_dataset(),
             ]
-            if "_control" in ds:
-                parts.append(ds["_control"].to_dataset("control"))
+            if DatasetVar.CONTROL in ds:
+                parts.append(ds[DatasetVar.CONTROL].to_dataset("control"))
             fit_data = xr.merge(parts, combine_attrs="drop")
-            if self.date_column != "date":
-                fit_data = fit_data.rename({"date": self.date_column})
+            if self.date_column != Dim.DATE:
+                fit_data = fit_data.rename({Dim.DATE: self.date_column})
             return fit_data.transpose(
                 self.date_column, *self.dims, missing_dims="ignore"
             )
@@ -5485,8 +5596,8 @@ class MMM(RegressionModelBuilder):
 
         """
         self.idata = idata
-        if "mu_effects" in idata.attrs:
-            mu_effects_data = json.loads(idata.attrs["mu_effects"])
+        if Attr.MU_EFFECTS in idata.attrs:
+            mu_effects_data = json.loads(idata.attrs[Attr.MU_EFFECTS])
             ctx = DeserializationContext(idata=idata)
             self.mu_effects = [
                 serialization.deserialize(effect_data, context=ctx)
@@ -5517,8 +5628,8 @@ class MMM(RegressionModelBuilder):
         # Lift-test rows are model inputs, rather than part of fit_data. Restore
         # them after rebuilding the base MMM so their likelihood and posterior
         # model-implied-lift diagnostic are present again.
-        if "lift_test_calibrations" in idata.attrs:
-            for calibration in json.loads(idata.attrs["lift_test_calibrations"]):
+        if Attr.LIFT_TEST_CALIBRATIONS in idata.attrs:
+            for calibration in json.loads(idata.attrs[Attr.LIFT_TEST_CALIBRATIONS]):
                 df_lift_test = _calibration_frame_from_record(calibration)
                 likelihood = serialization.deserialize_model_config(
                     {"likelihood": calibration["likelihood"]}
@@ -5544,7 +5655,7 @@ class MMM(RegressionModelBuilder):
         # group. Metadata errors are raised by the parser; the replay below goes
         # through the public method so model-state errors keep their messages.
         records = _parse_cost_per_target_records(
-            idata.attrs.get("cost_per_target_calibrations", "[]"), self.dims
+            idata.attrs.get(Attr.COST_PER_TARGET_CALIBRATIONS, "[]"), self.dims
         )
         unrestored_cpt: set[str] = set()
         if records and COST_PER_TARGET_SPEND_GROUP not in idata.children:
@@ -5575,7 +5686,9 @@ class MMM(RegressionModelBuilder):
                 )
             for record in records:
                 self.add_cost_per_target_calibration(
-                    data=spend_group[record["spend_var"]].to_dataset(name="_channel"),
+                    data=spend_group[record["spend_var"]].to_dataset(
+                        name=DatasetVar.CHANNEL
+                    ),
                     calibration_data=record["rows"],
                     name_prefix=record["name_prefix"],
                     target_column=record["target_column"],
@@ -5592,11 +5705,11 @@ class MMM(RegressionModelBuilder):
         # Primary path  : read the explicit list stored by save() in idata.attrs.
         # Fallback path : infer from idata.posterior for models saved before this
         #                 fix (original_scale_vars attr absent).
-        suffix = "_original_scale"
-        if "original_scale_vars" in idata.attrs:
+        suffix = ORIGINAL_SCALE_SUFFIX
+        if Attr.ORIGINAL_SCALE_VARS in idata.attrs:
             vars_to_restore = [
                 v
-                for v in json.loads(idata.attrs["original_scale_vars"])
+                for v in json.loads(idata.attrs[Attr.ORIGINAL_SCALE_VARS])
                 if v in self.model.named_vars
                 and (v.endswith("_contribution") or v == self.output_var)
             ]
@@ -5621,7 +5734,7 @@ class MMM(RegressionModelBuilder):
         vars_to_restore = [
             var
             for var in vars_to_restore
-            if f"{var}_original_scale" not in self.model.named_vars
+            if original_scale_name(var) not in self.model.named_vars
         ]
         if vars_to_restore:
             self.add_original_scale_contribution_variable(var=vars_to_restore)
@@ -5693,17 +5806,17 @@ class MMM(RegressionModelBuilder):
         if not hasattr(self.idata, "constant_data"):
             raise ValueError("DataTree missing constant_data group")
 
-        if "channel_data" not in self.idata.constant_data:
+        if Var.CHANNEL_DATA not in self.idata.constant_data:
             raise ValueError(
                 "DataTree constant_data is missing 'channel_data'. "
                 "Cannot compute channel_spend without channel_data."
             )
 
         cost_per_unit_array = self._build_cost_per_unit_array(cost_per_unit)
-        channel_data = self.idata.constant_data["channel_data"]
-        self.idata.constant_data["channel_spend"] = channel_data * cost_per_unit_array
+        channel_data = self.idata.constant_data[Var.CHANNEL_DATA]
+        self.idata.constant_data[Var.CHANNEL_SPEND] = channel_data * cost_per_unit_array
         self._cost_per_unit_input = cost_per_unit
-        self.idata.attrs["cost_per_unit"] = cost_per_unit.to_json(
+        self.idata.attrs[Attr.COST_PER_UNIT] = cost_per_unit.to_json(
             orient="split", date_format="iso"
         )
 
@@ -5957,6 +6070,16 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             Result object with ``budgets``, ``scipy_result``, ``optimized_vars``
             and ``callback_info`` attributes. Iterating it yields
             ``(budgets, scipy_result)``, so two-element unpacking keeps working.
+
+        Raises
+        ------
+        TypeError
+            If ``cost_per_unit`` is neither a DataFrame nor a DataArray.
+        NotImplementedError
+            If ``response_variable`` reaches a frozen deterministic over ``date``, a
+            path that exists only on the dates the MMM was fitted on, as
+            ``total_response_original_scale`` does with the contribution of a mu
+            effect that freezes one. The optimizer refuses it.
         """
         from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 
@@ -5982,12 +6105,14 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
                 stacklevel=2,
             )
 
+        response_variable = self.model_class._resolve_response_variable(
+            response_variable
+        )
+
         allocator = BudgetOptimizer(
             num_periods=self.num_periods,
             utility_function=utility_function,
-            response_variable=self.model_class._resolve_response_variable(
-                response_variable
-            ),
+            response_variable=response_variable,
             constraints=constraints,
             budgets_to_optimize=budgets_to_optimize,
             budget_distribution_over_period=budget_distribution_over_period,
@@ -6029,7 +6154,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             _budget_distribution = budget_distribution
 
         result = data_with_noise.copy()
-        result["_channel"] = data_with_noise["_channel"] * (
+        result[DatasetVar.CHANNEL] = data_with_noise[DatasetVar.CHANNEL] * (
             _budget_distribution * self.num_periods
         )
         return result
@@ -6055,7 +6180,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         )
 
         result = data_with_noise.copy()
-        result["_channel"] = data_with_noise["_channel"].where(
+        result[DatasetVar.CHANNEL] = data_with_noise[DatasetVar.CHANNEL].where(
             data_with_noise.coords["date"] <= cutoff_date, 0
         )
         return result
@@ -6097,6 +6222,13 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         -------
         xr.Dataset
             The posterior predictive samples based on the synthetic dataset.
+
+        Raises
+        ------
+        NotImplementedError
+            If a mu effect takes only the dates the MMM was fitted on
+            (``supports_new_dates=False``), since this samples the posterior
+            predictive on the window's dates, as prediction on any other dates is.
         """
         data = create_zero_dataset(
             model=self,
@@ -6123,7 +6255,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         if include_carryover:
             data_with_noise = self._apply_carryover_effect(data_with_noise)
 
-        if "channel_contribution_original_scale" not in self.model.named_vars:
+        if Var.CHANNEL_CONTRIBUTION_ORIGINAL_SCALE not in self.model.named_vars:
             raise ValueError(
                 "'channel_contribution_original_scale' is not in the model. "
                 "Call `mmm.add_original_scale_contribution_variable(['channel_contribution'])` "
@@ -6132,19 +6264,19 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
 
         constant_data = xr.merge(
             [
-                allocation_strategy.to_dataset(name="allocation"),
+                allocation_strategy.to_dataset(name=Var.ALLOCATION),
                 (allocation_strategy * self.num_periods).to_dataset(
-                    name="total_allocation"
+                    name=Var.TOTAL_ALLOCATION
                 ),
             ]
         )
-        _dataset = data_with_noise["_channel"].to_dataset(dim="channel")
+        _dataset = data_with_noise[DatasetVar.CHANNEL].to_dataset(dim="channel")
 
         var_names = [
             self.output_var,
-            "channel_contribution",
-            "channel_contribution_original_scale",
-            "total_media_contribution_original_scale",
+            Var.CHANNEL_CONTRIBUTION,
+            Var.CHANNEL_CONTRIBUTION_ORIGINAL_SCALE,
+            Var.TOTAL_MEDIA_CONTRIBUTION_ORIGINAL_SCALE,
         ]
         if additional_var_names is not None:
             var_names.extend(additional_var_names)

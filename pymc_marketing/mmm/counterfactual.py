@@ -77,11 +77,13 @@ from pytensor import function
 from pytensor.compile.sharedvalue import SharedVariable, shared
 from pytensor.graph.basic import Variable
 from pytensor.graph.traversal import ancestors
+from pytensor.xtensor.basic import XTensorFromTensor
 from pytensor.xtensor.type import XTensorVariable
 from pytensor.xtensor.vectorization import vectorize_graph
 
 from pymc_marketing.mmm.transformers import ConvMode
-from pymc_marketing.pytensor_utils import ConditionedModel
+from pymc_marketing.names.mmm import Dim, Var
+from pymc_marketing.pytensor_utils import ConditionedModel, SharedPosterior
 
 __all__ = [
     "CounterfactualBlock",
@@ -629,22 +631,25 @@ class EvaluationWindows:
 
 
 class DateIndexedInput(NamedTuple):
-    """A date-indexed ``pm.Data`` replaced by a batched evaluator input.
+    """A date-indexed input of the graph, replaced by a batched evaluator input.
+
+    Either a ``pm.Data`` or a frozen deterministic with a ``date`` dimension.
 
     Parameters
     ----------
     name : str
-        Name of the data variable in the model.
+        Name of the variable in the model.
     values : np.ndarray
         Its fitted values, in the model's own dimension order.  Read from the
         model's own shared variable rather than from ``fit_data``, because an
         effect's data need not appear there -- the funnel example builds the
         model from an ``xr.Dataset`` carrying the mediator's inputs, then fits
-        from a frame that does not.
+        from a frame that does not.  For a frozen deterministic, its posterior
+        draws, with ``sample`` first.
     dtype : str
         Dtype the compiled evaluator expects.
     dims : tuple of str
-        Its dimensions, in the model's order.
+        Its dimensions, in the order of :attr:`values`.
     date_axis : int
         Position of ``date`` within :attr:`dims`.  Stored rather than assumed to
         be zero: an effect is free to declare its data as ``("country", "date")``,
@@ -772,7 +777,12 @@ class CounterfactualEvaluator:
     date-indexed input in the graph has to be cut to the same window in lockstep,
     or the graph is handed a ``max_window``-long spend array and an
     ``n_dates``-long mediator array.  This class discovers those inputs from the
-    graph and cuts them itself.
+    graph and cuts them itself.  A frozen deterministic with a ``date`` dimension
+    is one of them: a path over the fitted dates, such as a latent baseline,
+    whose posterior draws are cut like data.  Its draws are read when an
+    evaluation runs, from the posterior bound then, so they follow
+    :meth:`set_posterior`, and each block of :meth:`iter_counterfactual` is cut
+    from that block's draws.
 
     Every result is transposed to ``(sample, date, *non_date_dims)`` before it
     is returned.  A node's own axis order is whatever the operations that built
@@ -806,6 +816,12 @@ class CounterfactualEvaluator:
         the linear predictor under an identity link.
     frozen_deterministics : list of str
         Deterministics to hold at their posterior values instead of recomputing.
+        One with a ``date`` dimension that the response variables read is fed in
+        as a batched input, keeping its ``sample`` axis: whole for the baseline,
+        and cut to each period's window for the counterfactuals.  Its ``date``
+        dimension has to span the fitted dates.  One without a ``date``
+        dimension, such as an HSGP's ``*_f_mean``, is read from the shared
+        posterior like any other draws.
     dates : pd.DatetimeIndex
         Dates of the fitted data, used to validate the discovered inputs.
     intervention_target : str, default ``"channel_data"``
@@ -849,18 +865,21 @@ class CounterfactualEvaluator:
     ValueError
         If the intervention target does not exist, is a random variable, is
         frozen, is not of a floating dtype, or lacks a leading ``date``
-        dimension; if no response variable depends on the target; if a
-        discovered date-indexed input does not span the fitted date axis; if a
-        response variable has no name (an anonymous node such as a raw
-        arithmetic expression, unless ``.name`` was set on it); if two response
-        variables share a name; or if a value in *expected_aux_values* -- an
-        auxiliary input, or the fabricated ``time_index`` -- disagrees with what
-        the live model or the fabrication would produce, meaning the model was
-        mutated after fitting.
+        dimension; if no response variable depends on the target; if a response
+        variable reads neither the target nor any other date-indexed input, so
+        that no scenario reaches it; if a
+        discovered date-indexed input, data or frozen deterministic, does not
+        span the fitted date axis; if a response variable has no name (an
+        anonymous node such as a raw arithmetic expression, unless ``.name``
+        was set on it); if two response variables share a name; or if a value in
+        *expected_aux_values* -- an auxiliary input, or the fabricated
+        ``time_index`` -- disagrees with what the live model or the
+        fabrication would produce, meaning the model was mutated after
+        fitting.
     """
 
-    CHANNEL_DATA = "channel_data"
-    TIME_INDEX = "time_index"
+    CHANNEL_DATA = Var.CHANNEL_DATA
+    TIME_INDEX = Var.TIME_INDEX
     BATCH_DIM = "__batch__"
     """Dimension the scenario axis is carried on through the vectorized graph."""
 
@@ -1059,6 +1078,74 @@ class CounterfactualEvaluator:
             )
             self._aux_live[data.name] = data
             self._aux_dims[data.name] = dims
+
+        # A frozen deterministic reaches the graph as a shared variable of its
+        # posterior draws.  One with a date dim is a path over the fitted dates,
+        # and has to be cut to each window like the data above.  Its draws come
+        # from the posterior rather than from the live model, so there is no
+        # fit-time value to check them against.  They are read from the shared
+        # variable on every evaluation and every streamed block, so they follow
+        # a rebind.
+        self._frozen: list[tuple[DateIndexedInput, SharedVariable]] = []
+        frozen_paths = self._frozen_date_paths(
+            graph_ancestors,
+            self._conditioned.frozen_deterministics,
+            self._conditioned.shared_posterior,
+        )
+        for name, (frozen, source) in frozen_paths.items():
+            dims = tuple(frozen.type.dims)
+            date_axis = dims.index("date")
+            values = source.get_value(borrow=True)
+            if values.shape[date_axis] != len(self._dates):
+                raise ValueError(
+                    f"Frozen deterministic {name!r} has "
+                    f"{values.shape[date_axis]} entries along its 'date' "
+                    f"dimension but the fitted data has {len(self._dates)} dates.  "
+                    "Incrementality needs it to span the fitted date axis so it "
+                    "can be cut to a window alongside spend."
+                )
+            # Not _batched: every axis is left free, so a static date length on
+            # the draws could never contradict a window shorter than the fit.
+            batched = ptx.xtensor(
+                name=f"{name}_batched",
+                dtype=frozen.type.dtype,
+                shape=(None,) * (len(dims) + 1),
+                dims=(self.BATCH_DIM, *dims),
+            )
+            replace[frozen] = batched
+            func_inputs.append(batched)
+            self._frozen.append(
+                (
+                    DateIndexedInput(
+                        name=name,
+                        values=values,
+                        dtype=frozen.type.dtype,
+                        dims=dims,
+                        date_axis=date_axis,
+                    ),
+                    source,
+                )
+            )
+
+        # A response that reads none of the inputs replaced above has no
+        # scenario axis: it has one value whatever a scenario sets or a window
+        # cuts, and vectorizing it fails on a batch dimension that is not
+        # there.  Say which response instead.
+        unreached = [
+            name
+            for name, graph in zip(self.response_vars, graphs, strict=True)
+            if replace.keys().isdisjoint(ancestors([graph]))
+        ]
+        if unreached:
+            raise ValueError(
+                f"The response variables {unreached} read neither the "
+                f"intervention target {self.intervention_target!r} nor any "
+                "other date-indexed input once the posterior is conditioned "
+                "on, so no counterfactual scenario reaches them.  Either they "
+                "do not depend on the target at all, or a random variable or "
+                "a frozen deterministic lies between the target and them and "
+                "is held at its posterior values."
+            )
 
         # Canonical output layout, so that a caller adding two nodes together
         # does not have to reconcile the axis order each of them happens to
@@ -1372,7 +1459,7 @@ class CounterfactualEvaluator:
                 f"of float type, got {target_var.dtype}"
             )
         dims = getattr(target_var.type, "dims", None)
-        if not dims or dims[0] != "date":
+        if not dims or dims[0] != Dim.DATE:
             raise ValueError(
                 f"Intervention target {target!r} must carry a leading 'date' "
                 f"dimension, got dims {dims}.  Windowed evaluation cuts the "
@@ -1495,7 +1582,7 @@ class CounterfactualEvaluator:
         tuple of str
             The remaining dimensions, in the graph's own order.
         """
-        return tuple(d for d in graph.type.dims if d not in ("sample", "date"))
+        return tuple(d for d in graph.type.dims if d not in ("sample", Dim.DATE))
 
     @staticmethod
     def _batched(variable, name: str):
@@ -1575,7 +1662,66 @@ class CounterfactualEvaluator:
             for data in pymc_model.data_vars
             if data in graph_ancestors
             and data.name not in handled
-            and "date" in pymc_model.named_vars_to_dims.get(data.name, ())
+            and Dim.DATE in pymc_model.named_vars_to_dims.get(data.name, ())
+        ]
+
+    @staticmethod
+    def _frozen_date_paths(
+        graph_ancestors: set,
+        frozen_deterministics: Sequence[str],
+        shared_posterior: SharedPosterior,
+    ) -> dict[str, tuple[XTensorVariable, SharedVariable]]:
+        """Find the frozen deterministics with a ``date`` dim that the graph reads.
+
+        :class:`~pymc_marketing.pytensor_utils.ConditionedModel` binds each
+        frozen deterministic the graph reads to a shared variable of its
+        posterior draws, named after it, and the graph reads that variable
+        through an xtensor view laid out ``("sample", *dims)``.
+
+        Parameters
+        ----------
+        graph_ancestors : set
+            Ancestors of the extracted response graphs.
+        frozen_deterministics : sequence of str
+            Names of the deterministics held at their posterior values.
+        shared_posterior : SharedPosterior
+            The shared posterior the graphs read their draws from.
+
+        Returns
+        -------
+        dict of str to tuple of (XTensorVariable, SharedVariable)
+            The view the graph reads and the shared variable behind it, by
+            name, in the order of *frozen_deterministics* so that the compiled
+            signature is deterministic.
+        """
+        sources = shared_posterior.variables
+        names = {
+            sources[name]: name for name in frozen_deterministics if name in sources
+        }
+        views = {
+            names[node.owner.inputs[0]]: node
+            for node in graph_ancestors
+            if node.owner is not None
+            and isinstance(node.owner.op, XTensorFromTensor)
+            and node.owner.inputs[0] in names
+        }
+        return {
+            name: (views[name], sources[name])
+            for name in frozen_deterministics
+            if name in views and Dim.DATE in views[name].type.dims
+        }
+
+    def _frozen_inputs(self) -> list[DateIndexedInput]:
+        """Return the frozen date paths, holding the draws bound now.
+
+        Read once the draws an evaluation runs on are bound, never before:
+        :meth:`iter_counterfactual` binds each block's draws in turn, and a path
+        read earlier would carry other draws than the rest of the graph.  The
+        values borrow the shared variables' arrays, so a read copies nothing.
+        """
+        return [
+            frozen._replace(values=source.get_value(borrow=True))
+            for frozen, source in self._frozen
         ]
 
     def evaluate_baseline(self, target_values: np.ndarray) -> dict[str, np.ndarray]:
@@ -1613,7 +1759,10 @@ class CounterfactualEvaluator:
             args.append(
                 np.arange(len(target_values))[np.newaxis].astype(self.time_dtype)
             )
-        args.extend(aux.values[np.newaxis].astype(aux.dtype) for aux in self._aux)
+        args.extend(
+            aux.values[np.newaxis].astype(aux.dtype)
+            for aux in (*self._aux, *self._frozen_inputs())
+        )
         return {
             name: out[0]
             for name, out in zip(
@@ -1676,7 +1825,9 @@ class CounterfactualEvaluator:
         args = self._counterfactual_args(scenarios, windows)
         if batch_size is None:
             batch_size = self._batch_size(len(scenarios.spend), windows.max_window)
-        return self._evaluate_scenarios(args, batch_size)
+        return self._evaluate_scenarios(
+            [*args, *self._frozen_args(scenarios, windows)], batch_size
+        )
 
     def iter_counterfactual(
         self,
@@ -1697,12 +1848,13 @@ class CounterfactualEvaluator:
         split.
 
         Each block rebinds the evaluator to its draws through
-        :meth:`set_posterior`, and the posterior bound at the call is restored
-        when the iteration ends or is closed.  The generator keeps no reference
-        to a block once it is yielded, so a caller that drops each block before
-        asking for the next holds one block at a time.  While the iteration is
-        paused on a block it bound, any other call that binds or evaluates
-        draws raises, since it would read that block's.
+        :meth:`set_posterior`, and any frozen date path is cut from those draws
+        rather than from the posterior bound at the call.  That posterior is
+        restored when the iteration ends or is closed.  The generator keeps no
+        reference to a block once it is yielded, so a caller that drops each
+        block before asking for the next holds one block at a time.  While the
+        iteration is paused on a block it bound, any other call that binds or
+        evaluates draws raises, since it would read that block's.
 
         Parameters
         ----------
@@ -1744,7 +1896,8 @@ class CounterfactualEvaluator:
             args,
             blocks,
             self._conditioned.posterior,
-            max_window=windows.max_window,
+            scenarios=scenarios,
+            windows=windows,
             max_elements=max_elements,
         )
 
@@ -1754,10 +1907,15 @@ class CounterfactualEvaluator:
         blocks: list[dict[str, slice]],
         posterior: xr.Dataset,
         *,
-        max_window: int,
+        scenarios: CounterfactualScenarios,
+        windows: EvaluationWindows,
         max_elements: int,
     ) -> Generator[CounterfactualBlock, None, None]:
-        """Rebind to each block of *posterior* and evaluate it; restore *posterior* after."""
+        """Rebind to each block of *posterior* and evaluate it; restore *posterior* after.
+
+        *args* are the inputs that do not depend on the draws.  The frozen date
+        paths do, so they are cut for each block once its draws are bound.
+        """
         n_draws = int(posterior.sizes["draw"])
         rebound = False
         try:
@@ -1779,9 +1937,9 @@ class CounterfactualEvaluator:
                         (chain.stop - 1) * n_draws + draw.stop,
                     ),
                     outputs=self._evaluate_scenarios(
-                        args,
+                        [*args, *self._frozen_args(scenarios, windows)],
                         self._batch_size(
-                            len(args[0]), max_window, max_elements=max_elements
+                            len(args[0]), windows.max_window, max_elements=max_elements
                         ),
                     ),
                 )
@@ -1793,7 +1951,13 @@ class CounterfactualEvaluator:
     def _counterfactual_args(
         self, scenarios: CounterfactualScenarios, windows: EvaluationWindows
     ) -> list[np.ndarray]:
-        """Check the evaluator and the source model, then lay out the inputs per scenario."""
+        """Check the evaluator and the source model, then lay out the inputs per scenario.
+
+        The frozen date paths are left out: they are draws, which a streamed
+        evaluation binds a block at a time, so :meth:`_frozen_args` cuts them
+        once the draws an evaluation runs on are bound.  The compiled function
+        takes them last.
+        """
         self._refuse_while_bound_to_block()
         self._check_expected_aux_values()
         args: list[np.ndarray] = [scenarios.spend]
@@ -1801,6 +1965,15 @@ class CounterfactualEvaluator:
             args.append(windows.time_index(self.time_dtype)[scenarios.period_index])
         args.extend(aux.cut(windows)[scenarios.period_index] for aux in self._aux)
         return args
+
+    def _frozen_args(
+        self, scenarios: CounterfactualScenarios, windows: EvaluationWindows
+    ) -> list[np.ndarray]:
+        """Cut the frozen date paths of the bound draws, per scenario."""
+        return [
+            frozen.cut(windows)[scenarios.period_index]
+            for frozen in self._frozen_inputs()
+        ]
 
     def _evaluate_scenarios(
         self, args: list[np.ndarray], batch_size: int
