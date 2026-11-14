@@ -1,0 +1,27 @@
+.github/pull_request_template.md
+  s_a1b5a8eaa8b3e9::t_69581c0232622a 11
+.github/workflows/first-pr-assignment.yml
+  s_a1b5a8eaa8b3e9::t_a1953e853a26cf 1-218
+CONTRIBUTING.md
+  s_a1b5a8eaa8b3e9::t_a735daa48ced0a 12,21,23,25,27-38
+scripts/first_pr_assignment.py
+  s_a1b5a8eaa8b3e9::t_f0f499e82a0014 1-342
+tests/scripts/test_first_pr_assignment.py
+  s_a1b5a8eaa8b3e9::t_e1ecac1cf642dd 1-381
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "1ed51bd068ce797fac7be14a20799a93b0b30ffb",
+  "prompts": {},
+  "sessions": {
+    "s_a1b5a8eaa8b3e9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cd39db6b-7b22-4426-bb2a-9efb54bc4459",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}
