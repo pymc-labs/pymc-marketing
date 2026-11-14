@@ -193,6 +193,25 @@ class TestTimeSliceCrossValidator:
         assert cv.date_column == "date"
         assert cv.step_size == 4
 
+    def test_metadata_records_the_date_column(self):
+        """Each fold's metadata names the column its dates are in (#3358)."""
+        cv = TimeSliceCrossValidator(n_init=1, forecast_horizon=1, date_column="week")
+        weeks = pd.date_range("2024-01-07", periods=3, freq="W")
+        cv._cv_results = [
+            TimeSliceCrossValidationResult(
+                X_train=pd.DataFrame({"week": weeks[:2]}),
+                y_train=pd.Series([1.0, 2.0]),
+                X_test=pd.DataFrame({"week": weeks[2:]}),
+                y_test=pd.Series([3.0]),
+                idata=None,
+            )
+        ]
+
+        ds = cv._create_metadata(pd.Index(["fold_0"], name="cv"))
+
+        meta = ds["metadata"].sel(cv="fold_0").values.item()
+        assert meta["date_column"] == "week"
+
     def test_get_n_splits(self, cv, XY):
         """Test get_n_splits method."""
         X, y = XY

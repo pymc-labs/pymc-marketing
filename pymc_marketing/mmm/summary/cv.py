@@ -78,6 +78,15 @@ def _read_fold_meta(
     return meta["X_train"], meta["y_train"], meta["X_test"], meta["y_test"]
 
 
+def _read_fold_date_column(cv_data: xr.DataTree, cv_label: str) -> str:
+    """Return the column holding the dates in a fold's ``X_train``/``X_test``.
+
+    Metadata written before the column was recorded falls back to ``"date"``.
+    """
+    meta = cv_data.cv_metadata[Var.METADATA].sel(cv=cv_label).values.item()
+    return meta.get("date_column") or "date"
+
+
 def _build_predictions_arrays(
     cv_data: xr.DataTree,
     pp: xr.DataArray,
@@ -93,10 +102,11 @@ def _build_predictions_arrays(
 
     for lbl in cv_labels:
         X_train, y_train, X_test, y_test = _read_fold_meta(cv_data, lbl)
+        date_column = _read_fold_date_column(cv_data, lbl)
 
-        train_dates = pd.DatetimeIndex(X_train["date"].values)
+        train_dates = pd.DatetimeIndex(X_train[date_column].values)
         test_dates = (
-            pd.DatetimeIndex(X_test["date"].values)
+            pd.DatetimeIndex(X_test[date_column].values)
             if len(X_test) > 0
             else pd.DatetimeIndex([])
         )
@@ -117,10 +127,12 @@ def _build_predictions_arrays(
         y_test_list.append(pp_fold.where(test_mask))
 
         date_to_y: dict[Any, float] = {}
-        for d, y in zip(X_train["date"].values, np.asarray(y_train), strict=True):
+        for d, y in zip(X_train[date_column].values, np.asarray(y_train), strict=True):
             date_to_y[d] = float(y)
         if len(X_test) > 0:
-            for d, y in zip(X_test["date"].values, np.asarray(y_test), strict=True):
+            for d, y in zip(
+                X_test[date_column].values, np.asarray(y_test), strict=True
+            ):
                 date_to_y[d] = float(y)
         y_obs_arr = np.array([date_to_y.get(d, np.nan) for d in full_dates])
         y_obs_list.append(

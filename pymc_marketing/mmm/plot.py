@@ -4448,10 +4448,12 @@ class MMMPlotSuite:
             axes = [axes]
 
         # Helper to align y Series to a DataFrame's rows without using reindex (avoids duplicate-index errors)
-        def _align_y_to_df(y_series, df):
+        def _align_y_to_df(y_series, df, date_column):
             y_df = y_series.reset_index()
             y_df.columns = ["orig_index", "y_value"]
-            df_idx = pd.DataFrame({"orig_index": df.index, "date": df["date"].values})
+            df_idx = pd.DataFrame(
+                {"orig_index": df.index, "date": df[date_column].values}
+            )
             merged = df_idx.merge(y_df, on="orig_index", how="left")
             return merged["y_value"], merged["date"]
 
@@ -4570,18 +4572,22 @@ class MMMPlotSuite:
                 y_train = meta.get("y_train") if isinstance(meta, dict) else None
                 X_test = meta.get("X_test") if isinstance(meta, dict) else None
                 y_test = meta.get("y_test") if isinstance(meta, dict) else None
+                # The validator's date column; "date" for metadata that predates it
+                date_column = (
+                    meta.get("date_column") if isinstance(meta, dict) else None
+                ) or "date"
 
                 # Filter train/test DataFrames to this panel
                 train_df_panel = self._filter_df_by_indexer(X_train, panel_indexer)
                 test_df_panel = self._filter_df_by_indexer(X_test, panel_indexer)
 
                 train_dates = (
-                    pd.to_datetime(train_df_panel["date"].values)
+                    pd.to_datetime(train_df_panel[date_column].values)
                     if not train_df_panel.empty
                     else pd.DatetimeIndex([])
                 )
                 test_dates = (
-                    pd.to_datetime(test_df_panel["date"].values)
+                    pd.to_datetime(test_df_panel[date_column].values)
                     if not test_df_panel.empty
                     else pd.DatetimeIndex([])
                 )
@@ -4630,7 +4636,7 @@ class MMMPlotSuite:
                     and not train_df_panel.empty
                 ):
                     y_train_vals, train_plot_dates = _align_y_to_df(
-                        y_train, train_df_panel
+                        y_train, train_df_panel, date_column
                     )
                     y_train_vals = y_train_vals.dropna()
                     if not y_train_vals.empty:
@@ -4651,7 +4657,9 @@ class MMMPlotSuite:
                     and y_test is not None
                     and not test_df_panel.empty
                 ):
-                    y_test_vals, test_plot_dates = _align_y_to_df(y_test, test_df_panel)
+                    y_test_vals, test_plot_dates = _align_y_to_df(
+                        y_test, test_df_panel, date_column
+                    )
                     y_test_vals = y_test_vals.dropna()
                     if not y_test_vals.empty:
                         dates_to_plot = pd.to_datetime(
