@@ -11,11 +11,14 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+from copy import deepcopy
+
 import numpy as np
 import pandas as pd
 import pymc as pm
 import pymc.dims as pmd
 import pytest
+import xarray as xr
 from pymc_extras.prior import Prior
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
@@ -365,3 +368,175 @@ class TestMediaTransformationRoundtrips:
 )
 def test_media_type_registered(type_key):
     assert type_key in serialization._registry, f"{type_key} not registered"
+
+
+@pytest.mark.parametrize("adstock_first", [True, False])
+def test_media_config_list_preserves_config_across_models(adstock_first):
+    transformation = MediaTransformation(
+        adstock=GeometricAdstock(l_max=2).set_dims_for_all_priors("online"),
+        saturation=LogisticSaturation().set_dims_for_all_priors("online"),
+        adstock_first=adstock_first,
+        dims=("online",),
+    )
+    configs = MediaConfigList([MediaConfig("online", ["a", "b"], transformation)])
+    before = deepcopy(configs.to_dict())
+    for _ in range(2):
+        with pm.Model(coords={"date": range(5), "media": ["a", "b"]}) as model:
+            configs(
+                pmd.Data("x", np.ones((5, 2)), dims=("date", "media")),
+                core_dim="date",
+                media_dim="media",
+            )
+        assert {rv.name for rv in model.free_RVs} == {
+            "online_adstock_alpha",
+            "online_saturation_lam",
+            "online_saturation_beta",
+        }
+        assert configs.to_dict() == before
+        assert configs == MediaConfigList.from_dict(before)
+
+
+@pytest.mark.parametrize("adstock_first", [True, False])
+def test_media_config_list_preserves_shared_transformation(adstock_first):
+    transformation = MediaTransformation(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        adstock_first=adstock_first,
+    )
+    configs = MediaConfigList(
+        [
+            MediaConfig("online", ["a", "b"], transformation),
+            MediaConfig("offline", ["c"], transformation),
+        ]
+    )
+    before = deepcopy(configs.to_dict())
+    for _ in range(2):
+        with pm.Model(coords={"date": range(5), "media": ["a", "b", "c"]}) as model:
+            configs(
+                pmd.Data("x", np.ones((5, 3)), dims=("date", "media")),
+                core_dim="date",
+                media_dim="media",
+            )
+        assert {rv.name for rv in model.free_RVs} == {
+            f"{group}_{parameter}"
+            for group in ["online", "offline"]
+            for parameter in ["adstock_alpha", "saturation_lam", "saturation_beta"]
+        }
+        assert configs.to_dict() == before
+        assert configs == MediaConfigList.from_dict(before)
+
+
+@pytest.mark.parametrize("parameter", ["hyperprior", "tied", "data"])
+def test_media_config_list_preserves_model_connections(parameter):
+    with pm.Model(coords={"date": range(5), "media": ["a", "b", "c"]}) as model:
+        if parameter == "hyperprior":
+            shared = pmd.HalfNormal("global_scale", 1.0)
+        elif parameter == "tied":
+            shared = pmd.Beta("tied_alpha", alpha=2.0, beta=2.0)
+        else:
+            shared = pmd.Data("fixed_alpha", np.array(0.2))
+
+        transformation = MediaTransformation(
+            GeometricAdstock(
+                l_max=2, priors={"alpha": 0.4 if parameter == "hyperprior" else shared}
+            ),
+            LogisticSaturation(
+                priors={
+                    "beta": 1.0,
+                    "lam": Prior("HalfNormal", sigma=shared)
+                    if parameter == "hyperprior"
+                    else 1.0,
+                }
+            ),
+            adstock_first=True,
+        )
+        configs = MediaConfigList(
+            [
+                MediaConfig(name, columns, transformation)
+                for name, columns in [("online", ["a", "b"]), ("offline", ["c"])]
+            ]
+        )
+        out = configs(
+            pmd.Data(
+                "x", np.linspace(0.1, 1.5, 15).reshape(5, 3), dims=("date", "media")
+            ),
+            core_dim="date",
+            media_dim="media",
+        )
+        pmd.Deterministic("transformed", out, dims=("date", "media"))
+        pmd.Normal(
+            "y",
+            out.sum("media"),
+            1.0,
+            observed=pmd.Data("y_obs", np.full(5, 2.0), dims="date"),
+        )
+
+    assert np.isfinite(model.compile_logp()(model.initial_point()))
+    assert transformation.adstock.prefix == "adstock"
+    assert transformation.saturation.prefix == "saturation"
+
+    def draw(model, seed=41):
+        with model:
+            return pm.sample_prior_predictive(
+                draws=3, var_names=["transformed"], random_seed=seed
+            ).prior["transformed"]
+
+    if parameter == "data":
+        before = draw(model)
+        with model:
+            pm.set_data({"fixed_alpha": np.array(0.8)})
+        after = draw(model)
+    else:
+        low, high = (0.1, 2.0) if parameter == "hyperprior" else (0.2, 0.8)
+        low_model = pm.do(model, {shared.name: np.array(low)})
+        high_model = pm.do(model, {shared.name: np.array(high)})
+        before, after = draw(low_model), draw(high_model)
+        if parameter == "tied":
+            # All transformation parameters are fixed after the intervention.
+            xr.testing.assert_allclose(draw(low_model, 1), draw(low_model, 2))
+
+    # The same model variable must drive both media groups.
+    for config in configs:
+        assert not np.allclose(
+            before.sel(media=config.columns), after.sel(media=config.columns)
+        )
+
+
+def test_prefixed_components_use_each_groups_posterior():
+    configs = MediaConfigList(
+        [
+            MediaConfig(
+                name,
+                columns,
+                MediaTransformation(
+                    GeometricAdstock(l_max=2, prefix="carry").set_dims_for_all_priors(
+                        name
+                    ),
+                    LogisticSaturation(prefix="response").set_dims_for_all_priors(name),
+                    adstock_first=True,
+                    dims=(name,),
+                ),
+            )
+            for name, columns in [("online", ["a", "b"]), ("offline", ["c"])]
+        ]
+    )
+    before = deepcopy(configs.to_dict())
+    with pm.Model(coords={"date": range(5), "media": ["a", "b", "c"]}):
+        configs(
+            pmd.Data("x", np.ones((5, 3)), dims=("date", "media")),
+            core_dim="date",
+            media_dim="media",
+        )
+        posterior = pm.sample_prior_predictive(draws=20, random_seed=0).prior
+
+    for config in configs:
+        transformation = config.prefixed_media_transformation()
+        for component in [transformation.adstock, transformation.saturation]:
+            curves = [
+                component.sample_curve(posterior, random_seed=seed, progressbar=False)
+                for seed in (1, 2)
+            ]
+            xr.testing.assert_allclose(*curves)
+            for dim in ["chain", "draw", config.name]:
+                xr.testing.assert_equal(curves[0].coords[dim], posterior.coords[dim])
+    assert configs.to_dict() == before
