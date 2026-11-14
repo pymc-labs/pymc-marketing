@@ -254,6 +254,16 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_prior_sensitivity_psense.png
 :link: ../notebooks/mmm/mmm_prior_sensitivity.html
 :::
+
+:::{grid-item-card} Reweighting Priors Instead of Refitting
+:img-top: ../gallery/images/mmm_prior_reweighting.png
+:link: ../notebooks/mmm/mmm_prior_reweighting.html
+:::
+
+:::{grid-item-card} Reweighting Likelihoods Instead of Refitting
+:img-top: ../gallery/images/mmm_likelihood_reweighting.png
+:link: ../notebooks/mmm/mmm_likelihood_reweighting.html
+:::
 ::::
 
 ### Causal Inference
