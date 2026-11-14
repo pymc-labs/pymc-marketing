@@ -34,8 +34,6 @@ from pymc_marketing.names import Group
 from pymc_marketing.names.customer_choice import Attr, Dim, Var
 from pymc_marketing.version import __version__
 
-HDI_ALPHA = 0.5
-
 
 class MixedLogit(ModelBuilder):
     """

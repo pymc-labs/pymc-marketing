@@ -7912,7 +7912,7 @@ class TestDataProperty:
         wrapper = mmm.data
         assert isinstance(wrapper, MMMIDataWrapper)
         # Verify control_data variable exists in schema
-        assert "control_data_" in wrapper.schema.groups["constant_data"].variables
+        assert "control_data" in wrapper.schema.groups["constant_data"].variables
 
     def test_data_property_with_seasonality(
         self, single_dim_data, mock_pymc_sample

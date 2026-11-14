@@ -51,6 +51,7 @@ from pymc_marketing.experimental.terms._data import (
 )
 from pymc_marketing.experimental.terms._graph import BuildContext
 from pymc_marketing.experimental.terms._optimizer_terms import (
+    _LOWER,
     _bind_terms,
     _coordinates,
     _data_dependencies,
@@ -64,7 +65,6 @@ from pymc_marketing.terms import ModelTerm, Product, Sum
 type _Term = ModelTerm | Product | Sum
 type _Callback = Callable[[Any, Mapping[str, Any]], Any]
 type _Array = float | xr.DataArray
-_LOWER = ("lower_xtensor", "canonicalize", "stabilize")
 
 
 def _align(value: Any, template: xr.DataArray, what: str) -> xr.DataArray:

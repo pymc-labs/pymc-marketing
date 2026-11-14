@@ -156,7 +156,7 @@ def idata_with_all_contributions() -> xr.DataTree:
                         dims=("date", "country"),
                         coords={"date": dates, "country": countries},
                     ),
-                    "control_data_": xr.DataArray(
+                    "control_data": xr.DataArray(
                         rng.uniform(0, 10, size=(52, 3, 2)),
                         dims=("date", "country", "control"),
                         coords={
@@ -1468,7 +1468,7 @@ def test_mmm_data_property_creates_schema_from_config(fitted_mmm_with_controls):
 
     # Schema should reflect model config (has_controls=True)
     control_var_schema = wrapper.schema.groups["constant_data"].variables.get(
-        "control_data_"
+        "control_data"
     )
     assert control_var_schema is not None
 
