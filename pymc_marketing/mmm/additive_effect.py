@@ -1396,9 +1396,14 @@ class EventAdditiveEffect(MuEffect):
         event_effect = self.effect.apply(X, name=self.prefix)
 
         return pmd.Deterministic(
-            f"{self.prefix}_total_effect",
+            self.contribution_var_name,
             event_effect.sum(dim=self.prefix),
         )
+
+    @property
+    def contribution_var_name(self) -> str:
+        """Event effects register ``f"{prefix}_total_effect"``."""
+        return f"{self.prefix}_total_effect"
 
     def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
         """Set the data for new predictions."""
