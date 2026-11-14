@@ -2813,13 +2813,7 @@ class _DateLevelEffect(_ZeroEffect):
     """A free random variable over the model's dates, added to ``mu``."""
 
     prefix: str = "level"
-    freeze: bool = False
     reduce: bool = False
-
-    @property
-    def frozen_deterministics(self) -> list[str]:
-        """The free random variable itself, when asked to freeze it."""
-        return [f"{self.prefix}_draws"] if self.freeze else []
 
     def create_effect(self, mmm):
         """One free value per date, or their mean on every date when reduced."""
@@ -2831,10 +2825,10 @@ class _DateLevelEffect(_ZeroEffect):
 
 
 @pytest.fixture
-def fit_date_level_mmm(simple_mmm_data, mock_pymc_sample):
-    """Fit an MMM carrying a ``_DateLevelEffect`` built from *kwargs*."""
+def fit_mmm_with_effect(simple_mmm_data, mock_pymc_sample):
+    """Fit an MMM carrying the effect it is given."""
 
-    def fit(**kwargs):
+    def fit(effect):
         X, y = simple_mmm_data["X"], simple_mmm_data["y"]
         mmm = MMM(
             date_column="date",
@@ -2842,16 +2836,16 @@ def fit_date_level_mmm(simple_mmm_data, mock_pymc_sample):
             channel_columns=["channel_1", "channel_2", "channel_3"],
             adstock=GeometricAdstock(l_max=1),
             saturation=LogisticSaturation(),
-        ).add_mu_effect(_DateLevelEffect(**kwargs))
+        ).add_mu_effect(effect)
         mmm.fit(X, y, draws=50, chains=1, random_seed=42)
         return mmm
 
     return fit
 
 
-def test_monthly_incrementality_names_an_unfrozen_date_variable(fit_date_level_mmm):
+def test_monthly_incrementality_names_an_unfrozen_date_variable(fit_mmm_with_effect):
     """A free random variable over the dates is not cut to a window, so it is named."""
-    mmm = fit_date_level_mmm()
+    mmm = fit_mmm_with_effect(_DateLevelEffect())
 
     with pytest.raises(
         ValueError,
@@ -2867,26 +2861,34 @@ def test_monthly_incrementality_names_an_unfrozen_date_variable(fit_date_level_m
     assert np.isfinite(incremental).all()
 
 
-@pytest.mark.parametrize(
-    "kwargs",
-    [
-        # Listed in frozen_deterministics, the variable is cut to each window.
-        pytest.param({"freeze": True}, id="frozen"),
-        # Reduced over date, it never meets a window's date axis.
-        pytest.param({"reduce": True}, id="reduced"),
-    ],
-)
-def test_monthly_incrementality_evaluates_a_date_variable_it_can(
-    fit_date_level_mmm, kwargs
+def test_monthly_incrementality_evaluates_a_reduced_date_variable(
+    fit_mmm_with_effect,
 ):
-    """A date-indexed variable the windows do not break on is not refused."""
-    mmm = fit_date_level_mmm(**kwargs)
+    """Reduced over date, the variable never meets a window's date axis."""
+    mmm = fit_mmm_with_effect(_DateLevelEffect(reduce=True))
 
     incremental = mmm.incrementality.compute_incremental_contribution(
         frequency="monthly"
     )
 
     assert np.isfinite(incremental).all()
+
+
+def test_monthly_incrementality_passes_on_an_error_without_an_uncut_date_variable(
+    fit_mmm_with_effect, monkeypatch
+):
+    """With nothing uncut to name, a failing windowed evaluation raises as it was."""
+    mmm = fit_mmm_with_effect(_FrozenPathEffect())
+
+    def fail(self, args, batch_size):
+        raise ValueError("evaluation failed")
+
+    monkeypatch.setattr(CounterfactualEvaluator, "_evaluate_scenarios", fail)
+
+    with pytest.raises(ValueError, match=r"^evaluation failed$") as raised:
+        mmm.incrementality.compute_incremental_contribution(frequency="monthly")
+
+    assert any(entry.name == "_evaluate_windows" for entry in raised.traceback)
 
 
 def test_sample_posterior_predictive_same_data_with_include_last_observations(

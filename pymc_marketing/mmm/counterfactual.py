@@ -2032,10 +2032,11 @@ class CounterfactualEvaluator:
                 "The evaluation failed on windows shorter than the fitted dates.  "
                 f"The graph reads {listing}, which {has} a 'date' dimension and "
                 f"{is_} held at the posterior draws over all fitted dates, so "
-                f"{it} cannot be cut to a window.  List {it}, or a Deterministic "
-                f"computed from {it}, in the effect's 'frozen_deterministics' to "
-                f"cut {it} to each window.  An evaluation over the full date "
-                "axis, such as frequency='all_time', is not affected."
+                f"{it} cannot be cut to a window.  Compute the date-indexed path "
+                f"from {it} as a Deterministic and list that in the effect's "
+                "'frozen_deterministics', which cuts it to each window.  An "
+                "evaluation over the full date axis, such as "
+                "frequency='all_time', is not affected."
             ) from error
 
     def _frozen_args(
