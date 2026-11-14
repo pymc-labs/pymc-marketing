@@ -9,7 +9,7 @@ There are 4 main ways of contributing to the PyMC-Marketing project (in ascendin
 3. Fixing outstanding issues (bugs) with the existing codebase. They range from low-level software bugs to higher-level design problems.
 4. Adding new or improved functionality to the existing codebase.
 
-Items 2-4 require setting up a local development environment, see [Local development steps](#Contributing-code-via-pull-requests) for more information.
+Items 2-4 require setting up a local development environment, see [Local development steps](#Contributing-code-via-pull-requests) for more information. A first pull request also needs a maintainer assignment. See [First pull requests](#first-pull-requests).
 
 ## Opening issues
 We appreciate being notified of problems with the existing PyMC-Marketing code. We prefer that issues be filed the on [Github Issue Tracker](https://github.com/pymc-labs/pymc-marketing/issues), rather than on social media or by direct email to the developers.
@@ -18,13 +18,24 @@ Please verify that your issue is not being currently addressed by other issues o
 
 ## Contributing code via pull requests
 
-While issue reporting is valuable, we strongly encourage users who are inclined to do so to submit patches for new or existing issues via pull requests. This is particularly the case for simple fixes, such as typos or tweaks to documentation, which do not require a heavy investment of time and attention.
+Anyone may open an issue. A pull request is a review obligation, so we accept a first pull request for review when a maintainer has assigned that author to an issue in this repository that the pull request fixes. The automatic check labels other first pull requests; it does not close them. See [First pull requests](#first-pull-requests).
 
-Contributors are also encouraged to contribute new code to enhance PyMC-Marketing's functionality, via pull requests.
+Commenting "I will take this" is not an assignment. Opening an issue and a pull request together is not an assignment. Organization members, collaborators, owners, and authors who already have a merged pull request here are not gated by that automatic check. The preferred workflow is still to fork the repository, clone it, and develop on a feature branch.
 
-The preferred workflow for contributing to PyMC-Marketing is to fork the GitHub repository, clone it to your local machine, and develop on a feature branch.
+For more instructions see the [Pull request checklist](#pull-request-checklist).
 
-For more instructions see the [Pull request checklist](#pull-request-checklist)
+### First pull requests
+
+This is the policy enforced by [`.github/workflows/first-pr-assignment.yml`](./.github/workflows/first-pr-assignment.yml). It applies when the pull request API reports `author_association` as `FIRST_TIMER`, `FIRST_TIME_CONTRIBUTOR`, or `NONE`: no commit of theirs has been merged to this repository yet. A member token sees the first two values for a new author. The workflow token sees `NONE` for those authors, and it still sees `MEMBER`, `OWNER`, `COLLABORATOR`, or `CONTRIBUTOR` for everyone else. The check uses the value that token gets. It is an automation hook, not a judgment of the person or the change.
+
+- Anyone may open an issue.
+- A first pull request is in good standing only when its author is an assignee of an issue in this repository that the pull request fixes. Being the issue author, or having commented, is not an assignment. Comment on the issue you want to work on, and wait for a maintainer to assign you. GitHub allows assigning anyone who has commented on the issue.
+- "Fixes" means a GitHub closing reference, not a bare `#123`. Use a closing keyword in the pull request description or in a commit message: `close`, `closes`, `closed`, `fix`, `fixes`, `fixed`, `resolve`, `resolves`, or `resolved`, followed by an issue reference such as `Fixes #123`. A keyword in the title alone does not count. A bare `#123` does not count. An issue in another repository does not count.
+- The check passes if any closing issue in this repository lists the pull request author as an assignee. The login comparison is case-insensitive.
+- The check does not apply to organization members, collaborators, owners, existing contributors, or bots. After one merged pull request, GitHub records the author as `CONTRIBUTOR` and this automatic check stops. That is a known limit. Later unsolicited pull requests are still not the desired path: comment on the issue and wait for an assignment.
+- The check does not close the pull request. A real fix can arrive without the assignment. The pull request is labeled `spam?`. That label is a triage flag, not a rejection and not a claim that the author or the change is spam. A maintainer may still review it, and removes the label by hand. The workflow does not remove the label when an assignment is added later.
+
+The rule exists to keep maintainer time for work that was asked for, rather than a flood of unsolicited pull requests. An issue comment of "do not start" is cheap. A pull request runs CI, and closing it has a social cost. We want that decision recorded before the pull request exists.
 
 ## Local development steps
 
