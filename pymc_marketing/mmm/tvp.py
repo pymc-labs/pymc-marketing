@@ -102,7 +102,7 @@ from pytensor.xtensor.type import XTensorVariable
 from pymc_marketing.constants import DAYS_IN_YEAR
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm.dims import XTensorLike
-from pymc_marketing.mmm.hsgp import CovFunc, SoftPlusHSGP
+from pymc_marketing.mmm.hsgp import CovFunc, SoftPlusHSGP, _half_range
 
 __all__ = [
     "HSGP_KWARGS_DISTINCTIVE_KEYS",
@@ -172,7 +172,9 @@ def _create_hsgp_instance(
         X_mid = float(X.mean().eval())
 
     if hsgp_kwargs.L is None:
-        L = X_mid * 2
+        # Twice the largest distance of the data from X_mid: X_mid * 2 for a
+        # zero-start index centred at its mean, and correct for any other index.
+        L = 2 * float(_half_range(X.values.eval(), X_mid))
     else:
         L = hsgp_kwargs.L
 
@@ -361,7 +363,10 @@ def create_time_varying_gp_multiplier(
 
     """
     if hsgp_kwargs.L is None:
-        hsgp_kwargs.L = time_index_mid + DAYS_IN_YEAR / time_resolution
+        # The data's largest distance from time_index_mid (time_index_mid itself
+        # for a zero-start index), plus a year of room for out-of-sample dates.
+        half_range = float(_half_range(time_index.values.eval(), time_index_mid))
+        hsgp_kwargs.L = half_range + DAYS_IN_YEAR / time_resolution
     if hsgp_kwargs.ls_mu is None:
         hsgp_kwargs.ls_mu = DAYS_IN_YEAR / time_resolution * 2
 

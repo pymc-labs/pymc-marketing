@@ -36,6 +36,7 @@ from pymc_marketing.mmm.hsgp import (
     SoftPlusHSGP,
     approx_hsgp_hyperparams,
     create_complexity_penalizing_prior,
+    create_m_and_L_recommendations,
 )
 from pymc_marketing.model_graph import deterministics_to_flat
 from pymc_marketing.serialization import DeferredFactory, serialization
@@ -126,6 +127,78 @@ def test_unsupported_cov_func_raises() -> None:
             lengthscale_range=(1, 2),
             cov_func="unsupported",
         )
+
+
+@pytest.mark.parametrize(
+    "ls_upper", [None, 30.0], ids=["default_ls_upper", "given_ls_upper"]
+)
+@pytest.mark.parametrize("shift", [100.0, 1000.0, -50.0])
+def test_m_and_L_recommendations_do_not_depend_on_where_X_starts(
+    shift, ls_upper
+) -> None:
+    X = np.arange(156.0)
+    m, L = create_m_and_L_recommendations(X, X.mean(), ls_lower=2.0, ls_upper=ls_upper)
+    m_shifted, L_shifted = create_m_and_L_recommendations(
+        X + shift, X.mean() + shift, ls_lower=2.0, ls_upper=ls_upper
+    )
+    assert m_shifted == m
+    np.testing.assert_allclose(L_shifted, L)
+
+
+@pytest.mark.parametrize(
+    "ls_upper", [None, 30.0], ids=["default_ls_upper", "given_ls_upper"]
+)
+@pytest.mark.parametrize("n", [10, 156, 157])
+def test_m_and_L_recommendations_unchanged_for_arange(n, ls_upper) -> None:
+    # The MMM time index is np.arange(n_dates). A dict TVP config recomputes m on
+    # every build, so a change here would change the shape of the HSGP
+    # coefficients. For np.arange, X_mid (the mean) equals the half-range S and
+    # np.ptp(X) equals 2 * X_mid, so the result matches the previous formula
+    # (ls_upper = 2 * X_mid, L = c * X_mid).
+    X = np.arange(float(n))
+    X_mid = X.mean()
+    m, L = create_m_and_L_recommendations(X, X_mid, ls_lower=2.0, ls_upper=ls_upper)
+    old_m, old_c = approx_hsgp_hyperparams(
+        X,
+        X_mid,
+        lengthscale_range=(2.0, 2 * X_mid if ls_upper is None else ls_upper),
+        cov_func="expquad",
+    )
+    assert m == old_m
+    np.testing.assert_allclose(L, old_c * X_mid)
+
+
+@pytest.mark.parametrize(
+    "ls_upper", [None, 50.0], ids=["default_ls_upper", "given_ls_upper"]
+)
+@pytest.mark.parametrize(
+    "X, X_mid",
+    [
+        # starts at 0, but the mean is below max / 2
+        (np.r_[np.arange(100.0), np.arange(100.0, 400.0, 10.0)], None),
+        # explicit off-center X_mid
+        (np.arange(156.0), 0.0),
+        # does not start at 0
+        (np.arange(156.0) + 1000.0, None),
+    ],
+    ids=["front_loaded", "off_center_X_mid", "offset"],
+)
+def test_m_and_L_recommendations_boundary_covers_data(X, X_mid, ls_upper) -> None:
+    X_mid = X.mean() if X_mid is None else X_mid
+    _, L = create_m_and_L_recommendations(X, X_mid, ls_lower=2.0, ls_upper=ls_upper)
+    assert L > np.max(np.abs(X - X_mid))
+
+
+def test_m_and_L_recommendations_default_ls_upper_is_the_data_range() -> None:
+    X = np.r_[np.arange(100.0), np.arange(100.0, 400.0, 10.0)]
+    assert create_m_and_L_recommendations(X, X.mean(), ls_lower=2.0) == (
+        create_m_and_L_recommendations(X, X.mean(), ls_lower=2.0, ls_upper=np.ptp(X))
+    )
+
+
+def test_m_and_L_recommendations_constant_X_raises() -> None:
+    with pytest.raises(ValueError, match=r"at least two distinct values"):
+        create_m_and_L_recommendations(np.ones(5), 1.0)
 
 
 def test_X_at_init_stores_as_tensor_variable() -> None:

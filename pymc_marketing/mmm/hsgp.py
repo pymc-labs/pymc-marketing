@@ -113,6 +113,15 @@ def create_constrained_inverse_gamma_prior(
     ).constrain(lower=lower, upper=upper, mass=mass)
 
 
+def _half_range(x, x_center):
+    """Largest distance of the data from its center, ``S`` in Riutort-Mayol et al.
+
+    The HSGP approximation lives on ``[-L, L]`` around ``x_center``, with
+    ``L = c * S``.
+    """
+    return np.max(np.abs(np.asarray(x) - x_center), axis=0)
+
+
 def approx_hsgp_hyperparams(
     x,
     x_center,
@@ -160,11 +169,10 @@ def approx_hsgp_hyperparams(
     lengthscale_min, lengthscale_max = lengthscale_range
     if lengthscale_min >= lengthscale_max:
         raise ValueError(
-            "The boundaries are out of order. {lengthscale_min} should be less than {lengthscale_max}"
+            f"The boundaries are out of order. {lengthscale_min} should be less than {lengthscale_max}"
         )
 
-    Xs = x - x_center
-    S = np.max(np.abs(Xs), axis=0)
+    S = _half_range(x, x_center)
 
     if cov_func.lower() == "expquad":
         a1, a2 = 3.2, 1.75
@@ -217,24 +225,39 @@ def create_m_and_L_recommendations(
     X : np.ndarray
         The data.
     X_mid : float
-        The mean of the data.
+        The center of the data, usually its mean.
     ls_lower : float
         Lower bound for the lengthscale. Default is 1.0.
     ls_upper : float, optional
-        Upper bound for the lengthscale. Default is None.
+        Upper bound for the lengthscale. Default is None, which uses the range
+        of the data, ``np.ptp(X)``.
     cov_func : CovFunc
         The covariance function. Default is CovFunc.ExpQuad.
 
     Returns
     -------
     tuple[int, float]
-        The number of basis functions and the boundary of the approximation.
+        The number of basis functions and the boundary of the approximation,
+        ``L = c * S`` around ``X_mid``, where ``S = max(abs(X - X_mid))``.
+        ``L`` is at least ``1.2 * S``, so the domain ``[-L, L]`` covers the
+        data. Both depend only on the data relative to ``X_mid``, so shifting
+        ``X`` and ``X_mid`` together leaves them unchanged.
+
+    Raises
+    ------
+    ValueError
+        If ``X`` has fewer than two distinct values.
 
     """
+    X = np.asarray(X, dtype=float)
+    if np.ptp(X) == 0:
+        raise ValueError(
+            "X needs at least two distinct values to recommend m and L; "
+            "set them explicitly for constant inputs."
+        )
+    S = float(_half_range(X, X_mid))
     if ls_upper is None:
-        ls_upper = 2 * X_mid
-    else:
-        ls_upper = ls_upper
+        ls_upper = float(np.ptp(X))
 
     m, c = approx_hsgp_hyperparams(
         X,
@@ -242,7 +265,7 @@ def create_m_and_L_recommendations(
         lengthscale_range=(ls_lower, ls_upper),
         cov_func=cast(Literal["expquad", "matern32", "matern52"], cov_func),
     )
-    L = c * X_mid
+    L = c * S
 
     return m, L
 
