@@ -1085,10 +1085,28 @@ def extract_response_distribution(
                     dims=posterior_da.dims,
                 )
 
-        # Vectorize across samples
-        response_distribution = list(
-            vectorize_graph(response_vars, replace=replace_dict)
+        # Vectorize across samples.  vectorize_graph moves the new batch
+        # dimension to the front of every output and raises on one that did not
+        # get it, so a response no posterior variable reaches stays out of the
+        # call and comes back as it is, without a "sample" dimension.
+        reads_posterior = [
+            not replace_dict.keys().isdisjoint(ancestors([var]))
+            for var in response_vars
+        ]
+        vectorized = iter(
+            vectorize_graph(
+                [
+                    var
+                    for var, reads in zip(response_vars, reads_posterior, strict=True)
+                    if reads
+                ],
+                replace=replace_dict,
+            )
         )
+        response_distribution = [
+            next(vectorized) if reads else var
+            for var, reads in zip(response_vars, reads_posterior, strict=True)
+        ]
 
         # Final cleanup
         response_distribution = list(

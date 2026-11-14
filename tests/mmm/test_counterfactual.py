@@ -1119,6 +1119,45 @@ class TestPeriodEdgeCases:
         spend = scenarios.spend[scenarios.rows[(0, None)]]
         np.testing.assert_array_equal(spend[:, 0], [1.0, 1.0, 0.0, 1.0, 1.0])
 
+    @pytest.mark.parametrize("channel_axis", [None, 0])
+    def test_factual_rows_are_appended_and_hold_actual_spend(self, channel_axis):
+        """Asked for, each period gets one more row with nothing perturbed.
+
+        A request that checks its own accounting compares every perturbed row
+        with actual spend evaluated on the same window.  The rows go last, so
+        the perturbed ones keep their positions and their keys.
+        """
+        baseline = np.random.default_rng(0).uniform(1.0, 2.0, (len(self.dates), 2))
+        windows = EvaluationWindows.build(
+            periods=[(self.dates[1], self.dates[2]), (self.dates[5], self.dates[6])],
+            dates=self.dates,
+            l_max=1,
+            freq_offset=self.freq_offset,
+        )
+
+        def build(**kwargs):
+            return windows.build_scenarios(
+                baseline_array=baseline,
+                counterfactual_spend_factor=0.0,
+                dtype="float64",
+                channel_axis=channel_axis,
+                n_channels=2,
+                estimand="per_channel",
+                **kwargs,
+            )
+
+        plain, with_factual = build(), build(factual_rows=True)
+
+        n_perturbed = len(plain.spend)
+        assert plain.factual_rows == {}
+        assert with_factual.rows == plain.rows
+        np.testing.assert_array_equal(with_factual.spend[:n_perturbed], plain.spend)
+        assert with_factual.factual_rows == {0: n_perturbed, 1: n_perturbed + 1}
+        np.testing.assert_array_equal(with_factual.period_index[n_perturbed:], [0, 1])
+        np.testing.assert_array_equal(
+            with_factual.spend[n_perturbed:], windows.cut(baseline, "float64")
+        )
+
     @pytest.mark.parametrize(
         ("mode", "full_axis", "expected_eval_dates"),
         [
