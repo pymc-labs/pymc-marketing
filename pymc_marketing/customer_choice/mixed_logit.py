@@ -1214,7 +1214,8 @@ class MixedLogit(ModelBuilder):
             The model instance.
         """
         sample_prior_predictive_kwargs = sample_prior_predictive_kwargs or {}
-        fit_kwargs = fit_kwargs or self.default_sampler_config
+        # ``fit`` merges ``self.sampler_config``, so the user's choice (or the default) wins.
+        fit_kwargs = fit_kwargs or {}
         sample_posterior_predictive_kwargs = sample_posterior_predictive_kwargs or {}
 
         if not hasattr(self, "model"):
