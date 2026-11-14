@@ -35,6 +35,8 @@ sections:
             notebook: mmm/plot_interactive
           - title: "Cost-per-Unit: Model What Drives Revenue, Report What You Spend"
             notebook: mmm/mmm_cost_per_unit
+          - title: Budget cuts when media prices have a floor
+            notebook: mmm/mmm_price_floor
           - title: "Why and how to account for media inflation in your media mix model (MMM)"
             notebook: mmm/mmm_media_inflation
           - title: Parameter Recovery
