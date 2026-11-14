@@ -24,9 +24,8 @@ from pymc_marketing.mmm.summary.cv import MMMCVSummaryFactory
 SEED = 42
 
 
-@pytest.fixture(scope="module")
-def cv_results_idata():
-    """Minimal xr.DataTree for MMMCVSummaryFactory tests."""
+def _make_cv_results_idata(date_column: str = "date") -> xr.DataTree:
+    """Minimal xr.DataTree for MMMCVSummaryFactory tests, dates in *date_column*."""
     rng = np.random.default_rng(SEED)
     dates = pd.date_range("2024-01-01", periods=12, freq="D")
     cv_labels = ["fold_0", "fold_1"]
@@ -66,9 +65,9 @@ def cv_results_idata():
     fold_specs = [(8, 8), (10, 10)]
     meta_arr = np.empty(2, dtype=object)
     for i, (train_end, test_start) in enumerate(fold_specs):
-        X_train = pd.DataFrame({"date": dates[:train_end]})
+        X_train = pd.DataFrame({date_column: dates[:train_end]})
         y_train = pd.Series(rng.normal(100, 10, size=train_end), name="y")
-        X_test = pd.DataFrame({"date": dates[test_start:]})
+        X_test = pd.DataFrame({date_column: dates[test_start:]})
         y_test = pd.Series(rng.normal(100, 10, size=len(dates) - test_start), name="y")
         meta_arr[i] = {
             "X_train": X_train,
@@ -76,6 +75,8 @@ def cv_results_idata():
             "X_test": X_test,
             "y_test": y_test,
         }
+        if date_column != "date":
+            meta_arr[i]["date_column"] = date_column
 
     cv_metadata_ds = xr.Dataset(
         {
@@ -94,6 +95,12 @@ def cv_results_idata():
             "/cv_metadata": cv_metadata_ds,
         }
     )
+
+
+@pytest.fixture(scope="module")
+def cv_results_idata():
+    """Minimal xr.DataTree for MMMCVSummaryFactory tests."""
+    return _make_cv_results_idata()
 
 
 @pytest.fixture(scope="module")
@@ -134,6 +141,18 @@ class TestMMMCVSummarySchemas:
         required_columns = {"split", "cv", "mean_crps"}
         assert required_columns.issubset(set(df.columns))
         assert len(df) > 0
+
+
+class TestDateColumn:
+    """The fold frames may name their dates after the validator's date_column (#3358)."""
+
+    def test_predictions_read_the_recorded_date_column(self, cv_summary_factory):
+        week = MMMCVSummaryFactory(_make_cv_results_idata(date_column="week"))
+
+        pd.testing.assert_frame_equal(
+            week.predictions(hdi_probs=[0.94]),
+            cv_summary_factory.predictions(hdi_probs=[0.94]),
+        )
 
 
 class TestMMMCVPlotSuiteSummary:
