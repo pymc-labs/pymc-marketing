@@ -2809,6 +2809,88 @@ def test_monthly_incrementality_cuts_a_frozen_path(
     np.testing.assert_allclose(incremental, expected.transpose(*incremental.dims))
 
 
+class _DateLevelEffect(_ZeroEffect):
+    """A free random variable over the model's dates, added to ``mu``."""
+
+    prefix: str = "level"
+    reduce: bool = False
+
+    def create_effect(self, mmm):
+        """One free value per date, or their mean on every date when reduced."""
+        level = pmd.Normal(f"{self.prefix}_draws", sigma=0.1, dims="date")
+        if self.reduce:
+            zeros = as_xtensor(pt.zeros(mmm.model.dim_lengths["date"]), dims=("date",))
+            level = zeros + level.mean("date")
+        return pmd.Deterministic(self.contribution_var_name, level)
+
+
+@pytest.fixture
+def fit_mmm_with_effect(simple_mmm_data, mock_pymc_sample):
+    """Fit an MMM carrying the effect it is given."""
+
+    def fit(effect):
+        X, y = simple_mmm_data["X"], simple_mmm_data["y"]
+        mmm = MMM(
+            date_column="date",
+            target_column="target",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            adstock=GeometricAdstock(l_max=1),
+            saturation=LogisticSaturation(),
+        ).add_mu_effect(effect)
+        mmm.fit(X, y, draws=50, chains=1, random_seed=42)
+        return mmm
+
+    return fit
+
+
+def test_monthly_incrementality_names_an_unfrozen_date_variable(fit_mmm_with_effect):
+    """A free random variable over the dates is not cut to a window, so it is named."""
+    mmm = fit_mmm_with_effect(_DateLevelEffect())
+
+    with pytest.raises(
+        ValueError,
+        match=r"^The evaluation failed on windows shorter than the fitted dates\.  "
+        r"The graph reads 'level_draws', which has a 'date' dimension",
+    ):
+        mmm.incrementality.compute_incremental_contribution(frequency="monthly")
+
+    # The full date axis needs no cut.
+    incremental = mmm.incrementality.compute_incremental_contribution(
+        frequency="all_time"
+    )
+    assert np.isfinite(incremental).all()
+
+
+def test_monthly_incrementality_evaluates_a_reduced_date_variable(
+    fit_mmm_with_effect,
+):
+    """Reduced over date, the variable never meets a window's date axis."""
+    mmm = fit_mmm_with_effect(_DateLevelEffect(reduce=True))
+
+    incremental = mmm.incrementality.compute_incremental_contribution(
+        frequency="monthly"
+    )
+
+    assert np.isfinite(incremental).all()
+
+
+def test_monthly_incrementality_passes_on_an_error_without_an_uncut_date_variable(
+    fit_mmm_with_effect, monkeypatch
+):
+    """With nothing uncut to name, a failing windowed evaluation raises as it was."""
+    mmm = fit_mmm_with_effect(_FrozenPathEffect())
+
+    def fail(self, args, batch_size):
+        raise ValueError("evaluation failed")
+
+    monkeypatch.setattr(CounterfactualEvaluator, "_evaluate_scenarios", fail)
+
+    with pytest.raises(ValueError, match=r"^evaluation failed$") as raised:
+        mmm.incrementality.compute_incremental_contribution(frequency="monthly")
+
+    assert any(entry.name == "_evaluate_windows" for entry in raised.traceback)
+
+
 def test_sample_posterior_predictive_same_data_with_include_last_observations(
     single_dim_data, mock_pymc_sample
 ):
