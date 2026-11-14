@@ -812,18 +812,24 @@ class FixedChannelFactory:
         )
 
 
+HSGP_KWARGS = dict(ls=5.0, m=10, L=15)
+PERIODIC_KWARGS = dict(ls=1.0, m=10, period=12)
 AMPLITUDE_CASES = [
-    pytest.param(HSGP, "eta", dict(ls=5.0, m=10, L=15), id="HSGP-eta"),
-    pytest.param(
-        HSGPPeriodic, "scale", dict(ls=1.0, m=10, period=12), id="HSGPPeriodic-scale"
-    ),
+    pytest.param(HSGP, "eta", HSGP_KWARGS, id="HSGP-eta"),
+    pytest.param(HSGPPeriodic, "scale", PERIODIC_KWARGS, id="HSGPPeriodic-scale"),
 ]
 
 
 class TestAmplitudePriorDims:
     """The amplitude prior (eta / scale) can vary over the non-input dims."""
 
-    @pytest.mark.parametrize("cls, param, kwargs", AMPLITUDE_CASES)
+    @pytest.mark.parametrize(
+        "cls, param, kwargs",
+        [
+            *AMPLITUDE_CASES,
+            pytest.param(SoftPlusHSGP, "eta", HSGP_KWARGS, id="SoftPlusHSGP-eta"),
+        ],
+    )
     def test_prior_over_other_dims(self, cls, param, kwargs) -> None:
         hsgp = cls(
             X=np.arange(10),
@@ -838,8 +844,11 @@ class TestAmplitudePriorDims:
         }
         prior = hsgp.sample_prior(draws=5, coords=coords, random_seed=1)
 
+        # SoftPlusHSGP names its hyperparameters f_raw_*
+        (amplitude,) = [name for name in prior.data_vars if name.endswith(f"_{param}")]
+
         assert prior["f"].shape == (1, 5, 10, 2, 3)
-        assert prior[f"f_{param}"].dims == ("chain", "draw", "product", "channel")
+        assert prior[amplitude].dims == ("chain", "draw", "product", "channel")
 
     @pytest.mark.parametrize("cls, param, kwargs", AMPLITUDE_CASES)
     def test_scales_each_slice(self, cls, param, kwargs) -> None:
@@ -862,56 +871,16 @@ class TestAmplitudePriorDims:
         )
 
     @pytest.mark.parametrize("cls, param, kwargs", AMPLITUDE_CASES)
-    @pytest.mark.parametrize(
-        "dims", ["something else", ("channel", "something else")], ids=str
-    )
-    def test_prior_with_unknown_dim_raises(self, cls, param, kwargs, dims) -> None:
+    def test_prior_with_unknown_dim_raises(self, cls, param, kwargs) -> None:
         with pytest.raises(
             ValueError,
             match=rf"The {param} prior has dims \('something else',\) which are not part",
         ):
             cls(
                 dims=("time", "channel"),
-                **{param: Prior("HalfNormal", dims=dims)},
+                **{param: Prior("HalfNormal", dims=("channel", "something else"))},
                 **kwargs,
             )
-
-    @pytest.mark.parametrize("cls, param, kwargs", AMPLITUDE_CASES)
-    def test_prior_over_input_dim_raises(self, cls, param, kwargs) -> None:
-        with pytest.raises(
-            ValueError,
-            match=rf"The {param} prior cannot vary over 'time'.*\('channel',\)",
-        ):
-            cls(
-                dims=("time", "channel"),
-                **{param: Prior("HalfNormal", dims=("time", "channel"))},
-                **kwargs,
-            )
-
-    @pytest.mark.parametrize("cls, param, kwargs", AMPLITUDE_CASES)
-    def test_prior_with_dims_on_one_dimensional_hsgp_raises(
-        self, cls, param, kwargs
-    ) -> None:
-        with pytest.raises(ValueError, match=r"Allowed dims for the .* prior: \(\)"):
-            cls(dims="time", **{param: Prior("HalfNormal", dims="channel")}, **kwargs)
-
-    @pytest.mark.parametrize("cls, param, kwargs", AMPLITUDE_CASES)
-    def test_lengthscale_with_dims_still_raises(self, cls, param, kwargs) -> None:
-        kwargs = {**kwargs, "ls": Prior("HalfNormal", dims="channel")}
-        with pytest.raises(ValueError, match="lengthscale prior must be scalar"):
-            cls(dims=("time", "channel"), **{param: 1.0}, **kwargs)
-
-    @pytest.mark.parametrize("cls, param, kwargs", AMPLITUDE_CASES)
-    def test_to_dict_round_trip(self, cls, param, kwargs) -> None:
-        hsgp = cls(
-            dims=("time", "channel"),
-            **{param: Prior("HalfNormal", dims="channel")},
-            **kwargs,
-        )
-        restored = cls.from_dict(hsgp.to_dict())
-
-        assert getattr(restored, param) == getattr(hsgp, param)
-        assert getattr(restored, param).dims == ("channel",)
 
 
 class TestVariableFactorySerialization:

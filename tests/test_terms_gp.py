@@ -467,7 +467,7 @@ def test_name_collision_hint_only_for_real_collisions(ds):
 
 
 def test_non_scalar_prior_raises(ds):
-    """Dimensional eta/ls priors are rejected."""
+    """Dimensional ls priors are rejected."""
     trend = HSGPTerm(
         name="trend", ls=Prior("InverseGamma", alpha=2, beta=1, dims="channel")
     )
@@ -475,6 +475,46 @@ def test_non_scalar_prior_raises(ds):
         register_data(trend, ds=ds)
         with pytest.raises(ValueError, match="must be a scalar"):
             build_param(trend)
+
+
+@pytest.mark.parametrize(
+    "term",
+    [
+        pytest.param(
+            HSGPTerm(
+                name="trend", dims="channel", eta=Prior("HalfNormal", dims="channel")
+            ),
+            id="HSGPTerm",
+        ),
+        pytest.param(
+            SoftPlusHSGPTerm(
+                name="trend", dims="channel", eta=Prior("HalfNormal", dims="channel")
+            ),
+            id="SoftPlusHSGPTerm",
+        ),
+        pytest.param(
+            HSGPPeriodicTerm(
+                name="season",
+                dims="channel",
+                scale=Prior("HalfNormal", dims="channel"),
+                ls=1.0,
+                period=52,
+                m=10,
+            ),
+            id="HSGPPeriodicTerm",
+        ),
+    ],
+)
+def test_amplitude_prior_over_extra_dim(ds, term):
+    """eta / scale may vary over the term's extra dims."""
+    with pm.Model(coords=collect_coords(term, ds=ds)) as model:
+        register_data(term, ds=ds)
+        build_param(term)
+
+    (amplitude,) = [
+        name for name in model.named_vars if name.endswith(("_eta", "_scale"))
+    ]
+    assert model.named_vars_to_dims[amplitude] == ("channel",)
 
 
 def test_create_variable_before_register_raises(ds):

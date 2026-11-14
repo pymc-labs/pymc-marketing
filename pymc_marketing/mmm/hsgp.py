@@ -247,14 +247,6 @@ def create_m_and_L_recommendations(
     return m, L
 
 
-def _as_xtensor_parameter(value: XTensorVariable | float) -> XTensorVariable:
-    """Return a GP hyperparameter as an XTensorVariable so it broadcasts by dim name."""
-    if isinstance(value, XTensorVariable):
-        return value
-
-    return as_xtensor(as_tensor(value), dims=())
-
-
 class HSGPBase(BaseModel):
     """Shared logic between HSGP and HSGPPeriodic."""
 
@@ -378,10 +370,7 @@ class HSGPBase(BaseModel):
         if isinstance(prior_dims, str):
             prior_dims = (prior_dims,)
 
-        hsgp_dims = self.dims
-        if isinstance(hsgp_dims, str):
-            hsgp_dims = (hsgp_dims,)
-
+        hsgp_dims = cast(tuple[str, ...], self.dims)
         input_dim, *other_dims = hsgp_dims
         allowed_dims = tuple(other_dims)
 
@@ -389,7 +378,7 @@ class HSGPBase(BaseModel):
         if unknown_dims:
             raise ValueError(
                 f"The {label} prior has dims {unknown_dims} which are not part of "
-                f"the HSGP dims {tuple(hsgp_dims)}. "
+                f"the HSGP dims {hsgp_dims}. "
                 f"Allowed dims for the {label} prior: {allowed_dims}."
             )
 
@@ -791,43 +780,24 @@ class HSGP(HSGPBase):
     Amplitude that varies by channel. The ``eta`` prior can use any of the
     dims after the first one, while the lengthscale stays shared:
 
-    .. plot::
-        :include-source: True
-        :context: reset
+    .. code-block:: python
 
         import numpy as np
-
-        import matplotlib.pyplot as plt
 
         from pymc_extras.prior import Prior
 
         from pymc_marketing.mmm import HSGP
 
-        seed = sum(map(ord, "Amplitude by channel"))
-        rng = np.random.default_rng(seed)
-
-        n = 52
-        X = np.arange(n)
-
         hsgp = HSGP(
-            X=X,
+            X=np.arange(52),
             eta=Prior("HalfNormal", sigma=Prior("HalfNormal"), dims="channel"),
             ls=Prior("InverseGamma", alpha=2, beta=10),
             m=20,
             L=75,
             dims=("time", "channel"),
         )
-
-        coords = {"time": range(n), "channel": ["A", "B", "C"]}
-        prior = hsgp.sample_prior(coords=coords, random_seed=rng)
-        curve = prior["f"]
-        fig, _ = hsgp.plot_curve(
-            curve,
-            random_seed=rng,
-            subplot_kwargs={"figsize": (12, 4), "ncols": 3},
-        )
-        fig.suptitle("HSGP prior with an amplitude per channel")
-        plt.show()
+        coords = {"time": range(52), "channel": ["A", "B", "C"]}
+        prior = hsgp.sample_prior(coords=coords)
 
     """
 
@@ -1016,7 +986,7 @@ class HSGP(HSGPBase):
         hsgp_coefs = Prior(
             "Normal",
             mu=0,
-            sigma=sqrt_psd * _as_xtensor_parameter(eta),
+            sigma=sqrt_psd * eta,
             dims=hsgp_dims,
             centered=self.centered,
         ).create_variable(add_suffix("hsgp_coefs"), xdist=True)
@@ -1378,7 +1348,7 @@ class HSGPPeriodic(HSGPBase):
         slice_idx = {coord_name: slice(1, None)}
 
         sigma = ptx.concat([psd, psd.isel(slice_idx)], dim=coord_name)
-        sigma = sigma * _as_xtensor_parameter(scale)
+        sigma = sigma * scale
         hsgp_coefs = Prior(
             "Normal",
             mu=0,
