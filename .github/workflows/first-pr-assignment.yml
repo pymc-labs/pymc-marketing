@@ -125,9 +125,11 @@ jobs:
                 });
                 loaded.push(response.data);
               } catch (error) {
-                if (statusOf(error) === 404) {
+                // 404: no such issue here. 410: the issue was deleted.
+                const status = statusOf(error);
+                if (status === 404 || status === 410) {
                   core.info(
-                    `Closing reference #${number} is not an issue in this repository`,
+                    `Closing reference #${number} is missing or deleted in this repository (HTTP ${status})`,
                   );
                   continue;
                 }
