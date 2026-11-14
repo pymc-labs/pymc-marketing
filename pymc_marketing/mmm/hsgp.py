@@ -343,6 +343,51 @@ class HSGPBase(BaseModel):
 
         return self
 
+    def _check_prior_dims(self, prior: object, label: str) -> None:
+        """Check that a prior only uses dims the HSGP can broadcast it over.
+
+        The HSGP varies along its first dim (the input data, e.g. time), so a
+        hyperparameter can only vary over the remaining dims of the HSGP.
+
+        Parameters
+        ----------
+        prior : object
+            The prior to check. Anything other than a VariableFactory is ignored.
+        label : str
+            The name of the prior to use in the error message.
+
+        Raises
+        ------
+        ValueError
+            If the prior has a dim that is not one of the HSGP dims, or if it
+            varies over the first dim of the HSGP.
+
+        """
+        if not isinstance(prior, VariableFactory):
+            return
+
+        prior_dims = prior.dims or ()
+        if isinstance(prior_dims, str):
+            prior_dims = (prior_dims,)
+
+        hsgp_dims = cast(tuple[str, ...], self.dims)
+        input_dim, *other_dims = hsgp_dims
+        allowed_dims = tuple(other_dims)
+
+        unknown_dims = tuple(dim for dim in prior_dims if dim not in hsgp_dims)
+        if unknown_dims:
+            raise ValueError(
+                f"The {label} prior has dims {unknown_dims} which are not part of "
+                f"the HSGP dims {hsgp_dims}. "
+                f"Allowed dims for the {label} prior: {allowed_dims}."
+            )
+
+        if input_dim in prior_dims:
+            raise ValueError(
+                f"The {label} prior cannot vary over {input_dim!r}, the dim of the "
+                f"input data. Allowed dims for the {label} prior: {allowed_dims}."
+            )
+
     def create_variable(self, name: str, xdist: bool = False) -> XTensorVariable:
         """Create a variable from configuration."""
         raise NotImplementedError
@@ -732,13 +777,39 @@ class HSGP(HSGPBase):
         fig.suptitle("Higher dimensional HSGP prior")
         plt.show()
 
+    Amplitude that varies by channel. The ``eta`` prior can use any of the
+    dims after the first one, while the lengthscale stays shared:
+
+    .. code-block:: python
+
+        import numpy as np
+
+        from pymc_extras.prior import Prior
+
+        from pymc_marketing.mmm import HSGP
+
+        hsgp = HSGP(
+            X=np.arange(52),
+            eta=Prior("HalfNormal", sigma=Prior("HalfNormal"), dims="channel"),
+            ls=Prior("InverseGamma", alpha=2, beta=10),
+            m=20,
+            L=75,
+            dims=("time", "channel"),
+        )
+        coords = {"time": range(52), "channel": ["A", "B", "C"]}
+        prior = hsgp.sample_prior(coords=coords)
+
     """
 
     ls: InstanceOf[VariableFactory] | DeferredFactory | float = Field(
         ..., description="Prior for the lengthscales"
     )
     eta: InstanceOf[VariableFactory] | DeferredFactory | float = Field(
-        ..., description="Prior for the variance"
+        ...,
+        description=(
+            "Prior for the amplitude (standard deviation). It can vary over any of "
+            "the dims after the first one, e.g. one amplitude per channel."
+        ),
     )
     L: float = Field(..., gt=0, description="Extent of basis functions")
     centered: bool = Field(False, description="Whether the model is centered or not")
@@ -758,12 +829,8 @@ class HSGP(HSGPBase):
         return self
 
     @model_validator(mode="after")
-    def _eta_is_scalar_prior(self) -> Self:
-        if not isinstance(self.eta, VariableFactory):
-            return self
-
-        if self.eta.dims:
-            raise ValueError("The eta prior must be scalar random variable.")
+    def _eta_dims_are_compatible(self) -> Self:
+        self._check_prior_dims(self.eta, "eta")
 
         return self
 
@@ -889,10 +956,12 @@ class HSGP(HSGPBase):
         )
 
         # GP functionality is implemented exclusively in tensor
-        eta = as_tensor(eta, allow_xtensor_conversion=True)
         ls = as_tensor(ls, allow_xtensor_conversion=True)
 
-        cov_func = eta**2 * cov_funcs[self.cov_func.lower()](input_dim=1, ls=ls)
+        # eta is left out of the covariance function. It scales the standard
+        # deviation of every basis coefficient instead, which lets it broadcast
+        # over any of the non-input dims of the HSGP.
+        cov_func = cov_funcs[self.cov_func.lower()](input_dim=1, ls=ls)
         gp = pm.gp.HSGP(
             m=[self.m],
             L=[self.L],
@@ -917,7 +986,7 @@ class HSGP(HSGPBase):
         hsgp_coefs = Prior(
             "Normal",
             mu=0,
-            sigma=sqrt_psd,
+            sigma=sqrt_psd * eta,
             dims=hsgp_dims,
             centered=self.centered,
         ).create_variable(add_suffix("hsgp_coefs"), xdist=True)
@@ -1178,7 +1247,11 @@ class HSGPPeriodic(HSGPBase):
         ..., description="Prior for the lengthscale"
     )
     scale: InstanceOf[VariableFactory] | DeferredFactory | float = Field(
-        ..., description="Prior for the scale"
+        ...,
+        description=(
+            "Prior for the scale. It can vary over any of the dims after the "
+            "first one, e.g. one scale per channel."
+        ),
     )
     cov_func: PeriodicCovFunc = Field(
         PeriodicCovFunc.Periodic,
@@ -1197,12 +1270,8 @@ class HSGPPeriodic(HSGPBase):
         return self
 
     @model_validator(mode="after")
-    def _scale_is_scalar_prior(self) -> Self:
-        if not isinstance(self.scale, VariableFactory):
-            return self
-
-        if self.scale.dims:
-            raise ValueError("The scale prior must be scalar random variable.")
+    def _scale_dims_are_compatible(self) -> Self:
+        self._check_prior_dims(self.scale, "scale")
 
         return self
 
@@ -1251,9 +1320,12 @@ class HSGPPeriodic(HSGPBase):
             1, period=self.period, ls=as_tensor(ls, allow_xtensor_conversion=True)
         )
 
+        # scale is applied to the coefficients below rather than passed to
+        # pm.gp.HSGPPeriodic, which lets it broadcast over any of the non-input
+        # dims of the HSGP.
         gp = pm.gp.HSGPPeriodic(
             m=self.m,
-            scale=as_tensor(scale, allow_xtensor_conversion=True),
+            scale=1.0,
             cov_func=cov_func,
         )
 
@@ -1276,6 +1348,7 @@ class HSGPPeriodic(HSGPBase):
         slice_idx = {coord_name: slice(1, None)}
 
         sigma = ptx.concat([psd, psd.isel(slice_idx)], dim=coord_name)
+        sigma = sigma * scale
         hsgp_coefs = Prior(
             "Normal",
             mu=0,

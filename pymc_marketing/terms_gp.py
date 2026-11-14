@@ -622,7 +622,8 @@ class HSGPTerm(GPDataTerm):
         Prefix for the variables and the output deterministic. Defaults to
         ``"hsgp"``.
     eta : VariableFactory or float, optional
-        Prior for the GP variance. Defaults to the Exponential prior from
+        Prior for the GP amplitude (standard deviation). It can vary over the
+        extra ``dims``. Defaults to the Exponential prior from
         :func:`pymc_marketing.mmm.hsgp.create_eta_prior`.
     ls : VariableFactory or float, optional
         Prior for the lengthscale. Defaults to the complexity-penalizing
@@ -796,7 +797,6 @@ class HSGPTerm(GPDataTerm):
     def _spec(self) -> HSGPBase:
         """Build the wrapped :class:`~pymc_marketing.mmm.hsgp.HSGP` spec."""
         resolved = cast("ResolvedGPState", self.resolved)
-        _check_scalar("eta", resolved.eta)
         _check_scalar("ls", resolved.ls)
         return HSGP(**self._spec_kwargs())
 
@@ -961,7 +961,8 @@ class HSGPPeriodicTerm(GPDataTerm):
         Prefix for the variables and the output deterministic. Defaults to
         ``"hsgp_periodic"``.
     scale : VariableFactory or float
-        Prior for the scale of the periodic GP.
+        Prior for the scale of the periodic GP. It can vary over the extra
+        ``dims``.
     ls : VariableFactory or float
         Prior for the lengthscale of the periodic GP.
     period : float
@@ -1009,7 +1010,6 @@ class HSGPPeriodicTerm(GPDataTerm):
 
     def _spec(self) -> HSGPBase:
         """Build the wrapped :class:`~pymc_marketing.mmm.hsgp.HSGPPeriodic`."""
-        _check_scalar("scale", self.scale)
         _check_scalar("ls", self.ls)
         dims = (cast("str", self.time_dim), *self.extra_dims)
         return HSGPPeriodic(

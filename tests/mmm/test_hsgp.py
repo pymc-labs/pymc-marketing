@@ -25,7 +25,7 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from pydantic import ValidationError
 from pymc_extras.prior import Prior, UnknownTransformError
-from pytensor.xtensor.type import XTensorVariable
+from pytensor.xtensor.type import XTensorVariable, as_xtensor
 
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm.hsgp import (
@@ -696,13 +696,13 @@ class TestVariableFactoryHSGP:
                 ls=non_scalar_factory,  # Non-scalar should fail
             )
 
-    def test_hsgp_rejects_non_scalar_eta_variable_factory(self):
-        """Test that HSGP rejects non-scalar VariableFactory for eta."""
+    def test_hsgp_rejects_eta_variable_factory_over_input_dim(self):
+        """Test that HSGP rejects a VariableFactory for eta that varies over time."""
         data = np.arange(10)
         non_scalar_factory = NonScalarVariableFactory()
         scalar_factory = ScalarVariableFactory()
 
-        with pytest.raises(ValueError, match="eta prior must be scalar"):
+        with pytest.raises(ValueError, match="eta prior cannot vary over 'time'"):
             HSGP(
                 X=data,
                 dims="time",
@@ -765,12 +765,12 @@ class TestVariableFactoryHSGPPeriodic:
                 dims="time",
             )
 
-    def test_hsgp_periodic_rejects_non_scalar_scale_variable_factory(self):
-        """Test that HSGPPeriodic rejects non-scalar VariableFactory for scale."""
+    def test_hsgp_periodic_rejects_scale_variable_factory_over_input_dim(self):
+        """Test that HSGPPeriodic rejects a VariableFactory for scale that varies over time."""
         non_scalar_factory = NonScalarVariableFactory()
         scalar_factory = ScalarVariableFactory()
 
-        with pytest.raises(ValueError, match="scale prior must be scalar"):
+        with pytest.raises(ValueError, match="scale prior cannot vary over 'time'"):
             HSGPPeriodic(
                 scale=non_scalar_factory,  # Non-scalar should fail
                 ls=scalar_factory,
@@ -795,6 +795,92 @@ class TestVariableFactoryHSGPPeriodic:
 
         assert hsgp.ls is ls_prior
         assert hsgp.scale is scale_prior
+
+
+class FixedChannelFactory:
+    """A VariableFactory with fixed values along the channel dim."""
+
+    dims = ("channel",)
+
+    def __init__(self, values) -> None:
+        self.values = np.asarray(values, dtype=float)
+
+    def create_variable(self, name: str, xdist: bool = False):
+        """Create a deterministic variable with the fixed values."""
+        return pmd.Deterministic(
+            name, as_xtensor(pt.as_tensor(self.values), dims=self.dims), dims=self.dims
+        )
+
+
+HSGP_KWARGS = dict(ls=5.0, m=10, L=15)
+PERIODIC_KWARGS = dict(ls=1.0, m=10, period=12)
+AMPLITUDE_CASES = [
+    pytest.param(HSGP, "eta", HSGP_KWARGS, id="HSGP-eta"),
+    pytest.param(HSGPPeriodic, "scale", PERIODIC_KWARGS, id="HSGPPeriodic-scale"),
+]
+
+
+class TestAmplitudePriorDims:
+    """The amplitude prior (eta / scale) can vary over the non-input dims."""
+
+    @pytest.mark.parametrize(
+        "cls, param, kwargs",
+        [
+            *AMPLITUDE_CASES,
+            pytest.param(SoftPlusHSGP, "eta", HSGP_KWARGS, id="SoftPlusHSGP-eta"),
+        ],
+    )
+    def test_prior_over_other_dims(self, cls, param, kwargs) -> None:
+        hsgp = cls(
+            X=np.arange(10),
+            dims=("time", "channel", "product"),
+            **{param: Prior("HalfNormal", dims=("product", "channel"))},
+            **kwargs,
+        )
+        coords = {
+            "time": np.arange(10),
+            "channel": ["A", "B"],
+            "product": ["X", "Y", "Z"],
+        }
+        prior = hsgp.sample_prior(draws=5, coords=coords, random_seed=1)
+
+        # SoftPlusHSGP names its hyperparameters f_raw_*
+        (amplitude,) = [name for name in prior.data_vars if name.endswith(f"_{param}")]
+
+        assert prior["f"].shape == (1, 5, 10, 2, 3)
+        assert prior[amplitude].dims == ("chain", "draw", "product", "channel")
+
+    @pytest.mark.parametrize("cls, param, kwargs", AMPLITUDE_CASES)
+    def test_scales_each_slice(self, cls, param, kwargs) -> None:
+        values = [1.0, 3.0]
+        coords = {"time": np.arange(10), "channel": ["A", "B"]}
+
+        def sample(value):
+            hsgp = cls(
+                X=np.arange(10),
+                dims=("time", "channel"),
+                **{param: value},
+                **kwargs,
+            )
+            prior = hsgp.sample_prior(draws=5, coords=coords, random_seed=1)
+            return prior["f"].transpose("chain", "draw", "time", "channel").values
+
+        np.testing.assert_allclose(
+            sample(FixedChannelFactory(values)),
+            sample(1.0) * np.array(values),
+        )
+
+    @pytest.mark.parametrize("cls, param, kwargs", AMPLITUDE_CASES)
+    def test_prior_with_unknown_dim_raises(self, cls, param, kwargs) -> None:
+        with pytest.raises(
+            ValueError,
+            match=rf"The {param} prior has dims \('something else',\) which are not part",
+        ):
+            cls(
+                dims=("time", "channel"),
+                **{param: Prior("HalfNormal", dims=("channel", "something else"))},
+                **kwargs,
+            )
 
 
 class TestVariableFactorySerialization:
