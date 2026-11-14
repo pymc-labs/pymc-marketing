@@ -263,6 +263,7 @@ from pymc_marketing.mmm.spend_reach import _PKG_PREFIX
 from pymc_marketing.mmm.tvp import create_hsgp_from_config, infer_time_index
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
 from pymc_marketing.mmm.utils import (
+    _shift_by_periods,
     add_noise_to_channel_allocation,
     align_planned_controls,
     create_zero_dataset,
@@ -5363,8 +5364,6 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         self,
         data_with_noise: xr.Dataset,
     ) -> xr.Dataset:
-        from pymc_marketing.mmm.utils import _shift_by_periods
-
         dates = pd.DatetimeIndex(data_with_noise.coords["date"].values)
         inferred_freq = infer_frequency(dates)
         if inferred_freq is None:

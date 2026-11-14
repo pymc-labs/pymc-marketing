@@ -348,6 +348,9 @@ class TestShiftByPeriods:
             ("2024-01-05", 1, "B", "2024-01-08"),  # Friday -> Monday
             ("2024-01-07", 2, "2W-SUN", "2024-02-04"),
             ("2025-07-01", -4, "MS", "2025-03-01"),
+            # Off the grid, the first step lands on the next (previous) grid date.
+            ("2025-05-15", 4, "MS", "2025-09-01"),
+            ("2025-05-15", -1, "MS", "2025-05-01"),
         ],
     )
     def test_shifts_by_whole_steps_of_the_frequency(
@@ -362,24 +365,8 @@ class TestShiftByPeriods:
         assert _shift_by_periods(date, 0, "MS") == date
 
 
-@pytest.mark.parametrize(
-    "freq, start, periods, window_start, window_end, decisions",
-    [
-        ("MS", "2023-03-01", 24, "2025-03-01", "2025-05-01", 3),
-        ("MS", "2023-03-01", 24, "2025-03-01", "2025-03-01", 1),
-        ("h", "2023-01-01", 48, "2023-01-03 00:00", "2023-01-03 02:00", 3),
-        ("QS-OCT", "2020-01-01", 16, "2024-01-01", "2024-07-01", 3),
-    ],
-)
-def test_create_zero_dataset_carryover_counts_whole_periods(
-    freq, start, periods, window_start, window_end, decisions
-):
-    """The carry-over block is exactly l_max dates, whatever the frequency (#3204).
-
-    Months used to be 30 days, so a window of 31-day months got fewer than
-    l_max carry-over dates and the last planned month was counted as
-    carry-over; 'h' and 'QS-OCT' fell back to weeks.
-    """
+def _build_carryover_mmm(freq, start, periods, l_max):
+    """Build a two-channel MMM on *periods* dates of *freq* for carry-over tests."""
     from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
     from pymc_marketing.mmm.mmm import MMM
 
@@ -397,27 +384,74 @@ def test_create_zero_dataset_carryover_counts_whole_periods(
         date_column="date",
         channel_columns=["c1", "c2"],
         target_column="y",
-        adstock=GeometricAdstock(l_max=4),
+        adstock=GeometricAdstock(l_max=l_max),
         saturation=LogisticSaturation(),
     )
     mmm.build_model(X, y)
-
-    with warnings.catch_warnings():
-        warnings.simplefilter("error", UserWarning)  # no "Defaulting to weeks."
-        zeros = create_zero_dataset(mmm, window_start, window_end)
-
-    assert zeros.sizes["date"] == decisions + 4
-    expected = pd.date_range(window_start, periods=decisions + 4, freq=freq)
-    pd.testing.assert_index_equal(
-        pd.DatetimeIndex(zeros.coords["date"].values), expected, check_names=False
-    )
-
-    model = mmm.create_optimization_model(window_start, window_end)
-    assert mmm._window_layout(model, window_start).decisions == decisions
+    return mmm
 
 
 class TestCreateZeroDataset:
     """Extended test cases for create_zero_dataset function."""
+
+    @pytest.mark.parametrize(
+        "freq, start, periods, window_start, window_end, decisions",
+        [
+            ("MS", "2023-03-01", 24, "2025-03-01", "2025-05-01", 3),
+            ("MS", "2023-03-01", 24, "2025-03-01", "2025-03-01", 1),
+            ("h", "2023-01-01", 48, "2023-01-03 00:00", "2023-01-03 02:00", 3),
+            ("QS-OCT", "2020-01-01", 16, "2024-01-01", "2024-07-01", 3),
+        ],
+    )
+    def test_carryover_counts_whole_periods(
+        self, freq, start, periods, window_start, window_end, decisions
+    ):
+        """The carry-over block is exactly l_max dates, whatever the frequency (#3204).
+
+        Months used to be 30 days, so a window of 31-day months got fewer than
+        l_max carry-over dates and the last planned month was counted as
+        carry-over; 'h' and 'QS-OCT' fell back to weeks.
+        """
+        l_max = 4
+        mmm = _build_carryover_mmm(freq, start, periods, l_max)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)  # e.g. a frequency fallback
+            zeros = create_zero_dataset(mmm, window_start, window_end)
+
+        assert zeros.sizes["date"] == decisions + l_max
+        expected = pd.date_range(window_start, periods=decisions + l_max, freq=freq)
+        pd.testing.assert_index_equal(
+            pd.DatetimeIndex(zeros.coords["date"].values), expected, check_names=False
+        )
+
+        model = mmm.create_optimization_model(window_start, window_end)
+        assert mmm._window_layout(model, window_start).decisions == decisions
+
+    @pytest.mark.parametrize(
+        "freq, start, periods, window_start, window_end, decisions",
+        [
+            ("MS", "2023-03-01", 24, "2025-03-01", "2025-05-01", 3),
+            ("QS-OCT", "2020-01-01", 16, "2024-01-01", "2024-07-01", 3),
+        ],
+    )
+    def test_wrapper_carryover_zeroes_only_the_carryover_block(
+        self, freq, start, periods, window_start, window_end, decisions
+    ):
+        """BudgetOptimizerWrapper zeroes the l_max carry-over dates and nothing else (#3204)."""
+        from pymc_marketing.mmm.mmm import BudgetOptimizerWrapper
+
+        l_max = 4
+        mmm = _build_carryover_mmm(freq, start, periods, l_max)
+        with pytest.warns(DeprecationWarning):
+            wrapper = BudgetOptimizerWrapper(mmm, window_start, window_end)
+        assert wrapper.num_periods == decisions
+
+        data = wrapper.zero_data.copy(deep=True)
+        data["_channel"][:] = 1.0
+        carried = wrapper._apply_carryover_effect(data)["_channel"]
+        spent = (carried.sum("channel") > 0).values.ravel()
+        assert spent.tolist() == [True] * decisions + [False] * l_max
 
     def test_create_zero_dataset_basic(self):
         """Test basic functionality of create_zero_dataset."""

@@ -223,8 +223,11 @@ def _shift_by_periods(date: pd.Timestamp, periods: int, freq: str) -> pd.Timesta
 
     The step is the calendar-aware offset ``freq`` names, so a month is as long
     as that month and a quarter-start, business-day or hourly frequency counts
-    in its own unit.  *periods* may be negative.  Zero returns *date* as it is
-    (a zero offset would roll an unanchored date forward to its anchor).
+    in its own unit.  *periods* may be negative.  When *date* is not on the
+    frequency's grid, the first step lands on the next (or previous) grid date,
+    so the result is the *periods*-th grid date after (or before) *date*.  Zero
+    returns *date* as it is (a zero offset would roll an unanchored date forward
+    to its anchor).
 
     Parameters
     ----------
