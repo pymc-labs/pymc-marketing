@@ -1,0 +1,220 @@
+name: Flag unassigned first pull requests
+
+on:
+  # zizmor: ignore[dangerous-triggers]
+  # pull_request_target is required so this workflow can label and comment on
+  # pull requests from forks. The read-only pull_request token cannot write.
+  # Safe here: actions/checkout is not given a ref, so this event checks out
+  # the default branch. We never check out or execute pull request contents.
+  # Title, body, and commit messages are written to files by
+  # actions/github-script and passed to the helper as file paths. They are
+  # never interpolated into a shell.
+  pull_request_target:
+    types: [opened]
+
+permissions: {}
+
+# Serialize re-runs so the second run can see the first comment's marker.
+concurrency:
+  group: first-pr-assignment-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  flag:
+    name: Flag if the author is not assigned
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Skip bots by actor name. Do not gate on
+    # github.event.pull_request.author_association: this event reports NONE
+    # for first-time authors, and so does pulls.get with the workflow token.
+    # The script reads the API value and the helper flags FIRST_TIMER,
+    # FIRST_TIME_CONTRIBUTOR, and that token's NONE. It does not flag
+    # MEMBER, OWNER, COLLABORATOR, or CONTRIBUTOR.
+    if: >-
+      !contains(github.actor, '[bot]') &&
+      !contains(github.actor, 'dependabot') &&
+      !contains(github.actor, 'renovate')
+    permissions:
+      # Read the default branch so the job can run the tested helper.
+      # The pull request head is not checked out. No contents write.
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Flag unassigned first pull request
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const {execFileSync} = require('child_process');
+
+            const helper = path.join(
+              process.env.GITHUB_WORKSPACE,
+              'scripts',
+              'first_pr_assignment.py',
+            );
+            const pullRequest = context.payload.pull_request;
+            const marker = '<!-- pymc-marketing-first-pr-assignment -->';
+
+            function statusOf(error) {
+              if (error && typeof error.status === 'number') return error.status;
+              if (
+                error &&
+                error.response &&
+                typeof error.response.status === 'number'
+              ) {
+                return error.response.status;
+              }
+              return undefined;
+            }
+
+            function writeTemp(name, contents) {
+              const file = path.join(process.env.RUNNER_TEMP, name);
+              fs.writeFileSync(file, contents);
+              return file;
+            }
+
+            function runHelper(args, extraEnv = {}) {
+              return execFileSync('python3', [helper, ...args], {
+                encoding: 'utf8',
+                env: {PATH: process.env.PATH, ...extraEnv},
+              });
+            }
+
+            const bodyFile = writeTemp('pr-body.txt', pullRequest.body || '');
+            const titleFile = writeTemp('pr-title.txt', pullRequest.title || '');
+            const commits = await github.paginate(github.rest.pulls.listCommits, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pullRequest.number,
+              per_page: 100,
+            });
+            const commitsFile = writeTemp('pr-commits.json', JSON.stringify(commits));
+            const closing = JSON.parse(
+              runHelper([
+                'closing-issues',
+                '--body-file',
+                bodyFile,
+                '--title-file',
+                titleFile,
+                '--commits-file',
+                commitsFile,
+                '--owner',
+                context.repo.owner,
+                '--repo',
+                context.repo.repo,
+              ]),
+            );
+            core.info(
+              `Closing issue numbers: ${closing.length ? closing.join(', ') : '(none)'}`,
+            );
+
+            const loaded = [];
+            for (const number of closing) {
+              try {
+                const response = await github.rest.issues.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: number,
+                });
+                loaded.push(response.data);
+              } catch (error) {
+                // 404: no such issue here. 410: the issue was deleted.
+                const status = statusOf(error);
+                if (status === 404 || status === 410) {
+                  core.info(
+                    `Closing reference #${number} is missing or deleted in this repository (HTTP ${status})`,
+                  );
+                  continue;
+                }
+                throw error;
+              }
+            }
+
+            const pull = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pullRequest.number,
+            });
+            const association =
+              pull.data && pull.data.author_association
+                ? pull.data.author_association
+                : '';
+            core.info(`Pull request API author_association: ${association}`);
+
+            const issuesFile = writeTemp('loaded-issues.json', JSON.stringify(loaded));
+            const decision = JSON.parse(
+              runHelper(['should-flag', '--issues-file', issuesFile], {
+                PR_AUTHOR:
+                  pullRequest.user && pullRequest.user.login
+                    ? pullRequest.user.login
+                    : '',
+                PR_ACTOR: context.actor,
+                PR_ASSOCIATION: association,
+              }),
+            );
+            if (!decision.flag) {
+              core.info(
+                'No triage flag: author is assigned to a closing issue, or the check does not apply.',
+              );
+              return;
+            }
+
+            const label = JSON.parse(runHelper(['label-spec']));
+            const comment = runHelper(['policy-comment']);
+            if (!comment.includes(marker)) {
+              core.setFailed('Policy comment is missing its idempotency marker');
+              return;
+            }
+
+            try {
+              await github.rest.issues.getLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: label.name,
+              });
+            } catch (error) {
+              if (statusOf(error) !== 404) throw error;
+              try {
+                await github.rest.issues.createLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: label.name,
+                  color: label.color,
+                  description: label.description,
+                });
+              } catch (createError) {
+                if (statusOf(createError) !== 422) throw createError;
+              }
+            }
+
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pullRequest.number,
+              labels: [label.name],
+            });
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pullRequest.number,
+              per_page: 100,
+            });
+            if (comments.some((entry) => (entry.body || '').includes(marker))) {
+              core.info('Policy comment already exists; not posting another.');
+              return;
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pullRequest.number,
+              body: comment,
+            });

@@ -49,6 +49,6 @@ When is the decision needed? Who will use and maintain the model? Include procur
 
 ## See how other teams approach it
 
-- [Building an in-house marketing analytics solution](https://www.pymc-labs.com/blog-posts/2023-07-18-niall-In-house-marketing/)
+- [Building an in-house marketing analytics solution](https://www.pymc-labs.com/blog-posts/2023-07-18-niall-In-house-marketing)
 - [Bolt's experience with PyMC-Marketing](https://www.youtube.com/watch?v=djXoPq60bRM)
 - {ref}`Explore the MMM learning path <mmm_learning_path>`

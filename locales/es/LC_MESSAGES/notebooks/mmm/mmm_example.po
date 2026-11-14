@@ -351,22 +351,22 @@ msgstr "Blog de PyMC Labs:"
 #: 43da25de100549a5a9477ab927509f7d
 msgid ""
 "[Bayesian Media Mix Modeling for Marketing Optimization](https://www.pymc-"
-"labs.com/blog-posts/bayesian-media-mix-modeling-for-marketing-optimization/)"
+"labs.com/blog-posts/bayesian-media-mix-modeling-for-marketing-optimization)"
 msgstr ""
 "[Modelado de Mezcla de Medios Bayesiano para la Optimización del "
 "Marketing](https://www.pymc-labs.com/blog-posts/bayesian-media-mix-modeling-"
-"for-marketing-optimization/)"
+"for-marketing-optimization)"
 
 #: ../source/notebooks/mmm/mmm_example.ipynb:40017
 #: 4dfddff9d5b743a2acabbc20a7067424
 msgid ""
 "[Improving the Speed and Accuracy of Bayesian Media Mix "
 "Models](https://www.pymc-labs.com/blog-posts/reducing-customer-acquisition-"
-"costs-how-we-helped-optimizing-hellofreshs-marketing-budget/)"
+"costs-how-we-helped-optimizing-hellofreshs-marketing-budget)"
 msgstr ""
 "[Mejorando la Velocidad y Precisión de los Modelos de Mezcla de Medios "
 "Bayesianos](https://www.pymc-labs.com/blog-posts/reducing-customer-"
-"acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget/)"
+"acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget)"
 
 #: ../source/notebooks/mmm/mmm_example.ipynb:40018
 #: daffe6f7e4da450db92a5094d5f9f23e
