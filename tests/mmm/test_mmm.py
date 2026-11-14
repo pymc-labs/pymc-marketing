@@ -2814,6 +2814,7 @@ class _DateLevelEffect(_ZeroEffect):
 
     prefix: str = "level"
     freeze: bool = False
+    reduce: bool = False
 
     @property
     def frozen_deterministics(self) -> list[str]:
@@ -2821,8 +2822,11 @@ class _DateLevelEffect(_ZeroEffect):
         return [f"{self.prefix}_draws"] if self.freeze else []
 
     def create_effect(self, mmm):
-        """One free value per date."""
+        """One free value per date, or their mean on every date when reduced."""
         level = pmd.Normal(f"{self.prefix}_draws", sigma=0.1, dims="date")
+        if self.reduce:
+            zeros = as_xtensor(pt.zeros(mmm.model.dim_lengths["date"]), dims=("date",))
+            level = zeros + level.mean("date")
         return pmd.Deterministic(self.contribution_var_name, level)
 
 
@@ -2851,8 +2855,8 @@ def test_monthly_incrementality_names_an_unfrozen_date_variable(fit_date_level_m
 
     with pytest.raises(
         ValueError,
-        match=r"^The evaluation runs on windows shorter than the fitted dates, but "
-        r"the graph reads 'level_draws', which has a 'date' dimension",
+        match=r"^The evaluation failed on windows shorter than the fitted dates\.  "
+        r"The graph reads 'level_draws', which has a 'date' dimension",
     ):
         mmm.incrementality.compute_incremental_contribution(frequency="monthly")
 
@@ -2863,9 +2867,20 @@ def test_monthly_incrementality_names_an_unfrozen_date_variable(fit_date_level_m
     assert np.isfinite(incremental).all()
 
 
-def test_monthly_incrementality_cuts_a_frozen_date_variable(fit_date_level_mmm):
-    """Listed in ``frozen_deterministics``, the variable is cut to each window."""
-    mmm = fit_date_level_mmm(freeze=True)
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        # Listed in frozen_deterministics, the variable is cut to each window.
+        pytest.param({"freeze": True}, id="frozen"),
+        # Reduced over date, it never meets a window's date axis.
+        pytest.param({"reduce": True}, id="reduced"),
+    ],
+)
+def test_monthly_incrementality_evaluates_a_date_variable_it_can(
+    fit_date_level_mmm, kwargs
+):
+    """A date-indexed variable the windows do not break on is not refused."""
+    mmm = fit_date_level_mmm(**kwargs)
 
     incremental = mmm.incrementality.compute_incremental_contribution(
         frequency="monthly"
