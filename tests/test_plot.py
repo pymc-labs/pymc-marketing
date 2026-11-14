@@ -19,6 +19,7 @@ import pandas as pd
 import pytest
 import xarray as xr
 
+from pymc_marketing.mmm.original_scale_index import OriginalScaleIndex
 from pymc_marketing.plot import (
     drop_scalar_coords,
     plot_curve,
@@ -399,6 +400,81 @@ def test_drop_scalar_coords(mock_curve_with_scalars) -> None:
 
     # Ensure the original DataArray was not modified
     xr.testing.assert_identical(mock_curve_with_scalars, original_curve)
+
+
+@pytest.fixture
+def curve_with_original_scale_index() -> xr.DataArray:
+    """Curve with OriginalScaleIndex attached, mimicking sample_saturation_curve(original_scale=True)."""
+    channels = np.array(["x1", "x2"])
+    x = np.linspace(0, 1, 10)
+    channel_scale = xr.DataArray(
+        [5000.0, 1200.0], dims=["channel"], coords={"channel": channels}
+    )
+    rng = np.random.default_rng(42)
+    data = rng.normal(size=(2, 50, len(channels), len(x)))
+    da = xr.DataArray(
+        data,
+        dims=["chain", "draw", "channel", "x"],
+        coords={"chain": [0, 1], "draw": np.arange(50), "channel": channels, "x": x},
+    )
+    return da.drop_indexes(["x", "channel"]).set_xindex(
+        ["x", "channel"], OriginalScaleIndex, channel_scale=channel_scale
+    )
+
+
+def test_drop_scalar_coords_with_original_scale_index(
+    curve_with_original_scale_index,
+) -> None:
+    """drop_scalar_coords must not crash or drop x/channel when OriginalScaleIndex is present."""
+    curve = drop_scalar_coords(curve_with_original_scale_index)
+    assert "x" in curve.coords
+    assert "channel" in curve.coords
+    assert isinstance(curve.xindexes["channel"], OriginalScaleIndex)
+
+
+def test_plot_curve_with_original_scale_index(
+    curve_with_original_scale_index, auto_close_figures
+) -> None:
+    """plot_curve uses original-domain x values when OriginalScaleIndex is present."""
+    x_scaled = np.linspace(0, 1, 10)
+    channel_scales = {"x1": 5000.0, "x2": 1200.0}
+    fig, axes = plot_curve(curve_with_original_scale_index, non_grid_names={"x"})
+    assert isinstance(fig, plt.Figure)
+    assert axes.size == curve_with_original_scale_index.sizes["channel"]
+    # Channels appear in coordinate order: x1, x2
+    for ax, (ch, scale) in zip(axes.flat, channel_scales.items(), strict=True):
+        lines = ax.get_lines()
+        assert len(lines) > 0, f"No lines plotted for channel {ch}"
+        np.testing.assert_allclose(
+            lines[0].get_xdata(),
+            x_scaled * scale,
+            err_msg=f"channel {ch}: x data should be original-domain (scaled by {scale})",
+        )
+    plt.close(fig)
+
+
+def test_plot_curve_without_original_scale_index(auto_close_figures) -> None:
+    """plot_curve shows scaled 0-1 x values when no OriginalScaleIndex is attached."""
+    channels = np.array(["x1", "x2"])
+    x = np.linspace(0, 1, 10)
+    rng = np.random.default_rng(42)
+    data = rng.normal(size=(2, 50, len(channels), len(x)))
+    curve = xr.DataArray(
+        data,
+        dims=["chain", "draw", "channel", "x"],
+        coords={"chain": [0, 1], "draw": np.arange(50), "channel": channels, "x": x},
+    )
+    fig, axes = plot_curve(curve, non_grid_names={"x"})
+    assert isinstance(fig, plt.Figure)
+    for ax in axes.flat:
+        lines = ax.get_lines()
+        assert len(lines) > 0
+        np.testing.assert_allclose(
+            lines[0].get_xdata(),
+            x,
+            err_msg="x data should be scaled 0-1 when no OriginalScaleIndex is attached",
+        )
+    plt.close(fig)
 
 
 @pytest.mark.parametrize(
