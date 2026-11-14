@@ -46,6 +46,7 @@ from pymc_marketing.mmm import (
     TimeSliceCrossValidator,
 )
 from pymc_marketing.mmm.additive_effect import (
+    ControlMuEffect,
     DataVarMuEffect,
     EventAdditiveEffect,
     LinearTrendEffect,
@@ -405,6 +406,20 @@ def test_fit_with_dataset_embedded_target(single_dim_data):
     assert not mmm.xarray_dataset["_channel"].isnull().any()
 
 
+class _SegmentEffect(DataVarMuEffect):
+    """Reads a ``(date, geo, segment)`` variable, which a long frame cannot hold.
+
+    Defined at module level so that ``MMM.load`` can import it by ``__type__``.
+    """
+
+    def create_effect(self, mmm):  # type: ignore[override]
+        coef = pmd.Normal(f"{self.prefix}_coef", 0, 1, dims=("segment",))
+        return pmd.Deterministic(
+            f"{self.prefix}_contribution",
+            (coef * mmm.model[self.data_vars[0]]).sum("segment"),
+        )
+
+
 class TestFitWithXarrayInput:
     """Regression tests for #3227: ``fit`` accepts the documented xarray inputs.
 
@@ -667,6 +682,27 @@ class TestFitWithXarrayInput:
         xr.testing.assert_allclose(loaded.xarray_dataset, mmm.xarray_dataset)
         xr.testing.assert_equal(loaded.idata.posterior, mmm.idata.posterior)
 
+    @pytest.mark.parametrize("date_column", ["date", "week"])
+    def test_build_from_idata_reads_the_legacy_fit_data_layout(
+        self, inputs, date_column, mock_pymc_sample
+    ):
+        """``fit_data`` with one row dim and the date as a variable still loads.
+
+        Files written before ``fit_data`` had ``(date, *dims)`` coordinates store
+        the flat frame passed to ``fit``.
+        """
+        mmm = self._mmm(inputs["dims"], self.CONTROLS, date_column=date_column)
+        X_df = inputs["X_df"].rename(columns={"date": date_column})
+        mmm.fit(X_df, inputs["y"])
+        legacy = pd.concat([X_df, inputs["y"]], axis=1).to_xarray()
+        idata = mmm.idata.copy()
+        idata["fit_data"] = xr.DataTree(legacy)
+
+        rebuilt = self._mmm(inputs["dims"], self.CONTROLS, date_column=date_column)
+        rebuilt.build_from_idata(idata)
+
+        xr.testing.assert_allclose(rebuilt.xarray_dataset, mmm.xarray_dataset)
+
     def test_build_from_idata_raises_when_posterior_labels_differ(
         self, mock_pymc_sample
     ):
@@ -686,6 +722,348 @@ class TestFitWithXarrayInput:
 
         with pytest.raises(ValueError, match=r"'geo' labels of the data .* posterior"):
             self._mmm(("geo",), self.CONTROLS).build_from_idata(idata)
+
+    def _dataset_with_promo(self, promo_dims: tuple[str, ...]) -> xr.Dataset:
+        """Unsorted panel Dataset plus a ``promo`` variable on ``promo_dims``."""
+        ds = self._unsorted_panel_dataset()
+        coords = {
+            "date": ds["date"].values,
+            "geo": ds["geo"].values,
+            "segment": ["s3", "s1", "s2"],
+        }
+        rng = np.random.default_rng(2938)
+        promo = xr.DataArray(
+            rng.normal(size=[len(coords[dim]) for dim in promo_dims]),
+            dims=promo_dims,
+            coords={dim: coords[dim] for dim in promo_dims},
+        )
+        return ds.assign(promo=promo)
+
+    def _fit_frame(self, ds: xr.Dataset, date_column: str) -> pd.DataFrame:
+        """``ds`` as a long frame of media, controls and target, without ``promo``."""
+        return (
+            xr.merge(
+                [
+                    ds["media"].to_dataset("channel"),
+                    ds["_control"].to_dataset("control"),
+                    ds["target"].rename("y"),
+                ]
+            )
+            .to_dataframe()
+            .reset_index()
+            .rename(columns={"date": date_column})
+        )
+
+    @pytest.mark.parametrize("date_column", ["date", "week"])
+    @pytest.mark.parametrize("fit_from", ["dataset", "dataframe"])
+    @pytest.mark.parametrize(
+        "promo_dims, effect",
+        [
+            (("date", "geo"), ControlMuEffect(data_vars=["promo"], prefix="promo")),
+            (("date",), ControlMuEffect(data_vars=["promo"], prefix="promo")),
+            (("geo",), ControlMuEffect(data_vars=["promo"], prefix="promo")),
+            (
+                ("date", "geo", "segment"),
+                _SegmentEffect(data_vars=["promo"], prefix="promo"),
+            ),
+        ],
+        ids=["date-geo", "date-only", "geo-only", "extra-dim"],
+    )
+    def test_save_load_keeps_mu_effect_data(
+        self, promo_dims, effect, fit_from, date_column, tmp_path, mock_pymc_sample
+    ):
+        """``MMM.load`` rebuilds a model whose mu_effect reads data missing from X (#2938).
+
+        The effect data only exists in the Dataset the model was built from, so
+        ``fit_data`` must store it with its own dims and ``load`` must put it back.
+        """
+        ds = self._dataset_with_promo(promo_dims)
+        mmm = self._mmm(("geo",), self.CONTROLS, date_column=date_column)
+        mmm.add_mu_effect(effect)
+        if fit_from == "dataset":
+            mmm.fit(ds)
+        else:
+            mmm.build_model(ds)
+            df = self._fit_frame(ds, date_column)
+            mmm.fit(df.drop(columns="y"), df["y"])
+
+        stored = mmm.idata.fit_data["promo"]
+        assert stored.dims == tuple(
+            date_column if dim == "date" else dim for dim in promo_dims
+        )
+
+        file = str(tmp_path / "mu_effect_data.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        xr.testing.assert_allclose(loaded.xarray_dataset, mmm.xarray_dataset)
+        assert {dim: list(v) for dim, v in loaded.model.coords.items()} == {
+            dim: list(v) for dim, v in mmm.model.coords.items()
+        }
+        dims = loaded.model.named_vars_to_dims["promo"]
+        got = xr.DataArray(
+            loaded.model["promo"].eval(),
+            dims=dims,
+            coords={dim: list(loaded.model.coords[dim]) for dim in dims},
+        )
+        xr.testing.assert_allclose(got, ds["promo"].transpose(*dims).reindex_like(got))
+
+    @pytest.mark.parametrize(
+        "promo_dims, effect",
+        [
+            (("date",), ControlMuEffect(data_vars=["promo"], prefix="promo")),
+            (
+                ("date", "geo", "segment"),
+                _SegmentEffect(data_vars=["promo"], prefix="promo"),
+            ),
+        ],
+        ids=["date-only", "extra-dim"],
+    )
+    def test_save_load_keeps_mu_effect_data_with_string_dates(
+        self, promo_dims, effect, tmp_path, mock_pymc_sample
+    ):
+        """mu_effect data loads with its values when the ``date`` labels are strings.
+
+        Effect data off the ``(date, *dims)`` layout used to be restored as all
+        NaN, because its string dates did not match the converted dates.
+        """
+        ds = self._dataset_with_promo(promo_dims)
+        ds = ds.assign_coords(
+            date=ds.indexes["date"].strftime("%Y-%m-%d").to_numpy(dtype=object)
+        )
+        mmm = self._mmm(("geo",), self.CONTROLS)
+        mmm.add_mu_effect(effect)
+        mmm.fit(ds)
+
+        file = str(tmp_path / "string_dates.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        got = loaded.model["promo"].eval()
+        assert not np.isnan(got).any()
+        np.testing.assert_allclose(got, mmm.model["promo"].eval())
+
+    @pytest.mark.parametrize("date_column", ["date", "week"])
+    def test_save_load_keeps_mu_effect_data_from_fit_frame(
+        self, date_column, tmp_path, mock_pymc_sample
+    ):
+        """``MMM.load`` rebuilds a model whose mu_effect data is a column of X (#2938).
+
+        Case 1 of the issue: ``promo`` is on ``(date, geo)`` and the frame passed
+        to ``fit`` holds it, so ``fit_data`` stores it from that frame.
+        """
+        ds = self._dataset_with_promo(("date", "geo"))
+        mmm = self._mmm(("geo",), self.CONTROLS, date_column=date_column)
+        mmm.add_mu_effect(ControlMuEffect(data_vars=["promo"], prefix="promo"))
+        mmm.build_model(ds)
+        promo = ds["promo"].to_dataframe().reset_index()
+        df = self._fit_frame(ds, date_column).merge(
+            promo.rename(columns={"date": date_column}), on=[date_column, "geo"]
+        )
+        # X holds the same promo as the built model, so nothing warns.
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            mmm.fit(df.drop(columns="y"), df["y"])
+
+        assert mmm.idata.fit_data["promo"].dims == (date_column, "geo")
+
+        file = str(tmp_path / "mu_effect_frame.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        xr.testing.assert_allclose(loaded.xarray_dataset, mmm.xarray_dataset)
+        dims = loaded.model.named_vars_to_dims["promo"]
+        got = xr.DataArray(
+            loaded.model["promo"].eval(),
+            dims=dims,
+            coords={dim: list(loaded.model.coords[dim]) for dim in dims},
+        )
+        xr.testing.assert_allclose(got, ds["promo"].transpose(*dims).reindex_like(got))
+
+    @pytest.mark.parametrize("fit_from", ["dataset", "dataframe"])
+    def test_loaded_model_predicts_like_the_saved_one_with_mu_effect_data(
+        self, fit_from, tmp_path, mock_pymc_sample
+    ):
+        """A loaded model predicts on new mu_effect data like the saved one (#2938).
+
+        ``promo`` has an extra ``segment`` dim, so ``load`` must restore it with
+        that dim for ``set_data`` to write the new values. The new data has fewer
+        dates than the training data, so stale ``promo`` values would not fit.
+        """
+        ds = self._dataset_with_promo(("date", "geo", "segment"))
+        mmm = self._mmm(("geo",), self.CONTROLS)
+        mmm.add_mu_effect(_SegmentEffect(data_vars=["promo"], prefix="promo"))
+        if fit_from == "dataset":
+            mmm.fit(ds)
+        else:
+            mmm.build_model(ds)
+            df = self._fit_frame(ds, "date")
+            mmm.fit(df.drop(columns="y"), df["y"])
+        file = str(tmp_path / "predict_after_load.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        # Four dates after the training data, with new values.
+        new_dates = pd.date_range(ds["date"].values[-1], periods=5, freq="W-MON")[1:]
+        X_new = ds[["media", "_control", "promo"]].isel(date=slice(4)) * 2
+        X_new = X_new.assign_coords(date=new_dates)
+        kwargs = {
+            "var_names": ["promo_contribution", "y"],
+            "extend_idata": False,
+            "progressbar": False,
+            "random_seed": 0,
+        }
+        expected = mmm.sample_posterior_predictive(X_new, **kwargs)
+        got = loaded.sample_posterior_predictive(X_new, **kwargs)
+
+        assert got.sizes["date"] == 4
+        xr.testing.assert_allclose(got, expected)
+
+    def test_save_load_keeps_mu_effect_data_with_string_dates_in_fit_frame(
+        self, tmp_path, mock_pymc_sample
+    ):
+        """mu_effect data is stored when X holds the dates as strings.
+
+        The model is built from a Dataset with datetime dates and fit on a frame
+        with the same dates as strings, so the labels only differ in type.
+        """
+        ds = self._dataset_with_promo(("date", "geo", "segment"))
+        mmm = self._mmm(("geo",), self.CONTROLS)
+        mmm.add_mu_effect(_SegmentEffect(data_vars=["promo"], prefix="promo"))
+        mmm.build_model(ds)
+        df = self._fit_frame(ds, "date")
+        df["date"] = df["date"].dt.strftime("%Y-%m-%d")
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            mmm.fit(df.drop(columns="y"), df["y"])
+
+        assert "promo" in mmm.idata.fit_data
+        file = str(tmp_path / "string_dates_frame.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        got = loaded.model["promo"].eval()
+        assert not np.isnan(got).any()
+        np.testing.assert_allclose(got, mmm.model["promo"].eval())
+
+    def test_load_keeps_the_posterior_order_of_a_mu_effect_dim(
+        self, tmp_path, mock_pymc_sample
+    ):
+        """An extra mu_effect dim follows the posterior's label order after load.
+
+        The model is built with ``segment`` unsorted and fit on a Dataset with
+        ``segment`` sorted, so ``fit_data`` and the posterior disagree on order.
+        Posterior draws are matched by position, so the rebuilt model must use
+        the posterior's order.
+        """
+        ds = self._dataset_with_promo(("date", "geo", "segment"))
+        mmm = self._mmm(("geo",), self.CONTROLS)
+        mmm.add_mu_effect(_SegmentEffect(data_vars=["promo"], prefix="promo"))
+        mmm.build_model(ds)
+        mmm.fit(ds.reindex(segment=["s1", "s2", "s3"]))
+
+        file = str(tmp_path / "segment_order.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        posterior_order = list(mmm.idata.posterior.indexes["segment"])
+        assert posterior_order == ["s3", "s1", "s2"]
+        assert list(loaded.model.coords["segment"]) == posterior_order
+        dims = loaded.model.named_vars_to_dims["promo"]
+        got = xr.DataArray(
+            loaded.model["promo"].eval(),
+            dims=dims,
+            coords={dim: list(loaded.model.coords[dim]) for dim in dims},
+        )
+        xr.testing.assert_allclose(got, ds["promo"].transpose(*dims).reindex_like(got))
+
+    def test_fit_data_takes_mu_effect_data_from_dataset_x(self, mock_pymc_sample):
+        """``fit_data`` stores the mu_effect data of the Dataset passed to fit.
+
+        The model is built from one Dataset and fit on another with the same
+        labels, as the DataFrame branch prefers the columns of X. The posterior
+        is fit on the built data, so this warns.
+        """
+        ds_build = self._dataset_with_promo(("date", "geo", "segment"))
+        ds_fit = ds_build.assign(promo=ds_build["promo"] * 2)
+        mmm = self._mmm(("geo",), self.CONTROLS)
+        mmm.add_mu_effect(_SegmentEffect(data_vars=["promo"], prefix="promo"))
+        mmm.build_model(ds_build)
+
+        with pytest.warns(UserWarning, match=r"\['promo'\] passed to fit differs"):
+            mmm.fit(ds_fit)
+
+        xr.testing.assert_allclose(
+            mmm.idata.fit_data.to_dataset()["promo"],
+            ds_fit["promo"].transpose("date", "geo", "segment"),
+        )
+
+    def test_create_fit_data_keeps_mu_effect_data_without_a_built_model(self):
+        """``create_fit_data`` stores the mu_effect data of X before the model is built."""
+        ds = self._dataset_with_promo(("date", "geo", "segment"))
+        mmm = self._mmm(("geo",), self.CONTROLS)
+        mmm.add_mu_effect(_SegmentEffect(data_vars=["promo"], prefix="promo"))
+
+        fit_data = mmm.create_fit_data(ds)
+
+        xr.testing.assert_allclose(
+            fit_data["promo"], ds["promo"].transpose("date", "geo", "segment")
+        )
+
+    def test_save_load_keeps_mu_effect_data_built_with_string_dates(
+        self, tmp_path, mock_pymc_sample
+    ):
+        """mu_effect data is stored when the built model holds string dates.
+
+        The model is built from a Dataset with string dates, which keep their
+        type, and fit on a frame with the same dates as datetimes.
+        """
+        ds = self._dataset_with_promo(("date", "geo", "segment"))
+        df = self._fit_frame(ds, "date")
+        ds = ds.assign_coords(
+            date=ds.indexes["date"].strftime("%Y-%m-%d").to_numpy(dtype=object)
+        )
+        mmm = self._mmm(("geo",), self.CONTROLS)
+        mmm.add_mu_effect(_SegmentEffect(data_vars=["promo"], prefix="promo"))
+        mmm.build_model(ds)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            mmm.fit(df.drop(columns="y"), df["y"])
+
+        assert "promo" in mmm.idata.fit_data
+        file = str(tmp_path / "built_string_dates.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        got = loaded.model["promo"].eval()
+        assert not np.isnan(got).any()
+        np.testing.assert_allclose(got, mmm.model["promo"].eval())
+
+    def test_fit_warns_when_mu_effect_data_labels_differ(self, mock_pymc_sample):
+        """``fit_data`` skips mu_effect data whose labels differ from the fit data."""
+        ds = self._dataset_with_promo(("date", "geo", "segment"))
+        mmm = self._mmm(("geo",), self.CONTROLS)
+        mmm.add_mu_effect(_SegmentEffect(data_vars=["promo"], prefix="promo"))
+        mmm.build_model(ds)
+        df = self._fit_frame(ds, "date").query("geo == 'north'")
+
+        with pytest.warns(
+            UserWarning, match=r"'geo' labels of the built model"
+        ) as record:
+            mmm.fit(df.drop(columns="y"), df["y"])
+
+        assert "promo" not in mmm.idata.fit_data
+        # The warning points at the caller of fit, not at library code.
+        (warning,) = [w for w in record if "mu_effect data" in str(w.message)]
+        assert warning.filename == __file__
+
+        # create_fit_data is public: a direct call points at its caller too.
+        with pytest.warns(UserWarning, match=r"'geo' labels") as record:
+            mmm.create_fit_data(df.drop(columns="y"), df["y"])
+        (warning,) = [w for w in record if "mu_effect data" in str(w.message)]
+        assert warning.filename == __file__
 
 
 def test_fit_with_dataframe_embedded_target_column(simple_mmm_data, mock_pymc_sample):
