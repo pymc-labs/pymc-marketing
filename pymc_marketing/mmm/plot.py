@@ -3538,7 +3538,7 @@ class MMMPlotSuite:
                 sweep_type="multiplicative",
                 extend_idata=True,
             )
-            results = mmm.idata["sensitivity_analysis"]["x"]
+            results = mmm.idata.sensitivity_analysis["x"]
             uplift = sa.compute_uplift_curve_respect_to_base(
                 results, ref=1.0, extend_idata=True
             )
@@ -3642,7 +3642,7 @@ class MMMPlotSuite:
                 sweep_type="multiplicative",
                 extend_idata=True,
             )
-            results = mmm.idata["sensitivity_analysis"]["x"]
+            results = mmm.idata.sensitivity_analysis["x"]
             me = sa.compute_marginal_effects(results, extend_idata=True)
             _ = mmm.plot.marginal_curve(hdi_prob=0.9)
         """
