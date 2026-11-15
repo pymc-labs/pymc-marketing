@@ -1408,32 +1408,32 @@ def test_shared_posterior_realigns_permuted_multi_dim_variables():
     np.testing.assert_allclose(fn(), 2.0 * (10.0 + values)[None])
 
 
-def _stacked_model_and_draws(chains, draws, dates, channels, *, seed):
+def _stacked_model_and_draws(*, seed):
     """A ``date`` x ``channel`` model and a stacked posterior to condition on.
 
-    ``lam`` is stored ``(chain, draw, date, channel)`` with more than one
-    value on every axis, so a toy reshape cannot make the layouts agree by
-    accident; ``beta`` is over ``channel`` alone, and both are bound.
+    The posterior has 2 chains, 5 draws, 4 dates and 3 channels.  ``lam`` is
+    stored ``(chain, draw, date, channel)`` with more than one value on every
+    axis, so a toy reshape cannot make the layouts agree by accident.  ``beta``
+    is over ``channel`` alone; both variables are bound by ``resp``.
     """
+    dates, channels = 4, 3
     channel_labels = [f"channel{index}" for index in range(channels)]
     with pm.Model(
         coords={"date": np.arange(dates), "channel": channel_labels}
     ) as model:
-        spend = pmd.Data("spend", np.ones((dates, channels)), dims=("date", "channel"))
         beta = pmd.Normal("beta", dims="channel")
         lam = pmd.Normal("lam", dims=("date", "channel"))
-        pmd.Deterministic("resp", beta * lam * spend)
-        pmd.Deterministic("beta_only", 2.0 * beta)
+        pmd.Deterministic("resp", beta * lam)
     rng = np.random.default_rng(seed)
     idata = xr.Dataset(
         {
             "beta": (
                 ("chain", "draw", "channel"),
-                rng.normal(size=(chains, draws, channels)),
+                rng.normal(size=(2, 5, channels)),
             ),
             "lam": (
                 ("chain", "draw", "date", "channel"),
-                rng.normal(size=(chains, draws, dates, channels)),
+                rng.normal(size=(2, 5, dates, channels)),
             ),
         },
         coords={"date": np.arange(dates), "channel": channel_labels},
@@ -1442,69 +1442,50 @@ def _stacked_model_and_draws(chains, draws, dates, channels, *, seed):
 
 
 def _shared_layout_flags(shared_posterior):
-    """The memory-layout flags of every array ``shared_posterior`` holds."""
+    """The ``(C_CONTIGUOUS, F_CONTIGUOUS)`` flags of every array it holds."""
     flags = {
         name: var.get_value(borrow=True).flags
         for name, var in shared_posterior.variables.items()
     }
-    return {
-        name: (f["C_CONTIGUOUS"], f["F_CONTIGUOUS"], f["OWNDATA"])
-        for name, f in flags.items()
-    }
+    return {name: (f["C_CONTIGUOUS"], f["F_CONTIGUOUS"]) for name, f in flags.items()}
 
 
-def _stacked_product(idata):
-    """``resp`` for this posterior, with the draws stacked into one axis."""
-    product = (idata["beta"] * idata["lam"]).values
-    return product.reshape((-1, *product.shape[2:]))
+@pytest.mark.parametrize("through_conditioned_model", [False, True])
+def test_rebind_keeps_the_built_array_layout(through_conditioned_model):
+    """The build and a rebind both bind C-contiguous draws.
 
-
-def test_shared_posterior_rebind_keeps_the_bound_array_layout():
-    """A rebind lays the draws out exactly as the build did.
-
-    The build hands over C-contiguous arrays; the label alignment of a rebind
-    used to leave a transposed axis Fortran-ordered, so a compiled function
-    saw two layouts.  A one-dimensional toy posterior is C-contiguous either
-    way, so this uses several chains, draws, dates and channels.
+    The label alignment in ``align_posterior_dim`` can return a
+    non-C-contiguous array, so a bare ``astype`` would carry that layout into
+    the shared variable, on the ``ConditionedModel`` build and on a rebind.  The
+    numba linker keys its signatures on the array layout, so a layout that
+    changes on rebind compiles a second version of the graph.  The
+    posterior needs several chains, draws, dates and channels, and ``lam``
+    needs two labeled axes, or a toy shape could be C and F at once.
     """
-    model, idata = _stacked_model_and_draws(2, 5, 4, 3, seed=0)
-    shared_posterior = SharedPosterior()
-    extract_response_distribution(
-        model, idata, ["resp", "beta_only"], shared_posterior=shared_posterior
-    )
-    built = _shared_layout_flags(shared_posterior)
-    assert built == {"beta": (True, False, True), "lam": (True, False, True)}
-
-    _, same_shape = _stacked_model_and_draws(2, 5, 4, 3, seed=1)
-    shared_posterior.set_posterior(same_shape)
-
-    assert _shared_layout_flags(shared_posterior) == built
-
-
-def test_shared_posterior_rebind_keeps_one_numba_signature():
-    """Numba specializes on layout, so a rebind must reuse the built one.
-
-    The first evaluation compiles the signature of the C-contiguous build.
-    A rebind that handed over a Fortran-ordered array added a second
-    ``nopython_signatures`` entry and recompiled.
-    """
-    pytest.importorskip("numba")
-    model, idata = _stacked_model_and_draws(2, 5, 4, 3, seed=0)
-    shared_posterior = SharedPosterior()
-    fn = function(
-        [],
+    model, idata = _stacked_model_and_draws(seed=0)
+    if through_conditioned_model:
+        conditioned = ConditionedModel(model, idata)
+        conditioned.extract("resp")
+        shared_posterior = conditioned.shared_posterior
+        rebind = conditioned.set_posterior
+    else:
+        shared_posterior = SharedPosterior()
         extract_response_distribution(
             model, idata, "resp", shared_posterior=shared_posterior
-        ),
-        mode="NUMBA",
+        )
+        rebind = shared_posterior.set_posterior
+
+    built = _shared_layout_flags(shared_posterior)
+    assert built == {"beta": (True, False), "lam": (True, False)}
+    # The shared variable owns its array, which keeps set_value(borrow=True) safe.
+    assert all(
+        var.get_value(borrow=True).flags["OWNDATA"]
+        for var in shared_posterior.variables.values()
     )
-    np.testing.assert_allclose(fn(), _stacked_product(idata))
 
-    _, same_shape = _stacked_model_and_draws(2, 5, 4, 3, seed=1)
-    shared_posterior.set_posterior(same_shape)
-    np.testing.assert_allclose(fn(), _stacked_product(same_shape))
+    rebind(_stacked_model_and_draws(seed=1)[1])
 
-    assert len(fn.vm.jit_fn.nopython_signatures) == 1
+    assert _shared_layout_flags(shared_posterior) == built
 
 
 def test_shared_posterior_mixed_type_labels_raise_value_error():

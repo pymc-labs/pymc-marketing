@@ -814,9 +814,10 @@ class SharedPosterior:
         # astype always allocates, so the shared variable owns the array and
         # borrow=True cannot alias the caller's data.
         # The C order matches the layout _get_or_create binds: the numba
-        # linker keys its signatures on the array layout, so an axis reordering
-        # in the rebind path would otherwise hand over a Fortran-ordered array
-        # and the first rebind would compile a second version of the graph.
+        # linker keys its signatures on the array layout.  The label alignment
+        # in align_posterior_dim can return a non-C-contiguous array, so a bare
+        # astype would hand over that layout and the first rebind would
+        # compile a second version of the graph.
         return aligned.values.astype(var.type.dtype, order="C")
 
     def _get_or_create(self, posterior_da: xr.DataArray, *, name: str, dtype: str):
