@@ -307,6 +307,32 @@ class SensitivityAnalysis:
             [name for name in draws.indexes if name not in ("chain", "draw")]
         )
 
+    def _length_mismatches(self, draws: xr.Dataset) -> list[str]:
+        """Describe each read variable whose length on a dim is not the model's.
+
+        Parameters
+        ----------
+        draws : xr.Dataset
+            The draws :meth:`_posterior_draws` returned.
+
+        Returns
+        -------
+        list of str
+            One description per posterior variable and dim whose length differs
+            from the number of coordinates the model has for that dim; empty
+            when every length fits.
+        """
+        mismatches = []
+        for name, variable in draws.data_vars.items():
+            for dim, length in variable.sizes.items():
+                coords = self.model.coords.get(dim)
+                if coords is not None and len(coords) != length:
+                    mismatches.append(
+                        f"{name!r} has length {length} on {dim!r}, the model has "
+                        f"{len(coords)}"
+                    )
+        return mismatches
+
     def _prepare_response_mask(
         self,
         response_mask: xr.DataArray | np.ndarray,
@@ -477,8 +503,10 @@ class SensitivityAnalysis:
             response reads outside its frozen deterministics.
             If ``sweep_type`` is not one of the three supported types.
             If ``response_mask`` does not match the response's dimensions.
-            If the posterior cannot be evaluated by the model, for example one
-            with a different number of channels than the model has.
+            If the sweep cannot be evaluated with a posterior variable whose
+            length on a dim differs from the model's, for example one with
+            another number of channels.  The error names the variable and the
+            dim.
         TypeError
             If ``response_mask`` cannot be cast to boolean.
 
@@ -535,11 +563,22 @@ class SensitivityAnalysis:
             mask_shape=None if mask_values is None else mask_values.shape,
         )
         compiled = function(inputs, graph)
-        result = (
-            compiled(sweep_values)
-            if mask_values is None
-            else compiled(sweep_values, mask_values)
+        arguments = (
+            (sweep_values,) if mask_values is None else (sweep_values, mask_values)
         )
+        try:
+            result = compiled(*arguments)
+        except Exception as err:
+            # A posterior of another size than the model fails here, with a
+            # message about the shape of an input of the compiled function.  It
+            # is not refused before compiling: a response that reduces such a
+            # dim before it meets the data evaluates.
+            mismatches = self._length_mismatches(posterior)
+            if not mismatches:
+                raise
+            raise ValueError(
+                "The posterior does not fit the model: " + "; ".join(mismatches) + "."
+            ) from err
         xr_result = self._sweep_dataarray(graph.dims, result, sweep_values)
 
         if extend_idata:

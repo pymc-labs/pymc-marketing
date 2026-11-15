@@ -1202,6 +1202,50 @@ def test_run_sweep_checks_its_arguments_before_it_reads_the_posterior(
         SensitivityAnalysis(model, missing).run_sweep(**kwargs)
 
 
+@pytest.mark.parametrize("n_channels", [3, 5], ids=["fewer-labels", "more-labels"])
+def test_run_sweep_names_the_posterior_variable_that_does_not_fit_the_model(
+    simple_model_and_idata, n_channels
+):
+    """A posterior with another number of labels names the variable and the dim.
+
+    Four channels of data cannot be evaluated against three or five channels of
+    draws.  The error says which posterior variable and dim do not fit, not which
+    input of the compiled function had the wrong shape.
+    """
+    model, _ = simple_model_and_idata
+    draws = xr.DataArray(
+        np.full((1, 5, n_channels), 0.8),
+        dims=["chain", "draw", "channel"],
+        coords={"channel": list("abcde")[:n_channels]},
+    )
+    idata = xr.DataTree.from_dict(
+        {"/posterior": xr.Dataset({"alpha": draws, "lam": draws + 0.4})}
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=f"'alpha' has length {n_channels} on 'channel', the model has 4",
+    ):
+        SensitivityAnalysis(model, idata).run_sweep(
+            "channel_data", np.linspace(0.5, 1.5, 4), **_SENSITIVITY_KWARGS
+        )
+
+
+def test_run_sweep_keeps_an_evaluation_error_a_fitting_posterior_did_not_cause(
+    sensitivity,
+):
+    """An error of the compiled sweep keeps its type when the posterior fits.
+
+    The compiled sweep refuses a two-dimensional sweep grid.  The posterior has
+    the model's sizes, so that error is not turned into the one for a posterior
+    that does not fit.
+    """
+    with pytest.raises(TypeError):
+        sensitivity.run_sweep(
+            "channel_data", np.ones((2, 2)), var_names="channel_contribution"
+        )
+
+
 def test_run_sweep_binds_the_draws_as_shared_variables(
     simple_model_and_idata, monkeypatch
 ):
