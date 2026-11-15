@@ -90,7 +90,7 @@ Notes
 
 import math
 import warnings
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import Literal
 
 import numpy as np
@@ -114,6 +114,15 @@ from pymc_marketing.pytensor_utils import (
     reorder_to_model_coords,
 )
 
+_SWEEP_COMBINATIONS: dict[
+    str, Callable[[XTensorVariable, XTensorVariable], XTensorVariable]
+] = {
+    "multiplicative": lambda sweep, base_value: sweep * base_value,
+    "additive": lambda sweep, base_value: sweep + base_value,
+    "absolute": lambda sweep, base_value: sweep.broadcast_like(base_value),
+}
+"""The swept input of each sweep type, from the sweep grid and the model input."""
+
 
 def _compose_sweep(
     response: XTensorVariable,
@@ -134,7 +143,7 @@ def _compose_sweep(
     base_value : XTensorVariable
         The model input the sweep replaces.
     sweep_type : str
-        One of ``"multiplicative"``, ``"additive"`` or ``"absolute"``.
+        A key of ``_SWEEP_COMBINATIONS``; the caller checks it.
     mask_shape : tuple of int or None
         Shape of the response mask, or ``None`` for a sweep without one.
 
@@ -149,8 +158,7 @@ def _compose_sweep(
     Raises
     ------
     ValueError
-        If ``sweep_type`` is not one of the three supported types, or the
-        response graph does not read ``base_value``.
+        If the response graph does not read ``base_value``.
     """
     sweep = ptx.xtensor("sweep", dims=(Dim.SWEEP,))
     inputs: list[Variable] = [sweep]
@@ -162,15 +170,7 @@ def _compose_sweep(
         response = as_xtensor(response.values[~mask_bcast].set(0), dims=response.dims)
         inputs.append(mask)
 
-    match sweep_type:
-        case "multiplicative":
-            sweep_combinations = sweep * base_value
-        case "additive":
-            sweep_combinations = sweep + base_value
-        case "absolute":
-            sweep_combinations = sweep.broadcast_like(base_value)
-        case _:
-            raise ValueError(f"Unknown sweep_type {sweep_type!r}")
+    sweep_combinations = _SWEEP_COMBINATIONS[sweep_type](sweep, base_value)
 
     # Vectorizing over an input the response graph does not read fails inside
     # PyTensor with a message about a missing dimension, so the case is named
@@ -505,6 +505,10 @@ class SensitivityAnalysis:
                 "require a response with a 'date' dimension, for example one "
                 "built with pmd.Deterministic(..., dims=(...))."
             )
+        # The cheap checks come before the posterior is read and the graph built.
+        base_value = self.model[var_input]
+        if sweep_type not in _SWEEP_COMBINATIONS:
+            raise ValueError(f"Unknown sweep_type {sweep_type!r}")
 
         posterior = self._posterior_draws(var_names, posterior_sample_fraction)
         mask_values = (
@@ -526,7 +530,7 @@ class SensitivityAnalysis:
         )
         inputs, graph = _compose_sweep(
             response=response_graph,
-            base_value=self.model[var_input],
+            base_value=base_value,
             sweep_type=sweep_type,
             mask_shape=None if mask_values is None else mask_values.shape,
         )

@@ -1170,6 +1170,38 @@ def test_run_sweep_a_posterior_missing_a_variable_names_it(simple_model_and_idat
     )
 
 
+@pytest.mark.parametrize(
+    ("arguments", "error", "match"),
+    [
+        ({"sweep_type": "quadratic"}, ValueError, "Unknown sweep_type 'quadratic'"),
+        ({"var_input": "not_in_the_model"}, KeyError, "not_in_the_model"),
+    ],
+    ids=["sweep-type", "var-input"],
+)
+def test_run_sweep_checks_its_arguments_before_it_reads_the_posterior(
+    simple_model_and_idata, arguments, error, match
+):
+    """A wrong argument is reported before the posterior is read.
+
+    The posterior here lacks a variable the response reads, which raises once
+    the posterior is read.  The argument's own error comes first.
+    """
+    model, _ = simple_model_and_idata
+    original = _channel_varying_posterior(model)
+    missing = xr.DataTree.from_dict(
+        {"posterior": original.posterior.to_dataset().drop_vars("alpha")}
+    )
+    kwargs = {
+        "var_input": "channel_data",
+        "sweep_values": np.linspace(0.5, 1.5, 4),
+        **_SENSITIVITY_KWARGS,
+        **arguments,
+    }
+
+    with pytest.raises(error, match=match):
+        SensitivityAnalysis(model, missing).run_sweep(**kwargs)
+
+
 def test_run_sweep_binds_the_draws_as_shared_variables(
     simple_model_and_idata, monkeypatch
 ):
