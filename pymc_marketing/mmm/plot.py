@@ -3530,13 +3530,15 @@ class MMMPlotSuite:
 
             sweeps = np.linspace(0.5, 1.5, 11)
             sa = mmm.sensitivity
-            results = sa.run_sweep(
+            # With extend_idata=True the sweep is stored and run_sweep returns None.
+            sa.run_sweep(
                 var_input="channel_data",
                 sweep_values=sweeps,
                 var_names="channel_contribution",
                 sweep_type="multiplicative",
                 extend_idata=True,
             )
+            results = mmm.idata["sensitivity_analysis"]["x"]
             uplift = sa.compute_uplift_curve_respect_to_base(
                 results, ref=1.0, extend_idata=True
             )
@@ -3632,13 +3634,15 @@ class MMMPlotSuite:
 
             sweeps = np.linspace(0.5, 1.5, 11)
             sa = mmm.sensitivity
-            results = sa.run_sweep(
+            # With extend_idata=True the sweep is stored and run_sweep returns None.
+            sa.run_sweep(
                 var_input="channel_data",
                 sweep_values=sweeps,
                 var_names="channel_contribution",
                 sweep_type="multiplicative",
                 extend_idata=True,
             )
+            results = mmm.idata["sensitivity_analysis"]["x"]
             me = sa.compute_marginal_effects(results, extend_idata=True)
             _ = mmm.plot.marginal_curve(hdi_prob=0.9)
         """
