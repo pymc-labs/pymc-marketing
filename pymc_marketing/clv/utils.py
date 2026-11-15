@@ -789,9 +789,9 @@ _LEGACY_TO_NEW: dict[str, tuple[str, str]] = {
     "M": ("1mo", "month"),
 }
 _SEGMENT_METRICS = (
-    ("r_quartile", "recency"),
-    ("f_quartile", "frequency"),
-    ("m_quartile", "monetary_value"),
+    (Col.R_QUARTILE, Col.RECENCY),
+    (Col.F_QUARTILE, Col.FREQUENCY),
+    (Col.M_QUARTILE, Col.MONETARY_VALUE),
 )
 _QUARTILE_PROBABILITIES = (0.0, 0.25, 0.5, 0.75, 1.0)
 
@@ -972,12 +972,15 @@ def _rfm_summary_frame(
 
     if include_first_transaction:
         # Segmentation definition: time since the last purchase.
-        summary = [n_periods.alias("frequency"), (t_value - recency).alias("recency")]
+        summary = [
+            n_periods.alias(Col.FREQUENCY),
+            (t_value - recency).alias(Col.RECENCY),
+        ]
     else:
         summary = [
-            (n_periods - 1).alias("frequency"),
-            recency.alias("recency"),
-            t_value.alias("T"),
+            (n_periods - 1).alias(Col.FREQUENCY),
+            recency.alias(Col.RECENCY),
+            t_value.alias(Col.T),
         ]
 
     if monetary_value_col:
@@ -989,11 +992,11 @@ def _rfm_summary_frame(
                 .then(nw.col("_monetary_sum") / (n_periods - 1))
                 .otherwise(nw.lit(0.0))
             )
-        summary.append(monetary.cast(nw.Float64).alias("monetary_value"))
+        summary.append(monetary.cast(nw.Float64).alias(Col.MONETARY_VALUE))
 
     return customers.select(
-        nw.col(customer_id_col).alias("customer_id"), *summary
-    ).sort("customer_id")
+        nw.col(customer_id_col).alias(Col.CUSTOMER_ID), *summary
+    ).sort(Col.CUSTOMER_ID)
 
 
 def _rfm_summary_nw(
@@ -1105,9 +1108,9 @@ def _rfm_train_test_split_nw(
     test_data = (
         test_rows.group_by(customer_id_col)
         .agg(*test_aggs)
-        .rename({customer_id_col: "customer_id"})
+        .rename({customer_id_col: Col.CUSTOMER_ID})
     )
-    result = training.join(test_data, on="customer_id", how="left")
+    result = training.join(test_data, on=Col.CUSTOMER_ID, how="left")
 
     fill_columns = ["test_frequency"]
     if monetary_value_col:
@@ -1150,7 +1153,7 @@ def _rfm_train_test_split_nw(
         "test_T",
     ]
     return _finalize(
-        result.select(output_columns).sort("customer_id"),
+        result.select(output_columns).sort(Col.CUSTOMER_ID),
         backend,
         eager_input=eager_input,
     )
@@ -1249,7 +1252,7 @@ def _rfm_segments_nw(
     segment: Any = nw.lit("Other")
     for name, scores in segment_config.items():
         segment = (
-            nw.when(nw.col("rfm_score").is_in(list(scores)))
+            nw.when(nw.col(Col.RFM_SCORE).is_in(list(scores)))
             .then(nw.lit(name))
             .otherwise(segment)
         )
@@ -1258,17 +1261,17 @@ def _rfm_segments_nw(
         summary.with_columns(*score_columns)
         .with_columns(
             nw.concat_str(
-                nw.col("r_quartile"), nw.col("f_quartile"), nw.col("m_quartile")
-            ).alias("rfm_score")
+                nw.col(Col.R_QUARTILE), nw.col(Col.F_QUARTILE), nw.col(Col.M_QUARTILE)
+            ).alias(Col.RFM_SCORE)
         )
-        .with_columns(segment.alias("segment"))
+        .with_columns(segment.alias(Col.SEGMENT))
         .select(
-            "customer_id",
-            "frequency",
-            "recency",
-            "monetary_value",
-            "rfm_score",
-            "segment",
+            Col.CUSTOMER_ID,
+            Col.FREQUENCY,
+            Col.RECENCY,
+            Col.MONETARY_VALUE,
+            Col.RFM_SCORE,
+            Col.SEGMENT,
         )
     )
     return _finalize(result, backend, eager_input=eager_input)
