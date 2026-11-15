@@ -1174,9 +1174,10 @@ def test_run_sweep_a_posterior_missing_a_variable_names_it(simple_model_and_idat
     ("arguments", "error", "match"),
     [
         ({"sweep_type": "quadratic"}, ValueError, "Unknown sweep_type 'quadratic'"),
+        ({"sweep_type": ["additive"]}, ValueError, "Unknown sweep_type"),
         ({"var_input": "not_in_the_model"}, KeyError, "not_in_the_model"),
     ],
-    ids=["sweep-type", "var-input"],
+    ids=["sweep-type", "unhashable-sweep-type", "var-input"],
 )
 def test_run_sweep_checks_its_arguments_before_it_reads_the_posterior(
     simple_model_and_idata, arguments, error, match
@@ -1225,10 +1226,13 @@ def test_run_sweep_names_the_posterior_variable_that_does_not_fit_the_model(
     with pytest.raises(
         ValueError,
         match=f"'alpha' has length {n_channels} on 'channel', the model has 4",
-    ):
+    ) as error:
         SensitivityAnalysis(model, idata).run_sweep(
             "channel_data", np.linspace(0.5, 1.5, 4), **_SENSITIVITY_KWARGS
         )
+
+    # The error the compiled sweep raised stays attached.
+    assert error.value.__cause__ is not None
 
 
 def test_run_sweep_keeps_an_evaluation_error_a_fitting_posterior_did_not_cause(

@@ -505,10 +505,10 @@ class SensitivityAnalysis:
             response reads outside its frozen deterministics.
             If ``sweep_type`` is not one of the three supported types.
             If ``response_mask`` does not match the response's dimensions.
-            If the sweep cannot be evaluated with a posterior variable whose
-            length on a dim differs from the model's, for example one with
-            another number of channels.  The error names the variable and the
-            dim.
+            If the sweep cannot be evaluated and a posterior variable's length
+            on a dim differs from the model's, for example one with another
+            number of channels.  The error names the variable and the dim, for
+            a dim the model has coordinates for.
         TypeError
             If ``response_mask`` cannot be cast to boolean.
 
@@ -537,7 +537,7 @@ class SensitivityAnalysis:
             )
         # The cheap checks come before the posterior is read and the graph built.
         base_value = self.model[var_input]
-        if sweep_type not in _SWEEP_COMBINATIONS:
+        if not isinstance(sweep_type, str) or sweep_type not in _SWEEP_COMBINATIONS:
             raise ValueError(f"Unknown sweep_type {sweep_type!r}")
 
         posterior = self._posterior_draws(var_names, posterior_sample_fraction)
@@ -574,12 +574,14 @@ class SensitivityAnalysis:
             # A posterior of another size than the model fails here, with a
             # message about the shape of an input of the compiled function.  It
             # is not refused before compiling: a response that reduces such a
-            # dim before it meets the data evaluates.
+            # dim before it meets the data evaluates.  So the error reports the
+            # lengths that differ, without claiming they are the cause.
             mismatches = self._length_mismatches(posterior)
             if not mismatches:
                 raise
             raise ValueError(
-                "The posterior does not fit the model: " + "; ".join(mismatches) + "."
+                "The sweep could not be evaluated. These posterior variables do "
+                "not have the model's length: " + "; ".join(mismatches) + "."
             ) from err
         xr_result = self._sweep_dataarray(graph.dims, result, sweep_values)
 
