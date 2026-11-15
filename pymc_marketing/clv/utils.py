@@ -794,6 +794,8 @@ _SEGMENT_METRICS = (
     (Col.M_QUARTILE, Col.MONETARY_VALUE),
 )
 _QUARTILE_PROBABILITIES = (0.0, 0.25, 0.5, 0.75, 1.0)
+# Relative slack on a quartile edge when edges and bins come from two evaluations.
+_EDGE_TOLERANCE = 1e-12
 
 
 def _route(
@@ -1080,12 +1082,12 @@ def _rfm_train_test_split_nw(
         test_end = _coerce_period_end(test_period_end, time_zone, "test_period_end")
         test_mask = test_mask & (nw.col(datetime_col) <= nw.lit(test_end))
 
-    if isinstance(frame, nw.DataFrame):
-        # Only an eager input can be inspected without materialising a query.
-        if frame.filter(train_mask).is_empty() or frame.filter(test_mask).is_empty():
+    lazy = frame.lazy()
+    # One row per period is enough to tell; a lazy input runs two small queries.
+    for mask in (train_mask, test_mask):
+        if lazy.filter(mask).head(1).collect().is_empty():
             raise ValueError(_NO_DATA_MESSAGE)
 
-    lazy = frame.lazy()
     training = _rfm_summary_frame(
         lazy.filter(train_mask),
         customer_id_col,
@@ -1180,7 +1182,7 @@ def _rfm_segments_nw(
     number of distinct edges decides how many score labels exist, exactly as
     ``pandas.qcut(duplicates="drop")`` does on the legacy path. An eager input is
     summarised once; a lazy input evaluates the summary twice, once for the edges
-    and once for the final result.
+    and once for the final result, with a small tolerance on the edges.
     """
     unit, time_unit, week_start_offset = _resolve_time_spec(
         granularity, time_unit, week_start
@@ -1200,10 +1202,15 @@ def _rfm_segments_nw(
         time_unit,
         extra_divisor,
     )
+    # Parallel engines can return float sums that differ in their last bits between
+    # two evaluations, which moves a customer sitting on a quartile edge to another
+    # bin. An eager input is summarised once, so edges and bins see the same values.
+    # A lazy input stays lazy (the summary may not fit in memory) and gets a slack
+    # on each edge instead.
+    # shortcut: the slack is relative, so an edge at zero made by spend cancelling
+    # out can still flip; collect such transactions before calling.
+    edge_tolerance = 0.0 if eager_input else _EDGE_TOLERANCE
     if eager_input:
-        # Parallel engines can return float sums that differ in their last bits
-        # between two evaluations, which moves a customer sitting on a quartile
-        # edge to another bin. Edges and bins must see the same values.
         summary = summary.collect().lazy()
 
     edges = summary.select(
@@ -1227,6 +1234,7 @@ def _rfm_segments_nw(
             {float(edge_values[f"{metric}_{index}"]) for index in range(5)}
         )
         n_bins = len(unique_edges) - 1
+        unique_edges = [edge + edge_tolerance * abs(edge) for edge in unique_edges]
         if n_bins < 2:
             raise ValueError(
                 "Bin labels must be one fewer than the number of bin edges"
@@ -1610,10 +1618,9 @@ def rfm_train_test_split(
     Raises
     ------
     ValueError
-        If the training or the test period holds no transactions. A lazy input
-        (Polars ``LazyFrame``, DuckDB, ...) cannot be inspected without running the
-        query, so there the check is skipped: an empty training period gives an
-        empty result and an empty test period gives a null *test_T*.
+        If the training or the test period holds no transactions. For a lazy input
+        (Polars ``LazyFrame``, DuckDB, ...) this check runs two one-row queries
+        when the function is called; the result itself stays lazy.
 
     Examples
     --------
@@ -1786,12 +1793,13 @@ def rfm_segments(
 
     Notes
     -----
-    A lazy input (Polars ``LazyFrame``, DuckDB, ...) is evaluated twice, once for the
-    quartile edges and once for the result. Engines that add floats in parallel can
-    return a *monetary_value* that differs in its last bits between the two runs, so
-    a customer sitting exactly on a quartile edge may get a different score from one
-    call to the next. Collect the transactions first (or pass an eager dataframe)
-    when the scores must be reproducible.
+    A lazy input (Polars ``LazyFrame``, DuckDB, ...) stays lazy and is evaluated
+    twice, once for the quartile edges and once for the result. Engines that add
+    floats in parallel can return a *monetary_value* that differs in its last bits
+    between the two runs, so each edge is compared with a relative tolerance of
+    1e-12 to keep a customer sitting exactly on an edge in the same bin. The one
+    case this does not cover is an edge at zero that comes from spend cancelling
+    out (refunds); pass an eager dataframe when that can happen.
 
     Examples
     --------

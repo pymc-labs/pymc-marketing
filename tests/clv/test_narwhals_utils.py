@@ -781,23 +781,27 @@ class TestCrossBackendTrainTestSplit:
             "test_T",
         ]
 
-    def test_empty_training_period_raises_on_eager_input(
-        self, to_backend, transaction_data
-    ):
+    def test_empty_training_period_raises(self, to_backend, transaction_data):
         native = to_backend(transaction_data)
-        if isinstance(nw.from_native(native), nw.LazyFrame):
-            pytest.skip("lazy inputs cannot be inspected without materialising")
         with pytest.raises(ValueError, match="No data available"):
             rfm_train_test_split(
                 native, "identifier", "date", "2014-02-07", granularity="1d"
             )
 
-    def test_empty_test_period_raises_on_eager_input(
+    def test_no_transactions_after_training_period_raises(
         self, to_backend, transaction_data
     ):
+        with pytest.raises(ValueError, match="No data available"):
+            rfm_train_test_split(
+                to_backend(transaction_data),
+                "identifier",
+                "date",
+                "2015-02-08",
+                granularity="1d",
+            )
+
+    def test_empty_test_period_raises(self, to_backend, transaction_data):
         native = to_backend(transaction_data)
-        if isinstance(nw.from_native(native), nw.LazyFrame):
-            pytest.skip("lazy inputs cannot be inspected without materialising")
         with pytest.raises(ValueError, match="No data available"):
             rfm_train_test_split(
                 native,
@@ -1734,18 +1738,31 @@ class TestRegressions:
             assert result["customer_id"].tolist() == sorted(result["customer_id"])
             assert result.index.equals(pd.RangeIndex(len(result)))
 
-    def test_segments_are_reproducible_with_float_spend(self, to_backend):
-        rng = np.random.default_rng(0)
-        df = random_transactions(0).assign(spend=rng.gamma(2.0, 17.3, size=400))
+    @pytest.mark.parametrize("seed", [0, 2, 6])
+    def test_segments_are_reproducible_with_float_spend(self, to_backend, seed):
+        """Float sums differ in their last bits between runs of a parallel engine.
+
+        With an odd number of customers the median is one customer's own spend, so
+        that customer sits exactly on a quartile edge.
+        """
+        rng = np.random.default_rng(seed)
+        n_rows = 20_000
+        df = pd.DataFrame(
+            {
+                "id": rng.integers(0, 401, n_rows),
+                "date": pd.Timestamp("2015-01-01")
+                + pd.to_timedelta(rng.integers(0, 300, n_rows), unit="D"),
+                "spend": rng.gamma(2.0, 17.3, n_rows),
+            }
+        )
         native = to_backend(df)
-        if isinstance(native, pl.LazyFrame) or to_backend.backend_name == "duckdb":
-            pytest.skip("lazy inputs evaluate the summary twice; see rfm_segments")
-        first = collect_sorted(rfm_segments(native, "id", "date", "spend"))
-        for _ in range(10):
-            again = collect_sorted(rfm_segments(native, "id", "date", "spend"))
-            assert_frame_equal(again, first)
-        legacy = _rfm_segments_legacy(df, "id", "date", "spend")
-        assert first["rfm_score"].tolist() == sorted_frame(legacy)["rfm_score"].tolist()
+        scores = {
+            tuple(
+                collect_sorted(rfm_segments(native, "id", "date", "spend"))["rfm_score"]
+            )
+            for _ in range(15)
+        }
+        assert len(scores) == 1
 
     def test_first_period_spend_does_not_swamp_repeat_spend(self, to_backend):
         df = pd.DataFrame(
