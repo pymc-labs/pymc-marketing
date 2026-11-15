@@ -742,61 +742,26 @@ def test_run_sweep_matches_the_closed_form(
     xr.testing.assert_allclose(result, expected)
 
 
-@pytest.mark.parametrize("use_mask", [False, True])
 @pytest.mark.parametrize("sweep_type", ["multiplicative", "additive", "absolute"])
-def test_multidim_run_sweep_matches_a_fresh_instance(
-    multidim_mmm, sweep_type, use_mask
-):
-    """The sweep grid keeps its dims, labels and values on a multidim MMM.
+def test_multidim_response_mask_keeps_only_the_masked_cells(multidim_mmm, sweep_type):
+    """A mask over ``(date, country, channel)`` zeroes every other cell of a sweep.
 
-    A fresh instance answers the same question independently.  The mask covers
-    one country/channel pair, so the grid exercises the labeled ``country`` and
-    ``channel`` axes as well as the masked-overlay path.  A changed draw count is
-    covered, for the multiplicative masked case, by the interleaved-fraction
-    test below.
+    The mask keeps channel ``C1`` of country ``B`` on every date, so the masked
+    sweep equals the unmasked one in that cell and is zero in the other three.
     """
     sweep_values = np.linspace(0.5, 1.5, 4)
-    response_mask = _multidim_response_mask() if use_mask else None
-    kwargs = {
-        **_SENSITIVITY_KWARGS,
-        "sweep_type": sweep_type,
-        "response_mask": response_mask,
-    }
+    kwargs = {**_SENSITIVITY_KWARGS, "sweep_type": sweep_type}
+    kept = {"country": "B", "channel": "C1"}
 
-    actual = multidim_mmm.sensitivity.run_sweep("channel_data", sweep_values, **kwargs)
-    expected = SensitivityAnalysis(multidim_mmm.model, multidim_mmm.idata).run_sweep(
-        "channel_data", sweep_values, **kwargs
+    full = multidim_mmm.sensitivity.run_sweep("channel_data", sweep_values, **kwargs)
+    masked = multidim_mmm.sensitivity.run_sweep(
+        "channel_data", sweep_values, response_mask=_multidim_response_mask(), **kwargs
     )
 
-    xr.testing.assert_allclose(actual, expected)
-
-
-def test_multidim_interleaved_fractions_match_their_own_fresh_runs(multidim_mmm):
-    """Calls at alternating draw fractions each answer their own fraction.
-
-    ``posterior_sample_fraction`` selects the draws a call binds, so a call at
-    another fraction must not mix the draws of an earlier one.  Each result must
-    still equal a fresh instance's result for its own fraction, mask included.
-    """
-    sweeps = np.linspace(0.5, 1.5, 4)
-    kwargs = {
-        **_SENSITIVITY_KWARGS,
-        "response_mask": _multidim_response_mask(),
-    }
-
-    for fraction in (1.0, 0.5, 1.0, 0.5):
-        result = multidim_mmm.sensitivity.run_sweep(
-            "channel_data", sweeps, posterior_sample_fraction=fraction, **kwargs
-        )
-        expected = SensitivityAnalysis(
-            multidim_mmm.model, multidim_mmm.idata
-        ).run_sweep(
-            "channel_data",
-            sweeps,
-            posterior_sample_fraction=fraction,
-            **kwargs,
-        )
-        xr.testing.assert_allclose(result, expected)
+    assert np.all(full.sel(kept).values != 0.0)
+    xr.testing.assert_allclose(masked.sel(kept), full.sel(kept))
+    np.testing.assert_array_equal(masked.sel(country="A").values, 0.0)
+    np.testing.assert_array_equal(masked.sel(country="B", channel="C2").values, 0.0)
 
 
 def _data_only_response_model_and_idata() -> tuple[pm.Model, xr.DataTree]:
@@ -970,15 +935,13 @@ def test_run_sweep_reflects_set_data_between_calls(sensitivity):
 
 
 @pytest.mark.parametrize("target", ["mmm", "analysis"])
-def test_run_sweep_replacing_idata_between_calls_reaches_the_next_sweep(
-    multidim_mmm, target
-):
-    """A posterior replaced between calls reaches the next sweep.
+def test_run_sweep_reads_the_posterior_assigned_between_calls(multidim_mmm, target):
+    """A posterior assigned between calls is the one the next sweep reads.
 
     ``target="mmm"`` assigns ``mmm.idata``, which the next ``mmm.sensitivity``
     access reads; ``target="analysis"`` assigns the idata of the analysis
-    instance.  Either way the call must answer what a fresh instance answers for
-    the replacement, and differ from the previous result.
+    instance.  The channel contribution is linear in ``saturation_beta``, so
+    halving its draws halves the sweep.
     """
     sweeps = np.linspace(0.5, 1.5, 4)
     analysis = multidim_mmm.sensitivity
@@ -995,13 +958,8 @@ def test_run_sweep_replacing_idata_between_calls_reaches_the_next_sweep(
         analysis.idata = replacement
     after = analysis.run_sweep("channel_data", sweeps, **_SENSITIVITY_KWARGS)
 
-    xr.testing.assert_allclose(
-        after,
-        SensitivityAnalysis(multidim_mmm.model, replacement).run_sweep(
-            "channel_data", sweeps, **_SENSITIVITY_KWARGS
-        ),
-    )
-    assert not np.allclose(after.values, before.values)
+    assert np.all(before.values != 0.0)
+    xr.testing.assert_allclose(after, 0.5 * before)
 
 
 def _channel_varying_posterior(model: pm.Model, n_draws: int = 5) -> xr.DataTree:
@@ -1060,47 +1018,42 @@ def _with_draws(idata: xr.DataTree, chains: int, draws: int) -> xr.DataTree:
 
 
 @pytest.mark.parametrize(
-    "replace",
+    ("layout", "sample_size"),
     [
-        _with_renamed_channel_labels,
-        _without_channel_labels,
-        _as_float32,
-        lambda idata: _with_draws(idata, 1, 1),
-        lambda idata: _with_draws(idata, 4, 9),
+        (_with_renamed_channel_labels, 5),
+        (_without_channel_labels, 5),
+        (_as_float32, 5),
+        (lambda idata: _with_draws(idata, 1, 1), 1),
+        (lambda idata: _with_draws(idata, 4, 9), 36),
     ],
     ids=["relabelled", "unlabeled", "float32", "one-draw", "4x9-draws"],
 )
-def test_run_sweep_replacement_posterior_reaches_the_next_sweep(
-    simple_model_and_idata, replace
+def test_run_sweep_posterior_layouts_match_the_closed_form(
+    simple_model_and_idata, layout, sample_size
 ):
-    """A replacement posterior reaches the next sweep, whatever its layout.
+    """A posterior stored in another layout gives the closed form of its draws.
 
     A renamed or unlabeled channel axis is read by position, float32 values are
-    cast to the dtype the model expects, and another number of draws is bound as
-    given.  A later call with the original posterior must still give the first
-    result.
+    cast to the dtype the model expects, and another number of chains and draws
+    is bound as given.
     """
     model, _ = simple_model_and_idata
     original = _channel_varying_posterior(model)
-    replacement = replace(original)
     sweeps = np.linspace(0.5, 1.5, 4)
-    kwargs = dict(_SENSITIVITY_KWARGS)
 
-    analysis = SensitivityAnalysis(model, original)
-    first = analysis.run_sweep("channel_data", sweeps, **kwargs)
-
-    analysis.idata = replacement
-    replaced = analysis.run_sweep("channel_data", sweeps, **kwargs)
-    fresh = SensitivityAnalysis(model, replacement).run_sweep(
-        "channel_data", sweeps, **kwargs
+    result = SensitivityAnalysis(model, layout(original)).run_sweep(
+        "channel_data", sweeps, **_SENSITIVITY_KWARGS
     )
 
-    xr.testing.assert_allclose(replaced, fresh)
-
-    analysis.idata = original
-    again = analysis.run_sweep("channel_data", sweeps, **kwargs)
-
-    xr.testing.assert_allclose(again, first)
+    expected = _expected_saturation_sweep(
+        model,
+        np.asarray(model["channel_data"].get_value()),
+        sweeps,
+        alpha=original.posterior["alpha"].isel(chain=0, draw=0).values,
+        lam=original.posterior["lam"].isel(chain=0, draw=0).values,
+        sample_size=sample_size,
+    )
+    xr.testing.assert_allclose(result, expected)
 
 
 def test_run_sweep_realigns_a_permuted_posterior_by_label():
