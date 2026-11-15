@@ -1141,6 +1141,40 @@ def test_run_sweep_realigns_a_permuted_posterior_by_label():
     assert not np.allclose(positional.values, label_correct.values)
 
 
+def test_run_sweep_reads_duplicated_labels_by_position():
+    """A dim whose labels repeat is read by position.
+
+    Two events of the same name give such a dim.  Its labels cannot be
+    realigned, so the draws are bound in the order they are stored, and the sweep
+    gives the closed form for that order.
+    """
+    rng = np.random.default_rng(13)
+    channel_data = rng.gamma(2.0, 1.0, size=(6, 4))
+    coords = {"date": np.arange(6), "channel": ["a", "a", "b", "c"]}
+    with pm.Model(coords=coords) as model:
+        X = pmd.Data("channel_data", channel_data, dims=("date", "channel"))
+        alpha = pmd.Gamma("alpha", 1.0, 1.0, dims=("channel",))
+        lam = pmd.Gamma("lam", 1.0, 1.0, dims=("channel",))
+        pmd.Deterministic(
+            "channel_contribution", (alpha * X) / (X + lam), dims=("date", "channel")
+        )
+    idata = _channel_varying_posterior(model)
+    sweeps = np.linspace(0.5, 1.5, 4)
+
+    result = SensitivityAnalysis(model, idata).run_sweep(
+        "channel_data", sweeps, **_SENSITIVITY_KWARGS
+    )
+
+    expected = _expected_saturation_sweep(
+        model,
+        channel_data,
+        sweeps,
+        alpha=idata.posterior["alpha"].isel(chain=0).values,
+        lam=idata.posterior["lam"].isel(chain=0).values,
+    )
+    xr.testing.assert_allclose(result, expected)
+
+
 def test_run_sweep_a_posterior_missing_a_variable_names_it(simple_model_and_idata):
     """A posterior without a variable the response reads names it in the error."""
     model, _ = simple_model_and_idata

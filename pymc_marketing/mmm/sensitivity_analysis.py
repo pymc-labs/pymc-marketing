@@ -204,6 +204,12 @@ class SensitivityAnalysis:
             ),
             posterior,
         )
+        # The draws are in the model's order now and this SharedPosterior is
+        # never rebound, so they are bound by position.  Without the labels a
+        # dim whose labels repeat stays usable, as it is when read by position.
+        posterior = posterior.drop_vars(
+            [name for name in posterior.indexes if name not in ("chain", "draw")]
+        )
         return extract_response_distribution(
             pymc_model=self.model,
             idata=posterior,
@@ -444,9 +450,9 @@ class SensitivityAnalysis:
         -----
         The posterior in ``idata`` may be replaced between calls, for example by
         assigning ``mmm.idata``.  A posterior stored in another order of the
-        model's own labels is realigned by label; renamed or unlabeled coords are
-        bound by position.  The number of draws may change, and values are cast
-        to the dtype the model expects.
+        model's own labels is realigned by label; renamed, unlabeled or
+        duplicated labels are bound by position.  The number of draws may
+        change, and values are cast to the dtype the model expects.
         """
         response = self.model[var_names]
         response_dims = getattr(response, "dims", None)
