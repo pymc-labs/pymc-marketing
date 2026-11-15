@@ -37,6 +37,7 @@ from pymc_marketing.experimental.terms._data import _align_labels, _dates
 from pymc_marketing.mmm.components.base import Transformation
 from pymc_marketing.mmm.fourier import FourierBase
 from pymc_marketing.mmm.link import LinkFunction, get_link_spec
+from pymc_marketing.names.mmm import Dim
 from pymc_marketing.terms import (
     Dot,
     ModelTerm,
@@ -338,7 +339,7 @@ class Equation(GraphTerm):
         if not context.prediction and binding.observed is not None:
             prior.parameters["observed"] = context._observations(binding)
         value = prior.create_variable(binding.name, xdist=True)
-        if context.prediction and context.history_length and "date" in binding.dims:
+        if context.prediction and context.history_length and Dim.DATE in binding.dims:
             if binding.observed is None:
                 raise ValueError(
                     f"Observation-indexed latent equation {binding.name!r} cannot regenerate an unobserved history."
@@ -550,7 +551,7 @@ class BuildContext:
         ):
             raise ValueError("history_length must be a nonnegative integer.")
         if history_length and (
-            "date" not in ds.dims or history_length >= ds.sizes["date"]
+            Dim.DATE not in ds.dims or history_length >= ds.sizes["date"]
         ):
             raise ValueError("Prediction history must leave at least one future date.")
         if isinstance(condition_on, str) or any(
@@ -770,11 +771,11 @@ class BuildContext:
 
     def _select_constant_dates(self, value: xr.DataArray) -> xr.DataArray:
         """Select only covered constant dates, preserving the dataset's labeled order."""
-        if "date" not in self.ds.dims:
+        if Dim.DATE not in self.ds.dims:
             raise ValueError(
                 "Date-indexed deterministic constants require labeled scenario dates."
             )
-        if "date" not in value.coords or value.coords["date"].dims != ("date",):
+        if Dim.DATE not in value.coords or value.coords["date"].dims != (Dim.DATE,):
             raise ValueError(
                 "Date-indexed deterministic constants require labeled scenario and constant dates."
             )
@@ -798,7 +799,7 @@ class BuildContext:
             )
             return value
         if isinstance(value, xr.DataArray):
-            if self._allow_constant_date_subset and "date" in value.dims:
+            if self._allow_constant_date_subset and Dim.DATE in value.dims:
                 value = self._select_constant_dates(value)
             dims = [
                 dim for dim in value.dims if dim in value.coords and dim in self.ds.dims

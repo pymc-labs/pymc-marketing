@@ -1301,6 +1301,41 @@ class TestInterventionValidation:
         with pytest.raises(ValueError, match="depend on the intervention target"):
             self._construct(model, posterior, intervention_target="unrelated")
 
+    def test_a_response_that_reads_no_batched_input_is_refused_by_name(self):
+        """A response no scenario can reach is named, next to one a scenario moves.
+
+        ``held`` reads a parameter alone: neither the target nor any other
+        date-indexed input.  It used to fail on a missing ``__batch__``
+        dimension, which names neither the response nor the reason.
+        """
+        model, posterior = build_observed_model()
+        with model:
+            pmd.Deterministic("held", 2.0 * model["alpha"])
+
+        with pytest.raises(ValueError, match="held"):
+            self._construct(
+                model, posterior, response_vars=["channel_contribution", "held"]
+            )
+
+    def test_a_response_that_reads_other_date_indexed_data_is_evaluated(self):
+        """A response the target does not move is still answered when it is windowed.
+
+        ``baseline`` never reads ``channel_data``, and it reads ``unrelated``,
+        which is cut to each scenario's window as the target is.  It has a
+        value in every scenario, so it is not what the refusal above is for.
+        """
+        model, posterior = build_observed_model()
+        with model:
+            pmd.Deterministic("baseline", model["alpha"] + model["unrelated"])
+        evaluator = self._construct(
+            model, posterior, response_vars=["channel_contribution", "baseline"]
+        )
+
+        baseline = evaluator.evaluate_baseline(np.ones(len(self.dates)))["baseline"]
+
+        alpha = posterior["alpha"].values.reshape(-1, 1)
+        np.testing.assert_allclose(baseline, np.broadcast_to(alpha + 1.0, (2, 6)))
+
 
 class TestResponseNameValidation:
     """Response variable names are validated at construction, before any graph work.

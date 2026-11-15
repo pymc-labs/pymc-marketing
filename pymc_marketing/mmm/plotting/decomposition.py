@@ -35,6 +35,7 @@ from pymc_marketing.mmm.plotting._helpers import (
     _select_dims,
 )
 from pymc_marketing.mmm.summary.helpers import compute_channel_shares
+from pymc_marketing.names.mmm import Dim
 
 
 class DecompositionPlots:
@@ -311,7 +312,7 @@ class DecompositionPlots:
                 continue
             da = _select_dims(contributions_ds[ds_key], dims, allow_missing=True)
             # mean over whichever of chain/draw/date are present (baseline has no date dim)
-            mean_dims = [d for d in ("chain", "draw", "date") if d in da.dims]
+            mean_dims = [d for d in ("chain", "draw", Dim.DATE) if d in da.dims]
             if coord_dim is not None:
                 for val in da.coords[coord_dim].values:
                     entries.append(

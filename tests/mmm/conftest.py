@@ -901,6 +901,204 @@ serialization.register(
 )
 
 
+class SpendPathEffect(MuEffect):
+    """Base of the effects that put one thing on the path from spend to the target.
+
+    It opts in, owns no data, and leaves ``create_effect`` to the subclass, so
+    that each of them shows nothing but the shape of its graph.
+    """
+
+    prefix: str
+
+    def create_data(self, mmm) -> None:
+        """No data of its own to register."""
+
+    def set_data(self, mmm, model, X) -> None:
+        """No data of its own to update."""
+
+    def incrementality_spec(self) -> IncrementalitySpec:
+        """Opt in and declare nothing: the reach is measured."""
+        return IncrementalitySpec()
+
+    def _spend(self, mmm):
+        """Scaled spend summed over channels, the input of every subclass."""
+        return mmm.channel_data_scaled.sum(dim="channel")
+
+    def _contribution(self, value):
+        """Register *value* as the effect's term of the linear predictor."""
+        return pmd.Deterministic(f"{self.prefix}_effect_contribution", value)
+
+    def _observed_series(self, mmm) -> xr.DataArray:
+        """A series to observe a mediator against, one value per fitted date."""
+        return xr.DataArray(np.ones(len(mmm.model.coords["date"])), dims="date")
+
+
+class LatentDemandEffect(SpendPathEffect):
+    """A mediator written as a structural equation with noise.
+
+    Spend moves ``demand ~ Normal(f(spend), sigma)`` and demand moves the target.
+    ``demand`` is a random variable, so an evaluation conditioned on the posterior
+    keeps its draws whatever spend is, and the path from spend through it is cut.
+
+    The two switches are the ways such an effect still looks well-formed to the
+    checks that read evaluations.  Reading spend directly as well leaves its
+    contribution moving, and registering the contribution under a name other than
+    ``{prefix}_effect_contribution`` keeps the effect from being resolved at all.
+    """
+
+    also_reads_spend: bool = False
+    contribution_suffix: str = "effect_contribution"
+
+    def create_effect(self, mmm):
+        """Add ``beta * demand``, and ``gamma * spend`` when asked, to the linear predictor."""
+        spend = self._spend(mmm)
+        demand = pmd.Normal(f"{self.prefix}_demand", mu=spend, sigma=0.1)
+        contribution = pmd.HalfNormal(f"{self.prefix}_beta", sigma=1.0) * demand
+        if self.also_reads_spend:
+            gamma = pmd.HalfNormal(f"{self.prefix}_gamma", sigma=1.0)
+            contribution = contribution + gamma * spend
+        return pmd.Deterministic(
+            f"{self.prefix}_{self.contribution_suffix}", contribution
+        )
+
+
+class ObservedDemandEffect(SpendPathEffect):
+    """A mediator with a likelihood on an observed series, read as that series.
+
+    The contribution reads the observed variable, which stands for its
+    observations whatever spend is.
+    """
+
+    def create_effect(self, mmm):
+        """Add ``beta * demand`` with ``demand`` observed."""
+        demand = pmd.Normal(
+            f"{self.prefix}_demand",
+            mu=self._spend(mmm),
+            sigma=0.1,
+            observed=self._observed_series(mmm),
+        )
+        beta = pmd.HalfNormal(f"{self.prefix}_beta", sigma=1.0)
+        return self._contribution(beta * demand)
+
+
+class RandomContributionEffect(SpendPathEffect):
+    """An effect whose term of the linear predictor is itself a random variable."""
+
+    def create_effect(self, mmm):
+        """Add ``contribution ~ Normal(beta * spend, sigma)``."""
+        beta = pmd.HalfNormal(f"{self.prefix}_beta", sigma=1.0)
+        return pmd.Normal(
+            f"{self.prefix}_effect_contribution", mu=beta * self._spend(mmm), sigma=0.1
+        )
+
+
+class FrozenLevelEffect(SpendPathEffect):
+    """Spend over its own mean, with the mean declared frozen.
+
+    A frozen deterministic is read from the posterior, so the mean stays where
+    the fit left it while spend moves: the path through it is cut on purpose,
+    which :attr:`MuEffect.frozen_deterministics` tells authors never to do.
+    """
+
+    @property
+    def frozen_deterministics(self) -> list[str]:
+        """The mean spend, which depends on the channel data."""
+        return [f"{self.prefix}_level"]
+
+    def create_effect(self, mmm):
+        """Add ``beta * spend / level`` with ``level`` the mean of spend over dates."""
+        spend = self._spend(mmm)
+        level = pmd.Deterministic(f"{self.prefix}_level", spend.mean(dim="date"))
+        beta = pmd.HalfNormal(f"{self.prefix}_beta", sigma=1.0)
+        return self._contribution(beta * spend / level)
+
+
+class SpendScaledPriorEffect(SpendPathEffect):
+    """A coefficient whose prior scale is computed from spend inside the graph.
+
+    No structural equation here: ``beta`` is a parameter, and holding it at its
+    draws is right.  The graph has the same shape as a latent mediator all the
+    same, a random variable downstream of spend and upstream of the predictor.
+    """
+
+    def create_effect(self, mmm):
+        """Add ``beta * spend`` with ``beta ~ HalfNormal(spend.std())``."""
+        spend = self._spend(mmm)
+        beta = pmd.HalfNormal(f"{self.prefix}_beta", sigma=spend.std(dim="date"))
+        return self._contribution(beta * spend)
+
+
+class MeasuredHubEffect(SpendPathEffect):
+    """A deterministic hub with a likelihood on an observed series.
+
+    The shape the funnel notebooks use.  The likelihood is downstream of spend
+    and feeds nothing, so no path from spend to the target passes through it.
+    """
+
+    def create_effect(self, mmm):
+        """Add ``beta * hub`` and observe an indicator of ``hub``."""
+        hub = pmd.Deterministic(f"{self.prefix}_hub", pmd.math.tanh(self._spend(mmm)))
+        pmd.Normal(
+            f"{self.prefix}_indicator",
+            mu=hub,
+            sigma=0.1,
+            observed=self._observed_series(mmm),
+        )
+        beta = pmd.HalfNormal(f"{self.prefix}_beta", sigma=1.0)
+        return self._contribution(beta * hub)
+
+
+class NonCenteredDemandEffect(SpendPathEffect):
+    """The structural equation of :class:`LatentDemandEffect`, written to propagate.
+
+    ``demand = f(spend) + shock``, where ``shock`` is built from a random
+    variable that does not depend on spend.  The shock is a path over the fitted
+    dates, so it is declared frozen and cut to each evaluation window.
+    """
+
+    @property
+    def frozen_deterministics(self) -> list[str]:
+        """The shock, which does not depend on the channel data."""
+        return [f"{self.prefix}_shock"]
+
+    def create_effect(self, mmm):
+        """Add ``beta * demand`` with ``demand`` a deterministic function of spend."""
+        noise = pmd.Normal(f"{self.prefix}_noise", dims=("date",))
+        shock = pmd.Deterministic(f"{self.prefix}_shock", 0.1 * noise)
+        demand = pmd.Deterministic(f"{self.prefix}_demand", self._spend(mmm) + shock)
+        beta = pmd.HalfNormal(f"{self.prefix}_beta", sigma=1.0)
+        return self._contribution(beta * demand)
+
+
+class DuckTypedLatentDemandEffect(DuckTypedEffect):
+    """A duck-typed effect whose spend path runs through a random variable.
+
+    It has no ``contribution_var_name`` to resolve, and with the posterior
+    conditioned on the linear predictor does not move through ``demand`` either,
+    so neither the opt-in check nor the completeness check has anything to see.
+    """
+
+    def __init__(self, prefix: str) -> None:
+        super().__init__(prefix=prefix, reads_spend=True)
+
+    def to_dict(self) -> dict:
+        """Serialize the effect, which fitting insists on."""
+        return {"prefix": self.prefix}
+
+    def create_effect(self, mmm):
+        """Add ``beta * demand`` to the linear predictor, unregistered."""
+        spend = mmm.channel_data_scaled.sum(dim="channel")
+        demand = pmd.Normal(f"{self.prefix}_demand", mu=spend, sigma=0.1)
+        return pmd.HalfNormal(f"{self.prefix}_beta", sigma=1.0) * demand
+
+
+serialization.register(
+    f"{DuckTypedLatentDemandEffect.__module__}.{DuckTypedLatentDemandEffect.__qualname__}",
+    DuckTypedLatentDemandEffect,
+    deserializer=lambda data: DuckTypedLatentDemandEffect(**data),
+)
+
+
 class ChainedMediatorEffect(MuEffect):
     """A funnel-shaped mediator that brings no data of its own.
 
@@ -1566,6 +1764,56 @@ def duck_typed_spend_effect_fitted_mmm(funnel_mmm_data):
     """MMM with a duck-typed effect that *does* read spend."""
     return _build_simple_effect_mmm(
         funnel_mmm_data, DuckTypedEffect(prefix="duck", reads_spend=True)
+    )
+
+
+@pytest.fixture(scope="module")
+def latent_demand_fitted_mmm(funnel_mmm_data):
+    """MMM whose opted-in effect reads spend only through a random variable."""
+    return _build_simple_effect_mmm(
+        funnel_mmm_data, LatentDemandEffect(prefix="latent"), link="identity"
+    )
+
+
+@pytest.fixture(scope="module")
+def two_route_latent_demand_fitted_mmm(funnel_mmm_data):
+    """MMM whose opted-in effect reads spend through a random variable and directly."""
+    return _build_simple_effect_mmm(
+        funnel_mmm_data,
+        LatentDemandEffect(prefix="latent", also_reads_spend=True),
+        link="identity",
+    )
+
+
+@pytest.fixture(scope="module")
+def misnamed_latent_demand_fitted_mmm(funnel_mmm_data):
+    """MMM whose effect behind a random variable registers under an unexpected name."""
+    return _build_simple_effect_mmm(
+        funnel_mmm_data,
+        LatentDemandEffect(prefix="latent", contribution_suffix="total_effect"),
+        link="identity",
+    )
+
+
+@pytest.fixture(scope="module")
+def duck_typed_latent_demand_fitted_mmm(funnel_mmm_data):
+    """MMM with a duck-typed effect whose spend path runs through a random variable."""
+    return _build_simple_effect_mmm(
+        funnel_mmm_data, DuckTypedLatentDemandEffect(prefix="duck"), link="identity"
+    )
+
+
+@pytest.fixture(scope="module")
+def measured_hub_fitted_mmm(funnel_mmm_data):
+    """MMM whose mediator is deterministic, with a likelihood on an indicator of it."""
+    return _build_simple_effect_mmm(funnel_mmm_data, MeasuredHubEffect(prefix="hub"))
+
+
+@pytest.fixture(scope="module")
+def non_centered_demand_fitted_mmm(funnel_mmm_data):
+    """MMM whose mediator is a function of spend plus a shock taken from the posterior."""
+    return _build_simple_effect_mmm(
+        funnel_mmm_data, NonCenteredDemandEffect(prefix="latent")
     )
 
 

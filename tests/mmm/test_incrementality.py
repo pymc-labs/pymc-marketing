@@ -14,11 +14,13 @@
 """Tests for Incrementality module - counterfactual analysis with carryover."""
 
 import copy
+import gc
 import json
 import logging
 import math
 import sys
 import warnings
+import weakref
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
@@ -68,6 +70,7 @@ from pymc_marketing.mmm.incrementality import (
 )
 from pymc_marketing.mmm.spend_reach import (
     LINEAR_PREDICTOR,
+    ProbeStatistics,
     SpendProbe,
     SpendReach,
     TemporalReach,
@@ -83,6 +86,7 @@ from pymc_marketing.model_graph import deterministics_to_flat
 from pymc_marketing.pytensor_utils import ConditionedModel
 from pymc_marketing.serialization import serialization
 from tests.mmm.test_spend_reach import (
+    assert_identical_statistics,
     effective_l_max,
     measure_reach,
     measure_spend_reach,
@@ -2426,6 +2430,83 @@ class TestMediatedMuEffects:
         # bound is deliberately loose; what it rules out is the path vanishing.
         assert direct_total < 0.95 * full_total
 
+    @pytest.fixture
+    def probed(self, monkeypatch):
+        """Every :class:`ProbedReach` ``_probe_reach`` returns during the test."""
+        results = []
+        probe_reach = Incrementality._probe_reach
+
+        def spy(self, *args, **kwargs):
+            result = probe_reach(self, *args, **kwargs)
+            results.append(result)
+            return result
+
+        monkeypatch.setattr(Incrementality, "_probe_reach", spy)
+        return results
+
+    def test_the_retained_baseline_drops_the_predictor(
+        self, funnel_log_link_fitted_mmm, probed, monkeypatch
+    ):
+        """``mu`` is evaluated for the completeness check, then freed.
+
+        Nothing after the check reads it, and the request holds the baseline
+        until it ends.  The array itself is checked, not the dict key: the
+        saving relies on the probe and the request sharing one baseline dict.
+        """
+        predictors = []
+        evaluate = CounterfactualEvaluator.evaluate_baseline
+
+        def spy(self, *args, **kwargs):
+            out = evaluate(self, *args, **kwargs)
+            predictors.append(weakref.ref(out[LINEAR_PREDICTOR]))
+            return out
+
+        monkeypatch.setattr(CounterfactualEvaluator, "evaluate_baseline", spy)
+        funnel_log_link_fitted_mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time"
+        )
+        gc.collect()
+
+        # Still holds the probe and the baseline.
+        (result,) = probed
+        stats = next(iter(result.probe.probes.values()))
+        # The predictor was there, and the probe checked against it.
+        assert stats.accounted
+        # The first evaluation in _probe_reach is the baseline.
+        assert predictors[0]() is None
+        assert LINEAR_PREDICTOR not in result.baseline
+
+    def test_folding_the_probe_one_sample_at_a_time_changes_nothing(
+        self, mixing_funnel_identity_fitted_mmm, probed, monkeypatch
+    ):
+        """The probe's checks read maxima, so slicing the samples cannot move them.
+
+        The fixtures are small enough to fold in one slice, so the slicing is
+        forced here: one sample per slice, through the reach, the completeness
+        check and the channel-mixing check, on a model that mixes channels.
+        """
+        incr = mixing_funnel_identity_fitted_mmm.incrementality
+
+        whole = incr.compute_incremental_contribution(frequency="all_time")
+        whole_mixes = probed[0].probe.mixes_channels(
+            non_date_dims=probed[0].evaluator.non_date_dims
+        )
+        monkeypatch.setattr(ProbeStatistics, "FOLD_ELEMENTS", 1)
+        sliced = incr.compute_incremental_contribution(frequency="all_time")
+        sliced_mixes = probed[1].probe.mixes_channels(
+            non_date_dims=probed[1].evaluator.non_date_dims
+        )
+
+        first, second = probed
+        assert first.probe.probes.keys() == second.probe.probes.keys()
+        for index, stats in first.probe.probes.items():
+            assert stats.accounted
+            assert_identical_statistics(stats, second.probe.probes[index])
+        assert second.reach == first.reach
+        assert whole_mixes
+        assert sliced_mixes == whole_mixes
+        xr.testing.assert_identical(sliced, whole)
+
     def test_effect_that_ignores_spend_is_left_alone(self, trend_effect_fitted_mmm):
         """A ``mu_effect`` the counterfactual cannot reach needs no opt-in.
 
@@ -2492,6 +2573,114 @@ class TestMediatedMuEffects:
 
         with pytest.raises(NotImplementedError, match="Some path from spend"):
             incr.compute_incremental_contribution(frequency="all_time")
+
+    @pytest.mark.parametrize(
+        "model_fixture, blocked",
+        [
+            pytest.param("latent_demand_fitted_mmm", "latent_demand", id="opted in"),
+            pytest.param(
+                "two_route_latent_demand_fitted_mmm",
+                "latent_demand",
+                id="also reads spend directly",
+            ),
+            pytest.param(
+                "misnamed_latent_demand_fitted_mmm",
+                "latent_demand",
+                id="contribution under another name",
+            ),
+            pytest.param(
+                "duck_typed_latent_demand_fitted_mmm", "duck_demand", id="duck typed"
+            ),
+        ],
+    )
+    def test_a_spend_path_through_a_random_variable_is_refused(
+        self, request, model_fixture, blocked
+    ):
+        """A mediator the posterior holds fixed is named, not left out of the increment.
+
+        ``demand ~ Normal(f(spend), sigma)`` keeps its posterior draws whatever
+        spend is, so the path from spend through it to the target is cut.  The
+        opt-in check is satisfied by the effect's spec, or never sees the effect,
+        and the completeness check compares a predictor and accounted nodes that
+        both fail to move through ``demand``.  Before the structural guard the
+        first case failed with an error about a ``__batch__`` dimension, and the
+        other three returned the rest of the effect of spend as the total.
+        """
+        incr = request.getfixturevalue(model_fixture).incrementality
+
+        with pytest.raises(NotImplementedError, match=blocked):
+            incr.compute_joint_incremental_contribution(frequency="all_time")
+
+    @pytest.mark.parametrize(
+        "request_increment",
+        [
+            pytest.param(
+                lambda incr: incr.contribution_over_spend(frequency="all_time"),
+                id="ratio",
+            ),
+            pytest.param(
+                lambda incr: incr.split_incremental_contribution_over_time(
+                    frequency="monthly"
+                ),
+                id="split on windows",
+            ),
+            pytest.param(
+                lambda incr: incr.split_incremental_contribution_over_time(
+                    frequency="monthly", estimand="allocation"
+                ),
+                id="allocation",
+            ),
+        ],
+    )
+    def test_every_route_refuses_a_blocked_spend_path(
+        self, misnamed_latent_demand_fitted_mmm, request_increment
+    ):
+        """Every public route reads the model through the same door.
+
+        The allocation has structural guards of its own, but they look for a
+        channel-dependent effect, and an effect that was never resolved is not
+        one.  On windows the same model used to fail on the shape of
+        ``demand``'s draws, which span the fitted dates and not the window.
+        """
+        incr = misnamed_latent_demand_fitted_mmm.incrementality
+
+        with pytest.raises(NotImplementedError, match="latent_demand"):
+            request_increment(incr)
+
+    @pytest.mark.parametrize("frequency", ["all_time", "monthly"])
+    @pytest.mark.parametrize(
+        "fixture_name",
+        [
+            pytest.param(
+                "measured_hub_fitted_mmm",
+                id="a likelihood on an indicator of the mediator",
+            ),
+            pytest.param(
+                "non_centered_demand_fitted_mmm",
+                id="demand as a function of spend plus a shock",
+            ),
+        ],
+    )
+    def test_a_mediator_the_counterfactual_moves_matches_the_oracle(
+        self, request, fixture_name, frequency
+    ):
+        """The two ways of writing a mediator that propagates are answered in full.
+
+        A likelihood on an indicator is downstream of spend and feeds nothing,
+        so it is not on a path.  The second model is what the refusal tells an
+        author to write: its random variable does not depend on spend, and the
+        shock built from it is frozen, which is what cuts it to a window.
+        """
+        mmm = request.getfixturevalue(fixture_name)
+
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency=frequency
+        )
+        expected = compute_log_link_ground_truth_by_period(
+            mmm, frequency=frequency, l_max=effective_l_max(mmm)
+        )
+
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
 
     def test_a_second_node_named_mu_leaves_the_increment_unchanged(
         self, funnel_identity_fitted_mmm, shadow_named_node
