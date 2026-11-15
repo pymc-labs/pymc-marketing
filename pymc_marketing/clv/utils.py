@@ -1182,7 +1182,7 @@ def _rfm_segments_nw(
     number of distinct edges decides how many score labels exist, exactly as
     ``pandas.qcut(duplicates="drop")`` does on the legacy path. An eager input is
     summarised once; a lazy input evaluates the summary twice, once for the edges
-    and once for the final result, with a small tolerance on the edges.
+    and once for the final result. Edges carry a small tolerance on every input.
     """
     unit, time_unit, week_start_offset = _resolve_time_spec(
         granularity, time_unit, week_start
@@ -1202,14 +1202,13 @@ def _rfm_segments_nw(
         time_unit,
         extra_divisor,
     )
-    # Parallel engines can return float sums that differ in their last bits between
-    # two evaluations, which moves a customer sitting on a quartile edge to another
-    # bin. An eager input is summarised once, so edges and bins see the same values.
-    # A lazy input stays lazy (the summary may not fit in memory) and gets a slack
-    # on each edge instead.
-    # shortcut: the slack is relative, so an edge at zero made by spend cancelling
-    # out can still flip; collect such transactions before calling.
-    edge_tolerance = 0.0 if eager_input else _EDGE_TOLERANCE
+    # Parallel engines return float sums that differ in their last bits from one
+    # evaluation to the next, which moves a customer sitting on a quartile edge to
+    # another bin. Each edge therefore gets a slack, sized by the largest edge: the
+    # error of a float sum follows the size of the values added, not the size of
+    # the result, so an edge at zero made by refunds cancelling spend needs as much
+    # slack as any other. An eager input is also summarised only once; a lazy input
+    # stays lazy, as its summary may not fit in memory.
     if eager_input:
         summary = summary.collect().lazy()
 
@@ -1230,11 +1229,18 @@ def _rfm_segments_nw(
     for score_name, metric in _SEGMENT_METRICS:
         # pandas.qcut drops duplicated edges and bins right-closed, with the
         # lowest edge included in the first bin.
-        unique_edges = sorted(
+        metric_edges = sorted(
             {float(edge_values[f"{metric}_{index}"]) for index in range(5)}
         )
+        slack = _EDGE_TOLERANCE * max(abs(edge) for edge in metric_edges)
+        # Edges closer than the slack are one edge, or the number of bins would
+        # change between two runs.
+        unique_edges = metric_edges[:1]
+        for edge in metric_edges[1:]:
+            if edge - unique_edges[-1] > slack:
+                unique_edges.append(edge)
         n_bins = len(unique_edges) - 1
-        unique_edges = [edge + edge_tolerance * abs(edge) for edge in unique_edges]
+        unique_edges = [edge + slack for edge in unique_edges]
         if n_bins < 2:
             raise ValueError(
                 "Bin labels must be one fewer than the number of bin edges"
@@ -1796,10 +1802,10 @@ def rfm_segments(
     A lazy input (Polars ``LazyFrame``, DuckDB, ...) stays lazy and is evaluated
     twice, once for the quartile edges and once for the result. Engines that add
     floats in parallel can return a *monetary_value* that differs in its last bits
-    between the two runs, so each edge is compared with a relative tolerance of
-    1e-12 to keep a customer sitting exactly on an edge in the same bin. The one
-    case this does not cover is an edge at zero that comes from spend cancelling
-    out (refunds); pass an eager dataframe when that can happen.
+    from one run to the next, so on the Narwhals path the edges of a metric are
+    compared with a tolerance of 1e-12 times its largest edge, which keeps a
+    customer sitting exactly on an edge in the same bin. Edges closer to each other
+    than that tolerance count as one.
 
     Examples
     --------

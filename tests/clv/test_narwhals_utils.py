@@ -1764,6 +1764,40 @@ class TestRegressions:
         }
         assert len(scores) == 1
 
+    @pytest.mark.parametrize("seed", [0, 1, 2])
+    def test_segments_are_reproducible_with_refunded_spend(self, to_backend, seed):
+        """Spend that refunds cancel out sums to zero give or take the last bits.
+
+        With over a quarter of the customers fully refunded, the lowest quartile
+        edge is such a sum.
+        """
+        rng = np.random.default_rng(seed)
+        n_refunded, n_regular, n_pairs = 150, 251, 60
+        spend = rng.gamma(2.0, 17.3, (n_refunded, n_pairs))
+        df = pd.DataFrame(
+            {
+                "id": np.r_[
+                    np.repeat(np.arange(n_refunded), 2 * n_pairs),
+                    np.repeat(np.arange(n_refunded, n_refunded + n_regular), 40),
+                ],
+                "spend": np.r_[
+                    np.c_[spend, -spend].ravel(),
+                    rng.gamma(2.0, 17.3, n_regular * 40),
+                ],
+            }
+        )
+        df["date"] = pd.Timestamp("2015-01-01") + pd.to_timedelta(
+            rng.integers(0, 300, len(df)), unit="D"
+        )
+        native = to_backend(df.sample(frac=1, random_state=seed))
+        scores = {
+            tuple(
+                collect_sorted(rfm_segments(native, "id", "date", "spend"))["rfm_score"]
+            )
+            for _ in range(15)
+        }
+        assert len(scores) == 1
+
     def test_first_period_spend_does_not_swamp_repeat_spend(self, to_backend):
         df = pd.DataFrame(
             {
