@@ -109,6 +109,9 @@ test = [
     "duckdb>=1.0.0",
     "polars>=2.0.0",
     "pyarrow>=15.0.0",
+    # Warehouse-style lazy backends (Spark API and Ibis, both on DuckDB) checking pushdown.
+    "ibis-framework[duckdb]>=10.0",
+    "sqlframe>=3.0",
     "pyprojroot",
     "pytest-cov>=3.0.0",
     "coverage>=7.1",

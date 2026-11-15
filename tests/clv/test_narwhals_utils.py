@@ -1285,6 +1285,39 @@ class TestReturnTypes:
 # --------------------------------------------------------------------------- #
 
 
+def _warehouse_frame(backend: str, df: pd.DataFrame):
+    """Wrap ``df`` in a SQL-only lazy frame, like a table in a warehouse."""
+    if backend == "ibis":
+        return pytest.importorskip("ibis").memtable(df)
+    return pytest.importorskip("sqlframe.duckdb").DuckDBSession().createDataFrame(df)
+
+
+@pytest.mark.parametrize("backend", ["sqlframe", "ibis"])
+@pytest.mark.parametrize(
+    "function, args",
+    [
+        (rfm_summary, ("identifier", "date", "monetary_value")),
+        (rfm_train_test_split, ("identifier", "date", "2015-02-01")),
+        (rfm_segments, ("identifier", "date", "monetary_value")),
+    ],
+    ids=["summary", "train_test_split", "segments"],
+)
+def test_warehouse_pushdown(backend, function, args, transaction_data):
+    """SQLFrame (the PySpark API) and Ibis stand in for Spark and Snowflake.
+
+    Only these few cases run on them: each query takes about a second, so the full
+    cross-backend matrix above stays on the fast in-process backends.
+    """
+    native = _warehouse_frame(backend, transaction_data)
+    result = function(native, *args, granularity="1d")
+    # Still a lazy query: no row left the engine before the caller collects.
+    assert type(result) is type(native)
+    expected = function(transaction_data, *args, granularity="1d")
+    assert_frame_equal(
+        collect_sorted(result), collect_sorted(expected), check_dtype=False
+    )
+
+
 class TestNewApi:
     @pytest.mark.parametrize("granularity", [None, "1mo"])
     def test_monthly_time_unit_counts_whole_months(self, to_backend, granularity):
