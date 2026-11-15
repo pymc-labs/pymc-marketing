@@ -132,9 +132,8 @@ def _compose_sweep(
 ) -> tuple[list[Variable], XTensorVariable]:
     """Compose the symbolic inputs and the graph of one sweep.
 
-    The sweep grid, and the response mask when there is one, are symbolic inputs,
-    so the graph depends on the response, the input it replaces and the sweep
-    type, not on their values.
+    The sweep grid, and the response mask when there is one, are inputs of the
+    compiled function.
 
     Parameters
     ----------
@@ -191,10 +190,13 @@ class SensitivityAnalysis:
     """Run counterfactual sweeps over a fitted model's response.
 
     Every call extracts the response conditioned on the posterior draws, composes
-    the sweep graph and compiles it.  Nothing is kept between calls, so a repeat
-    call compiles again.  The draws are bound through a
-    :class:`~pymc_marketing.pytensor_utils.SharedPosterior`, which keeps them
-    shared variables of the compiled sweep instead of constants welded into it.
+    the sweep graph and compiles its PyTensor function; nothing is kept between
+    calls.  The draws are bound through a
+    :class:`~pymc_marketing.pytensor_utils.SharedPosterior`, so they are shared
+    variables of the compiled sweep, not constants welded into it.  That keeps a
+    repeat call cheap: PyTensor's numba backend caches the compiled code of a
+    graph that holds no large constants, so a sweep is JIT-compiled once and
+    loaded afterwards, in later calls and in later processes.
 
     ``dims`` is accepted for backwards compatibility and ignored: the response's
     own dims decide the output axes.

@@ -1252,9 +1252,9 @@ def test_run_sweep_binds_the_draws_as_shared_variables(
     """Two calls agree, and the draws are shared inputs of the compiled sweep.
 
     Without a ``SharedPosterior`` the draws are baked into the graph as
-    constants, which welds the compiled function to one posterior.  Here they
-    must arrive as shared variables, so the sweep reads them through the shared
-    storage rather than one frozen copy.
+    constants, and numba cannot cache a compiled graph that holds large
+    constants, so every call would pay the JIT again.  Here they must arrive as
+    shared variables.
     """
     model, idata = simple_model_and_idata
     sweeps = np.linspace(0.5, 1.5, 4)
@@ -1286,8 +1286,8 @@ def test_run_sweep_binds_the_draws_as_shared_variables(
 def _initval_model_and_idata() -> tuple[pm.Model, xr.DataTree]:
     """A model whose ``alpha`` carries a non-default ``initval``.
 
-    PyMC's clone step refuses such a model, and the sweep binds the draws on the
-    live model instead of cloning it.
+    PyMC cannot clone such a model.  ``run_sweep`` never clones the model it is
+    given, and this model guards that.
     """
     rng = np.random.default_rng(11)
     coords = {"date": np.arange(6), "channel": list("abcd")}
@@ -1331,11 +1331,11 @@ def _initval_model_and_idata() -> tuple[pm.Model, xr.DataTree]:
 
 
 def test_run_sweep_works_with_a_non_default_initval():
-    """A model PyMC cannot clone still sweeps.
+    """Regression guard: a model PyMC cannot clone still sweeps.
 
-    The sweep binds the draws on the live model, so the refusal that
-    ``ConditionedModel`` raises for a non-default ``initval`` never comes up, and
-    the result equals the closed form.
+    ``run_sweep`` binds the draws on the model it is given and never clones it,
+    so a non-default ``initval`` does not get in the way and the result equals
+    the closed form.
     """
     model, idata = _initval_model_and_idata()
     sweeps = np.linspace(0.5, 1.5, 4)
