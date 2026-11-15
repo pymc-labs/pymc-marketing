@@ -150,7 +150,7 @@ def _compose_sweep(
     ------
     ValueError
         If ``sweep_type`` is not one of the three supported types, or the
-        response does not depend on ``base_value``.
+        response graph does not read ``base_value``.
     """
     sweep = ptx.xtensor("sweep", dims=(Dim.SWEEP,))
     inputs: list[Variable] = [sweep]
@@ -172,12 +172,16 @@ def _compose_sweep(
         case _:
             raise ValueError(f"Unknown sweep_type {sweep_type!r}")
 
-    # Vectorizing over an input the response does not read fails inside PyTensor
-    # with a message about a missing dimension, so that case is named here.
+    # Vectorizing over an input the response graph does not read fails inside
+    # PyTensor with a message about a missing dimension, so the case is named
+    # here.  The graph is the conditioned one: a free variable or a frozen
+    # deterministic is its draws there, and what it reads is no longer in it.
     if not any(variable is base_value for variable in ancestors([response])):
         raise ValueError(
-            f"The response does not depend on {base_value.name!r}, so sweeping it "
-            "changes nothing."
+            f"The response graph does not read {base_value.name!r} once the "
+            "posterior draws are bound, so sweeping it changes nothing. var_input "
+            "must be a pm.Data variable that the response reads outside its "
+            "frozen deterministics."
         )
     sweep_response = vectorize_graph(response, replace={base_value: sweep_combinations})
     return inputs, sweep_response.sum(dim=Dim.DATE).transpose("sample", Dim.SWEEP, ...)
@@ -467,8 +471,10 @@ class SensitivityAnalysis:
         ValueError
             If ``posterior_sample_fraction`` is outside ``(0, 1]``.
             If ``var_names`` is not a ``pymc.dims`` variable, has no ``date``
-            dimension, reads no posterior variable or does not depend on
-            ``var_input``.
+            dimension or reads no posterior variable.
+            If the response does not read ``var_input`` once the posterior draws
+            are bound: ``var_input`` must be a ``pm.Data`` variable that the
+            response reads outside its frozen deterministics.
             If ``sweep_type`` is not one of the three supported types.
             If ``response_mask`` does not match the response's dimensions.
             If the posterior cannot be evaluated by the model, for example one

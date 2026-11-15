@@ -802,17 +802,24 @@ def test_run_sweep_a_data_only_response_raises_a_clear_error():
         analysis.run_sweep("channel_data", sweeps, var_names="channel_contribution")
 
 
-def test_run_sweep_a_response_that_ignores_the_input_raises_a_clear_error(
-    simple_model_and_idata,
+@pytest.mark.parametrize(
+    "var_input", ["other_data", "alpha"], ids=["unread-data", "free-variable"]
+)
+def test_run_sweep_an_input_the_response_graph_does_not_read_raises_a_clear_error(
+    simple_model_and_idata, var_input
 ):
-    """Sweeping an input the response does not read names that input."""
+    """Sweeping a variable the conditioned response does not read names it.
+
+    That is a data variable the response ignores, and also a free variable: its
+    draws replace it in the graph, so there is nothing left to sweep.
+    """
     model, idata = simple_model_and_idata
     with model:
         pmd.Data("other_data", np.ones((6, 4)), dims=("date", "channel"))
 
-    with pytest.raises(ValueError, match="does not depend on 'other_data'"):
+    with pytest.raises(ValueError, match=f"does not read '{var_input}'"):
         SensitivityAnalysis(model, idata).run_sweep(
-            "other_data", np.linspace(0.5, 1.5, 4), var_names="channel_contribution"
+            var_input, np.linspace(0.5, 1.5, 4), var_names="channel_contribution"
         )
 
 
