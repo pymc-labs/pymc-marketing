@@ -792,19 +792,28 @@ def _data_only_response_model_and_idata() -> tuple[pm.Model, xr.DataTree]:
     return model, idata
 
 
-def test_run_sweep_a_data_only_response_keeps_its_failure_mode():
-    """A response that reads no draw keeps the whole tree and fails at the sum.
-
-    Such a response has no ``sample`` dim to transpose.  Narrowing it to an
-    empty posterior would fail earlier, about a missing ``draw`` dim, so the
-    tree is used whole and the error is the one the extraction raises.
-    """
+def test_run_sweep_a_data_only_response_raises_a_clear_error():
+    """A response that reads no posterior variable has no draws to sweep over."""
     model, idata = _data_only_response_model_and_idata()
     analysis = SensitivityAnalysis(model, idata)
     sweeps = np.linspace(0.5, 1.5, 4)
 
-    with pytest.raises(ValueError, match=r"Dimensions \{'sample'\}"):
+    with pytest.raises(ValueError, match="reads no posterior variable"):
         analysis.run_sweep("channel_data", sweeps, var_names="channel_contribution")
+
+
+def test_run_sweep_a_response_that_ignores_the_input_raises_a_clear_error(
+    simple_model_and_idata,
+):
+    """Sweeping an input the response does not read names that input."""
+    model, idata = simple_model_and_idata
+    with model:
+        pmd.Data("other_data", np.ones((6, 4)), dims=("date", "channel"))
+
+    with pytest.raises(ValueError, match="does not depend on 'other_data'"):
+        SensitivityAnalysis(model, idata).run_sweep(
+            "other_data", np.linspace(0.5, 1.5, 4), var_names="channel_contribution"
+        )
 
 
 def _constant_saturation_idata(n_channels: int = 4, n_draws: int = 5) -> xr.DataTree:
@@ -821,8 +830,10 @@ def _constant_saturation_idata(n_channels: int = 4, n_draws: int = 5) -> xr.Data
     return xr.DataTree.from_dict({"/posterior": xr.Dataset(draws)})
 
 
-def _plain_deterministic_model_and_idata() -> tuple[pm.Model, xr.DataTree]:
-    """A model whose response is a plain ``pm.Deterministic`` without dims."""
+def _plain_deterministic_model_and_idata(
+    dims: tuple[str, ...] | None = None,
+) -> tuple[pm.Model, xr.DataTree]:
+    """A model whose response is a plain ``pm.Deterministic``, with or without dims."""
     rng = np.random.default_rng(3)
     coords = {"date": np.arange(6), "channel": list("abcd")}
     with pm.Model(coords=coords) as model:
@@ -831,7 +842,7 @@ def _plain_deterministic_model_and_idata() -> tuple[pm.Model, xr.DataTree]:
         )
         alpha = pm.Gamma("alpha", 1.0, 1.0, dims=("channel",))
         lam = pm.Gamma("lam", 1.0, 1.0, dims=("channel",))
-        pm.Deterministic("channel_contribution", (alpha * X) / (X + lam))
+        pm.Deterministic("channel_contribution", (alpha * X) / (X + lam), dims=dims)
 
     return model, _constant_saturation_idata()
 
@@ -876,8 +887,14 @@ def _date_less_deterministic_model_and_idata() -> tuple[pm.Model, xr.DataTree]:
         pytest.param(
             _plain_deterministic_model_and_idata,
             False,
-            "has no dimensions",
+            "not a pymc.dims variable",
             id="plain",
+        ),
+        pytest.param(
+            lambda: _plain_deterministic_model_and_idata(dims=("date", "channel")),
+            False,
+            "not a pymc.dims variable",
+            id="plain-with-dims",
         ),
         pytest.param(
             _scalar_deterministic_model_and_idata,
@@ -902,7 +919,7 @@ def _date_less_deterministic_model_and_idata() -> tuple[pm.Model, xr.DataTree]:
 def test_run_sweep_dimensionless_response_raises_a_clear_error(
     builder, use_mask, match
 ):
-    """A response without dims explains what it needs instead of an internal error."""
+    """A response the sweep cannot use says what it needs, not an internal error."""
     model, idata = builder()
     response_mask = np.ones((6, 4), dtype=bool) if use_mask else None
 
