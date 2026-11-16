@@ -23,20 +23,18 @@ expose the calendar fields, and integer subtraction is exact everywhere.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta, timezone, tzinfo
-from typing import Any, Literal, get_args
+from typing import Any
 from zoneinfo import ZoneInfo
 
 import narwhals.stable.v2 as nw
 import numpy as np
 import pandas
-from narwhals.stable.v2.typing import FrameT
 
 from pymc_marketing.names.clv import Col
 
-Backend = Literal["pandas", "polars", "pyarrow"]
-
-# Fixed divisors turning a duration in days into the named ``time_unit``.
+# Mean length in days of each time unit.
 TIME_UNIT_DAYS: dict[str, float] = {
     "day": 1.0,
     "week": 7.0,
@@ -44,14 +42,14 @@ TIME_UNIT_DAYS: dict[str, float] = {
     "quarter": 91.3125,  # 365.25 / 4
     "year": 365.25,
 }
-
-# Granularity unit a named ``time_unit`` implies when ``granularity`` is not given.
-TIME_UNIT_GRANULARITY: dict[str, str] = {
-    "day": "d",
-    "week": "w",
-    "month": "mo",
-    "quarter": "q",
-    "year": "y",
+# The period each ``granularity`` buckets by. Multiples such as "2w" are left out:
+# each dataframe backend anchors a multi-period bucket differently.
+GRANULARITY_UNIT: dict[str, str] = {
+    "1d": "day",
+    "1w": "week",
+    "1mo": "month",
+    "1q": "quarter",
+    "1y": "year",
 }
 # Names of the temporary columns the RFM pipeline adds to the transactions.
 RESERVED_COLUMNS = frozenset(
@@ -63,7 +61,6 @@ RESERVED_COLUMNS = frozenset(
         "_n_periods",
         "_monetary_sum",
         "_repeat_monetary",
-        "_test_end",
     }
 )
 WEEKDAYS = (
@@ -76,10 +73,6 @@ WEEKDAYS = (
     "sunday",
 )
 
-_GRANULARITY_RE = re.compile(r"^(\d+)(d|w|mo|q|y)$")
-
-# ``date.toordinal()`` counts days from 0001-01-01 (= 1); 1970-01-01 is day 719163.
-_EPOCH_ORDINAL = date(1970, 1, 1).toordinal()
 # Days from 0000-03-01 to 1970-01-01 in the civil-date algorithm below.
 _CIVIL_EPOCH_SHIFT = 719468
 # 1970-01-01 is a Thursday, so the Monday-anchored week containing it starts three
@@ -87,89 +80,6 @@ _CIVIL_EPOCH_SHIFT = 719468
 # offset, large enough to keep floor division on non-negative operands for every
 # date of the Common Era (some backends truncate negative integer division).
 _WEEK_SHIFT = 719470
-
-
-def _parse_granularity(granularity: str) -> tuple[int, str]:
-    """Split ``"1d"``, ``"1w"``, ``"1mo"``, ``"1q"`` or ``"1y"`` into its parts.
-
-    Multiples larger than one are rejected for now: the anchor of a multi-period
-    bucket differs between backends, so results would not be comparable.
-    """
-    if not isinstance(granularity, str):
-        raise TypeError(
-            f"granularity must be a string such as '1d' or '1w', got {granularity!r}."
-        )
-    match = _GRANULARITY_RE.match(granularity)
-    if match is None:
-        raise ValueError(
-            f"Unsupported granularity {granularity!r}. Expected one of "
-            "'1d', '1w', '1mo', '1q' or '1y'."
-        )
-    multiple, unit = int(match.group(1)), match.group(2)
-    if multiple != 1:
-        raise ValueError(
-            f"granularity {granularity!r} is not supported yet: only single periods "
-            "('1d', '1w', '1mo', '1q', '1y') are accepted, because multi-period "
-            "buckets are anchored differently by each dataframe backend."
-        )
-    return multiple, unit
-
-
-def _resolve_time_spec(
-    granularity: str | None,
-    time_unit: str | None,
-    week_start: str | None,
-) -> tuple[str, str, int]:
-    """Validate the time parameters and fill in their defaults.
-
-    Returns ``(unit, time_unit, week_start_offset)`` where ``unit`` is the
-    granularity unit (``"d"``, ``"w"``, ``"mo"``, ``"q"`` or ``"y"``) and
-    ``week_start_offset`` counts days from Monday. Without ``granularity`` the
-    bucket follows ``time_unit``, so ``time_unit="week"`` alone counts whole weeks.
-    """
-    time_unit = "day" if time_unit is None else time_unit
-    if time_unit not in TIME_UNIT_DAYS:
-        raise ValueError(
-            f"Unsupported time_unit {time_unit!r}. Expected one of "
-            f"{sorted(TIME_UNIT_DAYS)}."
-        )
-    if granularity is None:
-        unit = TIME_UNIT_GRANULARITY[time_unit]
-    else:
-        _, unit = _parse_granularity(granularity)
-
-    if week_start is None:
-        offset = 0
-    else:
-        if unit != "w":
-            raise ValueError(
-                "week_start only applies to weekly granularity; pass "
-                "granularity='1w' or drop week_start."
-            )
-        if not isinstance(week_start, str) or week_start.lower() not in WEEKDAYS:
-            raise ValueError(
-                f"Unsupported week_start {week_start!r}. Expected one of {WEEKDAYS}."
-            )
-        offset = WEEKDAYS.index(week_start.lower())
-
-    return unit, time_unit, offset
-
-
-def _elapsed(days: Any, unit: str, time_unit: str) -> Any:
-    """Express a day count between two period starts in ``time_unit``.
-
-    ``days`` is a Narwhals expression or a plain number. When ``time_unit`` names the
-    granularity itself the result is a whole number of periods, which discrete-time
-    models such as BG/BB need.
-    """
-    elapsed = days / TIME_UNIT_DAYS[time_unit]
-    if unit in ("mo", "q", "y") and TIME_UNIT_GRANULARITY[time_unit] == unit:
-        # Starts of n calendar periods are within a few days of n times the mean
-        # period length, far less than half a period, so rounding is exact.
-        elapsed = (
-            elapsed.round() if isinstance(elapsed, nw.Expr) else float(round(elapsed))
-        )
-    return elapsed
 
 
 def _days_from_civil(year: Any, month: Any, day: Any) -> Any:
@@ -202,61 +112,106 @@ def _days_from_civil(year: Any, month: Any, day: Any) -> Any:
     return era * 146097 + day_of_era - _CIVIL_EPOCH_SHIFT
 
 
-def _day_number(expr: nw.Expr) -> nw.Expr:
-    """Integer days since 1970-01-01 of a datetime (or date) expression."""
-    return _days_from_civil(expr.dt.year(), expr.dt.month(), expr.dt.day())
+@dataclass(frozen=True)
+class TimeSpec:
+    """How transactions are bucketed into periods and how durations are reported.
 
-
-def _week_start(day_number: Any, week_start_offset: int) -> Any:
-    """First day of the week containing ``day_number``.
-
-    Weeks start on Monday plus ``week_start_offset`` days.
+    Parameters
+    ----------
+    unit : str
+        Period that collapses purchases into one transaction: a key of
+        ``TIME_UNIT_DAYS``.
+    time_unit : str
+        Unit durations are reported in: a key of ``TIME_UNIT_DAYS``.
+    week_start_offset : int
+        First day of a weekly period, in days after Monday.
     """
-    shift = _WEEK_SHIFT - week_start_offset
-    return ((day_number + shift) // 7) * 7 - shift
 
+    unit: str
+    time_unit: str
+    week_start_offset: int = 0
 
-def _period_start(expr: nw.Expr, unit: str, week_start_offset: int = 0) -> nw.Expr:
-    """Day number of the first day of the period containing ``expr``."""
-    year, month = expr.dt.year(), expr.dt.month()
-    if unit == "d":
-        return _day_number(expr)
-    if unit == "w":
-        return _week_start(_day_number(expr), week_start_offset)
-    if unit == "mo":
-        return _days_from_civil(year, month, 1)
-    if unit == "q":
-        quarter_month = ((month.cast(nw.Int64) - 1) // 3) * 3 + 1
-        return _days_from_civil(year, quarter_month, 1)
-    if unit == "y":
+    def _period_start(self, year: Any, month: Any, day: Any) -> Any:
+        """Day number of the first day of the period holding a calendar date."""
+        if self.unit == "day":
+            return _days_from_civil(year, month, day)
+        if self.unit == "week":
+            shift = _WEEK_SHIFT - self.week_start_offset
+            return ((_days_from_civil(year, month, day) + shift) // 7) * 7 - shift
+        if self.unit == "month":
+            return _days_from_civil(year, month, 1)
+        if self.unit == "quarter":
+            return _days_from_civil(year, ((month - 1) // 3) * 3 + 1, 1)
         return _days_from_civil(year, 1, 1)
-    raise ValueError(f"Unknown granularity unit {unit!r}.")  # pragma: no cover
 
-
-def _period_start_scalar(value: datetime, unit: str, week_start_offset: int = 0) -> int:
-    """Python-side twin of :func:`_period_start` for a single naive datetime."""
-    day_number = value.date().toordinal() - _EPOCH_ORDINAL
-    if unit == "d":
-        return day_number
-    if unit == "w":
-        return _week_start(day_number, week_start_offset)
-    if unit == "mo":
-        return date(value.year, value.month, 1).toordinal() - _EPOCH_ORDINAL
-    if unit == "q":
-        quarter_month = ((value.month - 1) // 3) * 3 + 1
-        return date(value.year, quarter_month, 1).toordinal() - _EPOCH_ORDINAL
-    if unit == "y":
-        return date(value.year, 1, 1).toordinal() - _EPOCH_ORDINAL
-    raise ValueError(f"Unknown granularity unit {unit!r}.")  # pragma: no cover
-
-
-def _validate_backend(backend: str | None) -> None:
-    """Reject a ``backend`` the result cannot be collected into."""
-    if backend is not None and backend not in get_args(Backend):
-        raise ValueError(
-            f"Unsupported backend {backend!r}. Expected one of 'pandas', 'polars', "
-            "'pyarrow' or None."
+    def period(self, expr: nw.Expr) -> nw.Expr:
+        """Period of each datetime in a column, as the day number of its first day."""
+        return self._period_start(
+            expr.dt.year().cast(nw.Int64),
+            expr.dt.month().cast(nw.Int64),
+            expr.dt.day().cast(nw.Int64),
         )
+
+    def period_of(self, value: datetime) -> int:
+        """Period of one datetime, as the day number of its first day."""
+        return self._period_start(value.year, value.month, value.day)
+
+    def elapsed(self, days: Any) -> Any:
+        """Express a day count between two period starts in ``time_unit``.
+
+        ``days`` is a Narwhals expression or a plain number. When ``time_unit`` is
+        the period itself the result is a whole number of periods, which
+        discrete-time models such as BG/BB need.
+        """
+        elapsed = days / TIME_UNIT_DAYS[self.time_unit]
+        if self.unit == self.time_unit and self.unit in ("month", "quarter", "year"):
+            # Starts of n calendar periods are within a few days of n times the mean
+            # period length, far less than half a period, so rounding is exact.
+            elapsed = (
+                elapsed.round()
+                if isinstance(elapsed, nw.Expr)
+                else float(round(elapsed))
+            )
+        return elapsed
+
+
+def _resolve_time_spec(
+    granularity: str | None, time_unit: str, week_start: str | None
+) -> TimeSpec:
+    """Validate the time parameters of the public functions.
+
+    Without ``granularity`` the period follows ``time_unit``, so ``time_unit="week"``
+    alone counts whole weeks.
+    """
+    if time_unit not in TIME_UNIT_DAYS:
+        raise ValueError(
+            f"Unsupported time_unit {time_unit!r}. Expected one of "
+            f"{sorted(TIME_UNIT_DAYS)}."
+        )
+    if granularity is None:
+        unit = time_unit
+    elif granularity in GRANULARITY_UNIT:
+        unit = GRANULARITY_UNIT[granularity]
+    else:
+        raise ValueError(
+            f"Unsupported granularity {granularity!r}. Expected one of "
+            f"{sorted(GRANULARITY_UNIT)}."
+        )
+
+    offset = 0
+    if week_start is not None:
+        if unit != "week":
+            raise ValueError(
+                "week_start only applies to weekly granularity; pass "
+                "granularity='1w' or drop week_start."
+            )
+        if not isinstance(week_start, str) or week_start.lower() not in WEEKDAYS:
+            raise ValueError(
+                f"Unsupported week_start {week_start!r}. Expected one of {WEEKDAYS}."
+            )
+        offset = WEEKDAYS.index(week_start.lower())
+
+    return TimeSpec(unit, time_unit, offset)
 
 
 def _validate_input(
@@ -289,21 +244,43 @@ def _validate_input(
     return schema
 
 
-def _prepare_datetime_column(
-    frame: FrameT, datetime_col: str, dtype: nw.dtypes.DType
-) -> tuple[FrameT, str | None]:
-    """Normalise ``datetime_col`` to a naive datetime, returning its original time zone.
+def _prepare_transactions(
+    transactions: Any,
+    customer_id_col: str,
+    datetime_col: str,
+    monetary_value_col: str | None,
+    spec: TimeSpec,
+) -> tuple[nw.LazyFrame[Any], str | None]:
+    """Validate the transactions and tag each one with its period.
+
+    Returns a lazy frame of the columns in use plus ``_period``, and the time zone
+    of ``datetime_col``.
 
     A time-zone-aware column keeps its wall-clock time: periods are calendar
     buckets in the column's own zone. For DuckDB ``TIMESTAMPTZ`` columns that zone
     is the connection's session ``TimeZone``.
     """
+    frame = nw.from_native(transactions)
+    columns = [customer_id_col, datetime_col]
+    if monetary_value_col:
+        columns.append(monetary_value_col)
+    schema = _validate_input(frame, columns, datetime_col)
+    # Rows without a customer or a timestamp cannot be summarised.
+    frame = frame.lazy().select(columns).drop_nulls([customer_id_col, datetime_col])
+    # Polars keeps NaN apart from null; it is a missing value here as well.
+    if schema[customer_id_col].is_float():
+        frame = frame.filter(~nw.col(customer_id_col).is_nan())
+    if monetary_value_col and schema[monetary_value_col].is_float():
+        frame = frame.with_columns(nw.col(monetary_value_col).fill_nan(None))
+
+    dtype = schema[datetime_col]
     time_zone = getattr(dtype, "time_zone", None)
     if isinstance(dtype, nw.Date):
         frame = frame.with_columns(nw.col(datetime_col).cast(nw.Datetime))
     elif time_zone is not None:
         frame = frame.with_columns(nw.col(datetime_col).dt.replace_time_zone(None))
-    return frame, time_zone
+    period = spec.period(nw.col(datetime_col))
+    return frame.with_columns(period.alias("_period")), time_zone
 
 
 _FIXED_OFFSET_RE = re.compile(r"^(?:UTC)?([+-])(\d{2}):?(\d{2})$")
@@ -331,7 +308,7 @@ def _coerce_period_end(
     Accepts ``datetime``, ``date``, ISO-8601 strings, ``numpy.datetime64``,
     ``pandas.Timestamp`` and ``pandas.Period``. The time-zone awareness must match
     the column's: an aware value is converted to the column's zone and stripped, so
-    it lines up with the wall-clock buckets of :func:`_prepare_datetime_column`.
+    it lines up with the wall-clock buckets of :func:`_prepare_transactions`.
     """
     if isinstance(value, pandas.Period):
         value = value.to_timestamp()
@@ -373,27 +350,19 @@ def _coerce_period_end(
     return value
 
 
-def _finalize(
-    frame: nw.LazyFrame[Any],
-    backend: Backend | None,
-    *,
-    eager_input: bool,
-) -> Any:
-    """Return ``frame`` as a native object, sorted by customer.
+def _finalize(frame: nw.LazyFrame[Any], transactions: Any) -> Any:
+    """Return ``frame`` sorted by customer, in the library of ``transactions``.
 
-    ``backend=None`` keeps the input's own library and laziness. Otherwise the result
-    is collected into the requested eager library. A pandas result gets a fresh
-    ``RangeIndex``.
+    An in-memory input gives an in-memory result and a lazy input stays lazy. A
+    pandas result gets a fresh ``RangeIndex``.
     """
     # The sort is the last step of the query: an engine need not keep the order of
     # a subquery. Ids of mixed types (a pandas object column) cannot be ordered.
     if not isinstance(frame.collect_schema()[Col.CUSTOMER_ID], nw.Object):
         frame = frame.sort(Col.CUSTOMER_ID)
-    result: nw.DataFrame[Any] | nw.LazyFrame[Any]
-    if backend is not None:
-        result = frame.collect(backend=backend)
-    else:
-        result = frame.collect() if eager_input else frame
+    result: nw.DataFrame[Any] | nw.LazyFrame[Any] = frame
+    if isinstance(nw.from_native(transactions), nw.DataFrame):
+        result = frame.collect()
     native = result.to_native()
     if isinstance(native, pandas.DataFrame):
         native = native.reset_index(drop=True)

@@ -28,17 +28,13 @@ from pandas.testing import assert_frame_equal
 
 from pymc_marketing.clv._narwhals_utils import (
     WEEKDAYS,
+    TimeSpec,
     _coerce_period_end,
-    _day_number,
     _days_from_civil,
-    _parse_granularity,
-    _period_start,
-    _period_start_scalar,
-    _prepare_datetime_column,
     _resolve_time_spec,
-    _validate_input,
 )
-from pymc_marketing.clv.utils import (
+from pymc_marketing.clv.rfm import (
+    _bin_edges,
     _default_rfm_segment_config,
     rfm_segments,
     rfm_summary,
@@ -49,73 +45,36 @@ from tests.clv.conftest import collect_sorted
 EPOCH = date(1970, 1, 1)
 
 
-@pytest.mark.parametrize(
-    "granularity, expected",
-    [
-        ("1d", (1, "d")),
-        ("1w", (1, "w")),
-        ("1mo", (1, "mo")),
-        ("1q", (1, "q")),
-        ("1y", (1, "y")),
-    ],
-)
-def test_parse_granularity_accepts_single_periods(granularity, expected):
-    assert _parse_granularity(granularity) == expected
-
-
-@pytest.mark.parametrize("granularity", ["2w", "3d", "12mo"])
-def test_parse_granularity_rejects_multiples(granularity):
-    with pytest.raises(ValueError, match="only single periods"):
-        _parse_granularity(granularity)
-
-
-@pytest.mark.parametrize("granularity", ["1h", "week", "1W", "", "1"])
-def test_parse_granularity_rejects_unknown_units(granularity):
-    with pytest.raises(ValueError, match="Unsupported granularity"):
-        _parse_granularity(granularity)
-
-
-def test_parse_granularity_rejects_non_strings():
-    with pytest.raises(TypeError, match="granularity must be a string"):
-        _parse_granularity(1)
-
-
-def test_resolve_time_spec_defaults():
-    assert _resolve_time_spec(None, None, None) == ("d", "day", 0)
+def test_resolve_time_spec_period_follows_time_unit():
+    assert _resolve_time_spec(None, "day", None) == TimeSpec("day", "day", 0)
+    assert _resolve_time_spec(None, "quarter", None) == TimeSpec("quarter", "quarter")
+    # An explicit granularity wins over the one the time unit implies.
+    assert _resolve_time_spec("1mo", "day", None) == TimeSpec("month", "day")
 
 
 def test_resolve_time_spec_week_start_offsets():
     for offset, weekday in enumerate(WEEKDAYS):
-        assert _resolve_time_spec("1w", "week", weekday) == ("w", "week", offset)
-    assert _resolve_time_spec("1w", "week", "Wednesday") == ("w", "week", 2)
-
-
-def test_resolve_time_spec_week_start_requires_weekly_granularity():
-    with pytest.raises(ValueError, match="week_start only applies to weekly"):
-        _resolve_time_spec("1d", "day", "monday")
-
-
-def test_resolve_time_spec_rejects_unknown_week_start():
-    with pytest.raises(ValueError, match="Unsupported week_start"):
-        _resolve_time_spec("1w", "week", "someday")
-
-
-def test_resolve_time_spec_rejects_unknown_time_unit():
-    with pytest.raises(ValueError, match="Unsupported time_unit"):
-        _resolve_time_spec("1d", "D", None)
+        assert _resolve_time_spec("1w", "week", weekday).week_start_offset == offset
+    assert _resolve_time_spec(None, "week", "Wednesday").week_start_offset == 2
 
 
 @pytest.mark.parametrize(
-    "time_unit, unit",
-    [("day", "d"), ("week", "w"), ("month", "mo"), ("quarter", "q"), ("year", "y")],
+    "granularity, time_unit, week_start, match",
+    [
+        ("1d", "day", "monday", "week_start only applies to weekly"),
+        ("1w", "week", "someday", "Unsupported week_start"),
+        ("1d", "D", None, "Unsupported time_unit"),
+        ("1d", "weeks", None, "Unsupported time_unit"),
+        # Multiples are anchored differently by each backend, so none is accepted.
+        ("2w", "week", None, "Unsupported granularity"),
+        ("1h", "day", None, "Unsupported granularity"),
+        ("week", "week", None, "Unsupported granularity"),
+        (7, "day", None, "Unsupported granularity"),
+    ],
 )
-def test_resolve_time_spec_granularity_follows_time_unit(time_unit, unit):
-    assert _resolve_time_spec(None, time_unit, None) == (unit, time_unit, 0)
-    assert _resolve_time_spec("1d", time_unit, None) == ("d", time_unit, 0)
-
-
-def test_resolve_time_spec_week_start_with_weekly_time_unit():
-    assert _resolve_time_spec(None, "week", "sunday") == ("w", "week", 6)
+def test_resolve_time_spec_rejects(granularity, time_unit, week_start, match):
+    with pytest.raises(ValueError, match=match):
+        _resolve_time_spec(granularity, time_unit, week_start)
 
 
 def test_days_from_civil_mixes_scalars_and_expressions():
@@ -150,125 +109,68 @@ def _day_range() -> pd.DataFrame:
     return pd.DataFrame({"ts": days + pd.Timedelta(hours=13, minutes=37)})
 
 
-def test_day_number_matches_python_on_every_backend(to_backend):
+# Each period, with the pandas period alias that buckets the same way.
+PERIODS = [
+    (TimeSpec("day", "day"), "D"),
+    (TimeSpec("week", "week"), "W-SUN"),  # weeks that start on Monday
+    (TimeSpec("week", "week", 2), "W-TUE"),  # ... on Wednesday
+    (TimeSpec("week", "week", 6), "W-SAT"),  # ... on Sunday
+    (TimeSpec("month", "month"), "M"),
+    (TimeSpec("quarter", "quarter"), "Q"),
+    (TimeSpec("year", "year"), "Y"),
+]
+
+
+@pytest.mark.parametrize("spec, freq", PERIODS, ids=[freq for _, freq in PERIODS])
+def test_period_matches_pandas_on_every_backend(to_backend, spec, freq):
     frame = _day_range()
-    native = to_backend(frame)
-    result = collect_sorted(
-        nw.from_native(native).lazy().select(_day_number(nw.col("ts")).alias("n")),
-        by="n",
+    result = (
+        nw.from_native(to_backend(frame))
+        .lazy()
+        .select(nw.col("ts"), spec.period(nw.col("ts")).alias("period"))
+        .collect()
+        .sort("ts")
     )
-    expected = np.sort(
-        np.array([(ts.date() - EPOCH).days for ts in frame["ts"]], dtype="int64")
-    )
-    np.testing.assert_array_equal(result["n"].to_numpy(), expected)
+    start_time = frame["ts"].dt.to_period(freq).dt.start_time
+    expected = (start_time - pd.Timestamp(EPOCH)).dt.days.to_numpy()
+    np.testing.assert_array_equal(result["period"].to_numpy(), expected)
+    # One datetime goes through the same rule.
+    for position in (0, 59, 20_000, len(frame) - 1):
+        assert (
+            spec.period_of(frame["ts"][position].to_pydatetime()) == expected[position]
+        )
+
+
+def test_elapsed_counts_whole_periods_when_the_unit_is_the_period():
+    # 2015-01-01 to 2016-03-01 is 425 days: 14 whole months, 13.96 mean months.
+    assert TimeSpec("month", "month").elapsed(425) == 14.0
+    assert TimeSpec("day", "month").elapsed(425) == pytest.approx(425 / 30.4375)
+    assert TimeSpec("week", "week").elapsed(21) == 3.0
 
 
 @pytest.mark.parametrize(
-    "unit, week_start_offset",
-    # The start of the week only matters for weekly periods.
-    [("d", 0), ("w", 0), ("w", 2), ("w", 6), ("mo", 0), ("q", 0), ("y", 0)],
+    "edges, expected",
+    [
+        ([0.0, 1.0, 2.0, 3.0, 4.0], [0.0, 1.0, 2.0, 3.0, 4.0]),
+        # Ties: equal edges count once, as pandas.qcut(duplicates="drop") does.
+        ([0.0, 0.0, 0.0, 3.0, 4.0], [0.0, 3.0, 4.0]),
+        # Edges apart by float noise are one edge, whatever order they come in.
+        ([1e-15, -1e-15, 50.0, 75.0, 100.0], [-1e-15, 50.0, 75.0, 100.0]),
+    ],
 )
-def test_period_start_expression_matches_scalar_twin(
-    to_backend, unit, week_start_offset
-):
-    frame = _day_range()
-    native = to_backend(frame)
-    result = collect_sorted(
-        nw.from_native(native)
-        .lazy()
-        .select(
-            _day_number(nw.col("ts")).alias("n"),
-            _period_start(nw.col("ts"), unit, week_start_offset).alias("p"),
-        ),
-        by="n",
+def test_bin_edges_are_the_distinct_edges(edges, expected):
+    np.testing.assert_allclose(_bin_edges(edges), expected, rtol=0, atol=1e-9)
+
+
+def test_bin_edges_leave_room_for_float_noise():
+    """A value just above an edge, as a re-evaluated float sum can be, stays below."""
+    bounds = _bin_edges([0.0, 25.0, 50.0, 75.0, 100.0])
+    assert all(
+        bound > edge for bound, edge in zip(bounds, [0, 25, 50, 75, 100], strict=True)
     )
-    expected = np.array(
-        [
-            _period_start_scalar(ts.to_pydatetime(), unit, week_start_offset)
-            for ts in frame["ts"]
-        ],
-        dtype="int64",
-    )
-    np.testing.assert_array_equal(result["p"].to_numpy(), expected)
-
-
-def test_period_start_scalar_weekly_anchors():
-    # 2015-01-01 is a Thursday. Monday-start weeks begin on 2014-12-29, which is
-    # the same bucket pandas assigns with the "W" (W-SUN) period alias.
-    thursday = datetime(2015, 1, 1)
-    monday = (date(2014, 12, 29) - EPOCH).days
-    assert _period_start_scalar(thursday, "w", 0) == monday
-    # Wednesday-start weeks containing that Thursday begin on 2014-12-31.
-    assert _period_start_scalar(thursday, "w", 2) == monday + 2
-    # A Monday belongs to the Wednesday-start week that began the previous Wednesday.
-    assert _period_start_scalar(datetime(2014, 12, 29), "w", 2) == monday - 5
-    # Sunday-start weeks: Sunday 2014-12-28 opens the week holding 2015-01-01.
-    assert _period_start_scalar(thursday, "w", 6) == monday - 1
-
-
-def test_period_start_scalar_calendar_units():
-    value = datetime(2015, 8, 17, 23, 59)
-    assert _period_start_scalar(value, "d") == (date(2015, 8, 17) - EPOCH).days
-    assert _period_start_scalar(value, "mo") == (date(2015, 8, 1) - EPOCH).days
-    assert _period_start_scalar(value, "q") == (date(2015, 7, 1) - EPOCH).days
-    assert _period_start_scalar(value, "y") == (date(2015, 1, 1) - EPOCH).days
-
-
-def test_period_start_weekly_matches_pandas_w_sun(to_backend):
-    frame = _day_range()
-    result = collect_sorted(
-        nw.from_native(to_backend(frame))
-        .lazy()
-        .select(
-            _day_number(nw.col("ts")).alias("n"),
-            _period_start(nw.col("ts"), "w", 0).alias("p"),
-        ),
-        by="n",
-    )
-    pandas_week_start = frame["ts"].dt.to_period("W").dt.start_time
-    expected = ((pandas_week_start - pd.Timestamp(EPOCH)).dt.days).to_numpy()
-    np.testing.assert_array_equal(result["p"].to_numpy(), expected)
-
-
-def test_validate_input_accepts_datetime_and_date(to_backend):
-    native = to_backend(
-        pd.DataFrame(
-            {
-                "id": [1],
-                "dt": pd.to_datetime(["2020-01-01"]),
-                "d": pd.to_datetime(["2020-01-01"]).date,
-            }
-        )
-    )
-    frame = nw.from_native(native)
-    schema = _validate_input(frame, ["id", "dt"], "dt")
-    assert isinstance(schema["dt"], nw.Datetime)
-    if frame.collect_schema()["d"] == nw.Date:
-        _validate_input(frame, ["id", "d"], "d")
-
-
-def test_prepare_datetime_column_strips_time_zone():
-    frame = nw.from_native(
-        pd.DataFrame(
-            {"ts": pd.to_datetime(["2020-01-01 23:00"]).tz_localize("Asia/Tokyo")}
-        )
-    ).lazy()
-    dtype = frame.collect_schema()["ts"]
-    prepared, time_zone = _prepare_datetime_column(frame, "ts", dtype)
-    assert time_zone == "Asia/Tokyo"
-    out = prepared.collect().to_native()
-    assert out["ts"].dt.tz is None
-    # Wall-clock time is kept, so the calendar bucket is the Tokyo day.
-    assert out["ts"].iloc[0] == pd.Timestamp("2020-01-01 23:00")
-
-
-def test_prepare_datetime_column_casts_dates():
-    frame = nw.from_native(pd.DataFrame({"d": [date(2020, 1, 1)]})).lazy()
-    frame = frame.with_columns(nw.col("d").cast(nw.Date))
-    dtype = frame.collect_schema()["d"]
-    prepared, time_zone = _prepare_datetime_column(frame, "d", dtype)
-    assert time_zone is None
-    assert isinstance(prepared.collect_schema()["d"], nw.Datetime)
+    assert bounds[1] > 25.0 + 1e-14
+    # The slack follows the largest edge, so an edge at zero gets as much.
+    assert bounds[0] == pytest.approx(1e-10)
 
 
 @pytest.mark.parametrize(
@@ -846,29 +748,6 @@ class TestReturnTypes:
         )
         assert isinstance(result, pl.LazyFrame)
 
-    @pytest.mark.parametrize(
-        "backend, expected_type",
-        [("pandas", pd.DataFrame), ("polars", pl.DataFrame), ("pyarrow", pa.Table)],
-    )
-    def test_backend_collects(
-        self, to_backend, transaction_data, backend, expected_type
-    ):
-        native = to_backend(transaction_data)
-        summary = rfm_summary(native, "identifier", "date", backend=backend)
-        split = rfm_train_test_split(
-            native, "identifier", "date", "2015-02-01", backend=backend
-        )
-        segments = rfm_segments(
-            native, "identifier", "date", "monetary_value", backend=backend
-        )
-        assert isinstance(summary, expected_type)
-        assert isinstance(split, expected_type)
-        assert isinstance(segments, expected_type)
-
-    def test_invalid_backend_raises(self, transaction_data):
-        with pytest.raises(ValueError, match="Unsupported backend"):
-            rfm_summary(transaction_data, "identifier", "date", backend="dask")
-
     def test_pandas_output_dtypes(self, transaction_data):
         actual = rfm_summary(
             transaction_data, "identifier", "date", "monetary_value", granularity="1d"
@@ -1200,7 +1079,7 @@ class TestNewApi:
             )
 
     def test_multi_period_granularity_raises(self, transaction_data):
-        with pytest.raises(ValueError, match="only single periods"):
+        with pytest.raises(ValueError, match="Unsupported granularity '2w'"):
             rfm_summary(transaction_data, "identifier", "date", granularity="2w")
 
     def test_week_start_requires_weekly_granularity(self, transaction_data):
@@ -1609,7 +1488,7 @@ class TestRegressions:
         results = [
             rfm_summary(df, "id", "date", granularity="1d"),
             rfm_train_test_split(df, "id", "date", "2015-01-05", granularity="1d"),
-            rfm_summary(pl.from_pandas(df), "id", "date", backend="pandas"),
+            rfm_summary(pl.from_pandas(df), "id", "date").to_pandas(),
         ]
         for result in results:
             assert result["customer_id"].tolist() == sorted(result["customer_id"])

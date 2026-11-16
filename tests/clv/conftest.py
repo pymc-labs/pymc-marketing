@@ -81,7 +81,9 @@ def cdnow_trans() -> pd.DataFrame:
 
     Data source: https://www.brucehardie.com/datasets/
     """
-    return pd.read_csv("data/cdnow_transactions.csv")
+    df = pd.read_csv("data/cdnow_transactions.csv")
+    df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
+    return df
 
 
 @pytest.fixture(scope="module")
