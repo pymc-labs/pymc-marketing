@@ -1649,7 +1649,7 @@ class TestConditionedModelRebinding:
         spend = np.ones((len(self.dates), 2, 1))
 
         refused = xr.DataTree.from_dict({"/posterior": first.drop_vars("beta")})
-        with pytest.raises(KeyError, match="missing variables"):
+        with pytest.raises(KeyError, match="missing variables this graph reads"):
             reused.set_posterior(refused)
 
         self._assert_same_as_fresh(
