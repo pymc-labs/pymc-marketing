@@ -2898,11 +2898,11 @@ class TestMonetarySpendVariables:
         assert report["implied_price"].isnull().all()
         assert report["implied_marginal_price"].isnull().all()
 
-    def test_delivery_reports_at_a_plan_match_the_result_at_its_solution(
+    def test_delivery_reports_at_a_plan_follow_its_labels(
         self, funnel_identity_fitted_mmm
     ):
-        """Reports at a labelled plan come from the same code as the result's, so at
-        the solution they agree; a positional plan is refused as in evaluate_plan."""
+        """The solution, written in the opposite channel order, reports exactly as the
+        result does: the plan is aligned by label, not read by position."""
         optimizer = self._optimizer(
             funnel_identity_fitted_mmm,
             spend_vars=["lf_budget"],
@@ -2917,16 +2917,50 @@ class TestMonetarySpendVariables:
         )
         result = optimizer.allocate_budget(total_budget=self.TOTAL)
         assert result.scipy_result.success, result.scipy_result.message
+        media = result.budgets.values
+        assert not np.allclose(media, media[::-1]), (
+            "fixture drifted: reversing equal budgets would not test alignment"
+        )
 
         reports = optimizer.delivery_reports(
-            {"channel_data": result.budgets, **result.spend_var_allocations}
+            {
+                "channel_data": result.budgets.isel(channel=slice(None, None, -1)),
+                **result.spend_var_allocations,
+            }
         )
 
         assert list(reports) == list(result.delivery_reports)
         for name, report in reports.items():
             xr.testing.assert_allclose(report, result.delivery_reports[name])
-        with pytest.raises(TypeError, match="delivery_reports takes a labelled plan"):
-            optimizer.delivery_reports(result.scipy_result.x)
+
+    def test_a_plan_spending_negative_money_is_refused(
+        self, funnel_identity_fitted_mmm
+    ):
+        """Negative money buys nothing, so its report would not add up: delivery times
+        price sums to zero against a negative spend. A rounding error below zero, as a
+        plan read off a solution can carry, is still reported."""
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm,
+            spend_vars=["lf_budget"],
+            price_response={
+                "channel_data": PowerPriceResponse(elasticity=0.0),
+                "lf_budget": PowerPriceResponse(
+                    elasticity=0.2,
+                    assume_delivery_units=True,
+                    reference_spend=xr.DataArray(1.0),
+                ),
+            },
+        )
+        variables = optimizer.optimization_variables
+        plan = variables.unpack(variables.x0(self.TOTAL))
+
+        with pytest.raises(ValueError, match="negative money on 'lf_budget'"):
+            optimizer.delivery_reports({**plan, "lf_budget": -plan["lf_budget"]})
+
+        report = optimizer.delivery_reports(
+            {**plan, "lf_budget": xr.DataArray(-1e-15)}
+        )["lf_budget"]
+        assert report["implied_price"].isnull().all()
 
     def test_no_price_response_means_no_delivery_reports(
         self, funnel_identity_fitted_mmm

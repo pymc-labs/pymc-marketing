@@ -2395,8 +2395,10 @@ class BudgetOptimizer(BaseModel):
 
         The same reports :meth:`allocate_budget` puts on
         :attr:`BudgetOptimizationResult.delivery_reports`, at a plan the caller
-        names rather than at the solution. Kept out of :meth:`evaluate_plan`,
-        which is used in sweeps: a report costs far more than the objective.
+        names rather than at the solution. Kept apart from :meth:`evaluate_plan`
+        because it answers a different question: it reads no posterior, only the
+        price map, and returns a ``Dataset`` per priced variable rather than an
+        objective and its gradient.
 
         Parameters
         ----------
@@ -2416,14 +2418,45 @@ class BudgetOptimizer(BaseModel):
         TypeError
             If ``plan`` is not labelled at all.
         ValueError
-            If a supplied ``DataArray`` has a dim carrying no coordinates, or
-            if ``plan`` omits a decision variable, omits an optimized cell, or
-            carries coordinates the model does not have.
+            If a supplied ``DataArray`` has a dim carrying no coordinates, if
+            ``plan`` omits a decision variable, omits an optimized cell, or
+            carries coordinates the model does not have, or if it spends
+            negative money on a priced variable.
+
+        Notes
+        -----
+        As in :meth:`evaluate_plan`, **bounds are never checked**: a plan above
+        them is reported as given. Negative money is refused rather than
+        reported, because it buys nothing and so breaks the report's identity
+        silently: ``implied_delivery * implied_price`` would sum to zero while
+        ``spend`` sums below it. A cell outside the optimization mask is not part
+        of the decision vector, so its ``spend`` is ``0.0`` whatever the plan
+        holds there.
+
+        The first call compiles the price map once per priced variable; later
+        calls reuse it.
         """
         self._require_labelled_plan(plan, "delivery_reports")
-        return self._variables.delivery_reports(
+        reports = self._variables.delivery_reports(
             self._pack_decision_vector(plan), date_coords=self._decision_date_coords()
         )
+        for variable in self._variables.variables:
+            if (
+                not isinstance(variable, MediaVariable)
+                or variable.price_response is None
+            ):
+                continue
+            spend = reports[variable.name]["spend"]
+            # Mirrors the threshold below which a report calls a cell unspent, so a
+            # plan read off a solution, a rounding error below a bound at zero, passes.
+            floor = -1e-12 * variable.price_response.money_scale
+            if np.any(spend.values < floor):
+                raise ValueError(
+                    f"delivery_reports got a plan spending negative money on "
+                    f"{variable.name!r} (lowest {float(spend.min()):.6g} per period). "
+                    "Money below zero buys nothing, so the report would not add up."
+                )
+        return reports
 
     def set_constraints(self, constraints: Sequence[Constraint]) -> None:
         """Set constraints for the optimizer.
