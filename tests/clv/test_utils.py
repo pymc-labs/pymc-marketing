@@ -206,8 +206,6 @@ class TestCustomerLifetimeValue:
             ("M", 12.0),
             ("W", 365.25 / 7),
             ("D", 365.25),
-            ("H", 365.25 * 24),
-            ("h", 365.25 * 24),
             # The names the RFM functions take.
             ("month", 12.0),
             ("week", 365.25 / 7),
@@ -217,8 +215,8 @@ class TestCustomerLifetimeValue:
     def test_time_unit_scaling(self, time_unit, expected_periods):
         """`future_t` is given in months and scaled into `time_unit` periods.
 
-        A 12-month horizon must map onto a full 365.25-day year for "D", "W" and
-        "H", not the 360 days implied by a flat 30-day month. See issue #2749.
+        A 12-month horizon must map onto a full 365.25-day year for "D" and "W",
+        not the 360 days implied by a flat 30-day month. See issue #2749.
         """
         recorded = []
 

@@ -30,10 +30,9 @@ from pymc_marketing.names.clv import Col, Dim
 
 __all__ = ["customer_lifetime_value", "to_xarray"]
 
-# The units ``customer_lifetime_value`` computes with are pandas period aliases.
-# pandas 3 removed "H" ("h" replaces it), and the named units are the ones the RFM
-# functions take, so that one spelling works through a whole analysis.
-_PERIOD_ALIASES = {"H": "h", "day": "D", "week": "W", "month": "M"}
+# ``customer_lifetime_value`` computes with the letters; the names are the ones the
+# RFM functions take, so that one spelling works through a whole analysis.
+_PERIOD_ALIASES = {"day": "D", "week": "W", "month": "M"}
 
 
 def _normalize_time_unit(time_unit: str) -> str:
@@ -193,7 +192,7 @@ def customer_lifetime_value(
         The monthly adjusted discount rate. Default: 0.00
     time_unit : string, optional
         Unit of time of the purchase history. Defaults to "D" for daily.
-        Other options are "W" (weekly), "M" (monthly), and "H" (hourly).
+        Other options are "W" (weekly) and "M" (monthly).
         The names the RFM functions take, "day", "week" and "month", work too.
         Example: If your dataset contains information about weekly purchases,
         you should use "W".
@@ -239,12 +238,11 @@ def customer_lifetime_value(
         steps = np.arange(1, future_t + 1)
 
     # DAYS_IN_MONTH is the average calendar month (365.25 / 12). A flat 30 days
-    # understates a year by 5.25 days and inflates CLV for the "D", "W" and "h" units.
+    # understates a year by 5.25 days and inflates CLV for the "D" and "W" units.
     factor = {
         "W": DAYS_IN_MONTH / DAYS_IN_WEEK,
         "M": 1.0,
         "D": DAYS_IN_MONTH,
-        "h": DAYS_IN_MONTH * 24,
     }[time_unit]
 
     monetary_value = to_xarray(data[Col.CUSTOMER_ID], data[Col.FUTURE_SPEND])

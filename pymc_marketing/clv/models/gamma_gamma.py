@@ -202,7 +202,7 @@ class BaseGammaGammaModel(CLVModel):
             The monthly adjusted discount rate. Default: 0.00
         time_unit : string, optional
             Unit of time of the purchase history. Defaults to "D" for daily.
-            Other options are "W" (weekly), "M" (monthly), and "H" (hourly).
+            Other options are "W" (weekly) and "M" (monthly).
             The names the RFM functions take, "day", "week" and "month", work too.
             Example: If your dataset contains information about weekly purchases,
             you should use "W".
