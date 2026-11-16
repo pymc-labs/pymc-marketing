@@ -589,12 +589,14 @@ class TestDateIndexedInputs:
                 )
 
     def _level_evaluator(
-        self, reduce: bool
+        self, reduce: bool, in_tensors: bool = False
     ) -> tuple[CounterfactualEvaluator, np.ndarray]:
         """Build an evaluator whose spend is scaled by a free ``level`` over date.
 
         ``level`` is not frozen, so it keeps its draws over all fitted dates.  When
-        *reduce* is set, the graph takes its mean over ``date`` first.
+        *reduce* is set, the graph takes its mean over ``date`` first.  When
+        *in_tensors* is set, the product is taken on plain tensors, which carry no
+        dims.
         """
         n_dates = len(self.dates)
         with pm.Model(coords={"date": range(n_dates), "channel": ["c"]}) as model:
@@ -604,7 +606,14 @@ class TestDateIndexedInputs:
             level = pmd.Normal("level", dims="date")
             if reduce:
                 level = level.mean("date")
-            pmd.Deterministic("channel_contribution", channel_data * level)
+            if in_tensors:
+                product = ptx.as_xtensor(
+                    channel_data.values * level.values[:, None],
+                    dims=("date", "channel"),
+                )
+            else:
+                product = channel_data * level
+            pmd.Deterministic("channel_contribution", product)
 
         values = np.arange(1.0, n_dates + 1)
         posterior = xr.Dataset(
@@ -621,16 +630,21 @@ class TestDateIndexedInputs:
         return evaluator, values
 
     @pytest.mark.parametrize(
+        "in_tensors",
+        [pytest.param(False, id="xtensor"), pytest.param(True, id="plain-tensor")],
+    )
+    @pytest.mark.parametrize(
         "entry", ["evaluate_counterfactual", "iter_counterfactual"]
     )
-    def test_an_uncut_variable_meeting_a_window_is_refused(self, entry):
+    def test_an_uncut_variable_meeting_a_window_is_refused(self, entry, in_tensors):
         """An uncut variable over date that meets spend's windowed date is refused.
 
         One window spans every fitted date, so the padded length equals the fitted
         one and no shape fails: the later window would read ``level`` from the
-        first fitted date instead of its own.
+        first fitted date instead of its own.  The meeting is found also when it
+        happens on plain tensors, which carry no dims.
         """
-        evaluator, _ = self._level_evaluator(reduce=False)
+        evaluator, _ = self._level_evaluator(reduce=False, in_tensors=in_tensors)
         n_dates = len(self.dates)
         windows = self._windows(
             slice(0, n_dates), slice(2, n_dates), max_window=n_dates

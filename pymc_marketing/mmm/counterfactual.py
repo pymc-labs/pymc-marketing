@@ -77,7 +77,6 @@ from pytensor import function
 from pytensor.compile.sharedvalue import SharedVariable, shared
 from pytensor.graph.basic import Variable
 from pytensor.graph.traversal import ancestors, graph_inputs, io_toposort
-from pytensor.tensor.shape import Shape, Shape_i
 from pytensor.xtensor.basic import XTensorFromTensor
 from pytensor.xtensor.type import XTensorType, XTensorVariable
 from pytensor.xtensor.vectorization import vectorize_graph
@@ -1742,7 +1741,7 @@ class CounterfactualEvaluator:
         A variable carries a path's ``date`` axis from the path down to the
         first node that drops ``date`` from its dims, such as a reduction over
         it.  A plain tensor node does not show its dims, so it is taken to keep
-        ``date``, unless it only reads a shape.  A path collides where an
+        ``date``.  A path collides where an
         operation reads it together with a variable carrying a windowed
         ``date`` axis.  A path reduced over ``date`` first never collides, and
         it evaluates on any window.
@@ -1772,8 +1771,6 @@ class CounterfactualEvaluator:
         windowed_vars = {var for var in windowed if carries_date(var)}
         colliding: set[str] = set()
         for node in io_toposort(list(graph_inputs(graphs)), list(graphs)):
-            if isinstance(node.op, Shape | Shape_i):
-                continue
             reached = set().union(*(origins.get(var, ()) for var in node.inputs))
             meets_window = any(var in windowed_vars for var in node.inputs)
             if reached and meets_window:
