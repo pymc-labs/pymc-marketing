@@ -5693,7 +5693,11 @@ class MMM(RegressionModelBuilder):
             while the ``fit_data`` of a DataFrame fit is sorted.
         - The model is rebuilt from an ``xr.Dataset`` made from ``fit_data``, so
             mu_effect data keeps its own dims, such as an extra dim. Dates are
-            converted with ``pd.to_datetime`` for every variable.
+            converted with ``pd.to_datetime`` for every variable. A subclass that
+            overrides :meth:`build_model` receives that Dataset and no ``y``.
+        - ``X`` is then set to the long frame of the ``fit_data`` variables on
+            ``(date_column, *dims)``, without the target, whatever ``fit`` was
+            given. mu_effect data on other dims is left out of it.
         - Restores lift-test calibration from ``idata.attrs`` and
             cost-per-target/ROAS calibration from ``idata.attrs`` plus the
             ``cost_per_target_spend`` group. Files written before these records
@@ -5757,6 +5761,19 @@ class MMM(RegressionModelBuilder):
             self.build_model(X)  # type: ignore
         finally:
             self._custom_dim_order = {}
+
+        # build_model keeps the Dataset it was given as X. Expose the long frame
+        # of fit_data instead, from the variables on the dims of the target.
+        stored = idata.fit_data.dataset
+        row_dims = set(stored[self.target_column].dims)
+        frame = stored[
+            [
+                name
+                for name, variable in stored.data_vars.items()
+                if name != self.target_column and set(variable.dims) == row_dims
+            ]
+        ].to_dataframe()
+        self.X = frame.reset_index() if self.date_column in frame.index.names else frame
 
         # Lift-test rows are model inputs, rather than part of fit_data. Restore
         # them after rebuilding the base MMM so their likelihood and posterior

@@ -702,6 +702,67 @@ class TestFitWithXarrayInput:
         rebuilt.build_from_idata(idata)
 
         xr.testing.assert_allclose(rebuilt.xarray_dataset, mmm.xarray_dataset)
+        pd.testing.assert_frame_equal(rebuilt.X, X_df, check_names=False)
+
+    @pytest.mark.parametrize("date_column", ["date", "week"])
+    @pytest.mark.parametrize("fit_from", ["dataframe", "dataset"])
+    def test_load_sets_x_to_the_long_fit_frame(
+        self, inputs, fit_from, date_column, tmp_path, mock_pymc_sample
+    ):
+        """A loaded model exposes ``X`` as the long frame of ``fit_data``.
+
+        ``build_from_idata`` rebuilds the model from an ``xr.Dataset``, but ``X``
+        keeps the frame that ``load`` has always set, whatever ``fit`` was given.
+        """
+        X_df = inputs["X_df"].rename(columns={"date": date_column})
+        mmm = self._mmm(inputs["dims"], self.CONTROLS, date_column=date_column)
+        if fit_from == "dataset":
+            mmm.fit(
+                xr.Dataset(
+                    {
+                        "media": inputs["media"],
+                        "_control": inputs["control"],
+                        "target": inputs["target"],
+                    }
+                )
+            )
+        else:
+            mmm.fit(X_df, inputs["y"])
+
+        file = str(tmp_path / "x_after_load.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        # netCDF stores the dates at nanosecond resolution.
+        pd.testing.assert_frame_equal(
+            loaded.X, X_df.astype({date_column: "datetime64[ns]"})
+        )
+
+    def test_load_leaves_extra_dim_mu_effect_data_out_of_x(
+        self, tmp_path, mock_pymc_sample
+    ):
+        """``X`` after load has one row per date and geo, without extra-dim data.
+
+        ``promo`` is on ``(date, geo, segment)``: a long frame could only hold it
+        by repeating every other column along ``segment``.
+        """
+        ds = self._dataset_with_promo(("date", "geo", "segment"))
+        mmm = self._mmm(("geo",), self.CONTROLS)
+        mmm.add_mu_effect(_SegmentEffect(data_vars=["promo"], prefix="promo"))
+        mmm.build_model(ds)
+        df = self._fit_frame(ds, "date")
+        mmm.fit(df.drop(columns="y"), df["y"])
+
+        file = str(tmp_path / "x_extra_dim.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        pd.testing.assert_frame_equal(
+            loaded.X,
+            df.drop(columns="y")
+            .sort_values(["date", "geo"], ignore_index=True)
+            .astype({"date": "datetime64[ns]"}),
+        )
 
     def test_build_from_idata_raises_when_posterior_labels_differ(
         self, mock_pymc_sample
