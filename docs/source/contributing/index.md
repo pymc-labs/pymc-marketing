@@ -45,6 +45,7 @@ For more instructions see the [Pull request checklist](pull-request-checklist)
     gh repo fork pymc-labs/pymc-marketing
     ```
 
+    Some example notebooks load a fitted model stored with [Git LFS](https://git-lfs.com). Install Git LFS and run `git lfs install` once; clones made after that download the file automatically. In a clone made before that, also run `git lfs pull`. Without Git LFS you get a small pointer file in place of `docs/source/notebooks/mmm/multidimensional_model.nc`, and the notebooks that load it fail.
 
 1. Create a feature branch (e.g. `my-feature`) to hold your development changes:
 
