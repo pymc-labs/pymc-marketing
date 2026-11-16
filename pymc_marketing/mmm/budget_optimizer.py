@@ -510,6 +510,15 @@ class BudgetOptimizationResult:
         yield self.scipy_result
 
 
+def _media_report_fields(report: xr.Dataset | None) -> dict[str, DataArray | None]:
+    """Read the media fields of :class:`BudgetOptimizationResult` off the media report.
+
+    All three are ``None`` when media has no price response, and so no report.
+    """
+    names = ("implied_delivery", "implied_price", "implied_marginal_price")
+    return {name: None if report is None else report[name] for name in names}
+
+
 @dataclass
 class PlanEvaluation:
     """The compiled objective and its gradient at one labelled plan.
@@ -3782,19 +3791,14 @@ class BudgetOptimizer(BaseModel):
             reports = self._variables.delivery_reports(
                 result.x, date_coords=self._decision_date_coords()
             )
-            media = reports.get(self.channel_data_var)
             return BudgetOptimizationResult(
                 budgets=optimal_budgets,
                 scipy_result=result,
                 optimized_vars=unpacked,
                 spend_var_names=list(self.spend_vars),
                 callback_info=callback_info if callback else None,
-                implied_delivery=None if media is None else media["implied_delivery"],
-                implied_price=None if media is None else media["implied_price"],
-                implied_marginal_price=None
-                if media is None
-                else media["implied_marginal_price"],
                 delivery_reports=reports,
+                **_media_report_fields(reports.get(self.channel_data_var)),
             )
 
         else:
