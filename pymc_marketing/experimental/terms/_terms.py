@@ -34,6 +34,7 @@ from pymc_marketing.mmm.components.adstock import AdstockTransformation, NoAdsto
 from pymc_marketing.mmm.components.base import Transformation
 from pymc_marketing.mmm.fourier import FourierBase
 from pymc_marketing.mmm.transformers import ConvMode
+from pymc_marketing.names.mmm import Dim
 
 
 class MediaTransform(GraphTerm):
@@ -113,12 +114,12 @@ class MediaTransform(GraphTerm):
     def _build(self, context: BuildContext) -> XTensorVariable:
         value = context.build(self.media)
         dims = tuple(getattr(value, "dims", ()))
-        if "date" not in dims:
+        if Dim.DATE not in dims:
             raise ValueError(
                 "MediaTransform requires a media expression with a date dimension."
             )
         parameters = self._parameters(
-            context, tuple(dim for dim in dims if dim != "date")
+            context, tuple(dim for dim in dims if dim != Dim.DATE)
         )
         result = self.transformation.function(value, dim="date", **parameters)
         return result.transpose(*dims, ...)
@@ -176,7 +177,7 @@ class FourierTerm(GraphTerm):
         return self.fourier
 
     def _build(self, context: BuildContext) -> XTensorVariable:
-        if "date" not in context.ds.dims:
+        if Dim.DATE not in context.ds.dims:
             raise ValueError(
                 "Fourier seasonality requires a date dimension in the dataset."
             )

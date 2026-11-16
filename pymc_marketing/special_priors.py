@@ -50,6 +50,7 @@ from pymc_extras.prior import (
 from pytensor.tensor import TensorVariable, as_tensor
 from pytensor.xtensor.type import XTensorVariable, as_xtensor
 
+from pymc_marketing.names import Key
 from pymc_marketing.serialization import serialization
 
 
@@ -75,7 +76,7 @@ register_deserialization(
 
 def _serialize_scaled(obj: Scaled) -> dict:
     return {
-        "__type__": f"{Scaled.__module__}.{Scaled.__qualname__}",
+        Key.TYPE: f"{Scaled.__module__}.{Scaled.__qualname__}",
         "dist": obj.dist.to_dict(),
         "factor": obj.factor,
     }
@@ -234,7 +235,7 @@ class SpecialPrior(ABC):
             )
             raise ValueError(msg)
 
-        data = {k: v for k, v in data.items() if k != "__type__"}
+        data = {k: v for k, v in data.items() if k != Key.TYPE}
 
         # Extract special keys
         centered = data.get("centered", True)
@@ -1022,7 +1023,7 @@ class MaskedPrior:
         MaskedPrior
             Reconstructed instance.
         """
-        data = {k: v for k, v in data.items() if k != "__type__"}
+        data = {k: v for k, v in data.items() if k != Key.TYPE}
         payload = data["data"] if "data" in data else data
         prior = (
             deserialize(payload["prior"])
@@ -1247,7 +1248,7 @@ class IndependentSigmas:
     @classmethod
     def from_dict(cls, data: dict) -> "IndependentSigmas":
         """Deserialize from a dictionary created by :meth:`to_dict`."""
-        return cls(**{k: v for k, v in data.items() if k != "__type__"})
+        return cls(**{k: v for k, v in data.items() if k != Key.TYPE})
 
     def create_variable(
         self, name: str, xdist: bool = False
@@ -1430,7 +1431,7 @@ class VarianceBudget:
     @classmethod
     def from_dict(cls, data: dict) -> "VarianceBudget":
         """Deserialize from a dictionary created by :meth:`to_dict`."""
-        return cls(**{k: v for k, v in data.items() if k != "__type__"})
+        return cls(**{k: v for k, v in data.items() if k != Key.TYPE})
 
     def create_variable(
         self, name: str, xdist: bool = False
@@ -2402,7 +2403,7 @@ class NestedZeroSumPrior:
     @classmethod
     def from_dict(cls, data: dict) -> "NestedZeroSumPrior":
         """Create the prior from a dictionary created by :meth:`to_dict`."""
-        return cls(**{k: v for k, v in data.items() if k != "__type__"})
+        return cls(**{k: v for k, v in data.items() if k != Key.TYPE})
 
     def __repr__(self) -> str:
         """Return the call that creates the prior, without the arguments at their defaults."""
@@ -2448,7 +2449,7 @@ for _cls in (IndependentSigmas, VarianceBudget, NestedZeroSumPrior):
     register_deserialization(
         is_type=lambda d, _c=_cls: (
             isinstance(d, dict)
-            and d.get("__type__") == f"{_c.__module__}.{_c.__qualname__}"
+            and d.get(Key.TYPE) == f"{_c.__module__}.{_c.__qualname__}"
         ),
         deserialize=_cls.from_dict,
     )

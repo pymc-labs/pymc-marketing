@@ -720,7 +720,10 @@ def process_fivetran_ad_reporting(
     date_col : str, default "date_day"
         Name of the date column.
     platform_col : str, default "platform"
-        Name of the platform (vendor) column.
+        Name of the platform (vendor) column. Each distinct value becomes one channel.
+        Pivoting on platform puts brand and non-brand search in a single channel;
+        they usually belong in separate channels, so derive a channel column
+        (for example from ``campaign_name``) and pass it here.
     agg : str, default "sum"
         Aggregation method applied during groupby.
         Supported: 'sum', 'mean', 'min', 'max', 'count'.

@@ -126,6 +126,7 @@ from pymc.util import RandomState
 
 from pymc_marketing.data.idata.schema import Frequency
 from pymc_marketing.mmm.summary import MMMSummaryFactory
+from pymc_marketing.names.mmm import Dim
 
 # Type aliases matching MMMSummaryFactory for consistency
 ComponentType = Literal["channel", "control", "seasonality", "baseline"]
@@ -1556,7 +1557,7 @@ class MMMPlotlyFactory:
 
         return self._plot_curves(
             df=df,
-            x="time since exposure",
+            x=Dim.TIME_SINCE_EXPOSURE,
             hdi_prob=hdi_prob,
             hdi_opacity=hdi_opacity,
             title="Adstock Curves",

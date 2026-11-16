@@ -36,6 +36,7 @@ PyTensor-compatible transformation will work the same way.
 
     import numpy as np
     import pymc as pm
+    import pymc.dims as pmd
     from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
 
 
@@ -45,49 +46,51 @@ PyTensor-compatible transformation will work the same way.
 
     coords = {"date": np.arange(52), "channel": list("abcde")}
     with pm.Model(coords=coords) as m:
-        X = pm.Data(
+        X = pmd.Data(
             "channel_data",
-            np.random.Gamma(13, 12, size=(52, 5)),
+            np.random.gamma(13, 12, size=(52, 5)),
             dims=("date", "channel"),
         )
-        alpha = pm.Gamma("alpha", 1, 1, dims="channel")
-        lam = pm.Gamma("lam", 1, 1, dims="channel")
-        contrib = pm.Deterministic(
+        alpha = pmd.Gamma("alpha", 1, 1, dims="channel")
+        lam = pmd.Gamma("lam", 1, 1, dims="channel")
+        contrib = pmd.Deterministic(
             "channel_contribution", saturation(X, alpha, lam), dims=("date", "channel")
         )
-        mu = pm.Normal("intercept", 0.0, 1.0) + contrib.sum(axis=-1)
-        pm.Normal("likelihood", mu=mu, sigma=1.0, dims=("date",))
+        mu = pmd.Normal("intercept", 0.0, 1.0) + contrib.sum("channel")
+        pmd.Normal("likelihood", mu=mu, sigma=1.0, dims="date")
         idata = pm.sample(1000, tune=500, chains=2, target_accept=0.95, random_seed=42)
 
     sa = SensitivityAnalysis(m, idata)
     sweeps = np.linspace(0.2, 3.0, 8)
-    # Jacobian-based marginal effects with respect to the input; shape: (sample, sweep, channel)
+    # Response summed over `date`; shape: (sample, sweep, channel)
     result = sa.run_sweep(
         sweep_values=sweeps,
         var_input="channel_data",
         var_names="channel_contribution",
         sweep_type="multiplicative",
     )
-    # Optional (backwards-compatibility): returns `result` unchanged because `run_sweep`
-    # already yields marginal effects. Kept to avoid breaking older code.
-    me = SensitivityAnalysis.compute_marginal_effects(result, sweeps)
+    # Marginal effects: the derivative of the response with respect to the sweep
+    # grid.
+    marginal_effects = sa.compute_marginal_effects(result)
 
 Notes
 -----
 - Arbitrary models: As long as the response graph depends (directly or indirectly)
   on the `pm.Data` provided via `var_input`, and you pass the name of the
-  deterministic/response via `var_names`, the class builds the Jacobian and
-  evaluates it across sweeps automatically.
-- Multi-dimensional inputs: If `var_input` has dims like `(date, country, channel)`,
-  the output shape is `(sample, sweep, country, channel)`. You can subset with
-  `var_names_filter={"country": ["usa"], "channel": ["a", "b"]}`.
+  deterministic/response via `var_names`, the class evaluates the response graph
+  across the sweep grid automatically.
+- Multi-dimensional responses: If the response has dims like
+  `(date, country, channel)`, the output shape is
+  `(sample, sweep, country, channel)`.
 - Sweep types: `"multiplicative"`, `"additive"`, and `"absolute"` are supported.
-- To persist results, pass `extend_idata=True` to store them under
-  `idata.sensitivity_analysis`.
+- To persist results, pass `extend_idata=True` to `run_sweep` to store them under
+  `idata.sensitivity_analysis`.  `compute_marginal_effects(..., extend_idata=True)`
+  adds to that group, so it needs an earlier `run_sweep(..., extend_idata=True)`.
 """
 
 import math
 import warnings
+from collections.abc import Callable, Sequence
 from typing import Literal
 
 import numpy as np
@@ -96,45 +99,135 @@ import pytensor.xtensor as ptx
 import xarray as xr
 from pymc import Model
 from pytensor import function
+from pytensor.graph.basic import Variable
+from pytensor.graph.traversal import ancestors
 from pytensor.xtensor.type import XTensorVariable, as_xtensor
 from pytensor.xtensor.vectorization import vectorize_graph
 from xarray import DataArray
 
-from pymc_marketing.pytensor_utils import extract_response_distribution
+from pymc_marketing.names.mmm import Dim, Group, Var
+from pymc_marketing.pytensor_utils import (
+    SharedPosterior,
+    _raise_for_missing_posterior_variables,
+    extract_response_distribution,
+    needed_posterior_names,
+    reorder_to_model_coords,
+)
+
+_SWEEP_COMBINATIONS: dict[
+    str, Callable[[XTensorVariable, XTensorVariable], XTensorVariable]
+] = {
+    "multiplicative": lambda sweep, base_value: sweep * base_value,
+    "additive": lambda sweep, base_value: sweep + base_value,
+    "absolute": lambda sweep, base_value: sweep.broadcast_like(base_value),
+}
+"""The swept input of each sweep type, from the sweep grid and the model input."""
+
+
+def _compose_sweep(
+    response: XTensorVariable,
+    base_value: XTensorVariable,
+    sweep_type: str,
+    mask_shape: tuple[int, ...] | None,
+) -> tuple[list[Variable], XTensorVariable]:
+    """Compose the symbolic inputs and the graph of one sweep.
+
+    The sweep grid, and the response mask when there is one, are inputs of the
+    compiled function.
+
+    Parameters
+    ----------
+    response : XTensorVariable
+        The extracted response graph, with a leading ``sample`` dimension.
+    base_value : XTensorVariable
+        The model input the sweep replaces.
+    sweep_type : str
+        A key of ``_SWEEP_COMBINATIONS``; the caller checks it.
+    mask_shape : tuple of int or None
+        Shape of the response mask, or ``None`` for a sweep without one.
+
+    Returns
+    -------
+    list of Variable
+        The inputs of the compiled sweep: the sweep grid and, with a mask, the
+        mask.
+    XTensorVariable
+        The response summed over ``date``, transposed to ``sample, sweep, ...``.
+
+    Raises
+    ------
+    ValueError
+        If the response graph does not read ``base_value``.
+    """
+    sweep = ptx.xtensor("sweep", dims=(Dim.SWEEP,))
+    inputs: list[Variable] = [sweep]
+    if mask_shape is not None:
+        mask = pt.tensor("mask", shape=mask_shape, dtype=bool)
+        # The mask is broadcast over the whole response, its sample batch
+        # included, because a set_subtensor with slices cannot be vectorized.
+        mask_bcast, _ = pt.broadcast_arrays(mask, response.values)
+        response = as_xtensor(response.values[~mask_bcast].set(0), dims=response.dims)
+        inputs.append(mask)
+
+    sweep_combinations = _SWEEP_COMBINATIONS[sweep_type](sweep, base_value)
+
+    # Vectorizing over an input the response graph does not read fails inside
+    # PyTensor with a message about a missing dimension, so the case is named
+    # here.  The graph is the conditioned one: a free variable or a frozen
+    # deterministic is its draws there, and what it reads is no longer in it.
+    if not any(variable is base_value for variable in ancestors([response])):
+        raise ValueError(
+            f"The response graph does not read {base_value.name!r} once the "
+            "posterior draws are bound, so sweeping it changes nothing. var_input "
+            "must be a pm.Data variable that the response reads outside its "
+            "frozen deterministics."
+        )
+    sweep_response = vectorize_graph(response, replace={base_value: sweep_combinations})
+    return inputs, sweep_response.sum(dim=Dim.DATE).transpose("sample", Dim.SWEEP, ...)
 
 
 class SensitivityAnalysis:
-    """SensitivityAnalysis class is used to perform counterfactual analysis on MMM's."""
+    """Run counterfactual sweeps over a fitted model's response.
+
+    Every call extracts the response conditioned on the posterior draws, composes
+    the sweep graph and compiles its PyTensor function; nothing is kept between
+    calls.  The draws are bound through a
+    :class:`~pymc_marketing.pytensor_utils.SharedPosterior`, so they are shared
+    variables of the compiled sweep, not constants welded into it.  That keeps a
+    repeat call cheap: PyTensor's numba backend caches the compiled code of a
+    graph that holds no large constants, so a sweep is JIT-compiled once and
+    loaded afterwards, in later calls and in later processes.
+
+    ``dims`` is accepted for backwards compatibility and ignored: the response's
+    own dims decide the output axes.
+
+    Parameters
+    ----------
+    pymc_model : Model
+        The PyMC model whose response is swept.
+    idata : xr.DataTree
+        The inference data holding the model's posterior.
+    dims : tuple of str, default ()
+        Accepted for backwards compatibility and ignored.
+    frozen_deterministics : sequence of str, default ()
+        Deterministics taken from the posterior rather than recomputed, such as a
+        latent path over the dates the model was fitted on. A sweep keeps those
+        dates, so their posterior draws hold in every sweep.
+        :attr:`MMM.frozen_deterministics` lists an MMM's.
+    """
 
     def __init__(
-        self, pymc_model: Model, idata: xr.DataTree, dims: tuple[str, ...] = ()
-    ):
+        self,
+        pymc_model: Model,
+        idata: xr.DataTree,
+        dims: tuple[str, ...] = (),
+        frozen_deterministics: Sequence[str] = (),
+    ) -> None:
+        """Initialize the analysis; the parameters are documented on the class."""
         self.model = pymc_model
         self.idata = idata
         self.dims = dims
-
-    def _compute_dims_order_from_varinput(self, var_input: str) -> list[str]:
-        """Compute non-date dims order directly from the model's var_input dims.
-
-        The var_input dims convention is ``(date, *dims, arbitrary_last_dim_name)``.
-        We drop any occurrence of 'date' and preserve the remaining order as-is.
-        """
-        var_dims = tuple(self.model.named_vars_to_dims.get(var_input, ()))
-        if not var_dims:
-            # Fallback: try to infer from the shared variable shape and model coords order
-            # This is a best-effort path; in practice PyMC populates named_vars_to_dims
-            return list(self.dims)
-        non_date_dims = [d for d in var_dims if d != "date"]
-        return non_date_dims
-
-    def _coord_to_index(self, dims_order: list[str]) -> dict[str, dict]:
-        """Map model coordinate labels to integer indices for all dims in order."""
-        mapping: dict[str, dict] = {}
-        for dim_name in dims_order:
-            if dim_name in self.model.coords:
-                coords = list(self.model.coords[dim_name])
-                mapping[dim_name] = {label: idx for idx, label in enumerate(coords)}
-        return mapping
+        self.frozen_deterministics = tuple(frozen_deterministics)
 
     def _draw_indices_for_percentage(
         self, posterior_sample_fraction: float
@@ -163,16 +256,84 @@ class SensitivityAnalysis:
         indices[-1] = draws - 1
         return indices
 
-    def _extract_response_distribution(
+    def _posterior_draws(
         self, response_variable: str, posterior_sample_fraction: float
-    ):
-        """Extract response distribution graph conditioned on posterior samples."""
+    ) -> xr.Dataset:
+        """Return the draws the response reads, thinned and in the model's order.
+
+        Only the posterior variables the response reads are kept, so a call
+        neither stacks nor loads the rest of the posterior, however many
+        deterministics it carries.  The draws are realigned to the model's coords
+        by label, so a label-permuted posterior gives the numbers the model's own
+        label order gives; renamed, unlabeled or duplicated labels keep their
+        order.  The labels are then dropped, because the draws are bound by
+        position.
+
+        Parameters
+        ----------
+        response_variable : str
+            The response the sweep evaluates.
+        posterior_sample_fraction : float
+            The draw-thinning control of :meth:`run_sweep`.
+
+        Returns
+        -------
+        xr.Dataset
+            The retained draws of the variables the response reads.
+
+        Raises
+        ------
+        ValueError
+            If ``posterior_sample_fraction`` is outside ``(0, 1]``, or the
+            response reads no posterior variable.
+        KeyError
+            If the posterior lacks a variable the response reads.
+        """
         draw_selection = self._draw_indices_for_percentage(posterior_sample_fraction)
-        return extract_response_distribution(
-            pymc_model=self.model,
-            idata=self.idata.isel(draw=draw_selection),
-            response_variable=response_variable,
+        read_names = needed_posterior_names(
+            self.model, [self.model[response_variable]], self.frozen_deterministics
         )
+        if not read_names:
+            raise ValueError(
+                f"{response_variable!r} reads no posterior variable, so there are "
+                "no draws to sweep over."
+            )
+        posterior = self.idata.posterior.to_dataset()
+        _raise_for_missing_posterior_variables(read_names, posterior)
+        draws = reorder_to_model_coords(
+            posterior[read_names].isel(draw=draw_selection), self.model.coords
+        )
+        # The per-call SharedPosterior is never rebound, so it has no use for the
+        # labels, and without them a dim whose labels repeat stays usable.
+        return draws.drop_vars(
+            [name for name in draws.indexes if name not in ("chain", "draw")]
+        )
+
+    def _length_mismatches(self, draws: xr.Dataset) -> list[str]:
+        """Describe each read variable whose length on a dim is not the model's.
+
+        Parameters
+        ----------
+        draws : xr.Dataset
+            The draws :meth:`_posterior_draws` returned.
+
+        Returns
+        -------
+        list of str
+            One description per posterior variable and dim whose length differs
+            from the number of coordinates the model has for that dim; empty
+            when every length fits.
+        """
+        mismatches = []
+        for name, variable in draws.data_vars.items():
+            for dim, length in variable.sizes.items():
+                coords = self.model.coords.get(dim)
+                if coords is not None and len(coords) != length:
+                    mismatches.append(
+                        f"{name!r} has length {length} on {dim!r}, the model has "
+                        f"{len(coords)}"
+                    )
+        return mismatches
 
     def _prepare_response_mask(
         self,
@@ -240,7 +401,7 @@ class SensitivityAnalysis:
         (e.g., 'uplift_curve', 'marginal_effects').
         """
         dataset = xr.Dataset({"x": result})
-        if hasattr(self.idata, "sensitivity_analysis"):
+        if hasattr(self.idata, Group.SENSITIVITY_ANALYSIS):
             warnings.warn(
                 "'sensitivity_analysis' group already exists; updating variable 'x' with new results.",
                 UserWarning,
@@ -254,14 +415,35 @@ class SensitivityAnalysis:
                 # Legacy case: replace DataArray with Dataset for consistency
                 self.idata.sensitivity_analysis = dataset  # type: ignore[attr-defined]
         else:
-            self.idata["/sensitivity_analysis"] = dataset
+            self.idata[f"/{Group.SENSITIVITY_ANALYSIS}"] = dataset
+
+    def _sweep_dataarray(
+        self,
+        dims: tuple[str, ...],
+        result: np.ndarray,
+        sweep_values: np.ndarray,
+    ) -> DataArray:
+        """Label the compiled output with the sweep grid and the model coords."""
+        coords = {}
+        for dim, shape in zip(dims, result.shape, strict=True):
+            if dim == Dim.SWEEP:
+                dim_coords = np.asarray(sweep_values)
+            else:
+                dim_coords = self.model.coords.get(dim)
+                if dim_coords is None:
+                    dim_coords = np.arange(shape)
+                else:
+                    dim_coords = np.asarray(dim_coords)
+            coords[dim] = dim_coords
+
+        return DataArray(result, dims=dims, coords=coords)
 
     def run_sweep(
         self,
         var_input: str,
         sweep_values: np.ndarray,
         *,
-        var_names: str = "channel_contribution",
+        var_names: str = Var.CHANNEL_CONTRIBUTION,
         sweep_type: Literal[
             "multiplicative", "additive", "absolute"
         ] = "multiplicative",
@@ -272,6 +454,11 @@ class SensitivityAnalysis:
         """
         Run sweeps by forward-evaluating the response graph (no Jacobian).
 
+        Every call extracts the response conditioned on the posterior draws,
+        composes the sweep graph and compiles it, so ``sweep_values``,
+        ``response_mask`` and the posterior are inputs of that call rather than
+        state kept between calls.
+
         Parameters
         ----------
         var_input : str
@@ -280,7 +467,9 @@ class SensitivityAnalysis:
         sweep_values : np.ndarray
             Values to sweep over.
         var_names : str
-            The deterministic variable of interest.
+            The deterministic variable of interest.  It must be a ``pymc.dims``
+            variable with a ``date`` dimension, for example a
+            ``pmd.Deterministic`` built with ``dims=(...)``.
         sweep_type : {"multiplicative","additive","absolute"}
             Type of sweep to apply.
         posterior_sample_fraction : float
@@ -297,79 +486,104 @@ class SensitivityAnalysis:
         -------
         xarray.DataArray | None
             If extend_idata is False, returns an xarray.DataArray with shape
-            ``(sample, sweep, *dims_order)``, where ``dims_order`` are the non-date
-            dims of `var_input` in the same order as in the model. The response
-            is averaged over the `date` axis as in the draft example. If
-            extend_idata is True, stores the result under
-            `idata.sensitivity_analysis` and returns None.
+            ``(sample, sweep, *response_dims)``, where ``response_dims`` are the
+            non-date dims of ``var_names`` in model order.  The response is
+            summed over the `date` axis. If extend_idata is True, stores the
+            result under `idata.sensitivity_analysis` and returns None.
+
+        Raises
+        ------
+        KeyError
+            If ``var_names`` or ``var_input`` is not in the model, or ``idata``
+            lacks a posterior variable the response reads.
+        ValueError
+            If ``posterior_sample_fraction`` is outside ``(0, 1]``.
+            If ``var_names`` is not a ``pymc.dims`` variable, has no ``date``
+            dimension or reads no posterior variable.
+            If the response does not read ``var_input`` once the posterior draws
+            are bound: ``var_input`` must be a ``pm.Data`` variable that the
+            response reads outside its frozen deterministics.
+            If ``sweep_type`` is not one of the three supported types.
+            If ``response_mask`` does not match the response's dimensions.
+            If the sweep cannot be evaluated and a posterior variable's length
+            on a dim differs from the model's, for example one with another
+            number of channels.  The error names the variable and the dim, for
+            a dim the model has coordinates for.
+        TypeError
+            If ``response_mask`` cannot be cast to boolean.
+
+        Notes
+        -----
+        The posterior in ``idata`` may be replaced between calls, for example by
+        assigning ``mmm.idata``.  A posterior stored in another order of the
+        model's own labels is realigned by label; renamed, unlabeled or
+        duplicated labels are bound by position.  The number of draws may
+        change, and values are cast to the dtype the model expects.
         """
-        # Create symbolic input variable. We don't use numerical inputs directly,
-        # so that the same compiled function can be used with different values
-        sweep = ptx.xtensor("sweep", dims=("sweep",))
+        response = self.model[var_names]
+        response_dims = getattr(response, "dims", None)
+        if response_dims is None:
+            raise ValueError(
+                f"{var_names!r} is not a pymc.dims variable. Sensitivity sweeps "
+                "require a response with named dimensions, for example one built "
+                "with pmd.Deterministic(..., dims=(...))."
+            )
+        response_dims = tuple(response_dims)
+        if Dim.DATE not in response_dims:
+            raise ValueError(
+                f"{var_names!r} has no 'date' dimension. Sensitivity sweeps "
+                "require a response with a 'date' dimension, for example one "
+                "built with pmd.Deterministic(..., dims=(...))."
+            )
+        # The cheap checks come before the posterior is read and the graph built.
+        base_value = self.model[var_input]
+        if not isinstance(sweep_type, str) or sweep_type not in _SWEEP_COMBINATIONS:
+            raise ValueError(f"Unknown sweep_type {sweep_type!r}")
 
-        # Extract response graph (dims typically: (sample, date, *dims_order))
-        resp_graph = self._extract_response_distribution(
+        posterior = self._posterior_draws(var_names, posterior_sample_fraction)
+        mask_values = (
+            None
+            if response_mask is None
+            else self._prepare_response_mask(
+                response_mask, response_dims, var_names=var_names
+            )
+        )
+        # The draws are bound as shared variables, not constants: numba cannot
+        # cache a function with large constant arrays, so a graph with the draws
+        # baked in is compiled again on every call.
+        response_graph = extract_response_distribution(
+            pymc_model=self.model,
+            idata=posterior,
             response_variable=var_names,
-            posterior_sample_fraction=posterior_sample_fraction,
+            frozen_deterministics=list(self.frozen_deterministics),
+            shared_posterior=SharedPosterior(),
         )
-
-        if response_mask is not None:
-            # In this case our function will have a symbolic mask input as well
-            mask_array = self._prepare_response_mask(
-                response_mask,
-                self.model[var_names].dims,
-                var_names=var_names,
-            )
-            mask = pt.tensor("mask", shape=mask_array.shape, dtype=bool)
-
-            # We also have to broadcast the mask_tensor because we can't currently vectorize a set_subtensor with slices
-            # otherwise this would suffice: resp_graph[..., ~mask_array].set(0)
-            mask_bcast, _ = pt.broadcast_arrays(mask, resp_graph.values)
-            resp_graph = as_xtensor(
-                resp_graph.values[~mask_bcast].set(0), dims=resp_graph.dims
-            )
-
-        # Broadcast response by combining base_value with sweep
-        base_value: XTensorVariable = self.model[var_input]
-
-        match sweep_type:
-            case "multiplicative":
-                sweep_combinations = sweep * base_value
-            case "additive":
-                sweep_combinations = sweep + base_value
-            case "absolute":
-                sweep_combinations = sweep.broadcast_like(base_value)
-            case _:
-                raise ValueError(f"Unknown sweep_type {sweep_type!r}")
-
-        sweep_response = vectorize_graph(
-            resp_graph, replace={base_value: sweep_combinations}
+        inputs, graph = _compose_sweep(
+            response=response_graph,
+            base_value=base_value,
+            sweep_type=sweep_type,
+            mask_shape=None if mask_values is None else mask_values.shape,
         )
-        sweep_response_summed = sweep_response.sum(dim="date").transpose(
-            "sample", "sweep", ...
+        compiled = function(inputs, graph)
+        arguments = (
+            (sweep_values,) if mask_values is None else (sweep_values, mask_values)
         )
-
-        if response_mask is None:
-            result = function([sweep], sweep_response_summed)(sweep_values)
-        else:
-            result = function([sweep, mask], sweep_response_summed)(
-                sweep_values, mask_array
-            )
-
-        dims = sweep_response_summed.dims
-        coords = {}
-        for dim, shape in zip(dims, result.shape, strict=True):
-            if dim == "sweep":
-                dim_coords = np.asarray(sweep_values)
-            else:
-                dim_coords = self.model.coords.get(dim)
-                if dim_coords is None:
-                    dim_coords = np.arange(shape)
-                else:
-                    dim_coords = np.asarray(dim_coords)
-            coords[dim] = dim_coords
-
-        xr_result = DataArray(result, dims=dims, coords=coords)
+        try:
+            result = compiled(*arguments)
+        except Exception as err:
+            # A posterior of another size than the model fails here, with a
+            # message about the shape of an input of the compiled function.  It
+            # is not refused before compiling: a response that reduces such a
+            # dim before it meets the data evaluates.  So the error reports the
+            # lengths that differ, without claiming they are the cause.
+            mismatches = self._length_mismatches(posterior)
+            if not mismatches:
+                raise
+            raise ValueError(
+                "The sweep could not be evaluated. These posterior variables do "
+                "not have the model's length: " + "; ".join(mismatches) + "."
+            ) from err
+        xr_result = self._sweep_dataarray(graph.dims, result, sweep_values)
 
         if extend_idata:
             self._add_to_idata(xr_result)
@@ -426,7 +640,7 @@ class SensitivityAnalysis:
 
         xr_result = results_aligned - ref_aligned
         if extend_idata:
-            if not hasattr(self.idata, "sensitivity_analysis"):
+            if not hasattr(self.idata, Group.SENSITIVITY_ANALYSIS):
                 raise ValueError(
                     "No sensitivity analysis results found in 'self.idata'. "
                     "Run 'mmm.sensitivity.run_sweep()' first."
@@ -443,15 +657,25 @@ class SensitivityAnalysis:
         ----------
         results : xr.DataArray
             The output from ``run_sweep``.
+        extend_idata : bool, default False
+            When ``True``, the effects are also stored under
+            ``idata.sensitivity_analysis["marginal_effects"]``.
 
         Returns
         -------
         xr.DataArray
-            The input ``results`` unchanged.
+            The derivative of ``results`` with respect to the ``sweep`` grid.
+
+        Raises
+        ------
+        ValueError
+            If ``extend_idata`` is ``True`` and ``idata`` has no
+            ``sensitivity_analysis`` group yet; ``run_sweep(...,
+            extend_idata=True)`` creates it.
         """
-        xr_result = results.differentiate(coord="sweep")
+        xr_result = results.differentiate(coord=Dim.SWEEP)
         if extend_idata:
-            if not hasattr(self.idata, "sensitivity_analysis"):
+            if not hasattr(self.idata, Group.SENSITIVITY_ANALYSIS):
                 raise ValueError(
                     "No sensitivity analysis results found in 'self.idata'. "
                     "Run 'mmm.sensitivity.run_sweep()' first."

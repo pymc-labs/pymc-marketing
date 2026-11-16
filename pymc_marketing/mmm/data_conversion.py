@@ -81,6 +81,8 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from pymc_marketing.names.mmm import DatasetVar, Dim
+
 
 def to_mmm_dataset(
     X: pd.DataFrame | xr.Dataset | xr.DataArray,
@@ -181,7 +183,7 @@ def to_mmm_dataset(
                 "pass either a Dataset with a target or a separate y, not both."
             )
         y_da = _to_mmm_target(y)
-        if "date" not in y_da.coords:
+        if Dim.DATE not in y_da.coords:
             if isinstance(X, pd.DataFrame):
                 y_da = _reshape_flat_target(
                     y_da,
@@ -195,24 +197,24 @@ def to_mmm_dataset(
                     f"dims {dims!r}. Pass y with a MultiIndex matching the panel, "
                     "or pass a DataFrame so the target can be reshaped."
                 )
-        ds["_target"] = y_da
+        ds[DatasetVar.TARGET] = y_da
     elif not _dataset_has_target(ds) and isinstance(X, pd.DataFrame):
         if target_column and target_column in X.columns:
             y_da = _to_mmm_target(X[target_column])
-            if "date" not in y_da.coords:
+            if Dim.DATE not in y_da.coords:
                 y_da = _reshape_flat_target(
                     y_da,
                     X,
                     date_column=date_column,
                     dims=dims,
                 )
-            ds["_target"] = y_da
+            ds[DatasetVar.TARGET] = y_da
 
     return _to_canonical_layout(ds, dims)
 
 
 def _dataset_has_target(ds: xr.Dataset) -> bool:
-    return "_target" in ds.data_vars or "target" in ds.data_vars
+    return DatasetVar.TARGET in ds.data_vars or "target" in ds.data_vars
 
 
 def has_embedded_target(
@@ -252,10 +254,10 @@ def _to_mmm_xarray(X, /, **params) -> xr.Dataset:
 def _(X, /, **params) -> xr.Dataset:
     rename = {}
     for public, internal in [
-        ("media", "_channel"),
-        ("channel", "_channel"),
-        ("target", "_target"),
-        ("control", "_control"),
+        ("media", DatasetVar.CHANNEL),
+        ("channel", DatasetVar.CHANNEL),
+        ("target", DatasetVar.TARGET),
+        ("control", DatasetVar.CONTROL),
     ]:
         if public in X.data_vars and public != internal:
             rename[public] = internal
@@ -368,12 +370,12 @@ def _reshape_flat_target(
     dim_cols = [d for d in dims if d in X.columns]
     idx_cols = [date_column, *dim_cols]
     y_df = pd.DataFrame(
-        {"_target": y_da.values, **{col: X[col].values for col in idx_cols}}
+        {DatasetVar.TARGET: y_da.values, **{col: X[col].values for col in idx_cols}}
     )
     y_df = y_df.rename(columns={date_column: "date"})
     index_cols = ["date", *dim_cols]
     y_df = y_df.drop_duplicates(subset=index_cols, keep="first")
-    return y_df.set_index(index_cols).sort_index().to_xarray()["_target"]
+    return y_df.set_index(index_cols).sort_index().to_xarray()[DatasetVar.TARGET]
 
 
 def _validate_extra_vars(X: xr.Dataset, extra_vars: list[str] | None) -> None:
@@ -388,7 +390,7 @@ def _validate_extra_vars(X: xr.Dataset, extra_vars: list[str] | None) -> None:
 
 
 def _validate_mmm_structure(X: xr.Dataset, **params) -> None:
-    if "_channel" not in X.data_vars:
+    if DatasetVar.CHANNEL not in X.data_vars:
         raise ValueError(
             "Dataset missing required variable '_channel' (or 'media'). "
             "Provide a 'media' or '_channel' data variable. "
@@ -396,17 +398,17 @@ def _validate_mmm_structure(X: xr.Dataset, **params) -> None:
             "xarray promotes it to a dimension coordinate."
         )
 
-    if "date" not in X.coords:
+    if Dim.DATE not in X.coords:
         raise ValueError("Dataset missing required coordinate 'date'.")
 
-    if "channel" not in X.indexes:
+    if Dim.CHANNEL not in X.indexes:
         raise ValueError(
             "Dataset missing required coordinate 'channel'. "
             "Ensure your media variable has a 'channel' dimension."
         )
 
     control_columns = params.get("control_columns")
-    if control_columns and "_control" not in X.data_vars:
+    if control_columns and DatasetVar.CONTROL not in X.data_vars:
         raise ValueError(
             f"control_columns={control_columns} but dataset is missing "
             f"'_control' data variable. Note: 'control' cannot be used as a "
@@ -414,7 +416,7 @@ def _validate_mmm_structure(X: xr.Dataset, **params) -> None:
             f"coordinate. Use '_control' instead."
         )
 
-    if control_columns and "control" not in X.indexes:
+    if control_columns and Dim.CONTROL not in X.indexes:
         raise ValueError(
             "Dataset missing required coordinate 'control'. Ensure your "
             "'_control' variable has a 'control' dimension labelled with the "
@@ -493,11 +495,11 @@ def _to_canonical_layout(ds: xr.Dataset, dims: tuple[str, ...]) -> xr.Dataset:
     # The model registers these variables with the layout they have here, and
     # prediction writes new data into them by position in this layout, so the
     # two have to agree whatever order the input's dims are in (#3224).
-    lead = ("date", *dims)
+    lead = (Dim.DATE, *dims)
     for var, tail in (
-        ("_channel", ("channel",)),
-        ("_control", ("control",)),
-        ("_target", ()),
+        (DatasetVar.CHANNEL, (Dim.CHANNEL,)),
+        (DatasetVar.CONTROL, (Dim.CONTROL,)),
+        (DatasetVar.TARGET, ()),
     ):
         if var in ds.data_vars:
             ds[var] = ds[var].transpose(*lead, ..., *tail, missing_dims="ignore")
