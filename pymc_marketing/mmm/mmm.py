@@ -181,7 +181,6 @@ from __future__ import annotations
 
 import io
 import json
-import os
 import warnings
 from collections.abc import Callable, Hashable, Mapping, Sequence
 from copy import deepcopy
@@ -527,8 +526,6 @@ def _parse_cost_per_target_records(
 
 
 _EVALUATOR_CACHE_ATTR = "_incrementality_evaluators"
-# Warnings raised deep in fit point at the first frame outside the package.
-_PACKAGE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 """Instance attribute holding the compiled incrementality evaluators of an MMM.
 
 Not the accessor's own name, which the stored cache would shadow.
@@ -3307,7 +3304,7 @@ class MMM(RegressionModelBuilder):
                     f"{dim!r} labels of the built model differ from those of "
                     "the data passed to fit, so MMM.load cannot rebuild the model.",
                     UserWarning,
-                    skip_file_prefixes=(_PACKAGE_DIR,),
+                    skip_file_prefixes=(_PKG_PREFIX,),
                 )
                 return fit_data
         return xr.merge([fit_data, effect_data], join="left")
@@ -3354,7 +3351,7 @@ class MMM(RegressionModelBuilder):
                 "data passed to fit. The model that MMM.load rebuilds can differ "
                 "from the fitted one.",
                 UserWarning,
-                skip_file_prefixes=(_PACKAGE_DIR,),
+                skip_file_prefixes=(_PKG_PREFIX,),
             )
 
     def _posterior_predictive_data_transformation(
