@@ -1123,6 +1123,39 @@ class TestFitWithXarrayInput:
             ds["promo"].transpose("date", "geo", "segment"),
         )
 
+    @pytest.mark.parametrize(
+        "relabel, warns",
+        [
+            (lambda ds: ds.isel(date=slice(None, None, -1)), False),
+            (
+                lambda ds: ds.assign_coords(date=[f"W{i:02d}" for i in range(1, 9)]),
+                True,
+            ),
+        ],
+        ids=["same-labels-reversed", "other-labels"],
+    )
+    def test_fit_compares_mu_effect_data_on_non_date_labels_as_given(
+        self, relabel, warns, mock_pymc_sample
+    ):
+        """X's mu_effect data on ``"W00"``-style labels is compared label by label.
+
+        Turned into ``NaT``, every label matched every other: reversed labels
+        warned and other labels did not.
+        """
+        ds = self._dataset_with_promo(("date", "geo", "segment"))
+        ds = ds.assign_coords(date=[f"W{i:02d}" for i in range(ds.sizes["date"])])
+        mmm = self._mmm(("geo",), self.CONTROLS)
+        mmm.add_mu_effect(_SegmentEffect(data_vars=["promo"], prefix="promo"))
+        mmm.build_model(ds)
+
+        if warns:
+            with pytest.warns(UserWarning, match=r"\['promo'\] passed to fit differs"):
+                mmm.fit(relabel(ds))
+        else:
+            with warnings.catch_warnings():
+                warnings.simplefilter("error", UserWarning)
+                mmm.fit(relabel(ds))
+
     def test_fit_warns_when_mu_effect_data_labels_differ(self, mock_pymc_sample):
         """``fit_data`` skips mu_effect data whose labels differ from the fit data."""
         ds = self._dataset_with_promo(("date", "geo", "segment"))
