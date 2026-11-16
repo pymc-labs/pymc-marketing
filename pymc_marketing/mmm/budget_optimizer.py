@@ -264,7 +264,7 @@ from pytensor.compile.sharedvalue import SharedVariable, shared
 from pytensor.graph import rewrite_graph
 from pytensor.graph.traversal import ancestors
 from pytensor.xtensor.type import XTensorVariable
-from scipy.optimize import OptimizeResult, minimize
+from scipy.optimize import OptimizeResult, linprog, minimize
 from xarray import DataArray, DataTree
 
 from pymc_marketing.mmm.constraints import (
@@ -311,6 +311,93 @@ MMM_CHANNEL_DATA_VAR = Var.CHANNEL_DATA
 
 # Delayed import inside methods to avoid circular dependency on pytensor_utils
 
+# The exact passes that settle cells on the breakpoints of a price schedule (see allocate_budget).
+MAX_EXACT_PASSES = 20
+# A cell this close, relative, to a breakpoint at an end of its linear piece is on it. Covers what SLSQP
+# leaves between an entry and a bound that holds it.
+PIN_RTOL = 1e-9
+# Of an entry's size: this close to one of its own bounds an entry cannot move past it.
+BOUND_RTOL = 1e-9
+# Of what moving every entry across its size moves an inequality by: below this it is active.
+ACTIVE_RTOL = 1e-9
+# Each direction of the check costs this fraction of its own slope, so a cell leaves its breakpoint only for
+# a relative gain above about twice it, and solver noise between free cells trades nothing.
+LEAVING_TOLERANCE = 1e-4
+# HiGHS feasibility tolerances in the check, and the optimum below which it reports a gain.
+LP_TOLERANCE = 1e-10
+
+
+def _leaving_breakpoints(
+    *,
+    right: np.ndarray,
+    left: np.ndarray,
+    x: np.ndarray,
+    low: np.ndarray,
+    high: np.ndarray,
+    pinned: np.ndarray,
+    equalities: Sequence[np.ndarray],
+    active_inequalities: Sequence[np.ndarray],
+    size: np.ndarray,
+    tolerance: float = LEAVING_TOLERANCE,
+) -> tuple[np.ndarray, np.ndarray, bool]:
+    """Which pinned entries a first-order improving direction moves off their breakpoint, and which way.
+
+    A cell on a breakpoint has two slopes, one each way, and belongs there when the common marginal return
+    of the free entries lies between them; with constraints beyond the budget that is not a comparison of
+    two numbers, so this asks directly whether a feasible direction improves the objective to first order.
+    A linear program with two variables per entry, up and down, priced at the entry's ``right`` and
+    ``left`` slope of the objective (the minimiser's sign) and charged ``tolerance`` of that slope:
+
+    - an entry within ``BOUND_RTOL * size`` of one of its own bounds (``low``, ``high``) cannot move past
+      it; a pinned entry may move one unit either way; any other open direction up to ``4 n`` units, so the
+      program is bounded and zero is feasible;
+    - directions satisfy the linearised ``equalities`` and the ``active_inequalities`` (``jac @ d >= 0``);
+    - costs are divided by the largest absolute cost among the open directions that improve, so the
+      program weighs every entry against the others as the objective does, and a steep entry held on its
+      bound does not shrink the others' costs below HiGHS's tolerances.
+
+    A pinned entry is let go in a direction the program moves it by more than ``1e-6`` of a unit, provided
+    the program's optimum is below ``-LP_TOLERANCE``. Returns ``(up, down, solved)``; ``solved`` is False
+    when HiGHS reports anything but an optimum.
+    """
+    n = x.size
+    reach = BOUND_RTOL * size
+    free_cap = np.where(pinned, 1.0, 4.0 * n)
+    cap_up = np.where(x >= high - reach, 0.0, free_cap)
+    cap_down = np.where(x <= low + reach, 0.0, free_cap)
+    caps = np.concatenate([cap_up, cap_down])
+    cost = np.concatenate(
+        [right + tolerance * np.abs(right), -left + tolerance * np.abs(left)]
+    )
+    improving = (caps > 0.0) & (cost < 0.0)
+    scale = float(np.max(np.abs(cost[improving]), initial=0.0)) or 1.0
+
+    def both(rows: Sequence[np.ndarray]) -> np.ndarray:
+        return np.array([np.concatenate([row, -row]) for row in rows]).reshape(
+            len(rows), 2 * n
+        )
+
+    program = linprog(
+        cost / scale,
+        A_eq=both(equalities) if equalities else None,
+        b_eq=np.zeros(len(equalities)) if equalities else None,
+        A_ub=-both(active_inequalities) if active_inequalities else None,
+        b_ub=np.zeros(len(active_inequalities)) if active_inequalities else None,
+        bounds=list(zip(np.zeros(2 * n), caps, strict=True)),
+        method="highs",
+        options={
+            "primal_feasibility_tolerance": LP_TOLERANCE,
+            "dual_feasibility_tolerance": LP_TOLERANCE,
+        },
+    )
+    if program.status != 0:
+        none = np.zeros(n, dtype=bool)
+        return none, none, False
+    gain = bool(program.fun < -LP_TOLERANCE)
+    up = pinned & gain & (program.x[:n] > 1e-6)
+    down = pinned & gain & (program.x[n:] > 1e-6)
+    return up, down, True
+
 
 class ConstraintIterationInfo(TypedDict):
     """Constraint state at one solver iteration."""
@@ -350,6 +437,7 @@ class OptimizationIterationInfo(TypedDict):
     fun: float
     jac: np.ndarray
     constraint_info: NotRequired[list[ConstraintIterationInfo]]
+    solve: NotRequired[int]
 
 
 @dataclass
@@ -3538,6 +3626,273 @@ class BudgetOptimizer(BaseModel):
         steepest = float(np.max(np.abs(grad), initial=0.0))
         return steepest if np.isfinite(steepest) and steepest > 1.0 else 1.0
 
+    @staticmethod
+    def _flat_cell_labels(variable: MediaVariable) -> list[tuple]:
+        """Return the coordinate labels of a monetary variable's flat entries, in flat-vector order."""
+        on = np.asarray(variable.mask.values, dtype=bool)
+        labels = {
+            dim: variable.mask.coords[dim].values.tolist() for dim in variable.dims
+        }
+        return [
+            tuple(
+                labels[dim][int(i)] for dim, i in zip(variable.dims, index, strict=True)
+            )
+            for index in np.argwhere(on)
+        ]
+
+    def _warn_breakpoints_above_bounds(self, high: np.ndarray) -> None:
+        """Name the cells whose every breakpoint is above their upper bound, per variable.
+
+        All of such a cell's money is priced in the first bracket, which is what a breakpoint typed as a window
+        total, or as a national commitment on a per-geo cell, does.
+        """
+        for variable in self._variables.variables:
+            if (
+                not isinstance(variable, MediaVariable)
+                or variable.price_response is None
+            ):
+                continue
+            top = high[self._variables.slices[variable.name]]
+            finite = np.isfinite(top)
+            level = np.where(finite, top, 0.0)
+            first_low, first_above = variable.linear_piece(
+                level, np.zeros_like(level), np.full_like(level, np.inf)
+            )
+            above = finite & (first_low <= 0.0) & np.isfinite(first_above)
+            if not above.any():
+                continue
+            labels = self._flat_cell_labels(variable)
+            listed = [
+                f"{labels[i]} (breakpoint {first_above[i]:.4g}, upper bound {top[i]:.4g})"
+                for i in np.flatnonzero(above)[:5]
+            ]
+            more = ", ..." if int(above.sum()) > 5 else ""
+            warnings.warn(
+                f"{variable.name}: every breakpoint is above the upper bound of cells "
+                f"{', '.join(listed)}{more}, so all of their money is priced in the first bracket. "
+                "Breakpoints are per-period budget levels, like budget_bounds and total_budget: a "
+                f"commitment over the window of num_periods={self.num_periods} is that total divided by "
+                "num_periods, and a national commitment on a per-geo layout is split across the geos.",
+                UserWarning,
+                stacklevel=3,
+            )
+
+    def _entry_sizes(
+        self, total_budget: float, low: np.ndarray, high: np.ndarray
+    ) -> np.ndarray:
+        """Each flat entry's size: ``total_budget`` for money, and for a lever its largest finite bound.
+
+        A lever's bounds are in its own units, so the budget is no measure of how far it can move; its size is
+        the largest absolute value among its finite bounds, at least 1, and 1 when it has none.
+        """
+        size = np.ones(self._variables.size)
+        spending = {variable.name for variable in self._variables.spending_variables()}
+        for variable in self._variables.variables:
+            where = self._variables.slices[variable.name]
+            if variable.name in spending:
+                size[where] = float(total_budget)
+                continue
+            ends = np.maximum(
+                np.where(np.isfinite(low[where]), np.abs(low[where]), 0.0),
+                np.where(np.isfinite(high[where]), np.abs(high[where]), 0.0),
+            )
+            size[where] = np.maximum(1.0, ends)
+        return size
+
+    def _pin_arrivals(
+        self,
+        x: np.ndarray,
+        piece_low: np.ndarray,
+        piece_high: np.ndarray,
+        low: np.ndarray,
+        high: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Pin the entries a solve left at an end of their piece that is a breakpoint, and put them on it.
+
+        The end is a breakpoint inside the entry's bounds, or one of its own bounds when that bound is a
+        breakpoint. SLSQP leaves an entry it holds on a bound up to about ``8e-10`` relative inside it, so "at
+        the end" is within ``PIN_RTOL``; breakpoints are positive, so the relative test only compares with a
+        positive number. A pinned entry's piece becomes the breakpoint at both ends, which the next solve holds
+        it on. The move is for the check and the next solve; no plan returned is moved after its solve.
+        Returns the moved plan, the new pieces, and which entries this call pinned.
+        """
+        variables = self._variables
+        open_piece = piece_low < piece_high
+        top_is_knot = (piece_high < high) | variables.is_breakpoint(piece_high)
+        bottom_is_knot = (piece_low > low) | variables.is_breakpoint(piece_low)
+        top = open_piece & top_is_knot & (x >= piece_high * (1.0 - PIN_RTOL))
+        bottom = (
+            open_piece & ~top & bottom_is_knot & (x <= piece_low * (1.0 + PIN_RTOL))
+        )
+        pin = top | bottom
+        knot = np.where(top, piece_high, piece_low)
+        return (
+            np.where(pin, knot, x),
+            np.where(pin, knot, piece_low),
+            np.where(pin, knot, piece_high),
+            pin,
+        )
+
+    def _one_sided_gradients(
+        self, x: np.ndarray, low: np.ndarray, high: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Return the objective's gradient at ``x`` with every entry on the piece above it, and below it.
+
+        They differ only for an entry exactly on a breakpoint, whose slope changes there.
+        """
+        variables = self._variables
+        with variables.conditioned(*variables.linear_pieces(x, low, high)):
+            right = np.asarray(self._objective_and_grad(x)[1], dtype="float64")
+        below = np.ones(x.size, dtype=bool)
+        with variables.conditioned(
+            *variables.linear_pieces(x, low, high, from_below=below)
+        ):
+            left = np.asarray(self._objective_and_grad(x)[1], dtype="float64")
+        return right, left
+
+    def _active_constraint_rows(
+        self, x: np.ndarray, size: np.ndarray
+    ) -> tuple[list[np.ndarray], list[np.ndarray]]:
+        """Jacobians of every equality, and of every inequality active at ``x``.
+
+        An inequality is active when its value is below ``ACTIVE_RTOL`` of what moving every entry across its
+        size would move it by. A ``Constraint`` compiles to a scalar, so each is one row.
+        """
+        equalities, active = [], []
+        for constraint in self._compiled_constraints:
+            jacobian = np.asarray(constraint["jac"](x), dtype="float64").reshape(-1)
+            if constraint["type"] == "eq":
+                equalities.append(jacobian)
+            elif float(constraint["fun"](x)) <= ACTIVE_RTOL * float(
+                np.abs(jacobian) @ size
+            ):
+                active.append(jacobian)
+        return equalities, active
+
+    def _settle_on_breakpoints(
+        self,
+        first: OptimizeResult,
+        solve: Callable[
+            [np.ndarray, list[tuple[float | None, float | None]], int], OptimizeResult
+        ],
+        *,
+        low: np.ndarray,
+        high: np.ndarray,
+        total_budget: float,
+        ftol: float,
+        rescale: bool,
+    ) -> OptimizeResult:
+        """Solve again on each cell's linear piece until no cell on a breakpoint would gain by leaving it.
+
+        ``first`` is the solve with breakpoints blended, used only to find the piece each cell is on. A pass
+        solves on the pieces, where no breakpoint is strictly inside a box and nothing is blended; entries it
+        leaves at a breakpoint end of their piece are pinned there, and a closing pass holds new arrivals with
+        both bounds, so the plan returned is one SLSQP returned with those cells exactly on their breakpoint.
+        The check of :func:`_leaving_breakpoints` lets pinned cells go to the piece on the side that gains.
+        Passes stop when the check passes (certified), when letting cells go bought less than ``ftol`` of the
+        scaled objective (settled), or on a failed pass, a check that cannot be solved or the pass limit, after
+        which the best successful solve comes back with a warning. When no solve succeeded, ``first`` comes
+        back. ``nit``, ``nfev`` and ``njev`` are summed over every solve.
+        """
+        variables = self._variables
+        solves = [first]
+        result = first
+        best: tuple[float, OptimizeResult] | None = (
+            (float(self._objective_and_grad(first.x)[0]), first)
+            if first.success
+            else None
+        )
+        piece_low, piece_high = variables.linear_pieces(first.x, low, high)
+        x, piece_low, piece_high, _ = self._pin_arrivals(
+            np.asarray(first.x, dtype="float64"), piece_low, piece_high, low, high
+        )
+        if not np.any((piece_low > low) | (piece_high < high)):
+            # Every cell was already on an affine piece of its map and none is on a breakpoint.
+            return first
+        size = self._entry_sizes(total_budget, low, high)
+        previous, certified, unsettled = np.inf, False, True
+        for index in range(1, MAX_EXACT_PASSES + 1):
+            if np.all(piece_low == piece_high):
+                # Every entry is held: nothing is left to solve. SciPy would answer bounds that fix every
+                # variable without running SLSQP, accepting them only if every constraint held there to the
+                # last bit. The last solve's plan stands, if that solve succeeded.
+                if best is None:
+                    unsettled = False
+                    break
+                x, newly = piece_low.copy(), np.zeros(x.size, dtype=bool)
+            else:
+                start = self._pack_decision_vector(np.clip(x, piece_low, piece_high))
+                pass_bounds: list[tuple[float | None, float | None]] = [
+                    (
+                        float(lo) if np.isfinite(lo) else None,
+                        float(hi) if np.isfinite(hi) else None,
+                    )
+                    for lo, hi in zip(piece_low, piece_high, strict=True)
+                ]
+                with variables.conditioned(piece_low, piece_high):
+                    result = solve(start, pass_bounds, index)
+                solves.append(result)
+                if not result.success:
+                    break
+                x, piece_low, piece_high, newly = self._pin_arrivals(
+                    np.asarray(result.x, dtype="float64"),
+                    piece_low,
+                    piece_high,
+                    low,
+                    high,
+                )
+            objective, grad = self._objective_and_grad(result.x)
+            value = float(objective)
+            if best is None or value < best[0]:
+                best = (value, result)
+            right, left = self._one_sided_gradients(x, low, high)
+            equalities, active = self._active_constraint_rows(x, size)
+            up, down, solved = _leaving_breakpoints(
+                right=right,
+                left=left,
+                x=x,
+                low=low,
+                high=high,
+                pinned=(piece_low == piece_high) & (low < high),
+                equalities=equalities,
+                active_inequalities=active,
+                size=size,
+            )
+            if not solved:
+                break
+            if not (up.any() or down.any()):
+                if newly.any():
+                    continue  # the closing pass holds the new arrivals with both bounds
+                certified = True
+                break
+            scale = self._gradient_scale(grad) if rescale else 1.0
+            if value > previous - ftol * scale:
+                unsettled = False  # letting cells go bought nothing
+                break
+            previous = value
+            new_low, new_high = variables.linear_pieces(x, low, high, from_below=down)
+            moved = up | down
+            piece_low = np.where(moved, new_low, piece_low)
+            piece_high = np.where(moved, new_high, piece_high)
+        if not certified:
+            if unsettled and best is not None:
+                warnings.warn(
+                    "allocate_budget: the plan was not settled on its breakpoints: a pass failed, the check "
+                    f"could not be solved, or {MAX_EXACT_PASSES} passes did not settle it. The best plan "
+                    "found comes back; a cell near a breakpoint may sit off it.",
+                    UserWarning,
+                    stacklevel=3,
+                )
+            result = first if best is None else best[1]
+        if len(solves) > 1:
+            totals = {
+                key: sum(int(s.get(key, 0)) for s in solves)
+                for key in ("nit", "nfev", "njev")
+            }
+            for key, total in totals.items():
+                result[key] = total
+        return result
+
     def allocate_budget(
         self,
         total_budget: float,
@@ -3598,7 +3953,8 @@ class BudgetOptimizer(BaseModel):
             ``spend_vars`` and ``optimizable_vars`` allocation by name, empty when
             neither is declared), and
             ``callback_info`` (per-iteration diagnostics when ``callback=True``, else
-            ``None``) and, when a ``price_response`` was passed, ``implied_delivery``,
+            ``None``; each entry's ``solve`` is 0 for the first solve and ``k`` for
+            exact pass ``k``, see Notes) and, when a ``price_response`` was passed, ``implied_delivery``,
             ``implied_price`` and ``implied_marginal_price`` for media, plus
             ``delivery_reports`` with the same arrays and the per-period ``spend``
             for every priced variable, keyed by name. Iterating the result yields
@@ -3648,6 +4004,28 @@ class BudgetOptimizer(BaseModel):
         - With a ``ftol`` or ``tol`` that you pass, the objective is not rescaled.
         - ``scipy_result.fun``, ``scipy_result.jac``, ``callback_info`` and, from
           SciPy 1.16, ``scipy_result.multipliers`` are always in objective units.
+
+        **Breakpoints** (a ``price_response`` such as
+        :class:`~pymc_marketing.mmm.price_response.TieredPriceResponse` whose map changes
+        slope at points of the budget):
+
+        - When some cell has a breakpoint strictly inside its bounds, or one of its
+          bounds is a breakpoint, the first solve blends each breakpoint inside the
+          bounds and is used only to find the linear piece of the map each cell is on.
+          Exact passes then solve on those pieces, where no breakpoint is left to
+          cross, until no cell on a breakpoint would gain by leaving it (a linear
+          program over first-order directions decides). A cell whose best budget is a
+          breakpoint comes back equal to it.
+        - The passes run under SLSQP only. With another ``method`` the first solve's
+          plan comes back with a warning that it was not settled on its breakpoints.
+        - When a pass fails, or a settled plan cannot be confirmed, the best successful
+          solve comes back, with the same warning. When no solve succeeds, the first
+          solve's failure is the one reported.
+        - ``scipy_result`` is the returned solve's, with ``fun`` and ``jac`` taken from
+          the exact map at its ``x`` and ``nit``, ``nfev`` and ``njev`` summed over every
+          solve. Each solve has its own ``maxiter``.
+        - A cell whose every breakpoint is above its upper bound is warned about: all
+          its money is priced in the first bracket.
         """
         # set total budget
         self._total_budget.set_value(np.asarray(total_budget, dtype="float64"))
@@ -3708,6 +4086,16 @@ class BudgetOptimizer(BaseModel):
         self._warn_priced_cells_pinned_at_zero(
             bounds_overrides.get(self.channel_data_var)
         )
+        low = np.array([-np.inf if lo is None else lo for lo, _ in bounds], dtype=float)
+        high = np.array([np.inf if hi is None else hi for _, hi in bounds], dtype=float)
+        self._warn_breakpoints_above_bounds(high)
+        # Decided from the bounds alone, so a model with nothing to settle runs exactly as it
+        # did before schedules existed: the same minimize calls, nothing read off result.x.
+        settle = self._variables.breakpoints_in_reach(low, high)
+        method = minimize_kwargs.get("method")
+        slsqp = (isinstance(method, str) and method.lower() == "slsqp") or (
+            method is None and bool(self._compiled_constraints)
+        )
 
         # 3. Construct the initial guess (x0) if not provided; labelled values
         # are packed into flat order by the optimization variables, cast and
@@ -3755,62 +4143,103 @@ class BudgetOptimizer(BaseModel):
 
                 iter_info["constraint_info"] = constraint_info
 
+            iter_info["solve"] = current_solve[0]
             callback_info.append(iter_info)
 
         # 5. Run the SciPy optimizer
         scipy_callback = track_progress if callback else None
+        current_solve = [0]
 
-        def run_minimize(start: np.ndarray, scale: float) -> OptimizeResult:
-            def scaled_objective_and_grad(x):
-                objective, grad = self._objective_and_grad(x)
-                return objective / scale, grad / scale
+        def solve(
+            start: np.ndarray,
+            solve_bounds: list[tuple[float | None, float | None]],
+            index: int,
+        ) -> OptimizeResult:
+            """One solve over ``solve_bounds``: the rescaled SLSQP run and its polish."""
+            current_solve[0] = index
 
-            return minimize(
-                fun=scaled_objective_and_grad,
-                x0=start,
-                jac=True,
-                bounds=bounds,
-                constraints=self._compiled_constraints,
-                callback=scipy_callback,
-                **minimize_kwargs,
+            def run_minimize(begin: np.ndarray, scale: float) -> OptimizeResult:
+                def scaled_objective_and_grad(x):
+                    objective, grad = self._objective_and_grad(x)
+                    return objective / scale, grad / scale
+
+                return minimize(
+                    fun=scaled_objective_and_grad,
+                    x0=begin,
+                    jac=True,
+                    bounds=solve_bounds,
+                    constraints=self._compiled_constraints,
+                    callback=scipy_callback,
+                    **minimize_kwargs,
+                )
+
+            # The default SLSQP tolerance is absolute, so the objective is divided by
+            # its steepest gradient entry (see Notes). SciPy clips x0 to the bounds
+            # before the first evaluation, so the scale is taken there too.
+            scale = 1.0
+            if rescale:
+                lower = [-np.inf if lo is None else lo for lo, _ in solve_bounds]
+                upper = [np.inf if hi is None else hi for _, hi in solve_bounds]
+                _, grad = self._objective_and_grad(np.clip(start, lower, upper))
+                scale = self._gradient_scale(grad)
+
+            result = run_minimize(start, scale)
+
+            if scale != 1.0:
+                objective, grad = self._objective_and_grad(result.x)
+                solution_scale = self._gradient_scale(grad)
+                if result.success and solution_scale * 10.0 < scale:
+                    # The steepest cells at x0 flattened on the way to the solution, so
+                    # the scale from x0 can stop SLSQP early in the flatter cells. Solve
+                    # once more from the solution with the scale taken there, and keep
+                    # that solve only if it succeeds.
+                    polish = run_minimize(result.x, solution_scale)
+                    if polish.success:
+                        polish.nit += result.nit
+                        polish.nfev += result.nfev
+                        polish.njev += result.njev
+                        result, scale = polish, solution_scale
+                        objective, grad = self._objective_and_grad(result.x)
+                    else:
+                        result.nit += polish.nit
+                        result.nfev += polish.nfev
+                        result.njev += polish.njev
+                # Report the result in objective units.
+                result.fun = float(objective)
+                result.jac = np.asarray(grad)
+                if "multipliers" in result:
+                    result.multipliers = result.multipliers * scale
+            return result
+
+        with self._variables.conditioned(low, high):
+            result = solve(x0, bounds, 0)
+        if settle and not slsqp:
+            warnings.warn(
+                f"allocate_budget: the plan was not settled on its breakpoints. The exact passes that "
+                f"return a cell on its breakpoint run under SLSQP only, and minimize_kwargs asks for "
+                f"method={method!r}: the plan is the first solve's, on a map with its breakpoints "
+                "blended, and a cell near a breakpoint may sit off it.",
+                UserWarning,
+                stacklevel=2,
+            )
+        elif settle:
+            options = minimize_kwargs.get("options") or {}
+            ftol = options.get("ftol", minimize_kwargs.get("tol"))
+            result = self._settle_on_breakpoints(
+                result,
+                solve,
+                low=low,
+                high=high,
+                total_budget=total_budget,
+                ftol=1e-6 if ftol is None else float(ftol),
+                rescale=rescale,
             )
 
-        # The default SLSQP tolerance is absolute, so the objective is divided by
-        # its steepest gradient entry (see Notes). SciPy clips x0 to the bounds
-        # before the first evaluation, so the scale is taken there too.
-        scale = 1.0
-        if rescale:
-            lower = [-np.inf if low is None else low for low, _ in bounds]
-            upper = [np.inf if high is None else high for _, high in bounds]
-            _, grad = self._objective_and_grad(np.clip(x0, lower, upper))
-            scale = self._gradient_scale(grad)
-
-        result = run_minimize(x0, scale)
-
-        if scale != 1.0:
+        if settle:
+            # The returned solve may have seen a blended or a conditioned map; report the exact one.
             objective, grad = self._objective_and_grad(result.x)
-            solution_scale = self._gradient_scale(grad)
-            if result.success and solution_scale * 10.0 < scale:
-                # The steepest cells at x0 flattened on the way to the solution, so
-                # the scale from x0 can stop SLSQP early in the flatter cells. Solve
-                # once more from the solution with the scale taken there, and keep
-                # that solve only if it succeeds.
-                polish = run_minimize(result.x, solution_scale)
-                if polish.success:
-                    polish.nit += result.nit
-                    polish.nfev += result.nfev
-                    polish.njev += result.njev
-                    result, scale = polish, solution_scale
-                    objective, grad = self._objective_and_grad(result.x)
-                else:
-                    result.nit += polish.nit
-                    result.nfev += polish.nfev
-                    result.njev += polish.njev
-            # Report the result in objective units.
             result.fun = float(objective)
             result.jac = np.asarray(grad)
-            if "multipliers" in result:
-                result.multipliers = result.multipliers * scale
 
         # 6. Process results
         if result.success or return_if_fail:
