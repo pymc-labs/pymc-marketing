@@ -1200,6 +1200,16 @@ class TestTieredPriceResponseDeclaration:
                 rate_multipliers=[1.0, 1.1, 1.2, 1.3, 1.4],
             )
         assert record[0].filename == __file__
+        with pytest.warns(
+            UserWarning, match="looks like a discretized price curve"
+        ) as record:
+            TieredPriceResponse.model_validate(
+                {
+                    "breakpoints": [1.0, 2.0, 3.0, 4.0],
+                    "rate_multipliers": [1.0, 1.1, 1.2, 1.3, 1.4],
+                }
+            )
+        assert record[0].filename == __file__
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             TieredPriceResponse(
