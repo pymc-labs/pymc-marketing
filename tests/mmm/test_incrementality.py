@@ -8856,24 +8856,38 @@ class TestIncrementalMediator:
         assert without[LF_SPEND]["complete"].all()
         assert all_time[LF_SPEND]["complete"].item() is False
 
-    def test_a_period_its_adstock_mode_does_not_sum_past_is_marked(
-        self, funnel_mmm_data
+    @pytest.mark.parametrize("link", ["identity", "log"])
+    def test_a_before_period_sums_the_forward_carryover_of_an_effect(
+        self, funnel_mmm_data, link
     ):
-        """Under a ``Before`` adstock a period sums no date past its own end.
+        """Under a ``Before`` adstock a period still sums the dates after its end.
 
-        Lower-funnel spend still carries forward through the funnel's own
-        adstock, so no period holds its whole movement, although the fitted
-        dates hold most of it.
+        The model's own kernel moves no date after the spend, but the funnel's
+        second adstock carries lower-funnel spend forward.  The total, both
+        paths and the movement match the brute-force difference over every
+        fitted date, and only the periods the data cuts short are marked.
         """
         mmm = _build_funnel_mmm(
-            funnel_mmm_data, link="log", adstock_mode=ConvMode.Before
+            funnel_mmm_data, link=link, adstock_mode=ConvMode.Before
         )
+        incr = mmm.incrementality
 
-        moved = mmm.incrementality.compute_incremental_mediator(
+        total = incr.compute_incremental_contribution(frequency="monthly")
+        parts = incr.decompose_incremental_contribution(frequency="monthly")
+        moved = incr.compute_incremental_mediator(
             frequency="monthly", mediators=[LF_SPEND]
         )
 
-        assert not moved[LF_SPEND]["complete"].any()
+        expected = oracle(mmm, frequency="monthly", held=FUNNEL_NODES)
+        assert_matches(total, expected["total"])
+        for name in ("total", "direct", "mediated"):
+            assert_matches(parts[name], expected[name])
+        assert_matches(
+            moved[LF_SPEND], movement_oracle(mmm, LF_SPEND, frequency="monthly")
+        )
+        assert moved[LF_SPEND]["complete"].values.tolist() == expected_complete(
+            mmm, "monthly", FUNNEL_L_MAX - 1
+        )
 
     def test_where_no_probe_can_be_placed_the_declarations_mark(
         self, no_probe_funnel_mmm

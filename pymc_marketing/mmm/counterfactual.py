@@ -357,7 +357,10 @@ class EvaluationWindows:
     caused by a date-reducing node rather than adstock kernel mass, and including
     them would make periods overlap in a quantity callers read as a decomposition.
     For ``Before`` and ``Overlap``, however, dates before the period contain real
-    leading kernel mass and are included in the sum.
+    leading kernel mass and are included in the sum.  Dates after the period are
+    summed under every mode: an effect with a forward adstock of its own keeps
+    moving after a ``Before`` period, and where nothing moves the summands are
+    zero.
 
     Parameters
     ----------
@@ -429,7 +432,9 @@ class EvaluationWindows:
                 # baseline and counterfactual are the same computation on the
                 # same inputs, so the extra summands are exactly zero. ``After``
                 # retains forward-only attribution; non-``After`` modes include
-                # the leading side because it contains adstock kernel mass.
+                # the leading side because it contains adstock kernel mass. Every
+                # mode includes the trailing side: a ``Before`` model can hold an
+                # effect whose own adstock carries forward.
             else:
                 # Carry enough context on both sides for every convolution mode;
                 # the mode-aware evaluation mask decides what is summed.
@@ -441,7 +446,7 @@ class EvaluationWindows:
                 eval_start, eval_end = start, end
             elif full_axis:
                 eval_start = start if mode == ConvMode.After else dates[0]
-                eval_end = end if mode == ConvMode.Before else dates[-1]
+                eval_end = dates[-1]
             elif mode == ConvMode.After:
                 eval_start = start
                 eval_end = end + l_max * freq_offset

@@ -1164,7 +1164,7 @@ class TestPeriodEdgeCases:
             (ConvMode.After, False, slice(5, 10)),
             (ConvMode.After, True, slice(5, None)),
             (ConvMode.Before, False, slice(1, 6)),
-            (ConvMode.Before, True, slice(None, 6)),
+            (ConvMode.Before, True, slice(None)),
             (ConvMode.Overlap, False, slice(4, 8)),
             (ConvMode.Overlap, True, slice(None)),
         ],
