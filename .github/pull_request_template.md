@@ -8,6 +8,7 @@
 
 ## Related Issue
 <!--- It is good practice to first open an issue explaining the bug / new feature that is addressed by this PR -->
+<!--- First pull request? It must close an issue a maintainer assigned you to. See https://github.com/pymc-labs/pymc-marketing/blob/main/CONTRIBUTING.md#first-pull-requests -->
 <!--- Please type an `x` in one of the boxes below and provide the issue number after the # sign: -->
 - [ ] Closes #
 - [ ] Related to #
