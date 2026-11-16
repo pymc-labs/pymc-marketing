@@ -150,16 +150,15 @@ class ResolvedPriceResponse(ABC):
         return None
 
     @contextmanager
-    def conditioned_on(self, low: np.ndarray, high: np.ndarray) -> Iterator[bool]:
+    def conditioned_on(self, low: np.ndarray, high: np.ndarray) -> Iterator[None]:
         """Condition the map for one solve over the box ``[low, high]``, and restore it on exit.
 
         ``low`` and ``high`` are per cell over ``dims``, in budget units, infinite where unbounded and ``nan``
         outside the mask. Inside the block the map may differ from the declared one in ways a solver needs, for
-        example a breakpoint blended where the bounds let the solver cross it. Yields whether the map differs
-        from the declared one. A family whose map has a convex part raises here when the bounds contain it. The
-        default yields ``False``.
+        example a breakpoint blended where the bounds let the solver cross it. A family whose map has a convex
+        part raises here when the bounds contain it. The default changes nothing.
         """
-        yield False
+        yield
 
     def linear_piece(
         self,

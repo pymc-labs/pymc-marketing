@@ -767,8 +767,11 @@ class TestPriceResponseContract:
         )
         np.testing.assert_array_equal(piece_low, low)
         np.testing.assert_array_equal(piece_high, high)
-        with resolved.conditioned_on(low, high) as differs:
-            assert differs is False
+        with resolved.conditioned_on(low, high):
+            during = compile_lowered(resolved.to_delivery(spend), spend)(
+                np.array([5.0, 15.0, 40.0])
+            )
+        np.testing.assert_array_equal(during, before)
         weights = as_xtensor(pt.constant(np.ones((4, 3))), dims=("date", "channel"))
         assert resolved.bind_period_weights(weights) is None
         after = compile_lowered(resolved.to_delivery(spend), spend)(
