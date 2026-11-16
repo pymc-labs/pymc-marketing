@@ -46,12 +46,15 @@ import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Self
 
 import numpy as np
+import pydantic
 import pytensor
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
+import xarray as xr
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -69,6 +72,7 @@ from pymc_marketing.mmm.optimization_variables import (
     align_to_model_coords,
     reject_unknown_coords,
 )
+from pymc_marketing.mmm.spend_reach import _PKG_PREFIX
 from pymc_marketing.names.mmm import Dim
 
 __all__ = [
@@ -91,6 +95,8 @@ MIN_FLOOR_FRACTION = 1e-12
 KNOT_SNAP_ULPS = 64
 # More brackets than this on one cell looks like a price curve cut into steps (see TieredPriceResponse).
 MAX_BRACKETS_UNWARNED = 4
+# A warning raised while pydantic validates a declaration points at the line that declared it.
+_WARN_FROM_CALLER = (_PKG_PREFIX, str(Path(pydantic.__file__).resolve().parent))
 
 _Schedule = tuple[float, ...]
 
@@ -1610,14 +1616,6 @@ class TieredPriceResponse(PriceResponse):
                 "describe one schedule, so both dicts name the same labels."
             )
         if isinstance(r, DataArray):
-            r_rows, row_names = self._array_rows(r)
-            self._require_valid_schedule(
-                None,
-                r_rows,
-                rate_tolerance=self.rate_tolerance,
-                label=label,
-                name=row_names.__getitem__,
-            )
             if isinstance(b, DataArray):
                 b_rows, b_names = self._array_rows(b)
                 self._require_valid_schedule(
@@ -1627,6 +1625,16 @@ class TieredPriceResponse(PriceResponse):
                     label=label,
                     name=b_names.__getitem__,
                 )
+            b_cells, r_cells = self._joint_cells(None if no_breakpoints else b, r)
+            r_rows, row_names = self._array_rows(r_cells)
+            self._require_valid_schedule(
+                None if b_cells is None else self._array_rows(b_cells)[0],
+                r_rows,
+                rate_tolerance=self.rate_tolerance,
+                label=label,
+                name=row_names.__getitem__,
+                reference_rate=self._reference_rows(r_cells),
+            )
             counts = (~np.isnan(r_rows)).sum(axis=1)
         else:
             keys = list(r) if isinstance(r, Mapping) else ["every cell"]
@@ -1677,7 +1685,7 @@ class TieredPriceResponse(PriceResponse):
                 "again double-counts them: that needs a model fitted on delivery units and a curved family such "
                 "as PowerPriceResponse.",
                 UserWarning,
-                stacklevel=2,
+                skip_file_prefixes=_WARN_FROM_CALLER,
             )
         return self
 
@@ -1688,10 +1696,12 @@ class TieredPriceResponse(PriceResponse):
             value = value.expand_dims(Dim.BRACKET, axis=-1)
         cell_dims = [dim for dim in value.dims if dim != Dim.BRACKET]
         ordered = value.transpose(*cell_dims, Dim.BRACKET)
-        rows = np.asarray(ordered.values, dtype="float64").reshape(
-            -1, ordered.sizes[Dim.BRACKET]
-        )
         shape = tuple(ordered.sizes[dim] for dim in cell_dims)
+        rows = np.asarray(ordered.values, dtype="float64").reshape(
+            int(np.prod(shape)), ordered.sizes[Dim.BRACKET]
+        )
+        if not cell_dims:
+            return rows, ["every cell"]
         names = [
             tuple(
                 ordered.coords[dim].values.tolist()[i] if dim in ordered.coords else i
@@ -1700,6 +1710,75 @@ class TieredPriceResponse(PriceResponse):
             for index in np.ndindex(*shape)
         ]
         return rows, names
+
+    @staticmethod
+    def _joint_cells(
+        breakpoints: DataArray | None, multipliers: DataArray
+    ) -> tuple[DataArray | None, DataArray]:
+        """Lay two schedule arrays over the cells both describe, so their counts can be compared.
+
+        Without breakpoints every cell has none. Cells only one of them names, and layouts xarray cannot align,
+        are left to :meth:`resolve`, which aligns both to the model's cells.
+        """
+        multipliers = (
+            multipliers
+            if Dim.BRACKET in multipliers.dims
+            else multipliers.expand_dims(Dim.BRACKET, axis=-1)
+        )
+        if breakpoints is None:
+            return (
+                multipliers.isel({Dim.BRACKET: slice(0, 0)}),
+                multipliers,
+            )
+        breakpoints = (
+            breakpoints
+            if Dim.BRACKET in breakpoints.dims
+            else breakpoints.expand_dims(Dim.BRACKET, axis=-1)
+        )
+        try:
+            breakpoints, multipliers = xr.align(
+                breakpoints, multipliers, join="inner", exclude=[Dim.BRACKET]
+            )
+            breakpoints, multipliers = xr.broadcast(
+                breakpoints, multipliers, exclude=[Dim.BRACKET]
+            )
+        except ValueError:
+            return None, multipliers
+        cell_dims = [dim for dim in multipliers.dims if dim != Dim.BRACKET]
+        return (
+            breakpoints.transpose(*cell_dims, Dim.BRACKET),
+            multipliers.transpose(*cell_dims, Dim.BRACKET),
+        )
+
+    def _reference_rows(self, multipliers: DataArray) -> np.ndarray | None:
+        """Return ``reference_rate`` per row of a schedule array, for the tolerance message, or ``None``."""
+        reference = self.reference_rate
+        rows = self._array_rows(multipliers)[0].shape[0]
+        if reference is None or isinstance(reference, Mapping):
+            return None
+        if not isinstance(reference, DataArray):
+            return np.full(rows, float(reference))
+        cell_dims = [dim for dim in multipliers.dims if dim != Dim.BRACKET]
+        if not set(reference.dims) <= set(cell_dims):
+            return None
+        template = (
+            multipliers.isel({Dim.BRACKET: 0}, drop=True)
+            if Dim.BRACKET in multipliers.dims
+            else multipliers
+        )
+        try:
+            aligned = reference.reindex(
+                {
+                    dim: template.coords[dim]
+                    for dim in reference.dims
+                    if dim in template.coords
+                }
+            ).broadcast_like(template)
+        except ValueError:
+            return None
+        return np.asarray(
+            aligned.transpose(*cell_dims).values, dtype="float64"
+        ).reshape(-1)
 
     def _check_reference_rate(self, label: str) -> None:
         reference = self.reference_rate
@@ -1711,6 +1790,22 @@ class TieredPriceResponse(PriceResponse):
                     f"{label}: reference_rate has a {Dim.BRACKET!r} dim. It is the rate a multiplier of 1 "
                     "stands for, one per cell."
                 )
+            schedule = self.rate_multipliers
+            if isinstance(schedule, DataArray):
+                unknown = sorted(
+                    {
+                        label_
+                        for dim in reference.dims
+                        if dim in reference.coords and dim in schedule.coords
+                        for label_ in reference.coords[dim].values.tolist()
+                        if label_ not in set(schedule.coords[dim].values.tolist())
+                    },
+                    key=str,
+                )
+                if unknown:
+                    raise ValueError(
+                        f"{label}: reference_rate names {unknown}, which the schedule does not."
+                    )
             values = np.asarray(reference.values, dtype="float64").ravel()
             values = values[~np.isnan(values)]
         elif isinstance(reference, Mapping):

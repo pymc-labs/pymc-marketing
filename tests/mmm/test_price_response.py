@@ -23,6 +23,7 @@ import pytest
 import xarray as xr
 from pydantic import ValidationError
 from pytensor import function
+from pytensor.compile.mode import Mode
 from pytensor.graph import rewrite_graph
 from pytensor.xtensor import as_xtensor
 
@@ -916,7 +917,9 @@ class TestResolvedTieredPriceResponse:
         )
         np.testing.assert_allclose(u(z) * p(z), z, rtol=1e-12)
 
-    @pytest.mark.parametrize("mode", [None, "JAX"], ids=["default", "jax"])
+    @pytest.mark.parametrize(
+        "mode", [None, Mode(linker="cvm"), "JAX"], ids=["default", "c", "jax"]
+    )
     def test_marginal_price_is_right_continuous_at_the_breakpoint(self, mode):
         """A plan on its breakpoint must report the next bracket's rate as the price of its
         next unit, and the solver's gradient there must be the slope above."""
@@ -1108,6 +1111,40 @@ class TestTieredPriceResponseDeclaration:
                 "which the schedule does not",
                 id="reference-label",
             ),
+            pytest.param(
+                dict(
+                    breakpoints=xr.DataArray(
+                        [100.0, 200.0, 300.0], dims="channel", coords=DIMS_COORDS
+                    ),
+                    rate_multipliers=xr.DataArray(
+                        [[1.0, 1.6, 2.0]] * 3,
+                        dims=("channel", "bracket"),
+                        coords=DIMS_COORDS,
+                    ),
+                ),
+                "one multiplier per bracket",
+                id="array-count",
+            ),
+            pytest.param(
+                dict(
+                    breakpoints=(),
+                    rate_multipliers=xr.DataArray([1.0, 1.6], dims="bracket"),
+                ),
+                "one multiplier per bracket",
+                id="array-count-no-breakpoints",
+            ),
+            pytest.param(
+                dict(
+                    rate_multipliers=xr.DataArray(
+                        [1.0, 1.1], dims="channel", coords={"channel": ["tv", "radio"]}
+                    ),
+                    reference_rate=xr.DataArray(
+                        [5.0], dims="channel", coords={"channel": ["podcast"]}
+                    ),
+                ),
+                "which the schedule does not",
+                id="reference-array-label",
+            ),
         ],
     )
     def test_refusals_when_declared(self, kwargs, match):
@@ -1144,20 +1181,6 @@ class TestTieredPriceResponseDeclaration:
                 ),
                 "the schedule has no date axis",
                 id="date-dim",
-            ),
-            pytest.param(
-                dict(
-                    breakpoints=xr.DataArray(
-                        [100.0, 200.0, 300.0], dims="channel", coords=DIMS_COORDS
-                    ),
-                    rate_multipliers=xr.DataArray(
-                        [[1.0, 1.6, 2.0]] * 3,
-                        dims=("channel", "bracket"),
-                        coords=DIMS_COORDS,
-                    ),
-                ),
-                "one multiplier per bracket",
-                id="array-count",
             ),
         ],
     )
@@ -1198,13 +1221,29 @@ class TestTieredPriceResponseDeclaration:
             TieredPriceResponse(
                 breakpoints=[1e6], rate_multipliers=[1.0, 8.0], reference_rate=5.0
             )
+        multipliers = xr.DataArray(
+            [[1.0, 1.1], [1.0, 8.0]],
+            dims=("channel", "bracket"),
+            coords={"channel": ["tv", "radio"]},
+        )
+        with pytest.raises(ValueError, match=r"8 / 5 = 1\.6"):
+            TieredPriceResponse(
+                breakpoints=xr.DataArray([1e6], dims="bracket"),
+                rate_multipliers=multipliers,
+                reference_rate=xr.DataArray(
+                    [6.0, 5.0], dims="channel", coords={"channel": ["tv", "radio"]}
+                ),
+            )
 
     def test_many_brackets_warn(self):
-        with pytest.warns(UserWarning, match="looks like a discretized price curve"):
+        with pytest.warns(
+            UserWarning, match="looks like a discretized price curve"
+        ) as record:
             TieredPriceResponse(
                 breakpoints=[1.0, 2.0, 3.0, 4.0],
                 rate_multipliers=[1.0, 1.1, 1.2, 1.3, 1.4],
             )
+        assert record[0].filename == __file__
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             TieredPriceResponse(

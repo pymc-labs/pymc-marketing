@@ -3896,11 +3896,16 @@ class TestExactPasses:
                 result.x = np.array([3.0, 17.0])
 
         _record_minimize(monkeypatch, edit=misplace)
-        result = _hand_optimizer(A_ON_FOUR).allocate_budget(total_budget=20.0)
+        result = _hand_optimizer(A_ON_FOUR).allocate_budget(
+            total_budget=20.0, callback=True
+        )
         assert result.scipy_result.success
         np.testing.assert_allclose(
             result.budgets.values, [OPTIMUM_AT_20, 20.0 - OPTIMUM_AT_20], atol=1e-4
         )
+        # Let go once: the pass after the release finds the optimum off the breakpoint,
+        # and nothing is pinned for a closing pass.
+        assert {entry["solve"] for entry in result.callback_info} == {0, 1, 2}
 
     @pytest.mark.parametrize(
         "minimize_kwargs",
@@ -4045,21 +4050,37 @@ class TestExactPasses:
         )
 
     def test_breakpoints_out_of_reach_change_nothing(self, monkeypatch):
-        """Nothing in reach: the run is today's, down to scipy_result."""
+        """Nothing in reach: the run is today's, down to scipy_result and the number of
+        times the objective is evaluated."""
+
+        def counted(optimizer):
+            evaluations = []
+            objective = optimizer._objective_and_grad
+
+            def count(x):
+                evaluations.append(1)
+                return objective(x)
+
+            optimizer._objective_and_grad = count
+            return optimizer, evaluations
+
         far = TieredPriceResponse(
             breakpoints={"a": [50.0]}, rate_multipliers={"a": [1.0, 2.0]}
         )
         calls = _record_minimize(monkeypatch)
+        optimizer, scheduled_evaluations = counted(_hand_optimizer(far))
         with pytest.warns(
             UserWarning, match="every breakpoint is above the upper bound"
         ):
-            scheduled = _hand_optimizer(far).allocate_budget(total_budget=9.0)
+            scheduled = optimizer.allocate_budget(total_budget=9.0)
         scheduled_calls = list(calls)
         calls.clear()
+        optimizer, plain_evaluations = counted(_hand_optimizer())
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
-            plain = _hand_optimizer().allocate_budget(total_budget=9.0)
+            plain = optimizer.allocate_budget(total_budget=9.0)
         assert [b for b, _ in scheduled_calls] == [b for b, _ in calls]
+        assert len(scheduled_evaluations) == len(plain_evaluations)
         np.testing.assert_array_equal(scheduled.budgets.values, plain.budgets.values)
         np.testing.assert_allclose(
             scheduled.scipy_result.fun, plain.scipy_result.fun, rtol=1e-14
@@ -4096,6 +4117,11 @@ class TestExactPasses:
             warnings.filterwarnings("error", message=".*every breakpoint.*")
             _hand_optimizer(A_ON_FOUR).allocate_budget(
                 total_budget=9.0, budget_bounds=on_the_bound
+            )
+            # A channel held at zero on purpose is not a breakpoint typed too large.
+            _hand_optimizer(schedule).allocate_budget(
+                total_budget=9.0,
+                budget_bounds=_hand_bounds([0.0, 0.0], [50.0, 0.0]),
             )
 
     def test_another_method_returns_the_first_solve_with_a_warning(self, monkeypatch):

@@ -3671,7 +3671,7 @@ class BudgetOptimizer(BaseModel):
             ):
                 continue
             top = high[self._variables.slices[variable.name]]
-            finite = np.isfinite(top)
+            finite = np.isfinite(top) & (top > 0.0)
             level = np.where(finite, top, 0.0)
             first_low, first_above = variable.linear_piece(
                 level, np.zeros_like(level), np.full_like(level, np.inf)
