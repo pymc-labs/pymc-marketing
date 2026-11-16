@@ -2413,10 +2413,13 @@ class Incrementality:
         fitted date, and under an adstock whose ``mode`` is not ``After`` they
         can end sooner, as early as the period's own end, so a node with
         carryover of its own is then marked incomplete.  For a model no probe
-        can be placed on, the adstock's own kernel plus the carryover the
-        effects declare stand in for the measurement.  A node the probe finds
-        still moving at the last fitted date, or before the date it perturbed,
-        has no last lag, and no period is marked complete.
+        can be placed on, the declarations stand in for the measurement: the
+        adstock's own kernel plus the widest carryover the channel-dependent
+        effects declare, or the carryover the effects that declare a node
+        declare for it, if that is wider.  A node none of its effects declares
+        carryover for is bounded by nothing, and so is a node the probe finds
+        still moving at the last fitted date, or before the date it perturbed:
+        no period is marked complete.
 
         Examples
         --------
@@ -5964,7 +5967,7 @@ class Incrementality:
         reach: SpendReach,
         *,
         kernel_lags: int,
-        declared_lags: int,
+        declared_lags: Mapping[str, int | None],
         reads_response: bool,
     ) -> int | None:
         """Return how far past a period's last spend date the carryover of *nodes* lands.
@@ -5972,10 +5975,9 @@ class Incrementality:
         The last lag the probe measured each node to move at.  A declared full
         axis changes how a period is evaluated and not these measurements.  The
         kernel's own trailing lags are the floor for a response.  Where no
-        probe could be placed nothing was measured, and the kernel's lags plus
-        the carryover the effects declare stand in: more than a node upstream
-        of an effect's own adstock reaches, which for a mark that vouches for a
-        period is the safer error.
+        probe could be placed nothing was measured, and each node's declaration
+        stands in: the kernel's lags plus the carryover declared for it.  A
+        node nothing is declared for has no bound.
 
         Parameters
         ----------
@@ -5985,8 +5987,10 @@ class Incrementality:
             What the probe measured.
         kernel_lags : int
             Lags after a spend date that the model's adstock kernel reaches.
-        declared_lags : int
-            The carryover the effects declare beyond the model's own adstock.
+        declared_lags : mapping of str to int or None
+            Per node, the carryover declared for it beyond the model's own
+            adstock, or ``None`` where nothing is.  Read only for a node the
+            probe did not measure.
         reads_response : bool
             Whether the request reads the response, which the kernel always
             reaches.
@@ -5994,9 +5998,10 @@ class Incrementality:
         Returns
         -------
         int or None
-            The number of lags, or ``None`` when a node the probe found still
-            moving at the end of the axis, or before the perturbed date, has no
-            last lag and no period can be vouched for.
+            The number of lags, or ``None`` when no period can be vouched for:
+            a node the probe found still moving at the end of the axis, or
+            before the perturbed date, has no last lag, and neither has a node
+            nothing was measured or declared for.
         """
         measured = [reach.measured[node] for node in nodes if node in reach.measured]
         if any(node.requires_full_axis for node in measured):
@@ -6004,8 +6009,13 @@ class Incrementality:
         lags = max((node.max_lag for node in measured), default=0)
         if reads_response:
             lags = max(lags, kernel_lags)
-        if len(measured) < len(nodes):
-            lags = max(lags, kernel_lags + declared_lags)
+        for node in nodes:
+            if node in reach.measured:
+                continue
+            declared = declared_lags.get(node)
+            if declared is None:
+                return None
+            lags = max(lags, kernel_lags + declared)
         return lags
 
     def _complete_marks(
@@ -6029,14 +6039,29 @@ class Incrementality:
             One mark per period; see :meth:`_carryover_cut`.
         """
         probed = prepared.probed
-        nodes = [mediator.variable for mediator in prepared.mediators]
+        # What the channel-dependent effects declare beyond the model's own
+        # adstock, the widest of them.  More than a node upstream of an
+        # effect's own adstock reaches, which for a mark that vouches for a
+        # period is the safer error.  A mediator node is also bounded by what
+        # the effects that declare it declare, also one whose own term does
+        # not read spend and so is in no reach, and by nothing when none of
+        # them declares anything.
+        effects_declare = probed.reach.effective_l_max - self.model.adstock.l_max
+        declared_lags: dict[str, int | None] = {}
         if reads.wanted:
-            nodes += [Var.CHANNEL_CONTRIBUTION, *probed.effect_names]
+            declared_lags |= dict.fromkeys(
+                (Var.CHANNEL_CONTRIBUTION, *probed.effect_names), effects_declare
+            )
+        for mediator in prepared.mediators:
+            own = mediator.declared_carryover_lags
+            declared_lags[mediator.variable] = (
+                None if own is None else max(own, effects_declare)
+            )
         lags = self._carryover_lags(
-            nodes,
+            list(declared_lags),
             probed.reach,
             kernel_lags=probed.trailing_lags,
-            declared_lags=probed.reach.effective_l_max - self.model.adstock.l_max,
+            declared_lags=declared_lags,
             reads_response=bool(reads.wanted),
         )
         return [
@@ -6237,7 +6262,8 @@ class Incrementality:
         ----------
         results : PeriodResults
             The evaluation the result came from: its resolved period, what it
-            held and whether its accounting was verified.
+            held, whether its accounting was verified and whether it marks its
+            periods ``complete``.
         quantity : str
             What the result is, as in
             :class:`~pymc_marketing.mmm.estimand_label.EstimandLabel`.
@@ -6270,6 +6296,7 @@ class Incrementality:
             accounting_verified=(
                 None if paths is None else bool(results.accounting_verified)
             ),
+            marked=results.complete is not None,
             paths=paths,
             held=results.held_terms if is_path else (),
             held_at="factual" if is_path else None,

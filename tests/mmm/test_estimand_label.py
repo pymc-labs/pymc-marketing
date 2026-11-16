@@ -46,6 +46,7 @@ DIRECT = {
     "held": ("funnel_effect_contribution",),
     "held_at": "factual",
 }
+MARKED_DIRECT = {**DIRECT, "marked": True}
 MEDIATOR = {
     **REQUEST,
     "quantity": "incremental_mediator",
@@ -53,12 +54,14 @@ MEDIATOR = {
     "variable": "funnel_spend",
     "units": "USD",
     "is_spend": True,
+    "marked": True,
 }
 INDUCED = {
     **REQUEST,
     "quantity": "induced_spend",
     "induced_spend": ("lf_spend",),
     "induced_spend_units": "USD",
+    "marked": True,
 }
 
 
@@ -127,6 +130,11 @@ class TestCoherence:
                 {**MEDIATOR, "units": None},
                 "a spend mediator has units",
                 id="a spend mediator with no units",
+            ),
+            pytest.param(
+                {**MEDIATOR, "marked": False},
+                "reads a mediator is marked",
+                id="a mediator movement without its mark",
             ),
             pytest.param(
                 {**TOTAL, "mediator": "lf_spend"},
@@ -248,6 +256,7 @@ class TestDefinition:
                     "quantity": "contribution_over_spend",
                     "induced_spend": ("lf_spend",),
                     "induced_spend_units": "USD",
+                    "marked": True,
                 },
                 "[Y(x) - Y(x')] / [S(x) - S(x') + M(x) - M(x')]",
             ),
@@ -300,7 +309,7 @@ class TestBoundToTheArray:
     )
     def test_the_same_result_reads_back(self, change):
         """None of these changes a value, a label or the order along a dimension."""
-        label = EstimandLabel(**DIRECT)
+        label = EstimandLabel(**MARKED_DIRECT)
 
         assert EstimandLabel.read(change(label.attach(result(complete=True)))) == label
 
@@ -308,10 +317,11 @@ class TestBoundToTheArray:
         """xarray copies a coordinate onto every variable of a ``Dataset``.
 
         A result issued without a ``complete`` mark reads back with the one it
-        picked up there, and one issued with a mark still reads back with its own.
+        picked up there, and its label says that the mark is not its own.  One
+        issued with a mark still reads back with its own.
         """
         total = EstimandLabel(**TOTAL)
-        direct = EstimandLabel(**DIRECT)
+        direct = EstimandLabel(**MARKED_DIRECT)
         together = xr.Dataset(
             {
                 "total": total.attach(result()),
@@ -322,6 +332,19 @@ class TestBoundToTheArray:
         assert "complete" in together["total"].coords
         assert EstimandLabel.read(together["total"]) == total
         assert EstimandLabel.read(together["direct"]) == direct
+        assert (total.marked, direct.marked) == (False, True)
+
+    @pytest.mark.parametrize(
+        "fields, complete",
+        [
+            pytest.param(TOTAL, True, id="an unmarked label on a marked result"),
+            pytest.param(MARKED_DIRECT, False, id="a marked label on a bare result"),
+        ],
+    )
+    def test_a_label_says_whether_its_result_is_marked(self, fields, complete):
+        """So a reader can tell a mark the result was issued with from a lent one."""
+        with pytest.raises(ValueError, match="marked label goes on a result"):
+            EstimandLabel(**fields).attach(result(complete=complete))
 
     @pytest.mark.parametrize(
         "change",
@@ -356,7 +379,7 @@ class TestBoundToTheArray:
     )
     def test_anything_derived_is_refused(self, change):
         """A label is read before a result is cut, reordered or computed with."""
-        labelled = EstimandLabel(**DIRECT).attach(result(complete=True))
+        labelled = EstimandLabel(**MARKED_DIRECT).attach(result(complete=True))
         derived = change(labelled).assign_attrs(labelled.attrs)
 
         with pytest.raises(ValueError, match="do not belong together"):
@@ -375,6 +398,7 @@ class TestBoundToTheArray:
             {"paths": "total", "held": [], "held_at": None},
             {"counterfactual_spend_factor": 1.01},
             {"scope": "joint"},
+            {"marked": True},
         ],
     )
     def test_an_edited_label_is_refused(self, edit):
@@ -405,10 +429,10 @@ class TestBoundToTheArray:
         """
         monkeypatch.setattr(estimand_label, "_DIGEST_BLOCK_ELEMENTS", block)
 
-        labelled = EstimandLabel(**DIRECT).attach(result(complete=True))
+        labelled = EstimandLabel(**MARKED_DIRECT).attach(result(complete=True))
 
         digest = json.loads(labelled.attrs[LABEL_ATTR])["digest"]
-        assert digest == "c11735eb1307aa6e529b2e79151856d9"
+        assert digest == "f766794195d2e41c952c427611872196"
 
     @pytest.mark.parametrize(
         "attrs, complaint",
@@ -450,9 +474,9 @@ class TestThroughAFile:
         """A ratio with a missing cell, as a channel with no spend leaves one."""
         array = result(complete=True)
         array.values[0, 1, 2, 0, 1] = np.nan
-        return EstimandLabel(**{**TOTAL, "quantity": "contribution_over_spend"}).attach(
-            array
-        )
+        return EstimandLabel(
+            **{**TOTAL, "quantity": "contribution_over_spend", "marked": True}
+        ).attach(array)
 
     @pytest.mark.parametrize("engine", _engines())
     def test_netcdf(self, tmp_path, engine):

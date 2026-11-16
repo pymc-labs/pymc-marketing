@@ -8483,14 +8483,18 @@ class IndicatorEffect(_NoDataEffect):
     way.  With ``memory`` it also remembers a series of its own over twelve
     dates, so on a shorter window it takes another value than on the full
     date axis with spend unchanged, which only ``evaluation_mode`` can fix.
+    ``carryover_lags`` is the effect's ``additional_carryover_lags``, which
+    no reach reconciles, since its term does not read spend.
     """
 
     memory: bool = False
     evaluation_mode: Literal["auto", "full"] = "auto"
+    carryover_lags: int | None = None
 
     def incrementality_spec(self) -> IncrementalitySpec:
         """Declare the indicator, reported in searches."""
         return IncrementalitySpec(
+            additional_carryover_lags=self.carryover_lags,
             evaluation_mode=self.evaluation_mode,
             mediators=(
                 MediatorSpec(
@@ -8892,6 +8896,33 @@ class TestIncrementalMediator:
             mmm, "monthly", declared
         )
 
+    @pytest.mark.parametrize("declared", [4, None])
+    def test_where_no_probe_can_be_placed_a_node_s_own_effects_mark_it(
+        self, funnel_mmm_data, declared
+    ):
+        """The effect that declares a node bounds it, also one whose term reads no spend.
+
+        That effect is in no reach, so only its declaration says how far the
+        node carries spend.  Without one, nothing bounds the node and no period
+        is vouched for.
+        """
+        mmm = _build_simple_effect_mmm(
+            no_probe_data(funnel_mmm_data),
+            IndicatorEffect(prefix="ind", carryover_lags=declared),
+            link="identity",
+        )
+
+        with pytest.warns(UserWarning, match="could not be measured"):
+            moved = mmm.incrementality.compute_incremental_mediator(frequency="monthly")
+
+        marks = moved["searches"]["complete"].values.tolist()
+        if declared is None:
+            assert marks == [False] * len(marks)
+        else:
+            expected = expected_complete(mmm, "monthly", (FUNNEL_L_MAX - 1) + declared)
+            assert marks == expected
+            assert True in expected and False in expected
+
     def test_a_node_that_differs_on_a_window_is_named(self, funnel_mmm_data):
         """Its movement on a window is not the effect of spend alone.
 
@@ -9014,21 +9045,29 @@ class TestIncrementalMediator:
             incr.compute_incremental_mediator(frequency="all_time", mediators=["split"])
 
     @pytest.mark.parametrize(
-        "nodes, reads_response, lags",
+        "nodes, declared, reads_response, lags",
         [
-            pytest.param({"hub": 2}, False, 2, id="a mediator's own last lag"),
             pytest.param(
-                {"hub": 2}, True, 3, id="a response floored at the kernel's lags"
+                {"hub": 2}, 9, False, 2, id="a measurement over a declaration"
             ),
-            pytest.param({}, False, 3 + 4, id="no probe: the kernel and declarations"),
-            pytest.param({"hub": None}, False, None, id="a node with no last lag"),
+            pytest.param(
+                {"hub": 2}, 9, True, 3, id="a response floored at the kernel's lags"
+            ),
+            pytest.param(
+                {}, 4, False, 3 + 4, id="no probe: the kernel and the declaration"
+            ),
+            pytest.param({}, None, False, None, id="no probe and nothing declared"),
+            pytest.param({"hub": None}, 9, False, None, id="a node with no last lag"),
         ],
     )
-    def test_the_marks_read_the_measured_last_lag(self, nodes, reads_response, lags):
+    def test_the_marks_read_the_measured_last_lag(
+        self, nodes, declared, reads_response, lags
+    ):
         """How far a period's carryover lands, from what the probe measured.
 
         ``None`` in *nodes* stands for a node the probe found still moving at
-        the end of the axis.
+        the end of the axis, and an empty *nodes* for a model no probe could be
+        placed on.
         """
         measured = {
             name: (
@@ -9056,7 +9095,7 @@ class TestIncrementalMediator:
             ["hub"],
             reach,
             kernel_lags=3,
-            declared_lags=4,
+            declared_lags={"hub": declared},
             reads_response=reads_response,
         )
 
@@ -9138,7 +9177,9 @@ class TestInducedSpend:
 
         The mediated path chains the funnel's adstock behind the model's, so a
         period's response still moves two kernels after its spend.  Every
-        variable of the decomposition carries the request's mark.
+        variable of the decomposition carries the request's mark, and its label
+        says so, which the label of the same variable without induced spend
+        does not.
         """
         mmm = funnel_log_link_fitted_mmm
         expected = expected_complete(mmm, "monthly", 2 * (FUNNEL_L_MAX - 1))
@@ -9148,6 +9189,9 @@ class TestInducedSpend:
         )
         parts = mmm.incrementality.decompose_incremental_contribution(
             frequency="monthly", induced_spend=[LF_SPEND]
+        )
+        unmarked = mmm.incrementality.decompose_incremental_contribution(
+            frequency="monthly"
         )
 
         assert expected == [True] * 4 + [False] * 2
@@ -9160,6 +9204,8 @@ class TestInducedSpend:
             "spend_change",
             "induced_spend",
         }
+        assert all(EstimandLabel.read(parts[name]).marked for name in parts.data_vars)
+        assert not EstimandLabel.read(unmarked["total"]).marked
 
     def test_induced_spend_goes_with_the_total_path(self, funnel_log_link_fitted_mmm):
         """With the mediators held there is no induced movement to add."""

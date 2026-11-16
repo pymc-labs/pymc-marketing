@@ -527,7 +527,12 @@ class IncrementalitySpec(BaseModel):
         Left at ``None`` it is measured.  A declared value is allowed to be
         *larger* than the measured reach (a wider window only costs compute) but
         a smaller one is rejected, since it would silently truncate the mediated
-        tail and understate the increment.
+        tail and understate the increment.  It also speaks for the nodes in
+        ``mediators``, also when the effect's own term does not read spend:
+        where no probe can be placed, a node is taken to move for the model's
+        kernel plus the widest value the effects that declare it declare, and
+        a node none of them declares one for has no period marked
+        ``complete``.
     evaluation_mode : {"auto", "window", "full"}, default="auto"
         How much of the date axis the effect needs to see to be evaluated
         correctly.  ``"window"`` is the cheap case: the effect propagates spend

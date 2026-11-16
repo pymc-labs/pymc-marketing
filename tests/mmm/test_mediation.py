@@ -216,6 +216,7 @@ class TestResolveMediators:
             is_spend=False,
             feeds_term=True,
             full_axis=False,
+            declared_carryover_lags=None,
             dims=(),
             problem=None,
             unreadable=None,
@@ -449,7 +450,10 @@ class TestResolveMediators:
         )
 
     def test_a_hub_two_effects_read_is_one_entry(self, funnel_mmm_data):
-        """One of them says how to report it and the other leaves the defaults."""
+        """One of them says how to report it and the other leaves the defaults.
+
+        The entry carries the wider of the carryovers the two declare.
+        """
         reported = MediatorSpec(
             name="hub", variable="f_hub", units="USD", is_spend=True
         )
@@ -458,13 +462,18 @@ class TestResolveMediators:
             GraphShape(
                 prefix="f",
                 kind="hub",
-                spec=IncrementalitySpec(role="mediator", mediators=(reported,)),
+                spec=IncrementalitySpec(
+                    additional_carryover_lags=5,
+                    role="mediator",
+                    mediators=(reported,),
+                ),
             ),
             GraphShape(
                 prefix="g",
                 kind="reads",
                 reads="f_hub",
                 spec=IncrementalitySpec(
+                    additional_carryover_lags=2,
                     role="mediator",
                     mediators=(MediatorSpec(name="hub", variable="f_hub"),),
                 ),
@@ -475,21 +484,29 @@ class TestResolveMediators:
 
         assert entry.effects == ("GraphShape", "GraphShape")
         assert (entry.units, entry.is_spend, entry.readable) == ("USD", True, True)
+        assert entry.declared_carryover_lags == 5
 
     def test_an_effect_that_does_not_read_spend_may_declare_a_node(
         self, funnel_mmm_data
     ):
-        """Its spec is read by the registry, which a total never does."""
+        """Its spec is read by the registry, which a total never does.
+
+        Its carryover, which no reach measures or reconciles, is the node's.
+        """
         declaring = GraphShape(
             prefix="f",
             kind="flat",
             spec=IncrementalitySpec(
-                mediators=(MediatorSpec(name="hub", variable="f_hub"),)
+                additional_carryover_lags=9,
+                mediators=(MediatorSpec(name="hub", variable="f_hub"),),
             ),
         )
         mmm = build(funnel_mmm_data, declaring)
 
-        assert registry_of(mmm)["hub"].readable
+        entry = registry_of(mmm)["hub"]
+
+        assert entry.readable
+        assert entry.declared_carryover_lags == 9
 
     @pytest.mark.parametrize(
         "kind, returned",
@@ -763,6 +780,7 @@ def node(name: str, **fields) -> ResolvedMediator:
         "is_spend": True,
         "feeds_term": True,
         "full_axis": False,
+        "declared_carryover_lags": None,
         "dims": (),
         "problem": None,
         "unreadable": None,

@@ -126,6 +126,11 @@ class ResolvedMediator:
         evaluated on the full date axis (``evaluation_mode="full"``).  Honoured
         by a request that reads the node, also when the effect's own term does
         not read spend.
+    declared_carryover_lags : int or None
+        The widest ``additional_carryover_lags`` among the effects that declare
+        it, also one whose own term does not read spend.  ``None`` when none of
+        them declares one.  Where no probe can be placed, it is what bounds the
+        node's carryover.
     dims : tuple of str
         The model's dimensions besides ``date`` that the node carries, in the
         model's order.  Empty for a variable the model does not have.
@@ -143,6 +148,7 @@ class ResolvedMediator:
     is_spend: bool
     feeds_term: bool
     full_axis: bool
+    declared_carryover_lags: int | None
     dims: tuple[str, ...]
     problem: str | None
     unreadable: str | None
@@ -249,6 +255,8 @@ class _Declaration:
         ``(units, scale, is_spend)``, as the effect that sets them says.
     full_axis : bool
         Whether a declaring effect asks for ``evaluation_mode="full"``.
+    carryover_lags : int or None
+        The widest ``additional_carryover_lags`` a declaring effect declares.
     fault : str or None
         Why the declarations leave the node without a way to be reported.
     """
@@ -257,9 +265,17 @@ class _Declaration:
     effects: list[str] = field(default_factory=list)
     reporting: Reporting = _DEFAULT_REPORTING
     full_axis: bool = False
+    carryover_lags: int | None = None
     fault: str | None = None
 
-    def merge(self, effect: str, mediator: MediatorSpec, *, full_axis: bool) -> None:
+    def merge(
+        self,
+        effect: str,
+        mediator: MediatorSpec,
+        *,
+        full_axis: bool,
+        carryover_lags: int | None,
+    ) -> None:
         """Add one effect's declaration of the node.
 
         At most one effect may say how to report the node.  Two that say it
@@ -273,9 +289,13 @@ class _Declaration:
             Its declaration of the node.
         full_axis : bool
             Whether that effect asks for ``evaluation_mode="full"``.
+        carryover_lags : int or None
+            The ``additional_carryover_lags`` that effect declares, if any.
         """
         self.effects.append(effect)
         self.full_axis |= full_axis
+        if carryover_lags is not None:
+            self.carryover_lags = max(carryover_lags, self.carryover_lags or 0)
         reporting = (mediator.units, mediator.scale, mediator.is_spend)
         if reporting == _DEFAULT_REPORTING:
             return
@@ -324,7 +344,10 @@ def _collect_declarations(model: MMM) -> dict[tuple[str, str], _Declaration]:
                 _Declaration(variable=mediator.variable),
             )
             declaration.merge(
-                label, mediator, full_axis=validated.evaluation_mode == "full"
+                label,
+                mediator,
+                full_axis=validated.evaluation_mode == "full",
+                carryover_lags=validated.additional_carryover_lags,
             )
     _mark_name_clashes(declared)
     return declared
@@ -561,6 +584,7 @@ def resolve_mediators(
                 is_spend=is_spend,
                 feeds_term=graph.feeds_term(variable),
                 full_axis=declaration.full_axis,
+                declared_carryover_lags=declaration.carryover_lags,
                 dims=_model_dims_of(model, variable),
                 problem=_cut_problem(graph, variable),
                 unreadable=_report_problem(model, name, declaration),

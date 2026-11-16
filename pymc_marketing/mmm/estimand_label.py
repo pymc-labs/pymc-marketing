@@ -20,9 +20,10 @@ An array of numbers does not say which one it is, so each result is returned
 with an :class:`EstimandLabel` in its attributes.
 
 The label is one JSON attribute, :data:`LABEL_ATTR`.  It states the request
-(the quantity, the paths, the period, the spend factor) and what was held
-fixed, and it is bound to the array by a digest of the array's values, dimension
-labels and ``complete`` coordinate together with the label's own fields.
+(the quantity, the paths, the period, the spend factor), what was held fixed
+and whether the result carries a ``complete`` mark, and it is bound to the
+array by a digest of the array's values, dimension labels and mark together
+with the label's own fields.
 
 .. code-block:: python
 
@@ -38,9 +39,11 @@ labels and ``complete`` coordinate together with the label's own fields.
 
 **Read a label before cutting a result.**  :meth:`EstimandLabel.read` verifies
 the digest, so it accepts the array the module returned, a copy, a transpose,
-the array under another name and the same array read back from a file, and
-it ignores a ``complete`` coordinate the result was not issued with, such as
-one xarray copies onto it from another result in the same ``Dataset``.  It
+the array under another name and the same array read back from a file.  The
+label's ``marked`` says whether the result was issued with a ``complete``
+coordinate.  A marked result is refused without its own mark, and an unmarked
+one ignores a ``complete`` coordinate it carries, such as one xarray copies
+onto it from another result in the same ``Dataset``.  It
 refuses anything that changes a value, a dimension label or the order along a
 dimension: a selection, a sort, a renamed dimension, arithmetic that changes a
 value, a reduction, a concatenation.  What xarray does with attributes under
@@ -162,9 +165,10 @@ def _digest_v1(result: xr.DataArray, fields: dict) -> str:
     -------
     str
         A hexadecimal digest of the dimension names, the shape, the values, the
-        labels of every dimension, the ``complete`` coordinate when there is
-        one, and *fields*.  The dimensions are laid out by name first, so a
-        transpose does not change it.
+        labels of every dimension, the ``complete`` coordinate when the label
+        is marked, and *fields*.  The dimensions are laid out by name first, so
+        a transpose does not change it.  A ``complete`` coordinate on a result
+        whose label is unmarked was not issued with it, and is left out.
     """
     ordered = result.transpose(*sorted(map(str, result.dims)))
     digest = hashlib.blake2b(digest_size=16)
@@ -174,7 +178,7 @@ def _digest_v1(result: xr.DataArray, fields: dict) -> str:
         digest.update(dim.encode())
         digest.update(_dimension_labels(ordered, dim))
     complete = IncrementalityResult.COMPLETE
-    if complete in ordered.coords:
+    if fields.get("marked") is True and complete in ordered.coords:
         mark = ordered.coords[complete]
         digest.update(repr((complete, mark.dims)).encode())
         digest.update(np.ascontiguousarray(mark.values, dtype=bool).data)
@@ -254,6 +258,10 @@ class EstimandLabel(BaseModel):
         reproduce the whole move in the linear predictor.  ``False`` only for a
         total returned with the warning that the check could not run.  Response
         results only.
+    marked : bool, default False
+        Whether the result carries a ``complete`` coordinate, which says per
+        period whether the dates it sums hold all of its carryover.  Every
+        result of a request that reads a mediator is marked, and no other.
     paths : {"total", "direct", "mediated"}, optional
         Which paths the increment follows.  Response results only.
     held : tuple of str
@@ -292,6 +300,7 @@ class EstimandLabel(BaseModel):
     include_carryover: StrictBool
     central_tendency: Literal["median", "mean"] | None = None
     accounting_verified: StrictBool | None = None
+    marked: StrictBool = False
     paths: PathEffect | None = None
     held: tuple[_Text, ...] = ()
     held_at: Literal["factual"] | None = None
@@ -312,6 +321,7 @@ class EstimandLabel(BaseModel):
             *self._path_problems(),
             *self._ordering_problems(),
             *self._induced_spend_problems(),
+            *self._mark_problems(),
             *self._ratio_problems(),
         ]
         if problems:
@@ -414,6 +424,16 @@ class EstimandLabel(BaseModel):
             )
         return problems
 
+    def _mark_problems(self) -> list[str]:
+        """Check that a result that reads a mediator is marked."""
+        reads_mediator = self.quantity in (
+            "incremental_mediator",
+            IncrementalityResult.INDUCED_SPEND,
+        )
+        if (reads_mediator or self.induced_spend) and not self.marked:
+            return ["a result that reads a mediator is marked"]
+        return []
+
     def _ratio_problems(self) -> list[str]:
         """Check that a ratio is per channel and its spend factor fits its kind."""
         problems = []
@@ -482,7 +502,18 @@ class EstimandLabel(BaseModel):
         xr.DataArray
             A shallow copy of *result* whose attributes hold the label and
             nothing else.
+
+        Raises
+        ------
+        ValueError
+            If the label is marked and *result* carries no ``complete``
+            coordinate, or the other way round.
         """
+        if self.marked != (IncrementalityResult.COMPLETE in result.coords):
+            raise ValueError(
+                "A marked label goes on a result with a 'complete' coordinate, "
+                "and an unmarked one on a result without."
+            )
         fields = self.model_dump(mode="json", exclude={"definition"})
         digest = type(self).DIGESTS[self.schema_version](result, fields)
         labelled = result.copy(deep=False)
@@ -508,9 +539,9 @@ class EstimandLabel(BaseModel):
         -------
         EstimandLabel
             The label the array was issued with, upgraded to the current schema.
-            A ``complete`` coordinate the array was not issued with, such as
-            one xarray copies onto it from another result in the same
-            ``Dataset``, is ignored: the label says nothing about it.
+            A ``complete`` coordinate on a result whose label is unmarked, such
+            as one xarray copies onto it from another result in the same
+            ``Dataset``, is ignored: the label says the result has no mark.
 
         Raises
         ------
@@ -519,7 +550,7 @@ class EstimandLabel(BaseModel):
             that is not this module's; if the label was written by a newer
             schema than this code knows; or if the array and the label do not
             belong together, because a value, a dimension label, the
-            ``complete`` coordinate it was issued with or a stored field differs
+            ``complete`` coordinate of a marked result or a stored field differs
             from what the label was issued for.
         """
         payload = _stored_payload(result)
@@ -531,7 +562,7 @@ class EstimandLabel(BaseModel):
         # Verified as stored, by the rule of the version that wrote it, before
         # anything is migrated: a match means these are the fields that version
         # wrote, so an edited or truncated label never reaches a migration.
-        if not cls._digest_matches(result, payload, stored_digest, version=version):
+        if stored_digest != cls.DIGESTS[version](result, payload):
             raise ValueError(
                 "The array and its label do not belong together: a value, a "
                 "dimension name, a coordinate label or the 'complete' mark "
@@ -560,23 +591,6 @@ class EstimandLabel(BaseModel):
                 f"code reads up to {cls.SCHEMA_VERSION}: upgrade pymc-marketing."
             )
         return version
-
-    @classmethod
-    def _digest_matches(
-        cls, result: xr.DataArray, fields: dict, digest: object, *, version: int
-    ) -> bool:
-        """Whether *digest* is the one the rule of *version* gives *result* and *fields*.
-
-        A result issued without a ``complete`` mark matches once a mark it
-        picked up is dropped; one issued with a mark matches only with it.
-        """
-        rule = cls.DIGESTS[version]
-        if digest == rule(result, fields):
-            return True
-        complete = IncrementalityResult.COMPLETE
-        return complete in result.coords and digest == rule(
-            result.drop_vars(complete), fields
-        )
 
     @classmethod
     def _migrated(cls, fields: dict, version: int) -> dict:
