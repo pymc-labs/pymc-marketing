@@ -1938,7 +1938,8 @@ def test_the_callers_spec_is_not_mutated():
                     "family": {"within": "region", "map": {0: "r0"}},
                 }
             },
-            "nesting is at most two levels per tree",
+            # family is a middle term now: its `map` must cover the labels brand maps to
+            r"term family: `map` has no region for the family labels \['1'\] that brand maps to",
         ),
         ({"terms": NEST, "centered": "no"}, "`centered` must be a bool, got 'no'"),
         ({"terms": NEST, "centered": None}, "`centered` must be a bool, got None"),
@@ -2533,6 +2534,149 @@ def test_parent_effect_false_builds_nesting_without_the_parent_term():
         "beta_sigma",
         "beta_sigma_dma",
     ]  # no beta_tier
+
+
+# --- Deeper nesting -----------------------------------------------------------
+
+# West: T1 (D1, D2, D3), T2 (D4, D5); East: T3 (D6, D7), T4 (D8, D9, D10)
+TIER_OF = {"D1": "T1", "D2": "T1", "D3": "T1", "D4": "T2", "D5": "T2",
+           "D6": "T3", "D7": "T3", "D8": "T4", "D9": "T4", "D10": "T4"}  # fmt: skip
+REGION_OF = {"T1": "West", "T2": "West", "T3": "East", "T4": "East"}
+DEEP = {
+    "region": {},
+    "tier": {"within": "region", "map": REGION_OF},
+    "dma": {"within": "tier", "map": TIER_OF},
+}
+DEEP_COORDS = {"channel": ["c0", "c1"], "dma": list(TIER_OF)}
+
+
+def deep(terms=DEEP, **kwargs):
+    return nzs(terms, dims=("dma", "channel"), **kwargs)
+
+
+def test_a_chain_of_three_levels_has_one_offset_per_level():
+    model, _ = build(deep(), DEEP_COORDS)
+    beta_vars = {k: v for k, v in model.named_vars_to_dims.items() if "sigma" not in k}
+    assert beta_vars == {
+        "beta_mu": ("channel",),
+        "beta_region_offset": ("channel", "region"),
+        "beta_region": ("channel", "region"),
+        "beta_tier_offset": ("channel", "beta_tier_free"),
+        "beta_tier": ("channel", "tier"),
+        "beta_dma_offset": ("channel", "beta_dma_free"),
+        "beta_dma": ("channel", "dma"),
+        "beta": ("dma", "channel"),
+    }
+    assert model.coords["region"] == ("East", "West")
+    assert model.coords["tier"] == ("T1", "T2", "T3", "T4")
+    assert model.coords["beta_tier_free"] == (0, 1)  # 4 tiers in 2 regions
+    assert model.coords["beta_dma_free"] == (0, 1, 2, 3, 4, 5)  # 10 DMAs in 4 tiers
+
+
+@pytest.mark.parametrize("centered", [True, False])
+def test_each_level_of_a_chain_sums_to_zero_within_its_parent_and_adds_up_to_beta(
+    centered,
+):
+    model, beta = build(deep(transform=None, centered=centered), DEEP_COORDS)
+    # joint prior draws, so the ZeroSumNormal of the top level is zero-sum too
+    names = ("beta_mu", "beta_region", "beta_tier", "beta_dma")
+    *levels, b = pm.draw(
+        [*(model[v].values for v in names), beta.values], 20, random_seed=0
+    )
+    mu, region, tier, dma = (
+        np.moveaxis(x, 0, -1) for x in levels
+    )  # (channel, label, draw)
+    b = np.moveaxis(b, 0, -1)  # (dma, channel, draw)
+    tiers, regions = list(model.coords["tier"]), list(model.coords["region"])
+    for t in tiers:
+        cols = [i for i, d in enumerate(TIER_OF) if TIER_OF[d] == t]
+        assert np.abs(dma[:, cols].sum(axis=1)).max() < 1e-12
+    for r in regions:
+        cols = [tiers.index(t) for t in REGION_OF if REGION_OF[t] == r]
+        assert np.abs(tier[:, cols].sum(axis=1)).max() < 1e-12
+    assert np.abs(region.sum(axis=1)).max() < 1e-12
+    for i, d in enumerate(TIER_OF):
+        t = TIER_OF[d]
+        expected = (
+            mu
+            + region[:, regions.index(REGION_OF[t])]
+            + tier[:, tiers.index(t)]
+            + dma[:, i]
+        )
+        np.testing.assert_allclose(b[i], expected, atol=1e-12)
+
+
+def test_a_chain_of_any_depth_builds():
+    zone_of = {"East": "Z0", "West": "Z1"}
+    terms = {
+        "zone": {},
+        "region": {"within": "zone", "map": zone_of},
+        **{k: v for k, v in DEEP.items() if k != "region"},
+    }
+    with pytest.warns(UserWarning, match="every zone has one region"):
+        model, _ = build(deep(terms), DEEP_COORDS)
+    assert model.coords["zone"] == ("Z0", "Z1")
+    assert {"beta_zone", "beta_region", "beta_tier", "beta_dma"} <= set(
+        model.named_vars
+    )
+
+
+def test_the_top_of_a_chain_can_leave_out_its_parent_effect():
+    terms = {
+        "tier": {"within": "region", "map": REGION_OF, "parent_effect": False},
+        "dma": {"within": "tier", "map": TIER_OF},
+    }
+    model, _ = build(deep(terms), DEEP_COORDS)
+    assert "beta_region" not in model.named_vars
+    assert model.named_vars_to_dims["beta_tier"] == ("channel", "tier")
+
+
+@pytest.mark.parametrize(
+    ("terms", "message"),
+    [
+        (
+            {
+                "a": {"within": "b", "map": {"x": "y"}},
+                "b": {"within": "a", "map": {"y": "x"}},
+            },
+            "terms ['a', 'b'] are `within` each other in a cycle",
+        ),
+        (
+            {
+                **DEEP,
+                "tier": {
+                    "within": "region",
+                    "map": {"T1": "West", "T2": "West", "T3": "East"},
+                },
+            },
+            "term tier: `map` has no region for the tier labels ['T4'] that dma maps to",
+        ),
+        (
+            {**DEEP, "tier": {"within": "region", "map": REGION_OF | {"T9": "East"}}},
+            "term tier: `map` keys ['T9'] are not tier labels that dma maps to ['T1', 'T2', 'T3', 'T4']",
+        ),
+    ],
+    ids=["cycle", "middle_map_misses_a_label", "middle_map_adds_a_label"],
+)
+def test_a_chain_problem_raises_a_valueerror_naming_it(terms, message):
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+        deep(terms)
+
+
+def test_children_works_at_every_level_of_a_chain():
+    prior = deep()
+    assert prior.children("tier", "West") == ["T1", "T2"]
+    assert prior.children("dma", "T4") == ["D8", "D9", "D10"]
+
+
+def test_a_chain_round_trips():
+    prior = deep()
+    for back in (
+        NestedZeroSumPrior.from_dict(json.loads(json.dumps(prior.to_dict()))),
+        NestedZeroSumPrior.from_dict(yaml.safe_load(yaml.safe_dump(prior.to_dict()))),
+    ):
+        assert back == prior
+        assert hash(back) == hash(prior)
 
 
 # --- Properties of the built prior --------------------------------------------

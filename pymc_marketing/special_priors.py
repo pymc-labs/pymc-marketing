@@ -1775,9 +1775,10 @@ class NestedZeroSumPrior:
           the child's ``map``). It enters through the one child that names it in
           ``within``. Creates ``<name>_<term>``, on the coord ``<term>`` of its
           labels (added to the model; an existing coord must have those labels).
-
-        Nesting is at most two levels per tree: a ``within`` parent cannot
-        itself be ``within`` another term, so region > tier > DMA raises.
+          A parent can itself be ``within`` another term, so a chain such as region > tier > DMA can be any depth.
+          Its ``map`` then maps its labels (the parents its child names) to its own parents, and must cover exactly
+          those labels. Its offsets are zero-sum inside each of its parents, as for a child.
+          Only the bottom term of a chain is a model coord, and each level adds its own offset to the cells.
         The labels of terms and interactions are part of variable names and dims,
         so they must be str and cannot contain ``/``.
         The parent labels, the values of a ``map``, can.
@@ -2049,14 +2050,35 @@ class NestedZeroSumPrior:
             raise ValueError(
                 f"terms {shared} have more than one child `within` them; a parent term enters through one child only"
             )
+        for c in self.terms:  # follow each chain up: a term met twice is a cycle
+            seen, p = [c], self.terms[c].within
+            while p in self.terms:
+                if p in seen:
+                    raise ValueError(
+                        f"terms {sorted(seen)} are `within` each other in a cycle"
+                    )
+                seen.append(p)
+                p = self.terms[p].within
+        child_of = {
+            t.within: c for c, t in self.terms.items() if t.within in self.terms
+        }
+        # a middle term: its labels are the parents its child names
+        for p, c in child_of.items():
+            parent_map, child_map = self.terms[p].map, self.terms[c].map or {}
+            if parent_map is None:
+                continue
+            named = sorted({str(v) for v in child_map.values()})
+            if missing := [lab for lab in named if lab not in parent_map]:
+                raise ValueError(
+                    f"term {p}: `map` has no {self.terms[p].within} for the {p} labels {missing} that {c} maps to"
+                )
+            if extra := sorted(set(parent_map) - set(named)):
+                raise ValueError(
+                    f"term {p}: `map` keys {extra} are not {p} labels that {c} maps to {named}"
+                )
         for c, t in self.terms.items():
             if t.within is None:
                 continue
-            if t.within in self.terms and self.terms[t.within].within is not None:
-                raise ValueError(
-                    f"term {c} is `within: {t.within}`, which is `within: {self.terms[t.within].within}`; "
-                    "nesting is at most two levels per tree: a `within` parent cannot have a parent"
-                )
             if t.within not in self.terms and t.parent_effect:
                 raise ValueError(
                     f"term {c} is `within: {t.within}`, which is not a term: "
@@ -2149,8 +2171,8 @@ class NestedZeroSumPrior:
                 raise ValueError(
                     f"term {c}: not a model coord {sorted(coords)} and no term is `within` it"
                 )
-            # A term with a map (so `within`) is a model coord: the check above, as no term is `within` it (__init__)
-            if t.map is None:
+            # A middle term of a chain is not a model coord: its `map` was checked against its child's (__init__)
+            if t.map is None or c not in coords:
                 continue
             if missing := [lab for lab in coords[c] if str(lab) not in t.map]:
                 raise ValueError(
@@ -2160,12 +2182,25 @@ class NestedZeroSumPrior:
                 raise ValueError(
                     f"term {c}: `map` keys {extra} are not {c} labels in the data {list(coords[c])}"
                 )
-        # Per nested term: the parent labels, and the parent index of each child in the coord order
-        groups = {
-            c: np.unique([t.map[str(lab)] for lab in coords[c]], return_inverse=True)
-            for c, t in terms.items()
-            if t.map is not None
-        }
+        # Per nested term: the parent labels, and the parent index of each child, from the bottom of each chain up.
+        # The bottom term's children are its model coord; a middle term's children are its child's parents.
+        child_of = {t.within: c for c, t in terms.items() if t.within in terms}
+        groups: dict[str, Any] = {}
+        for bottom, t in terms.items():
+            if t.map is None or bottom in child_of:
+                continue
+            node: str | None = bottom
+            labels = list(coords[bottom])
+            while (
+                node is not None
+                and node in terms
+                and (node_map := terms[node].map) is not None
+            ):
+                groups[node] = np.unique(
+                    [node_map[str(lab)] for lab in labels], return_inverse=True
+                )
+                labels = list(groups[node][0])
+                node = terms[node].within
         if not isinstance(mu, VariableFactory) and np.shape(mu) not in ((), n_base):
             raise ValueError(
                 f"constant mu has shape {np.shape(mu)}; expected () or {n_base}, one value per {base} label"
@@ -2286,25 +2321,30 @@ class NestedZeroSumPrior:
             else pt.broadcast_to(pt.as_tensor(mu), n_base),
             dims=base,
         )
-        for c, t in terms.items():
-            if t.within is not None:
-                codes = groups[c][1]
-                scale, centered = offset_args(c)
-                offset = _GroupedZeroSumOffset(
-                    scale=scale,
-                    centered=centered,
-                    dims=(*base, c),
-                    child_dim=c,
-                    codes=codes,
-                ).create_variable(f"{name}_{c}", xdist=True)
-                if t.within in terms:  # otherwise parent_effect is False (__init__)
-                    parent = zero_sum(t.within, (*base, t.within), (t.within,))
-                    offset = offset + parent.isel({t.within: codes}).rename(
-                        {t.within: c}
-                    )
-                eta = eta + offset
-            elif c not in parents:
-                eta = eta + zero_sum(c, (*base, c), (c,))
+
+        def term_offset(
+            c,
+        ):  # the offset of term c over (*base, c), with the offsets of its parents
+            t = terms[c]
+            if t.within is None:  # a crossed term, or the top of a chain
+                return zero_sum(c, (*base, c), (c,))
+            codes = groups[c][1]
+            scale, centered = offset_args(c)
+            offset = _GroupedZeroSumOffset(
+                scale=scale,
+                centered=centered,
+                dims=(*base, c),
+                child_dim=c,
+                codes=codes,
+            ).create_variable(f"{name}_{c}", xdist=True)
+            if t.within in terms:  # otherwise parent_effect is False (__init__)
+                parent = term_offset(t.within)
+                offset = offset + parent.isel({t.within: codes}).rename({t.within: c})
+            return offset
+
+        for c in terms:  # each chain enters once, through its bottom term
+            if c not in parents:
+                eta = eta + term_offset(c)
         for k, x in interactions.items():
             eta = eta + zero_sum(k, (*base, *x.dims), tuple(x.dims))
         beta = eta.transpose(*self.dims)
