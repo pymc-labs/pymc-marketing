@@ -1408,6 +1408,89 @@ def test_shared_posterior_realigns_permuted_multi_dim_variables():
     np.testing.assert_allclose(fn(), 2.0 * (10.0 + values)[None])
 
 
+def _stacked_model_and_draws(*, seed, reordered=False):
+    """A ``date`` x ``channel`` model and a stacked posterior to condition on.
+
+    The posterior has 2 chains, 5 draws, 4 dates and 3 channels, so no bound
+    array is C-contiguous by accident of a toy shape.  ``reordered`` reverses
+    the channel labels and stores ``lam`` as ``(chain, draw, channel, date)``,
+    so binding it against the model, or binding the plain posterior against
+    its layout, moves labels and axes for real.  ``beta`` is over ``channel``
+    alone; both variables are bound by ``resp``.
+    """
+    dates, channels = 4, 3
+    channel_labels = [f"channel{index}" for index in range(channels)]
+    with pm.Model(
+        coords={"date": np.arange(dates), "channel": channel_labels}
+    ) as model:
+        beta = pmd.Normal("beta", dims="channel")
+        lam = pmd.Normal("lam", dims=("date", "channel"))
+        pmd.Deterministic("resp", beta * lam)
+    rng = np.random.default_rng(seed)
+    lam_dims = ("channel", "date") if reordered else ("date", "channel")
+    sizes = {"date": dates, "channel": channels}
+    idata = xr.Dataset(
+        {
+            "beta": (
+                ("chain", "draw", "channel"),
+                rng.normal(size=(2, 5, channels)),
+            ),
+            "lam": (
+                ("chain", "draw", *lam_dims),
+                rng.normal(size=(2, 5, *(sizes[dim] for dim in lam_dims))),
+            ),
+        },
+        coords={
+            "date": np.arange(dates),
+            "channel": channel_labels[::-1] if reordered else channel_labels,
+        },
+    )
+    return model, idata
+
+
+def _bound_array_flags(shared_posterior):
+    """The ``(C_CONTIGUOUS, OWNDATA)`` flags of every array it holds."""
+    flags = {
+        name: var.get_value(borrow=True).flags
+        for name, var in shared_posterior.variables.items()
+    }
+    return {name: (f["C_CONTIGUOUS"], f["OWNDATA"]) for name, f in flags.items()}
+
+
+@pytest.mark.parametrize("through_conditioned_model", [False, True])
+def test_rebind_keeps_the_built_array_layout(through_conditioned_model):
+    """The build and a rebind both bind C-contiguous draws the variable owns.
+
+    Realigning labels or axes leaves a non-C-contiguous array, and the numba
+    linker keys its signatures on the array layout, so a bare ``astype``
+    would compile a second version of the graph on the first rebind.
+    ``ConditionedModel`` realigns the reordered posterior to the model on the
+    build, and both paths realign the plain one to the bound layout on the
+    rebind, so neither relies on ``sel`` running when the labels already
+    match.  Owning the arrays keeps ``set_value(borrow=True)`` from aliasing
+    the caller's draws.
+    """
+    model, idata = _stacked_model_and_draws(seed=0, reordered=True)
+    if through_conditioned_model:
+        conditioned = ConditionedModel(model, idata)
+        conditioned.extract("resp")
+        shared_posterior = conditioned.shared_posterior
+        rebind = conditioned.set_posterior
+    else:
+        shared_posterior = SharedPosterior()
+        extract_response_distribution(
+            model, idata, "resp", shared_posterior=shared_posterior
+        )
+        rebind = shared_posterior.set_posterior
+
+    owned_c_contiguous = {"beta": (True, True), "lam": (True, True)}
+    assert _bound_array_flags(shared_posterior) == owned_c_contiguous
+
+    rebind(_stacked_model_and_draws(seed=1)[1])
+
+    assert _bound_array_flags(shared_posterior) == owned_c_contiguous
+
+
 def test_shared_posterior_mixed_type_labels_raise_value_error():
     """Labels that cannot be sorted still get the documented ValueError."""
     with pm.Model(coords={"k": ["a", 1]}) as model:
@@ -2801,3 +2884,31 @@ def test_conditioned_model_takes_a_variable_missing_at_construction_as_given():
     # Once read, it is bound like any other variable and follows a rebind.
     conditioned.set_posterior(_channel_posterior([1.0, 2.0], gamma=[5.0, 6.0]))
     np.testing.assert_allclose(fn(), [[50.0, 120.0]])
+
+
+def test_conditioned_model_names_a_missing_variable_the_same_at_extraction_and_rebind():
+    """A posterior lacking a variable a graph reads raises one ``KeyError``.
+
+    The message is the same whether the variable is missing when the graph is
+    extracted or when a later posterior is bound, so a caller handles one error.
+    """
+    model, spend = _channel_conditioned_model()
+    message = "Posterior is missing variables this graph reads: ['gamma']"
+
+    thinned = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+    with pytest.raises(KeyError) as at_extraction:
+        thinned.extract("resp_g")
+
+    bound = ConditionedModel(
+        model,
+        _channel_posterior([1.0, 2.0], gamma=[3.0, 4.0]),
+        intervention={"spend": spend},
+    )
+    bound.extract("resp_g")
+    with pytest.raises(KeyError) as at_rebind:
+        bound.set_posterior(_channel_posterior([1.0, 2.0]))
+
+    assert at_extraction.value.args == (message,)
+    assert at_rebind.value.args == (message,)
