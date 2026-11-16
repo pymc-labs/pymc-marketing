@@ -8373,6 +8373,37 @@ class TestAccountingOnRows:
                 frequency="all_time", paths="direct"
             )
 
+    @pytest.mark.parametrize(
+        "offsets, named",
+        [
+            pytest.param(
+                {"channel_contribution": 0.0, "f": 1.0},
+                ["f"],
+                id="the term off by more than the tolerance",
+            ),
+            pytest.param(
+                {"channel_contribution": 0.9, "f": 1.0},
+                ["channel_contribution", "f"],
+                id="every such term, in order",
+            ),
+            pytest.param(
+                {"channel_contribution": 0.2, "f": 0.4},
+                ["f"],
+                id="none on its own: the one off most",
+            ),
+        ],
+    )
+    def test_the_terms_off_on_a_window_are_named(self, offsets, named):
+        """The refusal names the terms to declare ``evaluation_mode='full'`` for."""
+        baseline = {name: np.zeros((2, 3)) for name in offsets}
+        factual = {name: np.full((2, 3), offset) for name, offset in offsets.items()}
+
+        found = Incrementality._terms_off_on_window(
+            factual, baseline, accounted=list(offsets), atol=0.5
+        )
+
+        assert found == named
+
 
 class TestTheDecomposition:
     """The three paths and the spend change, from one evaluation on one set of draws."""
@@ -8454,7 +8485,6 @@ class IndicatorEffect(_NoDataEffect):
     date axis with spend unchanged, which only ``evaluation_mode`` can fix.
     """
 
-    is_spend: bool = False
     memory: bool = False
     evaluation_mode: Literal["auto", "full"] = "auto"
 
@@ -8468,7 +8498,7 @@ class IndicatorEffect(_NoDataEffect):
                     variable=f"{self.prefix}_searches",
                     units="searches",
                     scale=250.0,
-                    is_spend=self.is_spend,
+                    is_spend=False,
                 ),
             ),
         )
@@ -8495,19 +8525,16 @@ class TwoHubsEffect(_NoDataEffect):
     """A mediator with a hub that can be reported and one that cannot.
 
     The second hub keeps the ``channel`` dimension, and a movement per channel
-    of a node that already has one would have two meanings.  ``declared``
-    names the hubs the effect declares.
+    of a node that already has one would have two meanings.
     """
 
-    declared: tuple[str, ...] = ("pooled", "split")
-
     def incrementality_spec(self) -> IncrementalitySpec:
-        """Declare the hubs named in ``declared``."""
+        """Declare both hubs."""
         return IncrementalitySpec(
             role="mediator",
-            mediators=tuple(
-                MediatorSpec(name=name, variable=f"{self.prefix}_{name}")
-                for name in self.declared
+            mediators=(
+                MediatorSpec(name="pooled", variable=f"{self.prefix}_pooled"),
+                MediatorSpec(name="split", variable=f"{self.prefix}_split"),
             ),
         )
 
@@ -8975,20 +9002,9 @@ class TestIncrementalMediator:
 
         assert_matches(moved["hub"], movement_oracle(mmm, "i_hub", frequency="monthly"))
 
-    def test_a_node_that_cannot_be_reported_is_named(
-        self, two_hubs_fitted_mmm, funnel_mmm_data
-    ):
-        """Left out of the default with a warning, and refused when asked for.
-
-        Where no declared node can be reported, the default request is refused
-        with the reason for each.
-        """
+    def test_a_node_that_cannot_be_reported_is_named(self, two_hubs_fitted_mmm):
+        """Left out of the default with a warning, and refused when asked for."""
         incr = two_hubs_fitted_mmm.incrementality
-        only_split = _build_simple_effect_mmm(
-            funnel_mmm_data,
-            TwoHubsEffect(prefix="two", declared=("split",)),
-            link="identity",
-        )
 
         with pytest.warns(UserWarning, match=r"'split'.*'channel' dimension"):
             moved = incr.compute_incremental_mediator(frequency="all_time")
@@ -8996,13 +9012,59 @@ class TestIncrementalMediator:
 
         with pytest.raises(ValueError, match=r"'split'.*'channel' dimension"):
             incr.compute_incremental_mediator(frequency="all_time", mediators=["split"])
-        with pytest.raises(ValueError, match=r"None of the declared.*'split'"):
-            only_split.incrementality.compute_incremental_mediator(frequency="all_time")
+
+    @pytest.mark.parametrize(
+        "nodes, reads_response, lags",
+        [
+            pytest.param({"hub": 2}, False, 2, id="a mediator's own last lag"),
+            pytest.param(
+                {"hub": 2}, True, 3, id="a response floored at the kernel's lags"
+            ),
+            pytest.param({}, False, 3 + 4, id="no probe: the kernel and declarations"),
+            pytest.param({"hub": None}, False, None, id="a node with no last lag"),
+        ],
+    )
+    def test_the_marks_read_the_measured_last_lag(self, nodes, reads_response, lags):
+        """How far a period's carryover lands, from what the probe measured.
+
+        ``None`` in *nodes* stands for a node the probe found still moving at
+        the end of the axis.
+        """
+        measured = {
+            name: (
+                TemporalReach.full_axis()
+                if last is None
+                else TemporalReach(
+                    additional_carryover_lags=0,
+                    requires_full_axis=False,
+                    max_lag=last,
+                )
+            )
+            for name, last in nodes.items()
+        }
+        full_axis = not measured or any(
+            reach.requires_full_axis for reach in measured.values()
+        )
+        reach = SpendReach(
+            effective_l_max=3 + 4,
+            requires_full_axis=full_axis,
+            measured=measured,
+            max_lag=None if full_axis else 2,
+        )
+
+        found = Incrementality._carryover_lags(
+            ["hub"],
+            reach,
+            kernel_lags=3,
+            declared_lags=4,
+            reads_response=reads_response,
+        )
+
+        assert found == lags
 
     @pytest.mark.parametrize(
         "mediators, complaint",
         [
-            pytest.param(["nope"], r"'nope'.*declared", id="a name nobody declared"),
             pytest.param(LF_SPEND, "sequence of names", id="a bare string"),
             pytest.param([1], "sequence of names", id="a number for a name"),
             pytest.param([], "at least one", id="an empty list"),
@@ -9018,15 +9080,6 @@ class TestIncrementalMediator:
         with pytest.raises(ValueError, match=complaint):
             funnel_log_link_fitted_mmm.incrementality.compute_incremental_mediator(
                 frequency="all_time", mediators=mediators
-            )
-
-    def test_a_model_that_declares_no_mediator_has_none_to_report(
-        self, simple_fitted_mmm
-    ):
-        """Only declared nodes are reported."""
-        with pytest.raises(ValueError, match="declares no mediator"):
-            simple_fitted_mmm.incrementality.compute_incremental_mediator(
-                frequency="all_time"
             )
 
 
@@ -9108,66 +9161,22 @@ class TestInducedSpend:
             "induced_spend",
         }
 
-    @pytest.mark.parametrize(
-        "call, complaint",
-        [
-            pytest.param(
-                lambda incr: incr.contribution_over_spend(
-                    frequency="all_time", paths="direct", induced_spend=[LF_SPEND]
-                ),
-                "paths='total'",
-                id="under a direct path",
-            ),
-            pytest.param(
-                lambda incr: incr.contribution_over_spend(
-                    frequency="all_time", induced_spend=["nope"]
-                ),
-                r"'nope'.*declared",
-                id="a name nobody declared",
-            ),
-            pytest.param(
-                lambda incr: incr.contribution_over_spend(
-                    frequency="all_time", induced_spend=[DEMAND]
-                ),
-                r"'funnel_demand'.*is_spend",
-                id="a mediator that is not spend",
-            ),
-        ],
-    )
-    def test_what_cannot_enter_a_denominator_is_refused(
-        self, funnel_log_link_fitted_mmm, call, complaint
-    ):
-        """Refused by name."""
-        with pytest.raises(ValueError, match=complaint):
-            call(funnel_log_link_fitted_mmm.incrementality)
-
-    def test_a_spend_node_that_feeds_no_term_is_refused(self, funnel_mmm_data):
-        """Its return cannot be in the numerator, so the ratio would count only its cost."""
-        mmm = _build_simple_effect_mmm(
-            funnel_mmm_data, IndicatorEffect(prefix="ind", is_spend=True), "identity"
-        )
-
-        with pytest.raises(ValueError, match=r"'searches'.*feeds no term"):
-            mmm.incrementality.contribution_over_spend(
-                frequency="all_time", induced_spend=["searches"]
+    def test_induced_spend_goes_with_the_total_path(self, funnel_log_link_fitted_mmm):
+        """With the mediators held there is no induced movement to add."""
+        with pytest.raises(ValueError, match="paths='total'"):
+            funnel_log_link_fitted_mmm.incrementality.contribution_over_spend(
+                frequency="all_time", paths="direct", induced_spend=[LF_SPEND]
             )
 
-    def test_spend_mediators_add_up_in_one_currency_and_not_in_two(
-        self, panel_mmm_data
-    ):
-        """The named mediators are summed, so they have to agree on their units."""
+    def test_spend_mediators_in_one_currency_add_up(self, panel_mmm_data):
+        """The named mediators are summed into one induced movement."""
         mmm = _panel_mmm(
             panel_mmm_data,
             HubEffect(prefix="dollars", units="USD", is_spend=True),
             HubEffect(prefix="more", units="USD", is_spend=True),
-            HubEffect(prefix="euros", units="EUR", is_spend=True),
         )
         incr = mmm.incrementality
 
-        with pytest.raises(ValueError, match=r"units.*'EUR'.*'USD'"):
-            incr.contribution_over_spend(
-                frequency="all_time", induced_spend=["dollars", "euros"]
-            )
         parts = incr.decompose_incremental_contribution(
             frequency="all_time", induced_spend=["dollars", "more"]
         )
@@ -9192,10 +9201,6 @@ class TestInducedSpend:
         with pytest.raises(ValueError, match=r"'national'.*\('country',\)"):
             incr.contribution_over_spend(
                 frequency="all_time", induced_spend=["national"]
-            )
-        with pytest.raises(ValueError, match="share their dimensions"):
-            incr.decompose_incremental_contribution(
-                frequency="all_time", induced_spend=["national", "local"]
             )
         parts = incr.decompose_incremental_contribution(
             frequency="all_time", induced_spend=["national"]

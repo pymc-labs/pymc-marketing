@@ -35,6 +35,7 @@ from pymc_marketing.mmm.mediation import (
     ResolvedMediator,
     resolve_mediators,
     resolve_path_plan,
+    select_mediators,
 )
 from pymc_marketing.mmm.spend_reach import resolve_channel_dependent_effects
 
@@ -215,6 +216,7 @@ class TestResolveMediators:
             is_spend=False,
             feeds_term=True,
             full_axis=False,
+            dims=(),
             problem=None,
             unreadable=None,
         )
@@ -748,3 +750,135 @@ class TestRoleChecks:
             NotImplementedError, match=r"GraphShape.*'f_effect_contribution'"
         ):
             plan_of(mmm)
+
+
+def node(name: str, **fields) -> ResolvedMediator:
+    """A registry entry for a readable spend node feeding a term, with *fields* changed."""
+    defaults = {
+        "name": name,
+        "variable": f"f_{name}",
+        "effects": ("GraphShape",),
+        "units": "USD",
+        "scale": 1.0,
+        "is_spend": True,
+        "feeds_term": True,
+        "full_axis": False,
+        "dims": (),
+        "problem": None,
+        "unreadable": None,
+    }
+    return ResolvedMediator(**{**defaults, **fields})
+
+
+class TestSelectMediators:
+    """Which declared nodes a request reads, and why it refuses the others.
+
+    The registry is written by hand, so each rule is checked on its own,
+    without a model.
+    """
+
+    def test_every_readable_node_is_read_and_the_others_are_named(self):
+        """Asking for nothing in particular leaves the faulty nodes out, with a warning."""
+        registry = (node("hub"), node("split", unreadable="it carries 'channel'"))
+
+        with pytest.warns(UserWarning, match=r"'split': it carries 'channel'"):
+            selected = select_mediators(registry, None)
+
+        assert selected == (registry[0],)
+
+    def test_named_nodes_come_back_in_the_order_asked_for(self):
+        """The order of a request, not of the registry, is the order of the result."""
+        registry = (node("a"), node("b"))
+
+        assert select_mediators(registry, ["b", "a"]) == (registry[1], registry[0])
+
+    @pytest.mark.parametrize(
+        "registry, names, complaint",
+        [
+            pytest.param((), None, "declares no mediator", id="nothing declared"),
+            pytest.param(
+                (node("hub", problem="it is frozen"),),
+                None,
+                r"None of the declared.*'hub': it is frozen",
+                id="nothing readable",
+            ),
+            pytest.param(
+                (node("hub"),),
+                ["nope"],
+                r"\['nope'\].*declared mediators are \['hub'\]",
+                id="a name nobody declared",
+            ),
+            pytest.param(
+                (node("hub", unreadable="it is boolean"),),
+                ["hub"],
+                r"'hub' cannot be read: it is boolean",
+                id="a named node that cannot be read",
+            ),
+        ],
+    )
+    def test_a_request_for_what_cannot_be_read_is_refused(
+        self, registry, names, complaint
+    ):
+        """Each refusal names the node and the reason."""
+        with pytest.raises(ValueError, match=complaint):
+            select_mediators(registry, names)
+
+    @pytest.mark.parametrize(
+        "registry, into, complaint",
+        [
+            pytest.param(
+                (node("demand", is_spend=False, units=None),),
+                "ratio",
+                r"\['demand'\].*is_spend",
+                id="a node that is not spend",
+            ),
+            pytest.param(
+                (node("searches", feeds_term=False),),
+                "ratio",
+                r"'searches' feeds no term",
+                id="a spend node whose return is in no increment",
+            ),
+            pytest.param(
+                (node("dollars"), node("euros", units="EUR")),
+                "decomposition",
+                r"units.*'EUR'.*'USD'",
+                id="spend in two currencies",
+            ),
+            pytest.param(
+                (node("national"),),
+                "ratio",
+                r"'national' has dimensions \(\).*\('country',\)",
+                id="a national node in a ratio per geo",
+            ),
+            pytest.param(
+                (node("national"), node("local", dims=("country",))),
+                "decomposition",
+                "share their dimensions",
+                id="nodes of different dimensions added together",
+            ),
+        ],
+    )
+    def test_what_cannot_be_counted_as_induced_spend_is_refused(
+        self, registry, into, complaint
+    ):
+        """A denominator adds money in one currency, once per cell."""
+        with pytest.raises(ValueError, match=complaint):
+            select_mediators(
+                registry,
+                [entry.name for entry in registry],
+                induced_into=into,
+                model_dims=("country",),
+            )
+
+    def test_a_decomposition_takes_a_node_with_fewer_dimensions_than_the_model(self):
+        """It returns the movement in the node's own dimensions, so nothing is repeated."""
+        registry = (node("national"),)
+
+        selected = select_mediators(
+            registry,
+            ["national"],
+            induced_into="decomposition",
+            model_dims=("country",),
+        )
+
+        assert selected == registry

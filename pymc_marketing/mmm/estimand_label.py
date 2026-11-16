@@ -124,6 +124,30 @@ def _dimension_labels(array: xr.DataArray, dim: str) -> bytes:
     ).encode()
 
 
+def _hash_in_blocks(digest: hashlib.blake2b, values: np.ndarray) -> None:
+    """Feed *values* to *digest* as little-endian float64 in C order, a block at a time.
+
+    A block is a run of leading indices of at most
+    :data:`_DIGEST_BLOCK_ELEMENTS` values, so a result is never copied whole,
+    and the hash gets the same bytes as the whole array at once.
+
+    Parameters
+    ----------
+    digest : hashlib.blake2b
+        The hash to update.
+    values : np.ndarray
+        The values, in the layout to hash.
+    """
+    lead = 0
+    while (
+        lead < values.ndim
+        and int(np.prod(values.shape[lead:])) > _DIGEST_BLOCK_ELEMENTS
+    ):
+        lead += 1
+    for index in np.ndindex(values.shape[:lead]):
+        digest.update(np.ascontiguousarray(values[index], dtype="<f8").data)
+
+
 def _digest_v1(result: xr.DataArray, fields: dict) -> str:
     """Digest an array together with the label fields stored on it.
 
@@ -140,22 +164,12 @@ def _digest_v1(result: xr.DataArray, fields: dict) -> str:
         A hexadecimal digest of the dimension names, the shape, the values, the
         labels of every dimension, the ``complete`` coordinate when there is
         one, and *fields*.  The dimensions are laid out by name first, so a
-        transpose does not change it.  The values are hashed as little-endian
-        float64 in C order, a block of leading indices at a time, which feeds
-        the hash the same bytes as the whole array at once.
+        transpose does not change it.
     """
     ordered = result.transpose(*sorted(map(str, result.dims)))
     digest = hashlib.blake2b(digest_size=16)
     digest.update(repr((ordered.dims, ordered.shape)).encode())
-    values = ordered.values
-    lead = 0
-    while (
-        lead < values.ndim
-        and int(np.prod(values.shape[lead:])) > _DIGEST_BLOCK_ELEMENTS
-    ):
-        lead += 1
-    for index in np.ndindex(values.shape[:lead]):
-        digest.update(np.ascontiguousarray(values[index], dtype="<f8").data)
+    _hash_in_blocks(digest, ordered.values)
     for dim in map(str, ordered.dims):
         digest.update(dim.encode())
         digest.update(_dimension_labels(ordered, dim))
@@ -166,6 +180,44 @@ def _digest_v1(result: xr.DataArray, fields: dict) -> str:
         digest.update(np.ascontiguousarray(mark.values, dtype=bool).data)
     digest.update(json.dumps(fields, sort_keys=True, separators=(",", ":")).encode())
     return digest.hexdigest()
+
+
+def _stored_payload(result: object) -> dict:
+    """Return the fields an array's label attribute stores, as written.
+
+    Parameters
+    ----------
+    result : object
+        What the caller passed to :meth:`EstimandLabel.read`.
+
+    Returns
+    -------
+    dict
+        The parsed JSON object, digest and definition included.
+
+    Raises
+    ------
+    ValueError
+        If *result* is not a ``DataArray``, carries no label attribute, or the
+        attribute is not a JSON object.
+    """
+    if not isinstance(result, xr.DataArray):
+        raise ValueError(
+            "A label belongs to one array: read it from a variable of the "
+            f"Dataset, not from the {type(result).__name__}."
+        )
+    if LABEL_ATTR not in result.attrs:
+        raise ValueError(
+            f"No {LABEL_ATTR!r} attribute: the array is not a result of the "
+            "incrementality module, or it was derived from one."
+        )
+    try:
+        payload = json.loads(result.attrs[LABEL_ATTR])
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"The {LABEL_ATTR!r} attribute is not JSON text.") from error
+    if not isinstance(payload, dict):
+        raise ValueError(f"The {LABEL_ATTR!r} attribute is not a JSON object.")
+    return payload
 
 
 class EstimandLabel(BaseModel):
@@ -252,12 +304,33 @@ class EstimandLabel(BaseModel):
 
     @model_validator(mode="after")
     def _coherent(self) -> Self:
-        problems: list[str] = []
-        if self.schema_version != type(self).SCHEMA_VERSION:
-            problems.append(
-                f"this code writes schema version {type(self).SCHEMA_VERSION}"
-            )
+        """Refuse fields that contradict each other, naming every rule they break."""
+        problems = [
+            *self._schema_problems(),
+            *self._period_problems(),
+            *self._kind_problems(),
+            *self._path_problems(),
+            *self._ordering_problems(),
+            *self._induced_spend_problems(),
+            *self._ratio_problems(),
+        ]
+        if problems:
+            raise ValueError("Incoherent label: " + "; ".join(problems) + ".")
+        return self
 
+    def _holds_mediators(self) -> bool:
+        """Whether the label is for the direct or the mediated path."""
+        return self.paths in ("direct", "mediated")
+
+    def _schema_problems(self) -> list[str]:
+        """Check that the label is of the schema version this code writes."""
+        if self.schema_version != type(self).SCHEMA_VERSION:
+            return [f"this code writes schema version {type(self).SCHEMA_VERSION}"]
+        return []
+
+    def _period_problems(self) -> list[str]:
+        """Check that the period is two ISO 8601 dates and does not end before it starts."""
+        problems = []
         period = []
         for name in ("start_date", "end_date"):
             try:
@@ -266,14 +339,16 @@ class EstimandLabel(BaseModel):
                 problems.append(f"'{name}' is an ISO 8601 date or date-time")
         if len(period) == 2 and period[0] > period[1]:
             problems.append("a period does not end before it starts")
+        return problems
 
+    def _kind_problems(self) -> list[str]:
+        """Check that a mediator result names its node and only a response result has paths."""
+        problems = []
         of_mediator = self.quantity == "incremental_mediator"
         of_spend = self.quantity in (
             IncrementalityResult.SPEND_CHANGE,
             IncrementalityResult.INDUCED_SPEND,
         )
-        is_path = self.paths in ("direct", "mediated")
-        response_only = (self.paths, self.central_tendency, self.accounting_verified)
         if of_mediator:
             if None in (self.mediator, self.variable, self.is_spend):
                 problems.append(
@@ -283,6 +358,7 @@ class EstimandLabel(BaseModel):
                 problems.append("a spend mediator has units")
         elif (self.mediator, self.variable, self.units, self.is_spend) != (None,) * 4:
             problems.append("mediator fields belong to a mediator result")
+        response_only = (self.paths, self.central_tendency, self.accounting_verified)
         if of_mediator or of_spend:
             if response_only != (None, None, None):
                 problems.append(
@@ -293,20 +369,36 @@ class EstimandLabel(BaseModel):
             problems.append(
                 "a response result has paths, a central tendency and an accounting"
             )
+        return problems
 
-        if is_path and self.accounting_verified is False:
+    def _path_problems(self) -> list[str]:
+        """Check that only a direct or mediated path holds anything, and is verified."""
+        problems = []
+        holds_mediators = self._holds_mediators()
+        if holds_mediators and self.accounting_verified is False:
             problems.append("a direct or mediated result is never returned unverified")
-        if is_path != (self.held_at is not None):
+        if holds_mediators != (self.held_at is not None):
             problems.append(
                 "'held_at' goes with a direct or mediated path, and only with one"
             )
-        if self.held and not is_path:
+        if self.held and not holds_mediators:
             problems.append("only a direct or mediated path holds anything")
-        for name in ("held", "induced_spend"):
-            values = getattr(self, name)
-            if list(values) != sorted(set(values)):
-                problems.append(f"'{name}' is sorted and without repeats")
+        return problems
 
+    def _ordering_problems(self) -> list[str]:
+        """Check that the held terms and the induced spend are sorted and without repeats."""
+        return [
+            f"'{name}' is sorted and without repeats"
+            for name, values in (
+                ("held", self.held),
+                ("induced_spend", self.induced_spend),
+            )
+            if list(values) != sorted(set(values))
+        ]
+
+    def _induced_spend_problems(self) -> list[str]:
+        """Check that induced spend has units and goes with its quantity or a total ratio."""
+        problems = []
         if bool(self.induced_spend) != (self.induced_spend_units is not None):
             problems.append(
                 "'induced_spend_units' goes with 'induced_spend', and only with it"
@@ -320,7 +412,11 @@ class EstimandLabel(BaseModel):
             problems.append(
                 "induced spend enters the denominator of a total ratio only"
             )
+        return problems
 
+    def _ratio_problems(self) -> list[str]:
+        """Check that a ratio is per channel and its spend factor fits its kind."""
+        problems = []
         if self.quantity in _RATIOS and self.scope != "per_channel":
             problems.append("a ratio is per channel")
         if self.quantity == "spend_over_contribution" and self.paths == "mediated":
@@ -332,10 +428,7 @@ class EstimandLabel(BaseModel):
             problems.append("a marginal ratio raises spend")
         if self.quantity in _AVERAGE_RATIOS and self.counterfactual_spend_factor != 0.0:
             problems.append("an average ratio removes spend")
-
-        if problems:
-            raise ValueError("Incoherent label: " + "; ".join(problems) + ".")
-        return self
+        return problems
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -429,25 +522,35 @@ class EstimandLabel(BaseModel):
             ``complete`` coordinate it was issued with or a stored field differs
             from what the label was issued for.
         """
-        if not isinstance(result, xr.DataArray):
+        payload = _stored_payload(result)
+        version = cls._readable_version(payload)
+        stored_digest = payload.pop("digest", None)
+        # The stored text is for a reader of the raw attribute.  It is a
+        # function of the fields, so it is regenerated and never compared.
+        payload.pop("definition", None)
+        # Verified as stored, by the rule of the version that wrote it, before
+        # anything is migrated: a match means these are the fields that version
+        # wrote, so an edited or truncated label never reaches a migration.
+        if not cls._digest_matches(result, payload, stored_digest, version=version):
             raise ValueError(
-                "A label belongs to one array: read it from a variable of the "
-                f"Dataset, not from the {type(result).__name__}."
+                "The array and its label do not belong together: a value, a "
+                "dimension name, a coordinate label or the 'complete' mark "
+                "differs from the result the label was issued for, or the label "
+                "was edited.  Read a label before selecting from, reordering, "
+                "renaming the dimensions of or computing with a result."
             )
-        if LABEL_ATTR not in result.attrs:
-            raise ValueError(
-                f"No {LABEL_ATTR!r} attribute: the array is not a result of the "
-                "incrementality module, or it was derived from one."
-            )
-        try:
-            payload = json.loads(result.attrs[LABEL_ATTR])
-        except (TypeError, ValueError) as error:
-            raise ValueError(
-                f"The {LABEL_ATTR!r} attribute is not JSON text."
-            ) from error
-        if not isinstance(payload, dict):
-            raise ValueError(f"The {LABEL_ATTR!r} attribute is not a JSON object.")
+        return cls.model_validate(cls._migrated(payload, version))
 
+    @classmethod
+    def _readable_version(cls, payload: dict) -> int:
+        """Return the schema version a stored label was written with.
+
+        Raises
+        ------
+        ValueError
+            If the version is missing or not a positive integer, or newer than
+            this code reads.
+        """
         version = payload.get("schema_version")
         if not isinstance(version, int) or isinstance(version, bool) or version < 1:
             raise ValueError(f"The label has no usable schema version: {version!r}.")
@@ -456,33 +559,38 @@ class EstimandLabel(BaseModel):
                 f"The label was written with schema version {version} and this "
                 f"code reads up to {cls.SCHEMA_VERSION}: upgrade pymc-marketing."
             )
+        return version
 
-        stored_digest = payload.pop("digest", None)
-        # The stored text is for a reader of the raw attribute.  It is a
-        # function of the fields, so it is regenerated and never compared.
-        payload.pop("definition", None)
-        # Verified as stored, by the rule of the version that wrote it, before
-        # anything is migrated: a match means these are the fields that version
-        # wrote, so an edited or truncated label never reaches a migration.  A
-        # result issued without a mark matches once the mark is dropped; one
-        # issued with it matches only with it.
+    @classmethod
+    def _digest_matches(
+        cls, result: xr.DataArray, fields: dict, digest: object, *, version: int
+    ) -> bool:
+        """Whether *digest* is the one the rule of *version* gives *result* and *fields*.
+
+        A result issued without a ``complete`` mark matches once a mark it
+        picked up is dropped; one issued with a mark matches only with it.
+        """
         rule = cls.DIGESTS[version]
-        if stored_digest != rule(result, payload) and (
-            IncrementalityResult.COMPLETE not in result.coords
-            or stored_digest
-            != rule(result.drop_vars(IncrementalityResult.COMPLETE), payload)
-        ):
-            raise ValueError(
-                "The array and its label do not belong together: a value, a "
-                "dimension name, a coordinate label or the 'complete' mark "
-                "differs from the result the label was issued for, or the label "
-                "was edited.  Read a label before selecting from, reordering, "
-                "renaming the dimensions of or computing with a result."
-            )
+        if digest == rule(result, fields):
+            return True
+        complete = IncrementalityResult.COMPLETE
+        return complete in result.coords and digest == rule(
+            result.drop_vars(complete), fields
+        )
+
+    @classmethod
+    def _migrated(cls, fields: dict, version: int) -> dict:
+        """Upgrade stored fields from *version* to the current schema, one step at a time.
+
+        Raises
+        ------
+        ValueError
+            If a step has no migration.
+        """
         for step in range(version, cls.SCHEMA_VERSION):
             if step not in cls.MIGRATIONS:
                 raise ValueError(
                     f"No migration from label schema {step} to {step + 1}."
                 )
-            payload = cls.MIGRATIONS[step](payload)
-        return cls.model_validate(payload)
+            fields = cls.MIGRATIONS[step](fields)
+        return fields

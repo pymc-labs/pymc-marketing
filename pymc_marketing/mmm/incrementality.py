@@ -359,6 +359,7 @@ from pymc_marketing.mmm.mediation import (
     ResolvedMediator,
     resolve_mediators,
     resolve_path_plan,
+    select_mediators,
 )
 from pymc_marketing.mmm.spend_reach import (
     _PKG_PREFIX,
@@ -1268,6 +1269,107 @@ class PeriodResults:
     mediators: tuple[ResolvedMediator, ...]
     accounting_verified: bool
     complete: list[bool] | None
+
+
+@dataclass(frozen=True)
+class PeriodReduction:
+    """What every period of one request is reduced to, fixed before the first block.
+
+    Parameters
+    ----------
+    scope : {"per_channel", "joint"}
+        ``"per_channel"`` moves one channel at a time and keeps a ``channel``
+        dimension; ``"joint"`` moves all channels together.
+    wanted : tuple of {"total", "direct", "mediated"}
+        The paths to reduce.  ``"direct"`` reduces the move of the terms that
+        are not held, ``"mediated"`` the further move of the held ones on top
+        of it, and ``"total"`` both together.
+    held_terms : tuple of str
+        The effect terms a direct effect holds at their factual value.
+    mediators : tuple of ResolvedMediator
+        The mediator nodes whose movement over each period is read.
+    effect_names : tuple of str
+        Contribution variables of the included effects, a subset of the
+        evaluated nodes.
+    counterfactual_spend_factor : float
+        Multiplicative factor applied to spend, which sets the sign.
+    dedicated_channel_rows : bool
+        Whether the scenarios hold a row per (period, channel), each moving
+        that channel alone.  A dedicated row's whole ``channel_contribution``
+        move belongs to the moved channel, while a shared all-channels row has
+        to be read column by column, since summing it would hand every channel
+        the joint move.
+    model_coords : mapping
+        ``channel`` and custom-dim coordinates in the model's label order, the
+        order the evaluator computed every node in.
+    custom_dims : tuple of str
+        The model's dimensions besides ``date`` and ``channel``.
+    non_date_dims : mapping
+        Per evaluated node, its dimensions with ``date`` removed.
+    keep_date_axis : bool
+        Keep the per-date increment instead of summing it over the window.
+    check_rows : bool
+        Check on every row that the accounted terms carry the predictor's
+        whole move; see :meth:`Incrementality._check_rows`.  Needs the factual
+        rows in the scenarios.
+    """
+
+    scope: Estimand
+    wanted: tuple[PathEffect, ...]
+    held_terms: tuple[str, ...]
+    mediators: tuple[ResolvedMediator, ...]
+    effect_names: tuple[str, ...]
+    counterfactual_spend_factor: float
+    dedicated_channel_rows: bool
+    model_coords: Mapping[str, np.ndarray]
+    custom_dims: tuple[str, ...]
+    non_date_dims: Mapping[str, tuple[str, ...]]
+    keep_date_axis: bool
+    check_rows: bool
+
+    @property
+    def per_channel(self) -> bool:
+        """Whether each channel is moved on its own."""
+        return self.scope == "per_channel"
+
+    @property
+    def raised(self) -> bool:
+        """Whether spend is raised, so a result is counterfactual minus actual."""
+        return self.counterfactual_spend_factor > 1.0
+
+    @property
+    def channels(self) -> list:
+        """The channel labels, in the order the evaluator computed them."""
+        return self.model_coords["channel"].tolist()
+
+    @property
+    def out_dims(self) -> list[str]:
+        """The dimensions of a result besides the samples and the date."""
+        if self.per_channel:
+            return [Dim.CHANNEL, *self.custom_dims]
+        return list(self.custom_dims)
+
+    @property
+    def result_names(self) -> tuple[str, ...]:
+        """The wanted paths, then the declared names of the mediators read."""
+        return (*self.wanted, *(mediator.name for mediator in self.mediators))
+
+    @property
+    def row_slices(self) -> list[tuple[int | None, int | None]]:
+        """The scenario key and the ``channel_contribution`` column of each output slice.
+
+        The joint estimand reads one scenario and sums the channel dimension
+        away.  The per-channel one reads its own scenario per channel, and
+        sums that too whenever the scenario moved that channel alone; see the
+        ``channel`` of :meth:`Incrementality._path_deltas` for why the two
+        cases differ.
+        """
+        if not self.per_channel:
+            return [(None, None)]
+        return [
+            (idx, None if self.dedicated_channel_rows else idx)
+            for idx in range(len(self.channels))
+        ]
 
 
 @dataclass(frozen=True)
@@ -5129,28 +5231,7 @@ class Incrementality:
         effects = resolve_channel_dependent_effects(self.model)
         refuse_blocked_spend_paths(self.model, effects)
 
-        # Roles and mediator nodes are read only by the requests that need
-        # them: a total consults nothing here that it did not consult before.
-        held_terms: tuple[str, ...] = ()
-        mediators: tuple[ResolvedMediator, ...] = ()
-        if reads.is_path or reads.reads_mediators:
-            registry = resolve_mediators(self.model, effects)
-        if reads.is_path:
-            held_terms = resolve_path_plan(
-                model=self.model, effects=effects, registry=registry
-            ).held_terms
-            if self.model.mu_effects and linear_predictor(self.model) is None:
-                raise NotImplementedError(
-                    "A request for the direct or the mediated path checks, on "
-                    "its own rows, that the evaluated terms carry the whole "
-                    "move of the linear predictor.  This model's linear "
-                    "predictor cannot be recovered, because it is frozen at "
-                    "its posterior values or not exposed by the graph, so "
-                    "there is nothing to check against and the path is not "
-                    "returned.  A total is still computed, with a warning."
-                )
-        if reads.reads_mediators:
-            mediators = self._mediators_to_read(registry, reads)
+        held_terms, mediators = self._resolve_reads(reads, effects)
 
         periods = self._create_period_groups(start_ts, end_ts, frequency)
         freq_offset = self._data_freq_offset()
@@ -5625,221 +5706,352 @@ class Incrementality:
         # The evaluator is held until the increments it was leased for are
         # computed, and returned also when that raises.
         try:
-            posterior_sub = prepared.posterior
-            labels = {dim: posterior_sub[dim].values for dim in ("chain", "draw")}
-            reducer = prepared.reducer
-            effects = prepared.effects
-            mediators = prepared.mediators
-            freq_offset = prepared.freq_offset
-            windows = prepared.windows
             probed = prepared.probed
-            evaluator = probed.evaluator
-            baseline = probed.baseline
-            baseline_array = probed.baseline_array
-            probe = probed.probe
-            reach = probed.reach
-            effect_names = probed.effect_names
-            trailing_lags = probed.trailing_lags
-            channel_data_dims = probed.channel_data_dims
-
-            # Two ways a per-channel column can stop being channel m's unilateral
-            # counterfactual.  An effect can mix channels before reaching the
-            # response, so no per-channel column survives at all.  Failing that, the
-            # media transform itself can mix them -- ``forward_pass`` hands the
-            # saturation the whole (date, channel) tensor, so a shared denominator is
-            # expressible -- which is measured rather than assumed away, and only
-            # where a per-channel column is going to be read: the joint estimand sums
-            # over channels either way, and with effects the per-channel scenarios
-            # are already being built.
-            #
-            # A mediator has no column per channel to read at all, so its
-            # per-channel movement needs each channel's own counterfactual in
-            # every model, separable or not.
-            needs_dedicated_rows = bool(effects) or (
-                scope == "per_channel"
-                and (
-                    bool(mediators)
-                    or probe.mixes_channels(non_date_dims=evaluator.non_date_dims)
-                )
-            )
+            needs_dedicated_rows = self._needs_dedicated_rows(prepared, scope=scope)
             if validate_dedicated_rows is not None:
                 validate_dedicated_rows(needs_dedicated_rows)
-
-            # Where a channel sits among channel_data's non-date axes.  Needed only
-            # in per-channel mode, and it is not always axis 0.
-            channel_axis = None
-            if needs_dedicated_rows:
-                channel_axis = [d for d in channel_data_dims if d != Dim.DATE].index(
-                    "channel"
-                )
-
+            channel_axis = (
+                self._channel_axis(probed.channel_data_dims)
+                if needs_dedicated_rows
+                else None
+            )
             # A path request compares every row with actual spend evaluated on
             # the same window.  A model without mu_effects evaluates no
             # predictor, and has nothing to compare: spend reaches its mean
             # through channel_contribution alone.  A mediator is compared with
             # itself in the same way, in a model with a predictor or without.
             check_rows = reads.is_path and probed.has_predictor
-            scenarios = windows.build_scenarios(
-                baseline_array=baseline_array,
+            scenarios = prepared.windows.build_scenarios(
+                baseline_array=probed.baseline_array,
                 counterfactual_spend_factor=counterfactual_spend_factor,
-                dtype=evaluator.channel_dtype,
+                dtype=probed.evaluator.channel_dtype,
                 channel_axis=channel_axis,
                 n_channels=len(self.model.channel_columns),
                 estimand=scope,
-                factual_rows=check_rows or bool(mediators),
+                factual_rows=check_rows or bool(prepared.mediators),
             )
-
-            # The counterfactual arrives one block of samples at a time, and each
-            # block is reduced before the next is evaluated, so at most one block
-            # of it is held.  Closed on the way out, so even after an error the
-            # evaluator is bound to the request's draws again, as
-            # iter_counterfactual promises.  The cache does not rely on that:
-            # _probe_reach rebinds on every hit.
-            #
-            # The evaluator computed every node in the model's label order, so
-            # the change in the linear predictor is labeled with the model's
-            # coords: the channel data the baseline was evaluated on is in that
-            # order.  Each period goes back to the order of ``constant_data``
-            # once its blocks are joined, which is the order callers see.  Both
-            # are read once per call rather than once per block.
-            custom_dims = list(self.model.dims)
-            channel_data = self._channel_data_in_model_order()
-            model_coords = {
-                dim: channel_data.coords[dim].values
-                for dim in ["channel", *custom_dims]
-            }
-            data_order = self.data.get_channel_data()
-            reported_order = {dim: data_order.coords[dim].values for dim in custom_dims}
-            names = (*reads.wanted, *(mediator.name for mediator in mediators))
-            # Per result and period, each block's (positions, result).
-            per_period: dict[
-                str, list[list[tuple[Mapping[str, slice], xr.DataArray]]]
-            ] = {name: [[] for _ in windows.windows] for name in names}
-            with closing(
-                evaluator.iter_counterfactual(scenarios, windows=windows)
-            ) as blocks:
-                for block in blocks:
-                    # A slice, so the baseline's share of the block is a view.
-                    samples = block.samples
-                    periods = self._compute_period_increments(
-                        windows=windows,
-                        scenarios=scenarios,
-                        baseline={
-                            name: values[samples] for name, values in baseline.items()
-                        },
-                        counterfactual=block.outputs,
-                        non_date_dims=evaluator.non_date_dims,
-                        effect_names=effect_names,
-                        counterfactual_spend_factor=counterfactual_spend_factor,
-                        labels={dim: labels[dim][s] for dim, s in block.isel.items()},
-                        reducer=(
-                            None if reducer is None else reducer.for_samples(samples)
-                        ),
-                        scope=scope,
-                        dedicated_channel_rows=channel_axis is not None,
-                        model_coords=model_coords,
-                        keep_date_axis=keep_date_axis,
-                        wanted=reads.wanted,
-                        held_terms=prepared.held_terms,
-                        mediators=mediators,
-                        check_rows=check_rows,
-                    )
-                    for name, results in periods.items():
-                        for parts, result in zip(
-                            per_period[name], results, strict=True
-                        ):
-                            parts.append((block.isel, result))
-                    del block, periods
-
-            # Each period's blocks are released once joined, so the joined
-            # results and the blocks are not both held in full.  What depends on
-            # the period alone is done once, on the joined result.
-            finished: dict[str, list[xr.DataArray]] = {name: [] for name in names}
-            for name in names:
-                for idx, window in enumerate(windows.windows):
-                    finished[name].append(
-                        self._finish_period(
-                            self._join_sample_blocks(per_period[name][idx]),
-                            window=window,
-                            reported_order=reported_order,
-                            keep_date_axis=keep_date_axis,
-                            freq_offset=freq_offset,
-                            # How far past a period's last spend date its carryover
-                            # is known to land: the measured reach, or under
-                            # full-axis evaluation the kernel's own trailing lags,
-                            # which bound it from below.
-                            tail_lags=(
-                                reach.max_lag
-                                if reach.max_lag is not None
-                                else trailing_lags
-                            ),
-                        )
-                    )
-                    per_period[name][idx] = []
-
-            complete = None
-            if mediators:
-                # How far the carryover of what the request reads is known to
-                # land: the last lag the probe measured each node to move at.
-                # A declared full axis changes how a period is evaluated and
-                # not these measurements.  The kernel's own trailing lags are
-                # the floor for a response in every case.  Where no probe
-                # could be placed nothing was measured, and the kernel's lags
-                # plus the carryover the effects declare stand in: more than a
-                # node upstream of an effect's own adstock reaches, which for a
-                # mark that vouches for a period is the safer error.
-                read = [mediator.variable for mediator in mediators]
-                if reads.wanted:
-                    read += [Var.CHANNEL_CONTRIBUTION, *effect_names]
-                measured = [
-                    reach.measured[node] for node in read if node in reach.measured
-                ]
-                lags = max((node.max_lag for node in measured), default=0)
-                if reads.wanted:
-                    lags = max(lags, trailing_lags)
-                if len(measured) < len(read):
-                    declared = reach.effective_l_max - self.model.adstock.l_max
-                    lags = max(lags, trailing_lags + declared)
-                # A node the probe found still moving at the end of the axis,
-                # or before the perturbed date, has no last lag, and no period
-                # can be vouched for.
-                unbounded = any(node.requires_full_axis for node in measured)
-                complete = [
-                    not include_carryover
-                    or not (
-                        unbounded
-                        or self._carryover_cut(
-                            window=window,
-                            dates=self.data.dates,
-                            lags=lags,
-                            freq_offset=freq_offset,
-                        )
-                    )
-                    for window in windows.windows
-                ]
-
+            reduction = PeriodReduction(
+                scope=scope,
+                wanted=reads.wanted,
+                held_terms=prepared.held_terms,
+                mediators=prepared.mediators,
+                effect_names=probed.effect_names,
+                counterfactual_spend_factor=counterfactual_spend_factor,
+                dedicated_channel_rows=channel_axis is not None,
+                model_coords=self._model_coords(),
+                custom_dims=tuple(self.model.dims),
+                non_date_dims=probed.evaluator.non_date_dims,
+                keep_date_axis=keep_date_axis,
+                check_rows=check_rows,
+            )
+            finished = self._finish_periods(
+                self._reduce_in_sample_blocks(prepared, scenarios, reduction),
+                prepared,
+                keep_date_axis=keep_date_axis,
+            )
             return PeriodResults(
                 responses={name: finished[name] for name in reads.wanted},
                 movements={
-                    mediator.name: finished[mediator.name] for mediator in mediators
+                    mediator.name: finished[mediator.name]
+                    for mediator in prepared.mediators
                 },
-                windows=windows,
-                reach=reach,
-                freq_offset=freq_offset,
+                windows=prepared.windows,
+                reach=probed.reach,
+                freq_offset=prepared.freq_offset,
                 start=prepared.start_ts,
                 end=prepared.end_ts,
                 held_terms=prepared.held_terms,
-                mediators=mediators,
+                mediators=prepared.mediators,
                 # A path is verified on its rows, or has nothing to verify.  A
                 # total is verified when the probe compared, and a model
                 # without mu_effects has no other route to compare against.
                 accounting_verified=(
                     reads.is_path or probed.compared or not self.model.mu_effects
                 ),
-                complete=complete,
+                complete=(
+                    self._complete_marks(
+                        prepared, reads=reads, include_carryover=include_carryover
+                    )
+                    if prepared.mediators
+                    else None
+                ),
             )
         finally:
             prepared.release()
+
+    def _needs_dedicated_rows(
+        self, prepared: PreparedEvaluation, *, scope: Estimand
+    ) -> bool:
+        """Whether every channel needs a counterfactual row of its own.
+
+        Two ways a per-channel column can stop being channel m's unilateral
+        counterfactual.  An effect can mix channels before reaching the
+        response, so no per-channel column survives at all.  Failing that, the
+        media transform itself can mix them -- ``forward_pass`` hands the
+        saturation the whole (date, channel) tensor, so a shared denominator is
+        expressible -- which is measured rather than assumed away, and only
+        where a per-channel column is going to be read: the joint estimand sums
+        over channels either way, and with effects the per-channel scenarios
+        are already being built.  A mediator has no column per channel to read
+        at all, so its per-channel movement needs each channel's own
+        counterfactual in every model, separable or not.
+
+        Parameters
+        ----------
+        prepared : PreparedEvaluation
+            The request's evaluation, with its effects, mediators and probe.
+        scope : {"per_channel", "joint"}
+            Whether each channel is moved on its own.
+
+        Returns
+        -------
+        bool
+            True when the scenarios need a row per (period, channel).
+        """
+        if prepared.effects:
+            return True
+        if scope != "per_channel":
+            return False
+        probed = prepared.probed
+        return bool(prepared.mediators) or probed.probe.mixes_channels(
+            non_date_dims=probed.evaluator.non_date_dims
+        )
+
+    @staticmethod
+    def _channel_axis(channel_data_dims: Sequence[str]) -> int:
+        """Return where ``channel`` sits among the non-date axes of ``channel_data``.
+
+        It is not always the first: a panel model lays ``channel_data`` out as
+        ``(date, *custom_dims, channel)``.
+        """
+        return [dim for dim in channel_data_dims if dim != Dim.DATE].index(Dim.CHANNEL)
+
+    def _model_coords(self) -> dict[str, np.ndarray]:
+        """Return the ``channel`` and custom-dim labels in the model's order.
+
+        The evaluator computes every node in that order, so a change in the
+        linear predictor is labelled with these coordinates.
+        """
+        channel_data = self._channel_data_in_model_order()
+        return {
+            dim: channel_data.coords[dim].values
+            for dim in [Dim.CHANNEL, *self.model.dims]
+        }
+
+    def _reduce_in_sample_blocks(
+        self,
+        prepared: PreparedEvaluation,
+        scenarios: CounterfactualScenarios,
+        reduction: PeriodReduction,
+    ) -> dict[str, list[list[tuple[Mapping[str, slice], xr.DataArray]]]]:
+        """Evaluate the scenarios a block of samples at a time and reduce each block.
+
+        Each block is reduced before the next is evaluated, so at most one
+        block of the counterfactual is held.  The iterator is closed on the way
+        out, so even after an error the evaluator is bound to the request's
+        draws again, as ``iter_counterfactual`` promises.  The cache does not
+        rely on that: :meth:`_probe_reach` rebinds on every hit.
+
+        Parameters
+        ----------
+        prepared : PreparedEvaluation
+            The request's evaluation.
+        scenarios : CounterfactualScenarios
+            The rows to evaluate.
+        reduction : PeriodReduction
+            What each period is reduced to.
+
+        Returns
+        -------
+        dict
+            Per result name and period, each block's positions in the posterior
+            and its result.
+        """
+        probed = prepared.probed
+        windows = prepared.windows
+        labels = {dim: prepared.posterior[dim].values for dim in ("chain", "draw")}
+        per_period: dict[str, list[list[tuple[Mapping[str, slice], xr.DataArray]]]] = {
+            name: [[] for _ in windows.windows] for name in reduction.result_names
+        }
+        with closing(
+            probed.evaluator.iter_counterfactual(scenarios, windows=windows)
+        ) as blocks:
+            for block in blocks:
+                # A slice, so the baseline's share of the block is a view.
+                samples = block.samples
+                periods = self._compute_period_increments(
+                    windows=windows,
+                    scenarios=scenarios,
+                    baseline={
+                        name: values[samples]
+                        for name, values in probed.baseline.items()
+                    },
+                    counterfactual=block.outputs,
+                    labels={dim: labels[dim][s] for dim, s in block.isel.items()},
+                    reducer=(
+                        None
+                        if prepared.reducer is None
+                        else prepared.reducer.for_samples(samples)
+                    ),
+                    reduction=reduction,
+                )
+                for name, results in periods.items():
+                    for parts, result in zip(per_period[name], results, strict=True):
+                        parts.append((block.isel, result))
+                del block, periods
+        return per_period
+
+    def _finish_periods(
+        self,
+        per_period: dict[str, list[list[tuple[Mapping[str, slice], xr.DataArray]]]],
+        prepared: PreparedEvaluation,
+        *,
+        keep_date_axis: bool,
+    ) -> dict[str, list[xr.DataArray]]:
+        """Join each period's blocks and label the result as callers see it.
+
+        Each period's blocks are released once joined, so the joined results
+        and the blocks are not both held in full.  What depends on the period
+        alone is done once, on the joined result.
+
+        Parameters
+        ----------
+        per_period : dict
+            What :meth:`_reduce_in_sample_blocks` returned.  Emptied as it is
+            read.
+        prepared : PreparedEvaluation
+            The request's evaluation.
+        keep_date_axis : bool
+            Whether the results are per-date bands rather than period totals.
+
+        Returns
+        -------
+        dict
+            Per result name, one array per period, in period order.
+        """
+        probed = prepared.probed
+        # How far past a period's last spend date its carryover is known to
+        # land: the measured reach, or under full-axis evaluation the kernel's
+        # own trailing lags, which bound it from below.
+        tail_lags = (
+            probed.reach.max_lag
+            if probed.reach.max_lag is not None
+            else probed.trailing_lags
+        )
+        # Each period goes back to the order of ``constant_data``, which is the
+        # order callers see.
+        data_order = self.data.get_channel_data()
+        reported_order = {dim: data_order.coords[dim].values for dim in self.model.dims}
+        finished: dict[str, list[xr.DataArray]] = {name: [] for name in per_period}
+        for name, periods in per_period.items():
+            for idx, window in enumerate(prepared.windows.windows):
+                finished[name].append(
+                    self._finish_period(
+                        self._join_sample_blocks(periods[idx]),
+                        window=window,
+                        reported_order=reported_order,
+                        keep_date_axis=keep_date_axis,
+                        freq_offset=prepared.freq_offset,
+                        tail_lags=tail_lags,
+                    )
+                )
+                periods[idx] = []
+        return finished
+
+    @staticmethod
+    def _carryover_lags(
+        nodes: Sequence[str],
+        reach: SpendReach,
+        *,
+        kernel_lags: int,
+        declared_lags: int,
+        reads_response: bool,
+    ) -> int | None:
+        """Return how far past a period's last spend date the carryover of *nodes* lands.
+
+        The last lag the probe measured each node to move at.  A declared full
+        axis changes how a period is evaluated and not these measurements.  The
+        kernel's own trailing lags are the floor for a response.  Where no
+        probe could be placed nothing was measured, and the kernel's lags plus
+        the carryover the effects declare stand in: more than a node upstream
+        of an effect's own adstock reaches, which for a mark that vouches for a
+        period is the safer error.
+
+        Parameters
+        ----------
+        nodes : sequence of str
+            The evaluated nodes the request reads.
+        reach : SpendReach
+            What the probe measured.
+        kernel_lags : int
+            Lags after a spend date that the model's adstock kernel reaches.
+        declared_lags : int
+            The carryover the effects declare beyond the model's own adstock.
+        reads_response : bool
+            Whether the request reads the response, which the kernel always
+            reaches.
+
+        Returns
+        -------
+        int or None
+            The number of lags, or ``None`` when a node the probe found still
+            moving at the end of the axis, or before the perturbed date, has no
+            last lag and no period can be vouched for.
+        """
+        measured = [reach.measured[node] for node in nodes if node in reach.measured]
+        if any(node.requires_full_axis for node in measured):
+            return None
+        lags = max((node.max_lag for node in measured), default=0)
+        if reads_response:
+            lags = max(lags, kernel_lags)
+        if len(measured) < len(nodes):
+            lags = max(lags, kernel_lags + declared_lags)
+        return lags
+
+    def _complete_marks(
+        self, prepared: PreparedEvaluation, *, reads: PathReads, include_carryover: bool
+    ) -> list[bool]:
+        """Mark, per period, whether the dates it sums hold all of its carryover.
+
+        Parameters
+        ----------
+        prepared : PreparedEvaluation
+            The evaluation of a request that reads a mediator.
+        reads : PathReads
+            What the request reads.
+        include_carryover : bool
+            Without carryover, a period sums only its own dates by definition,
+            and every period is complete.
+
+        Returns
+        -------
+        list of bool
+            One mark per period; see :meth:`_carryover_cut`.
+        """
+        probed = prepared.probed
+        nodes = [mediator.variable for mediator in prepared.mediators]
+        if reads.wanted:
+            nodes += [Var.CHANNEL_CONTRIBUTION, *probed.effect_names]
+        lags = self._carryover_lags(
+            nodes,
+            probed.reach,
+            kernel_lags=probed.trailing_lags,
+            declared_lags=probed.reach.effective_l_max - self.model.adstock.l_max,
+            reads_response=bool(reads.wanted),
+        )
+        return [
+            not include_carryover
+            or (
+                lags is not None
+                and not self._carryover_cut(
+                    window=window,
+                    dates=self.data.dates,
+                    lags=lags,
+                    freq_offset=prepared.freq_offset,
+                )
+            )
+            for window in prepared.windows.windows
+        ]
 
     @staticmethod
     def _join_sample_blocks(
@@ -6112,136 +6324,65 @@ class Incrementality:
         spend = spend.sel({dim: like[dim].values for dim in spend.dims})
         return abs(1.0 - counterfactual_spend_factor) * spend
 
-    def _mediators_to_read(
-        self, registry: Sequence[ResolvedMediator], reads: PathReads
-    ) -> tuple[ResolvedMediator, ...]:
-        """Resolve the mediators a request names, refusing what it cannot read.
+    def _resolve_reads(
+        self, reads: PathReads, effects: Sequence[ChannelDependentEffect]
+    ) -> tuple[tuple[str, ...], tuple[ResolvedMediator, ...]]:
+        """Resolve what a request reads beyond a total: the held terms and the mediators.
+
+        Roles and mediator nodes are read only by the requests that need them,
+        so a total consults nothing here.
 
         Parameters
         ----------
-        registry : sequence of ResolvedMediator
-            Every node the model's effects declare.
         reads : PathReads
-            The request: the names, or ``None`` for every readable node, and
-            whether they are read as induced spend.
+            The paths to reduce and the mediators to read.
+        effects : sequence of ChannelDependentEffect
+            The model's channel-dependent effects.
 
         Returns
         -------
-        tuple of ResolvedMediator
-            The nodes to read, in the order named, or sorted by name.
+        tuple
+            The effect terms a direct effect holds fixed, sorted, and the
+            mediator nodes to read.  Both are empty for a total.
 
         Raises
         ------
         ValueError
-            If the model declares no mediator; if a name is not declared or
-            its node cannot be read; or, for induced spend, if a node is not
-            declared as spend, feeds no term of the linear predictor, differs
-            in units from another, or does not have the dimensions the result
-            it is added to has.
-
-        Warns
-        -----
-        UserWarning
-            If every readable node was asked for and some declared node is
-            left out.
+            If a declaration is not valid, the graph contradicts the declared
+            roles, or a named mediator cannot be read; see
+            :func:`~pymc_marketing.mmm.mediation.check_roles` and
+            :func:`~pymc_marketing.mmm.mediation.select_mediators`.
+        NotImplementedError
+            For a path request, if a channel-dependent effect declares no role
+            or the model's linear predictor cannot be recovered.
         """
-        declared = {entry.name: entry for entry in registry}
-        if reads.mediators is None:
-            if not declared:
-                raise ValueError(
-                    "This model declares no mediator, so there is no movement "
-                    "to report.  A mu_effect declares the nodes spend moves in "
-                    "the 'mediators' of its IncrementalitySpec."
+        if not (reads.is_path or reads.reads_mediators):
+            return (), ()
+        registry = resolve_mediators(self.model, effects)
+        held_terms: tuple[str, ...] = ()
+        if reads.is_path:
+            held_terms = resolve_path_plan(
+                model=self.model, effects=effects, registry=registry
+            ).held_terms
+            if self.model.mu_effects and linear_predictor(self.model) is None:
+                raise NotImplementedError(
+                    "A request for the direct or the mediated path checks, on "
+                    "its own rows, that the evaluated terms carry the whole "
+                    "move of the linear predictor.  This model's linear "
+                    "predictor cannot be recovered, because it is frozen at "
+                    "its posterior values or not exposed by the graph, so "
+                    "there is nothing to check against and the path is not "
+                    "returned.  A total is still computed, with a warning."
                 )
-            # A name declared for two variables has an entry for each, with
-            # one reason between them.
-            left_out = list(
-                dict.fromkeys(
-                    f"{entry.name!r}: {entry.problem or entry.unreadable}"
-                    for entry in registry
-                    if not entry.readable
-                )
+        mediators: tuple[ResolvedMediator, ...] = ()
+        if reads.reads_mediators:
+            mediators = select_mediators(
+                registry,
+                reads.mediators,
+                induced_into=reads.induced_into,
+                model_dims=self.model.dims,
             )
-            selected = tuple(entry for entry in registry if entry.readable)
-            if not selected:
-                raise ValueError(
-                    "None of the declared mediators can be read.  "
-                    + "  ".join(f"{reason}." for reason in left_out)
-                )
-            if left_out:
-                warnings.warn(
-                    "Some declared mediators are left out because they cannot "
-                    "be read.  " + "  ".join(f"{reason}." for reason in left_out),
-                    UserWarning,
-                    skip_file_prefixes=(_PKG_PREFIX,),
-                )
-            return selected
-
-        unknown = [name for name in reads.mediators if name not in declared]
-        if unknown:
-            raise ValueError(
-                f"The names {unknown} are not declared mediators of this "
-                f"model.  The declared mediators are {sorted(declared)}; see "
-                "Incrementality.mediators."
-            )
-        selected = tuple(declared[name] for name in reads.mediators)
-        for entry in selected:
-            if not entry.readable:
-                raise ValueError(
-                    f"The mediator {entry.name!r} cannot be read: "
-                    f"{entry.problem or entry.unreadable}."
-                )
-        if reads.induced_into is None:
-            return selected
-
-        not_spend = [entry.name for entry in selected if not entry.is_spend]
-        if not_spend:
-            raise ValueError(
-                f"The mediators {not_spend} are not declared with "
-                "is_spend=True, so their movement is not money to add to "
-                "channel spend."
-            )
-        for entry in selected:
-            if not entry.feeds_term:
-                raise ValueError(
-                    f"The spend mediator {entry.name!r} feeds no term of the "
-                    "linear predictor, so what it buys is in no increment and "
-                    "the result would count its cost alone.  If it is a copy "
-                    "of a node in other units, declare that node with a "
-                    "'scale' instead."
-                )
-        units = sorted({str(entry.units) for entry in selected})
-        if len(units) > 1:
-            raise ValueError(
-                "The named mediators are added together and are declared in "
-                f"different units: {units}."
-            )
-        dims_of = {
-            entry.name: tuple(
-                dim
-                for dim in self.model.dims
-                if dim in self.model.model.named_vars_to_dims[entry.variable]
-            )
-            for entry in selected
-        }
-        if reads.induced_into == "ratio":
-            for name, dims in dims_of.items():
-                if dims != tuple(self.model.dims):
-                    raise ValueError(
-                        f"The mediator {name!r} has dimensions {dims} besides "
-                        f"'date' and the model has {tuple(self.model.dims)}.  "
-                        "Added to each cell's spend, its movement would be "
-                        "counted once per cell.  "
-                        "decompose_incremental_contribution(induced_spend=...) "
-                        "returns it in its own dimensions."
-                    )
-        elif len(set(dims_of.values())) > 1:
-            raise ValueError(
-                "The named mediators are added into one 'induced_spend' and do "
-                f"not share their dimensions: {dims_of}.  Ask for them in "
-                "separate calls."
-            )
-        return selected
+        return held_terms, mediators
 
     @staticmethod
     def _mark_complete(
@@ -6431,9 +6572,9 @@ class Incrementality:
         row: int,
         cf_mask: np.ndarray,
         window_dates: pd.DatetimeIndex,
-        baseline: dict[str, np.ndarray],
-        counterfactual: dict[str, np.ndarray],
-        non_date_dims: dict[str, tuple[str, ...]],
+        baseline: Mapping[str, np.ndarray],
+        counterfactual: Mapping[str, np.ndarray],
+        non_date_dims: Mapping[str, tuple[str, ...]],
         coords: Mapping[str, np.ndarray],
         effect_names: Sequence[str],
         channel: int | None,
@@ -6587,31 +6728,20 @@ class Incrementality:
         self,
         windows: EvaluationWindows,
         scenarios: CounterfactualScenarios,
-        baseline: dict[str, np.ndarray],
-        counterfactual: dict[str, np.ndarray],
-        non_date_dims: dict[str, tuple[str, ...]],
-        effect_names: Sequence[str],
-        counterfactual_spend_factor: float,
+        baseline: Mapping[str, np.ndarray],
+        counterfactual: Mapping[str, np.ndarray],
         labels: Mapping[str, np.ndarray],
         reducer: IncrementalReducer | None,
-        scope: Estimand,
-        dedicated_channel_rows: bool,
-        model_coords: Mapping[str, np.ndarray],
-        keep_date_axis: bool = False,
-        wanted: Sequence[PathEffect] = ("total",),
-        held_terms: Sequence[str] = (),
-        mediators: Sequence[ResolvedMediator] = (),
-        check_rows: bool = False,
+        reduction: PeriodReduction,
     ) -> dict[str, list[xr.DataArray]]:
-        """Compute each period's incremental result on one block of samples.
+        """Compute each period's results on one block of samples.
 
-        For each period, forms the per-date change in the linear predictor over
-        the evaluation window, hands it to *reducer* to be converted into a
-        response-scale increment, applies the sign convention, and reshapes the
-        flattened sample dimension back to ``(chain, draw)``.  Everything that
+        For each period, checks what the request has to check on its rows,
+        reduces the wanted paths (:meth:`_path_increments`) and reads the
+        mediators' movement (:meth:`_mediator_movement`).  Everything that
         depends on the period alone, such as its date label and the order of
-        the custom dims, is left to :meth:`_finish_period`, so that it runs once
-        per period rather than once per block.
+        the custom dims, is left to :meth:`_finish_period`, so that it runs
+        once per period rather than once per block.
 
         Parameters
         ----------
@@ -6622,136 +6752,36 @@ class Incrementality:
         scenarios : CounterfactualScenarios
             Scenario bookkeeping, used to find the row belonging to each
             (period, perturbation) pair.
-        baseline : dict
-            Per response variable, predictions on actual data over the full date
-            axis.
-        counterfactual : dict
-            Per response variable, predictions per scenario.
-        non_date_dims : dict
-            Per response variable, its dimensions with ``date`` removed.
-        effect_names : sequence of str
-            Contribution variables of the included effects, which is a subset of
-            the evaluated nodes.
-        counterfactual_spend_factor : float
-            Multiplicative factor used for sign convention.
+        baseline : mapping
+            Per evaluated node, predictions on actual data over the full date
+            axis, for the block's samples.
+        counterfactual : mapping
+            Per evaluated node, predictions per scenario.
         labels : mapping
-            ``chain`` and ``draw`` coordinates of the posterior the evaluator
-            was bound to, in its chain-major order.
-        reducer : IncrementalReducer
-            Link-specific reduction from a linear-predictor perturbation to a
-            response-scale increment.  It owns the rescaling to original
-            units, so no further ``target_scale`` multiplication happens here.
-        scope : {"per_channel", "joint"}
-            ``"per_channel"`` perturbs one channel at a time and keeps a
-            ``channel`` dimension; ``"joint"`` perturbs all channels together and
-            returns a single number per period.
-        dedicated_channel_rows : bool
-            Whether *scenarios* holds a row per (period, channel), each
-            perturbing that channel alone.  This is what decides how a
-            per-channel row is read: a dedicated row's whole
-            ``channel_contribution`` delta belongs to the perturbed channel,
-            while a shared all-channels row has to be read column by column,
-            since summing it would hand every channel the joint delta.
-        model_coords : mapping
-            ``channel`` and custom-dim coordinates in the model's label order,
-            the order the evaluator computed every node in.
-        keep_date_axis : bool, default=False
-            Keep the per-date increment instead of summing it over the window.
-        wanted : sequence of {"total", "direct", "mediated"}, default ("total",)
-            The paths to reduce.  ``"direct"`` reduces the move of the terms
-            that are not held, ``"mediated"`` the further move of the held ones
-            on top of it, and ``"total"`` both together.
-        held_terms : sequence of str, default ()
-            The effect terms a direct effect holds at their factual value.
-        mediators : sequence of ResolvedMediator, default ()
-            Mediator nodes whose movement over each period is read.
-        check_rows : bool, default=False
-            Check on every row that the accounted terms carry the predictor's
-            whole move; see :meth:`_check_rows`.  Needs the factual rows in
-            *scenarios*.
+            ``chain`` and ``draw`` coordinates of the block's samples, in the
+            evaluator's chain-major order.
+        reducer : IncrementalReducer or None
+            Link-specific reduction from a change in the linear predictor to a
+            response-scale increment, restricted to the block.  ``None`` for a
+            request that wants no path.
+        reduction : PeriodReduction
+            What every period is reduced to.
 
         Returns
         -------
         dict
             Per wanted path and per mediator name, one array per period, in
             period order.  A path is in original scale with dims
-            ``(chain, draw, *out_dims)``; ``out_dims`` is
-            ``(channel, *custom_dims)`` for ``"per_channel"`` and
-            ``custom_dims`` for ``"joint"``.  With *keep_date_axis*,
+            ``(chain, draw, *out_dims)``, or with *keep_date_axis*
             ``(chain, draw, realization_date, *out_dims)`` over the period's
             evaluated dates.  A mediator's movement is in its reported units,
             summed over the evaluated dates, with the dimensions among
             ``out_dims`` that the node has.
         """
-        custom_dims = list(self.model.dims)
-        # The reducer's inputs come from ``idata`` in whatever order it stores
-        # them, and xarray pairs them with the change by label.  The result then
-        # takes its labels from the reduced increment itself, never by position.
-        channels = model_coords["channel"].tolist()
-        per_channel = scope == "per_channel"
-        out_dims = ["channel", *custom_dims] if per_channel else custom_dims
-        raised = counterfactual_spend_factor > 1.0
         results: dict[str, list[xr.DataArray]] = {
-            name: [] for name in (*wanted, *(mediator.name for mediator in mediators))
+            name: [] for name in reduction.result_names
         }
-        # A request that wants a response always comes with its reducer.
-        active = cast(IncrementalReducer, reducer)
-
-        def over_channels(parts: Sequence[xr.DataArray]) -> xr.DataArray:
-            """Stack one array per channel row, or pass the joint row through."""
-            if not per_channel:
-                return parts[0]
-            return xr.concat(parts, dim="channel").assign_coords(channel=channels)
-
-        def reduce(delta: xr.DataArray, base: xr.DataArray | None = None):
-            """Reduce a change in the predictor to a signed response-scale increment.
-
-            The sign convention:
-            factor > 1 → Y(perturbed) - Y(actual)    (marginal)
-            factor < 1 → Y(actual) - Y(counterfactual) (total)
-            With keep_date_axis the per-date term is kept and ``date`` rides
-            along by name, so the reshape threads it like any other dim.
-            """
-            # Passed only for the mediated part, so that a reducer written
-            # before ``base`` existed still answers a total.
-            passed = {} if base is None else {"base": base}
-            if keep_date_axis:
-                increment = active.per_date_increment(delta, **passed).transpose(
-                    "sample", "date", *out_dims
-                )
-            else:
-                increment = active.counterfactual_minus_baseline(
-                    delta, **passed
-                ).transpose("sample", *out_dims)
-            return increment if raised else -increment
-
-        def unstack(
-            values: xr.DataArray,
-            dims: Sequence[str],
-            realization_dates: pd.DatetimeIndex | None = None,
-        ) -> xr.DataArray:
-            """Reshape the flattened sample axis to (chain, draw), keeping MCMC structure."""
-            # Shape: (n_samples, [date,] *dims), n_samples = n_chains * n_draws
-            reshaped = values.values.reshape(
-                len(labels["chain"]), len(labels["draw"]), *values.shape[1:]
-            )
-            coords: dict = {
-                "chain": labels["chain"],
-                "draw": labels["draw"],
-                # A labeled product keeps its first operand's order, which may
-                # be the reducer input's, so the labels are read off the result.
-                **{dim: values.coords[dim].values for dim in dims},
-            }
-            if realization_dates is None:
-                return xr.DataArray(
-                    reshaped, dims=("chain", "draw", *dims), coords=coords
-                )
-            return xr.DataArray(
-                reshaped,
-                dims=("chain", "draw", "realization_date", *dims),
-                coords={**coords, "realization_date": realization_dates},
-            )
-
+        row_slices = reduction.row_slices
         for period_idx, window in enumerate(windows.windows):
             # The same evaluation dates on both sides of the difference, in the
             # same order: ``in_eval`` picks them out of the full-axis baseline and
@@ -6762,119 +6792,344 @@ class Incrementality:
                 name: values[:, window.in_eval] for name, values in baseline.items()
             }
             cf_mask = window.eval_mask(windows.max_window)
-
-            # (scenario key, channel column to read) per output slice.  The joint
-            # estimand reads a single scenario and sums the channel dimension
-            # away; the per-channel one reads its own scenario per channel, and
-            # sums that too whenever the scenario perturbed that channel alone --
-            # see ``_path_deltas``'s ``channel`` for why the two cases differ.
-            slices: list[tuple[int | None, int | None]] = (
-                [
-                    (idx, None if dedicated_channel_rows else idx)
-                    for idx in range(len(channels))
-                ]
-                if per_channel
-                else [(None, None)]
-            )
-            rows = [scenarios.rows[(period_idx, key)] for key, _ in slices]
-
+            rows = [scenarios.rows[(period_idx, key)] for key, _ in row_slices]
             # A period with no fitted date has nothing evaluated to compare.
-            if check_rows and cf_mask.any():
+            evaluated = bool(cf_mask.any())
+
+            if reduction.check_rows and evaluated:
                 self._check_rows(
                     rows=sorted(set(rows)),
                     factual_row=scenarios.factual_rows[period_idx],
                     cf_mask=cf_mask,
                     baseline=period_baseline,
                     counterfactual=counterfactual,
-                    non_date_dims=non_date_dims,
-                    accounted=(Var.CHANNEL_CONTRIBUTION, *effect_names),
+                    non_date_dims=reduction.non_date_dims,
+                    accounted=(Var.CHANNEL_CONTRIBUTION, *reduction.effect_names),
                 )
-
-            if wanted:
-                deltas = [
-                    self._path_deltas(
-                        row=row,
-                        cf_mask=cf_mask,
-                        window_dates=window.eval_dates,
-                        baseline=period_baseline,
-                        counterfactual=counterfactual,
-                        non_date_dims=non_date_dims,
-                        coords=model_coords,
-                        effect_names=effect_names,
-                        channel=channel,
-                        held_terms=held_terms,
-                    )
-                    for row, (_, channel) in zip(rows, slices, strict=True)
-                ]
-                kept = over_channels([delta.kept for delta in deltas])
-                released = None
-                if deltas[0].released is not None:
-                    # An effect's term may lack a dimension the kept move has.
-                    released = over_channels(
-                        [cast(xr.DataArray, delta.released) for delta in deltas]
-                    ).broadcast_like(kept)
-
-                # The kept move is reduced once: it is the direct part, and with
-                # nothing held also the total and the template of a mediated
-                # part that is zero.
-                kept_increment: xr.DataArray | None = None
-                for path in wanted:
-                    if released is not None and path == "mediated":
-                        # Its own reduction, not the total less the direct part,
-                        # which loses digits when the two are close.
-                        increment = reduce(released, base=kept)
-                    elif released is not None and path == "total":
-                        increment = reduce(kept + released)
-                    elif kept_increment is None:
-                        kept_increment = increment = reduce(kept)
-                    else:
-                        increment = kept_increment.copy()
-                    if released is None and path == "mediated":
-                        increment = xr.zeros_like(increment)
+            if reduction.wanted:
+                increments = self._path_increments(
+                    rows=rows,
+                    window=window,
+                    cf_mask=cf_mask,
+                    baseline=period_baseline,
+                    counterfactual=counterfactual,
+                    # A request that wants a path always comes with its reducer.
+                    reducer=cast(IncrementalReducer, reducer),
+                    reduction=reduction,
+                )
+                for path, increment in increments.items():
                     results[path].append(
-                        unstack(
+                        self._unflatten_samples(
                             increment,
-                            out_dims,
-                            window.eval_dates if keep_date_axis else None,
+                            reduction.out_dims,
+                            labels,
+                            window.eval_dates if reduction.keep_date_axis else None,
                         )
                     )
 
-            if mediators and cf_mask.any():
+            if reduction.mediators and evaluated:
                 self._check_mediators_on_window(
-                    mediators=mediators,
+                    mediators=reduction.mediators,
                     rows=sorted(set(rows)),
                     factual_row=scenarios.factual_rows[period_idx],
                     cf_mask=cf_mask,
                     baseline=period_baseline,
                     counterfactual=counterfactual,
                 )
-            for mediator in mediators:
-                dims = non_date_dims[mediator.variable]
-                movement = over_channels(
-                    [
-                        xr.DataArray(
-                            counterfactual[mediator.variable][row][:, cf_mask]
-                            - period_baseline[mediator.variable],
-                            dims=("sample", "date", *dims),
-                            coords={
-                                dim: model_coords[dim]
-                                for dim in dims
-                                if dim in model_coords
-                            },
-                        ).sum("date")
-                        for row in rows
-                    ]
-                )
-                movement = movement * mediator.scale
-                movement_dims = [
-                    dim for dim in out_dims if dim == Dim.CHANNEL or dim in dims
-                ]
-                movement = movement.transpose("sample", *movement_dims)
+            for mediator in reduction.mediators:
                 results[mediator.name].append(
-                    unstack(movement if raised else -movement, movement_dims)
+                    self._mediator_movement(
+                        mediator,
+                        rows=rows,
+                        cf_mask=cf_mask,
+                        baseline=period_baseline,
+                        counterfactual=counterfactual,
+                        labels=labels,
+                        reduction=reduction,
+                    )
                 )
-
         return results
+
+    @staticmethod
+    def _stack_channel_rows(
+        parts: Sequence[xr.DataArray], reduction: PeriodReduction
+    ) -> xr.DataArray:
+        """Stack one array per channel row along ``channel``, or pass the joint row through.
+
+        The labels are the evaluator's.  The reducer's inputs come from
+        ``idata`` in whatever order it stores them, and xarray pairs them with
+        the change by label, so the result takes its labels from the reduced
+        increment itself, never by position.
+        """
+        if not reduction.per_channel:
+            return parts[0]
+        return xr.concat(parts, dim=Dim.CHANNEL).assign_coords(
+            channel=reduction.channels
+        )
+
+    @staticmethod
+    def _unflatten_samples(
+        values: xr.DataArray,
+        dims: Sequence[str],
+        labels: Mapping[str, np.ndarray],
+        realization_dates: pd.DatetimeIndex | None = None,
+    ) -> xr.DataArray:
+        """Reshape the flattened ``sample`` axis to ``(chain, draw)``.
+
+        Parameters
+        ----------
+        values : xr.DataArray
+            Dims ``("sample", [date,] *dims)``, with ``sample`` the chain-major
+            flattening of ``(chain, draw)``.
+        dims : sequence of str
+            The dimensions after ``sample`` and the date.
+        labels : mapping
+            ``chain`` and ``draw`` coordinates of the samples.
+        realization_dates : pd.DatetimeIndex, optional
+            The labels of a per-date band's date axis, which becomes
+            ``realization_date``.  ``None`` for a result with no date axis.
+
+        Returns
+        -------
+        xr.DataArray
+            Dims ``("chain", "draw", [realization_date,] *dims)``.  A labeled
+            product keeps its first operand's order, which may be the reducer
+            input's, so the labels of *dims* are read off *values*.
+        """
+        reshaped = values.values.reshape(
+            len(labels["chain"]), len(labels["draw"]), *values.shape[1:]
+        )
+        coords: dict = {
+            "chain": labels["chain"],
+            "draw": labels["draw"],
+            **{dim: values.coords[dim].values for dim in dims},
+        }
+        if realization_dates is None:
+            return xr.DataArray(reshaped, dims=("chain", "draw", *dims), coords=coords)
+        return xr.DataArray(
+            reshaped,
+            dims=("chain", "draw", "realization_date", *dims),
+            coords={**coords, "realization_date": realization_dates},
+        )
+
+    @staticmethod
+    def _reduce_move(
+        reducer: IncrementalReducer,
+        delta: xr.DataArray,
+        reduction: PeriodReduction,
+        base: xr.DataArray | None = None,
+    ) -> xr.DataArray:
+        """Reduce a change in the linear predictor to a signed response-scale increment.
+
+        Above a spend factor of one the result is counterfactual minus actual,
+        and at or below one it is actual minus counterfactual.  With
+        ``keep_date_axis`` the per-date term is kept and ``date`` rides along
+        by name, so the reshape threads it like any other dim.
+
+        Parameters
+        ----------
+        reducer : IncrementalReducer
+            The link's reduction, restricted to the block.
+        delta : xr.DataArray
+            The change to reduce.
+        reduction : PeriodReduction
+            What the period is reduced to.
+        base : xr.DataArray, optional
+            A change in place on both sides of the difference.  Passed only for
+            the mediated part, so that a reducer written before ``base``
+            existed still answers a total.
+
+        Returns
+        -------
+        xr.DataArray
+            Dims ``("sample", [date,] *out_dims)``.
+        """
+        passed = {} if base is None else {"base": base}
+        if reduction.keep_date_axis:
+            increment = reducer.per_date_increment(delta, **passed).transpose(
+                "sample", "date", *reduction.out_dims
+            )
+        else:
+            increment = reducer.counterfactual_minus_baseline(
+                delta, **passed
+            ).transpose("sample", *reduction.out_dims)
+        return increment if reduction.raised else -increment
+
+    @classmethod
+    def _path_increments(
+        cls,
+        *,
+        rows: Sequence[int],
+        window: PeriodWindow,
+        cf_mask: np.ndarray,
+        baseline: Mapping[str, np.ndarray],
+        counterfactual: Mapping[str, np.ndarray],
+        reducer: IncrementalReducer,
+        reduction: PeriodReduction,
+    ) -> dict[PathEffect, xr.DataArray]:
+        """Reduce one period's change in the linear predictor to every wanted path.
+
+        Parameters
+        ----------
+        rows : sequence of int
+            The period's scenario row per output slice; see
+            :attr:`PeriodReduction.row_slices`.
+        window : PeriodWindow
+            The period's window.
+        cf_mask : np.ndarray
+            Positions of the evaluated dates in the padded window.
+        baseline : mapping
+            Per node, the full-axis baseline on the evaluated dates.
+        counterfactual : mapping
+            Per node, every row's evaluation on the block's samples.
+        reducer : IncrementalReducer
+            The link's reduction, restricted to the block.
+        reduction : PeriodReduction
+            What the period is reduced to.
+
+        Returns
+        -------
+        dict
+            Per wanted path, the signed increment with dims
+            ``("sample", [date,] *out_dims)``.
+        """
+        deltas = [
+            cls._path_deltas(
+                row=row,
+                cf_mask=cf_mask,
+                window_dates=window.eval_dates,
+                baseline=baseline,
+                counterfactual=counterfactual,
+                non_date_dims=reduction.non_date_dims,
+                coords=reduction.model_coords,
+                effect_names=reduction.effect_names,
+                channel=channel,
+                held_terms=reduction.held_terms,
+            )
+            for row, (_, channel) in zip(rows, reduction.row_slices, strict=True)
+        ]
+        kept = cls._stack_channel_rows([delta.kept for delta in deltas], reduction)
+        released = None
+        if deltas[0].released is not None:
+            # An effect's term may lack a dimension the kept move has.
+            released = cls._stack_channel_rows(
+                [cast(xr.DataArray, delta.released) for delta in deltas], reduction
+            ).broadcast_like(kept)
+        return cls._reduce_paths(kept, released, reducer, reduction)
+
+    @classmethod
+    def _reduce_paths(
+        cls,
+        kept: xr.DataArray,
+        released: xr.DataArray | None,
+        reducer: IncrementalReducer,
+        reduction: PeriodReduction,
+    ) -> dict[PathEffect, xr.DataArray]:
+        """Reduce the kept and the released move to the wanted paths.
+
+        ``"direct"`` is the kept move, ``"mediated"`` the released move on top
+        of it, and ``"total"`` both.  The mediated part has its own reduction,
+        not the total less the direct part, which loses digits when the two are
+        close.  The kept move is reduced once: it is the direct part, and with
+        nothing held also the total and the template of a mediated part that
+        is zero.
+
+        Parameters
+        ----------
+        kept : xr.DataArray
+            The move of ``channel_contribution`` and of every term not held.
+        released : xr.DataArray or None
+            The move of the held terms, or ``None`` when nothing is held.
+        reducer : IncrementalReducer
+            The link's reduction, restricted to the block.
+        reduction : PeriodReduction
+            What the period is reduced to.
+
+        Returns
+        -------
+        dict
+            Per wanted path, in the order wanted, the signed increment.
+        """
+        increments: dict[PathEffect, xr.DataArray] = {}
+        kept_increment: xr.DataArray | None = None
+        for path in reduction.wanted:
+            if released is not None and path == "mediated":
+                increment = cls._reduce_move(reducer, released, reduction, base=kept)
+            elif released is not None and path == "total":
+                increment = cls._reduce_move(reducer, kept + released, reduction)
+            elif kept_increment is None:
+                kept_increment = increment = cls._reduce_move(reducer, kept, reduction)
+            else:
+                increment = kept_increment.copy()
+            if released is None and path == "mediated":
+                increment = xr.zeros_like(increment)
+            increments[path] = increment
+        return increments
+
+    @classmethod
+    def _mediator_movement(
+        cls,
+        mediator: ResolvedMediator,
+        *,
+        rows: Sequence[int],
+        cf_mask: np.ndarray,
+        baseline: Mapping[str, np.ndarray],
+        counterfactual: Mapping[str, np.ndarray],
+        labels: Mapping[str, np.ndarray],
+        reduction: PeriodReduction,
+    ) -> xr.DataArray:
+        """Sum how far one period's counterfactual moves a mediator node.
+
+        Parameters
+        ----------
+        mediator : ResolvedMediator
+            The node, with the scale it is reported in.
+        rows : sequence of int
+            The period's scenario row per output slice.
+        cf_mask : np.ndarray
+            Positions of the evaluated dates in the padded window.
+        baseline : mapping
+            Per node, the full-axis baseline on the evaluated dates.
+        counterfactual : mapping
+            Per node, every row's evaluation on the block's samples.
+        labels : mapping
+            ``chain`` and ``draw`` coordinates of the block's samples.
+        reduction : PeriodReduction
+            What the period is reduced to.
+
+        Returns
+        -------
+        xr.DataArray
+            The movement in the node's reported units, with the sign of the
+            response, dims ``("chain", "draw", *dims)`` where *dims* are the
+            dimensions among ``out_dims`` that the node has.
+        """
+        dims = reduction.non_date_dims[mediator.variable]
+        coords = {
+            dim: reduction.model_coords[dim]
+            for dim in dims
+            if dim in reduction.model_coords
+        }
+        movement = cls._stack_channel_rows(
+            [
+                xr.DataArray(
+                    counterfactual[mediator.variable][row][:, cf_mask]
+                    - baseline[mediator.variable],
+                    dims=("sample", "date", *dims),
+                    coords=coords,
+                ).sum("date")
+                for row in rows
+            ],
+            reduction,
+        )
+        movement = movement * mediator.scale
+        movement_dims = [
+            dim for dim in reduction.out_dims if dim == Dim.CHANNEL or dim in dims
+        ]
+        movement = movement.transpose("sample", *movement_dims)
+        return cls._unflatten_samples(
+            movement if reduction.raised else -movement, movement_dims, labels
+        )
 
     @staticmethod
     def _check_rows(
@@ -6961,16 +7216,9 @@ class Incrementality:
             ).accounting_gap()
             if on_window is not None:
                 raise unattributed_path_error(accounted, gap)
-            # Each term against the tolerance the gap was judged by; failing
-            # that, the one that differs most.
-            atol = stats.tolerance()
-            sizes = {
-                name: float(np.abs(factual[name] - baseline[name]).max())
-                for name in accounted
-            }
-            differing = [name for name, size in sizes.items() if size > atol] or [
-                max(sizes, key=sizes.__getitem__)
-            ]
+            differing = Incrementality._terms_off_on_window(
+                factual, baseline, accounted=accounted, atol=stats.tolerance()
+            )
             raise ValueError(
                 f"With spend unchanged, the accounted terms {differing} take "
                 "another value on a period's evaluation window than on the full "
@@ -6983,6 +7231,43 @@ class Incrementality:
                 "evaluation_mode='full' in the IncrementalitySpec of the "
                 "effect, which evaluates every period on the full date axis."
             )
+
+    @staticmethod
+    def _terms_off_on_window(
+        factual: Mapping[str, np.ndarray],
+        baseline: Mapping[str, np.ndarray],
+        *,
+        accounted: Sequence[str],
+        atol: float,
+    ) -> list[str]:
+        """Name the accounted terms that take another value on a window, spend unchanged.
+
+        Parameters
+        ----------
+        factual : mapping
+            Per term, its value under actual spend evaluated on the window.
+        baseline : mapping
+            Per term, its value under actual spend on the full date axis, on
+            the same dates.
+        accounted : sequence of str
+            The terms to compare.
+        atol : float
+            The tolerance the accounting gap was judged by.
+
+        Returns
+        -------
+        list of str
+            Every term that differs by more than *atol*, in the order of
+            *accounted*, or, when none does on its own, the one that differs
+            most.
+        """
+        sizes = {
+            name: float(np.abs(factual[name] - baseline[name]).max())
+            for name in accounted
+        }
+        return [name for name, size in sizes.items() if size > atol] or [
+            max(sizes, key=sizes.__getitem__)
+        ]
 
     @staticmethod
     def _check_mediators_on_window(
