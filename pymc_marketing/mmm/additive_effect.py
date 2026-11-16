@@ -565,6 +565,13 @@ class MuEffect(SerializableBaseModel, ABC):
         optimizer refuses any objective that reaches a frozen path over ``date``; an
         effect that freezes one should also override ``supports_new_dates`` to
         return ``False``, so that prediction on other dates is refused.
+
+        A free random variable with a ``date`` dimension can be listed as well, and
+        incrementality then cuts it to each window in the same way. Unlisted, such a
+        variable keeps its draws over all fitted dates, and incrementality refuses
+        any window shorter than the fitted dates where its ``date`` axis meets
+        spend's. List the variable itself: a deterministic that only renames it,
+        such as ``Deterministic(name, rv)``, currently raises a ``KeyError`` there.
         """
         return []
 

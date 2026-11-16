@@ -2814,6 +2814,12 @@ class _DateLevelEffect(_ZeroEffect):
 
     prefix: str = "level"
     reduce: bool = False
+    freeze: bool = False
+
+    @property
+    def frozen_deterministics(self) -> list[str]:
+        """The free random variable itself, when asked to freeze it."""
+        return [f"{self.prefix}_draws"] if self.freeze else []
 
     def create_effect(self, mmm):
         """One free value per date, or their mean on every date when reduced."""
@@ -2885,6 +2891,28 @@ def test_monthly_incrementality_evaluates_a_reduced_date_variable(
     )
 
     assert np.isfinite(incremental).all()
+
+
+def test_monthly_incrementality_cuts_a_frozen_date_variable(fit_mmm_with_effect):
+    """A free random variable listed in ``frozen_deterministics`` is cut to each window.
+
+    It does not depend on spend and there is no carryover, so each channel's
+    increment on a month is its contribution summed over that month.
+    """
+    mmm = fit_mmm_with_effect(_DateLevelEffect(freeze=True))
+
+    incremental = mmm.incrementality.compute_incremental_contribution(
+        frequency="monthly"
+    )
+
+    contribution = (
+        mmm.idata.posterior["channel_contribution"]
+        * mmm.idata.constant_data["target_scale"]
+    )
+    month_ends = contribution.indexes["date"].to_period("M").end_time.normalize()
+    expected = contribution.assign_coords(date=month_ends).groupby("date").sum()
+    assert incremental.indexes["date"].equals(expected.indexes["date"])
+    np.testing.assert_allclose(incremental, expected.transpose(*incremental.dims))
 
 
 @pytest.mark.parametrize(
