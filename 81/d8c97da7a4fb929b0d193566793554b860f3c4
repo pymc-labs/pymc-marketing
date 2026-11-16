@@ -1,0 +1,23 @@
+pymc_marketing/mmm/builders/yaml.py
+  s_01ab853a9d14a3::t_2a94205d73d10c 87-105,230
+scripts/run_notebooks/README.md
+  s_01ab853a9d14a3::t_b19bc1ce4f8b5c 11-14
+tests/mmm/builders/test_yaml.py
+  s_01ab853a9d14a3::t_9a51522a636d78 637-659
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "81d8c97da7a4fb929b0d193566793554b860f3c4",
+  "prompts": {},
+  "sessions": {
+    "s_01ab853a9d14a3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8dd7f19f-622e-414a-b195-6aa7db043926",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}
