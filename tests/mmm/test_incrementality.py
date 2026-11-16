@@ -9051,6 +9051,9 @@ class TestIncrementalMediator:
                 {"hub": 2}, 9, False, 2, id="a measurement over a declaration"
             ),
             pytest.param(
+                {"hub": 2}, None, False, 2, id="a measurement with nothing declared"
+            ),
+            pytest.param(
                 {"hub": 2}, 9, True, 3, id="a response floored at the kernel's lags"
             ),
             pytest.param(
@@ -9240,13 +9243,20 @@ class TestInducedSpend:
         """A ratio per geo has no place for it; the decomposition returns it as it is.
 
         Added to a per-geo denominator, a national movement would be counted
-        once for every geo.
+        once for every geo.  A per-geo node has the model's dimensions, and the
+        two are not added into one movement.
         """
         incr = panel_hubs_fitted_mmm.incrementality
 
         with pytest.raises(ValueError, match=r"'national'.*\('country',\)"):
             incr.contribution_over_spend(
                 frequency="all_time", induced_spend=["national"]
+            )
+        with pytest.raises(
+            ValueError, match=r"\{'national': \(\), 'local': \('country',\)\}"
+        ):
+            incr.decompose_incremental_contribution(
+                frequency="all_time", induced_spend=["national", "local"]
             )
         parts = incr.decompose_incremental_contribution(
             frequency="all_time", induced_spend=["national"]

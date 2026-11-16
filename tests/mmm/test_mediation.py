@@ -800,7 +800,7 @@ class TestSelectMediators:
         registry = (node("hub"), node("split", unreadable="it carries 'channel'"))
 
         with pytest.warns(UserWarning, match=r"'split': it carries 'channel'"):
-            selected = select_mediators(registry, None)
+            selected = select_mediators(registry, None, model_dims=())
 
         assert selected == (registry[0],)
 
@@ -808,7 +808,10 @@ class TestSelectMediators:
         """The order of a request, not of the registry, is the order of the result."""
         registry = (node("a"), node("b"))
 
-        assert select_mediators(registry, ["b", "a"]) == (registry[1], registry[0])
+        assert select_mediators(registry, ["b", "a"], model_dims=()) == (
+            registry[1],
+            registry[0],
+        )
 
     @pytest.mark.parametrize(
         "registry, names, complaint",
@@ -839,7 +842,7 @@ class TestSelectMediators:
     ):
         """Each refusal names the node and the reason."""
         with pytest.raises(ValueError, match=complaint):
-            select_mediators(registry, names)
+            select_mediators(registry, names, model_dims=())
 
     @pytest.mark.parametrize(
         "registry, into, complaint",

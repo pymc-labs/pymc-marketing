@@ -530,9 +530,10 @@ class IncrementalitySpec(BaseModel):
         tail and understate the increment.  It also speaks for the nodes in
         ``mediators``, also when the effect's own term does not read spend:
         where no probe can be placed, a node is taken to move for the model's
-        kernel plus the widest value the effects that declare it declare, and
-        a node none of them declares one for has no period marked
-        ``complete``.
+        kernel plus the widest value the effects that declare it declare, or
+        plus the widest value any effect that reads spend declares, if that is
+        wider.  A node none of its effects declares one for has no period
+        marked ``complete``.
     evaluation_mode : {"auto", "window", "full"}, default="auto"
         How much of the date axis the effect needs to see to be evaluated
         correctly.  ``"window"`` is the cheap case: the effect propagates spend

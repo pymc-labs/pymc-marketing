@@ -90,10 +90,10 @@ __all__ = [
 _VALUE_KEEPING_OPS = (ViewOp, TensorFromXTensor, XTensorFromTensor)
 """Ops whose output is their input: a registration, or a change of tensor kind."""
 
-Reporting = tuple[str | None, float, bool]
+_Reporting = tuple[str | None, float, bool]
 """``(units, scale, is_spend)``: how a node's movement is reported."""
 
-_DEFAULT_REPORTING: Reporting = (None, 1.0, False)
+_DEFAULT_REPORTING: _Reporting = (None, 1.0, False)
 """How a node nobody said how to report is reported."""
 
 InducedInto = Literal["ratio", "decomposition"]
@@ -263,7 +263,7 @@ class _Declaration:
 
     variable: str
     effects: list[str] = field(default_factory=list)
-    reporting: Reporting = _DEFAULT_REPORTING
+    reporting: _Reporting = _DEFAULT_REPORTING
     full_axis: bool = False
     carryover_lags: int | None = None
     fault: str | None = None
@@ -1241,7 +1241,7 @@ def select_mediators(
     names: Sequence[str] | None,
     *,
     induced_into: InducedInto | None = None,
-    model_dims: Sequence[str] = (),
+    model_dims: Sequence[str],
 ) -> tuple[ResolvedMediator, ...]:
     """Pick the mediator nodes a request reads, refusing what it cannot read.
 
@@ -1257,9 +1257,10 @@ def select_mediators(
         induces, added to a ratio's denominator or returned next to the spend
         change of a decomposition.  Each has its own rules for which nodes
         qualify.
-    model_dims : sequence of str, default ()
+    model_dims : sequence of str
         The model's dimensions besides ``date``, which a ratio's induced spend
-        has to have.
+        has to have.  Required, so that a caller cannot leave out the
+        dimensions a per-geo ratio is checked against.
 
     Returns
     -------
