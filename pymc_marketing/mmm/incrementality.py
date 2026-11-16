@@ -322,7 +322,7 @@ import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from contextlib import closing, contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import cached_property, partial
 from itertools import groupby
 from typing import TYPE_CHECKING, Any, Literal, cast, get_args
@@ -5517,6 +5517,15 @@ class Incrementality:
                 ),
                 mediators_need_full_axis=mediators_need_full_axis,
             )
+            if (
+                self.model.adstock.mode == ConvMode.Before
+                and not reach.requires_full_axis
+            ):
+                # A Before kernel with l_max=1 moves nothing before the probe
+                # date, so the probe allows a window.  The windowed Before sum
+                # ends at the period's end and would cut the forward carryover
+                # of an effect with its own adstock.
+                reach = replace(reach, requires_full_axis=True, max_lag=None)
             if validate_reach is not None:
                 validate_reach(reach)
         except BaseException:

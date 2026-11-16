@@ -4430,16 +4430,17 @@ class TestSplitIncrementalContribution:
         assert not any("excluded by convention" in note for note in notes)
         assert any("runs past the end" in note for note in notes) == bool(tail)
 
-    def test_windowed_leading_kernel_has_no_horizon_past_its_spend_date(
+    def test_leading_kernel_the_probe_can_bound_still_uses_the_full_axis(
         self, simple_mmm_data
     ):
-        """A ``Before`` kernel the probe can bound reports no unobserved tail.
+        """A ``Before`` kernel the probe can bound is still evaluated on the full axis.
 
         With ``adstock_alpha`` near zero the leading weights fall below the
-        probe's tolerance, so the model stays windowed and only lag 0 moves.
-        The horizon floor follows the convolution mode, as the full-axis tail
-        does, so it is ``0`` rather than ``l_max - 1``, and no date past the
-        data is reported unobserved.
+        probe's tolerance, so the probe alone would allow a window.  A windowed
+        ``Before`` sum ends at the period's end, so every ``Before`` model is
+        evaluated on the full axis instead, and no horizon is reported.  The
+        tail follows the convolution mode, so no date past the data is reported
+        unobserved.
         """
         from tests.mmm.conftest import mock_fit
 
@@ -4461,8 +4462,8 @@ class TestSplitIncrementalContribution:
             matrix = incr.split_incremental_contribution_over_time(frequency="original")
         expected = incr.compute_incremental_contribution(frequency="original")
 
-        assert json.loads(matrix.attrs["assumptions"])["evaluation"] == "window"
-        assert matrix.attrs["effective_horizon"] == 0
+        assert json.loads(matrix.attrs["assumptions"])["evaluation"] == "full_axis"
+        assert matrix.attrs.get("effective_horizon") is None
         assert bool(matrix.coords["observed"].all())
         assert not bool(matrix.isnull().any())
         last = pd.Timestamp(matrix.realization_date.values[-1])
@@ -8856,19 +8857,22 @@ class TestIncrementalMediator:
         assert without[LF_SPEND]["complete"].all()
         assert all_time[LF_SPEND]["complete"].item() is False
 
+    @pytest.mark.parametrize("l_max", [FUNNEL_L_MAX, 1])
     @pytest.mark.parametrize("link", ["identity", "log"])
     def test_a_before_period_sums_the_forward_carryover_of_an_effect(
-        self, funnel_mmm_data, link
+        self, funnel_mmm_data, link, l_max
     ):
         """Under a ``Before`` adstock a period still sums the dates after its end.
 
         The model's own kernel moves no date after the spend, but the funnel's
         second adstock carries lower-funnel spend forward.  The total, both
         paths and the movement match the brute-force difference over every
-        fitted date, and only the periods the data cuts short are marked.
+        fitted date, and only the periods the data cuts short are marked.  With
+        ``l_max=1`` the kernel moves no date before the spend either, which the
+        probe alone would evaluate on a window.
         """
         mmm = _build_funnel_mmm(
-            funnel_mmm_data, link=link, adstock_mode=ConvMode.Before
+            funnel_mmm_data, link=link, l_max=l_max, adstock_mode=ConvMode.Before
         )
         incr = mmm.incrementality
 

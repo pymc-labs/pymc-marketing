@@ -451,10 +451,10 @@ class EvaluationWindows:
                 eval_start = start
                 eval_end = end + l_max * freq_offset
             elif mode == ConvMode.Before:
-                # SpendProbe currently sends any graph that moves before its
-                # probe date through full-axis evaluation, so this bounded path
-                # defines the correct contract but is not yet used by the public
-                # incrementality API. A future reach refinement can enable it.
+                # Not reached by the public incrementality API, which sends every
+                # Before model to the full axis.  This window ends at the
+                # period's end, so it misses the forward carryover of an effect
+                # with its own adstock.
                 eval_start = start - l_max * freq_offset
                 eval_end = end
             elif mode == ConvMode.Overlap:
