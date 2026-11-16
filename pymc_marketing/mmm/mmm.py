@@ -388,6 +388,20 @@ def _label_indexer(labels: pd.Index, reference: pd.Index) -> np.ndarray | None:
     return None if (indexer < 0).any() else indexer
 
 
+def _dates_or_labels(labels: pd.Index) -> pd.Index:
+    """Return ``labels`` as dates when every label parses as one, else unchanged.
+
+    Dates let string dates match datetime dates. Labels that are not dates, such
+    as ``"W01"``, would all become ``NaT`` and match each other, so they are
+    kept as given.
+    """
+    with warnings.catch_warnings():
+        # pandas warns that it cannot infer a format for labels that are not dates.
+        warnings.simplefilter("ignore", UserWarning)
+        dates = pd.to_datetime(labels, errors="coerce")
+    return labels if dates.hasnans else dates
+
+
 def _calibrations_by_name(
     records: list[dict[str, Any]], key: str, spend: Mapping[Any, xr.DataArray]
 ) -> dict[str, tuple[dict[str, Any], xr.DataArray | None]]:
@@ -2764,8 +2778,11 @@ class MMM(RegressionModelBuilder):
 
             ``idata.fit_data`` holds one variable per column of ``X`` (per channel
             and control for xarray input) plus the target under
-            ``target_column``, on ``(date_column, *dims)``. See
-            :meth:`create_fit_data`.
+            ``target_column``, on ``(date_column, *dims)``. The data that
+            mu_effects read is stored with its own dims, which can differ. A
+            variable on other dims makes
+            ``idata.fit_data.to_dataset().to_dataframe()`` repeat every other
+            variable along them. See :meth:`create_fit_data`.
         y : pd.Series or xr.DataArray or np.ndarray or None
             Target values. Required unless ``X`` carries the target.
         method : str
@@ -3242,6 +3259,10 @@ class MMM(RegressionModelBuilder):
         """
         if not isinstance(X, pd.DataFrame):
             return None
+        return [name for name in self._effect_data_vars() if name in X.columns] or None
+
+    def _effect_data_vars(self) -> list[str]:
+        """Names that mu_effects read as data variables, minus the MMM's own columns."""
         reserved = {
             self.date_column,
             self.target_column,
@@ -3253,9 +3274,101 @@ class MMM(RegressionModelBuilder):
             var_name
             for effect in self.mu_effects
             for var_name in getattr(effect, "data_vars", [])
-            if var_name in X.columns and var_name not in reserved
+            if var_name not in reserved
         ]
-        return list(dict.fromkeys(names)) or None
+        return list(dict.fromkeys(names))
+
+    def _add_effect_data(self, fit_data: xr.Dataset) -> xr.Dataset:
+        """Add the mu_effect data of the built model to ``fit_data``.
+
+        Effects read their data from ``self.xarray_dataset``, which can hold
+        variables that the ``X`` passed to ``fit`` does not, such as a variable
+        with an extra dim. :meth:`build_from_idata` needs them to rebuild the
+        model, so they are stored with their own dims.
+        """
+        built = getattr(self, "xarray_dataset", None)
+        if built is None:
+            return fit_data
+        self._warn_if_effect_data_differs(fit_data, built)
+        names = [
+            name
+            for name in self._effect_data_vars()
+            if name in built and name not in fit_data
+        ]
+        if not names:
+            return fit_data
+        effect_data = built[names]
+        if self.date_column != Dim.DATE and Dim.DATE in effect_data.sizes:
+            effect_data = effect_data.rename({Dim.DATE: self.date_column})
+        date = self.date_column
+        if date in effect_data.sizes and date in fit_data.sizes:
+            # Either side can hold the dates as strings: match them as dates
+            # and keep the labels of fit_data.
+            labels = fit_data.indexes[date]
+            as_dates = _dates_or_labels(labels)
+            effect_dates = _dates_or_labels(effect_data.indexes[date])
+            if set(as_dates) == set(effect_dates):
+                effect_data = (
+                    effect_data.assign_coords({date: effect_dates})
+                    .sel({date: as_dates})
+                    .assign_coords({date: labels})
+                )
+        for dim in set(effect_data.sizes) & set(fit_data.sizes):
+            if set(effect_data.indexes[dim]) != set(fit_data.indexes[dim]):
+                warnings.warn(
+                    f"mu_effect data {names} is not stored in fit_data: the "
+                    f"{dim!r} labels of the built model differ from those of "
+                    "the data passed to fit, so MMM.load cannot rebuild the model.",
+                    UserWarning,
+                    skip_file_prefixes=(_PKG_PREFIX,),
+                )
+                return fit_data
+        return xr.merge([fit_data, effect_data], join="left")
+
+    def _warn_if_effect_data_differs(
+        self, fit_data: xr.Dataset, built: xr.Dataset
+    ) -> None:
+        """Warn when X holds mu_effect data that differs from the built model's.
+
+        ``fit`` does not write ``X`` into a model that is already built, so the
+        posterior is fit on the built data, while ``fit_data`` stores ``X``. Only
+        mu_effect data is compared here. Channels, controls and the target are
+        not.
+        """
+        differ = []
+        for name in self._effect_data_vars():
+            if name not in built or name not in fit_data:
+                continue
+            stored = fit_data[name]
+            if self.date_column != Dim.DATE and self.date_column in stored.dims:
+                stored = stored.rename({self.date_column: Dim.DATE})
+            stored, ref = (
+                da.assign_coords({Dim.DATE: _dates_or_labels(da.indexes[Dim.DATE])})
+                if Dim.DATE in da.dims
+                else da
+                for da in (stored, built[name])
+            )
+            same_labels = set(stored.dims) == set(ref.dims) and all(
+                set(stored.indexes[dim]) == set(ref.indexes[dim])
+                for dim in ref.dims
+                if dim in ref.indexes
+            )
+            # The built data went through fillna(0), X did not.
+            if not same_labels or not np.allclose(
+                stored.fillna(0).transpose(*ref.dims).reindex_like(ref).values,
+                ref.values,
+            ):
+                differ.append(name)
+        if differ:
+            warnings.warn(
+                f"mu_effect data {differ} passed to fit differs from the data the "
+                "model was built on. fit does not rebuild a built model, so the "
+                "posterior is fit on the built values of these variables, while "
+                "fit_data stores the values passed to fit. The model that "
+                "MMM.load rebuilds can differ from the fitted one.",
+                UserWarning,
+                skip_file_prefixes=(_PKG_PREFIX,),
+            )
 
     def _posterior_predictive_data_transformation(
         self,
@@ -5419,7 +5532,9 @@ class MMM(RegressionModelBuilder):
 
         - one data variable per column of ``X`` (for xarray input, one per channel
           and control),
-        - the target variable under ``self.target_column``, and
+        - the target variable under ``self.target_column``,
+        - the data variables that mu_effects read, with their own dims, taken
+          from the built model when ``X`` does not hold them, and
         - coordinates on ``(self.date_column, *dims present in X)``.
 
         Parameters
@@ -5440,6 +5555,7 @@ class MMM(RegressionModelBuilder):
         xr.Dataset
             Dataset indexed by ``(self.date_column, *dims present in X)`` with the
             feature variables and a target variable named ``self.target_column``.
+            mu_effect data keeps its own dims, which can differ from these.
 
         Raises
         ------
@@ -5458,6 +5574,10 @@ class MMM(RegressionModelBuilder):
         - DataFrame input is sorted by ``(self.date_column, *dims present in X)``
           prior to conversion to xarray. xarray input keeps its label order,
           which is also the order of the model built from it.
+        - A mu_effect variable on other dims, such as an extra dim, makes
+          ``fit_data.to_dataframe()`` repeat every other variable along those
+          dims. Select the variables on ``(self.date_column, *dims)`` before
+          converting, as :meth:`build_from_idata` does for ``X``.
         """
         if isinstance(X, xr.Dataset | xr.DataArray):
             ds = to_mmm_dataset(
@@ -5479,11 +5599,17 @@ class MMM(RegressionModelBuilder):
             ]
             if DatasetVar.CONTROL in ds:
                 parts.append(ds[DatasetVar.CONTROL].to_dataset("control"))
+            # mu_effect data in X wins, as in the DataFrame branch. It is stored
+            # as given, NaN included, while data taken from the built model went
+            # through fillna(0); load fills NaN with 0 either way.
+            parts.append(ds[[n for n in self._effect_data_vars() if n in ds]])
             fit_data = xr.merge(parts, combine_attrs="drop")
             if self.date_column != Dim.DATE:
                 fit_data = fit_data.rename({Dim.DATE: self.date_column})
-            return fit_data.transpose(
-                self.date_column, *self.dims, missing_dims="ignore"
+            return self._add_effect_data(
+                fit_data.transpose(
+                    self.date_column, *self.dims, ..., missing_dims="ignore"
+                )
             )
 
         X_df = X.copy()
@@ -5549,7 +5675,7 @@ class MMM(RegressionModelBuilder):
             )
 
         ds = X_df.sort_values(coord_cols).set_index(coord_cols).to_xarray()
-        return ds
+        return self._add_effect_data(ds)
 
     def build_from_idata(self, idata: xr.DataTree) -> None:
         """Rebuild the model from a ``DataTree`` object.
@@ -5582,7 +5708,14 @@ class MMM(RegressionModelBuilder):
         - The custom dimensions of the rebuilt model follow the label order of
             the posterior. Posterior draws are matched to the model by position,
             and a model fit from an ``xr.Dataset`` keeps the Dataset's order,
-            while the DataFrame built from ``fit_data`` is sorted.
+            while the ``fit_data`` of a DataFrame fit is sorted.
+        - The model is rebuilt from an ``xr.Dataset`` made from ``fit_data``, so
+            mu_effect data keeps its own dims, such as an extra dim. Dates are
+            converted with ``pd.to_datetime`` for every variable. A subclass that
+            overrides :meth:`build_model` receives that Dataset and no ``y``.
+        - ``X`` is then set to the long frame of the ``fit_data`` variables on the
+            target's dims, ``(date_column, *dims)``, without the target, whatever
+            ``fit`` was given. mu_effect data on other dims is left out of it.
         - Restores lift-test calibration from ``idata.attrs`` and
             cost-per-target/ROAS calibration from ``idata.attrs`` plus the
             ``cost_per_target_spend`` group. Files written before these records
@@ -5605,26 +5738,60 @@ class MMM(RegressionModelBuilder):
                 for effect_data in mu_effects_data
             ]
 
-        dataset = idata.fit_data.dataset.to_dataframe()
-
-        if isinstance(dataset.index, pd.MultiIndex) or isinstance(
-            dataset.index, pd.DatetimeIndex
-        ):
-            dataset = dataset.reset_index()
-        # type: ignore
-        X = dataset.drop(columns=[self.target_column])
-        y = dataset[self.target_column]
+        # Rebuild from a Dataset, the inverse of the xarray branch of
+        # create_fit_data, so mu_effect data keeps its own dims. Dates are
+        # converted once, for every variable, as the DataFrame path does.
+        fit_data = idata.fit_data.dataset
+        if self.date_column not in fit_data.dims:
+            # Older files store one row dim, with the date and dims as variables.
+            index = [self.date_column, *(d for d in self.dims if d in fit_data)]
+            fit_data = fit_data.to_dataframe().set_index(index).to_xarray()
+        if self.date_column != Dim.DATE:
+            fit_data = fit_data.rename({self.date_column: Dim.DATE})
+        fit_data = fit_data.assign_coords(
+            {Dim.DATE: pd.to_datetime(fit_data.indexes[Dim.DATE])}
+        )
+        controls = list(self.control_columns or [])
+        data = {
+            DatasetVar.CHANNEL: fit_data[self.channel_columns].to_dataarray(
+                Dim.CHANNEL
+            ),
+            DatasetVar.TARGET: fit_data[self.target_column],
+            **{
+                name: fit_data[name]
+                for name in self._effect_data_vars()
+                if name in fit_data
+            },
+        }
+        if controls:
+            data[DatasetVar.CONTROL] = fit_data[controls].to_dataarray(Dim.CONTROL)
+        X = xr.Dataset(data)
 
         if "posterior" in idata.children:
+            # Every dim the posterior shares with the data, including mu_effect
+            # dims such as an extra dim, follows the posterior's label order.
             self._custom_dim_order = {
                 dim: idata.posterior.indexes[dim]
-                for dim in self.dims
-                if dim in idata.posterior.indexes
+                for dim in X.sizes
+                if dim != Dim.DATE and dim in idata.posterior.indexes
             }
         try:
-            self.build_model(X, y)  # type: ignore
+            self.build_model(X)  # type: ignore
         finally:
             self._custom_dim_order = {}
+
+        # build_model keeps the Dataset it was given as X. Expose the long frame
+        # of fit_data instead, from the variables on the dims of the target.
+        stored = idata.fit_data.dataset
+        row_dims = set(stored[self.target_column].dims)
+        frame = stored[
+            [
+                name
+                for name, variable in stored.data_vars.items()
+                if name != self.target_column and set(variable.dims) == row_dims
+            ]
+        ].to_dataframe()
+        self.X = frame.reset_index() if self.date_column in frame.index.names else frame
 
         # Lift-test rows are model inputs, rather than part of fit_data. Restore
         # them after rebuilding the base MMM so their likelihood and posterior
