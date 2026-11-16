@@ -3705,15 +3705,13 @@ class BudgetOptimizer(BaseModel):
         return level, peak
 
     def _covers(self, node: DataArray, variable: MediaVariable) -> bool:
-        """Whether a fitted node is over the date and the variable's dims, labelled on every cell of the variable."""
+        """Whether a fitted node is over the date and the variable's dims, with a coordinate on each.
+
+        Cells the node has no label for read as ``nan`` and give no warning; the others are still checked.
+        """
         if set(node.dims) != {self.date_dim, *variable.dims}:
             return False
-        return all(
-            dim in node.coords
-            and set(np.asarray(variable.coords[dim]).tolist())
-            <= set(node.coords[dim].values.tolist())
-            for dim in variable.dims
-        )
+        return all(dim in node.coords for dim in variable.dims)
 
     def _money_per_node_unit(self, variable: MediaVariable) -> DataArray | float:
         """Return what one unit of a node's fitted data cost: its scales, times the window base price for media."""
@@ -4102,8 +4100,8 @@ class BudgetOptimizer(BaseModel):
         - ``scipy_result["breakpoint_status"]`` says how the passes ended:
           ``"certified"`` (no cell on a breakpoint would gain by leaving it),
           ``"settled"`` (letting cells go stopped buying anything), ``"unsettled"`` (a
-          pass failed, the check could not be solved, the passes ran out or no solve
-          succeeded) or
+          pass failed, the check could not be solved, the passes ran out, a plan held on
+          every breakpoint breaks a constraint there, or no solve succeeded) or
           ``"skipped"`` (a ``method`` other than SLSQP, under which the passes do not
           run). The last two warn that the plan was not settled on its breakpoints, and
           an unsettled plan is the best successful pass, else the first solve. A settled

@@ -3298,7 +3298,8 @@ class TestControlData:
 
 def test_a_dict_schedule_reaches_every_geo(dummy_df, fitted_mmm):
     """A dict keyed by channel gives the same breakpoint to that channel in every geo,
-    and each geo's cell is settled on its own."""
+    and each geo's cell is settled on its own. A warning about such a cell names it by
+    its geo and its channel."""
     _, X_dummy, _ = dummy_df
     start = X_dummy["date_week"].max() + pd.Timedelta(weeks=1)
     end = X_dummy["date_week"].max() + pd.Timedelta(weeks=10)
@@ -3323,3 +3324,18 @@ def test_a_dict_schedule_reaches_every_geo(dummy_df, fitted_mmm):
     assert (channel_1 == level).any(), "fixture drifted"
     near = np.abs(channel_1 / level - 1.0) < 1e-6
     np.testing.assert_array_equal(channel_1[near], level)
+    upper = xr.DataArray(
+        [level / 2, 1.0], dims="channel", coords={"channel": ["channel_1", "channel_2"]}
+    ).broadcast_like(result.budgets)
+    bounds = xr.concat([xr.zeros_like(upper), upper], dim="bound").assign_coords(
+        bound=["lower", "upper"]
+    )
+    with pytest.warns(UserWarning, match="every breakpoint is above") as record:
+        optimizer.allocate_budget(
+            total_budget=1.0, budget_bounds=bounds, return_if_fail=True
+        )
+    message = next(
+        str(w.message) for w in record if "every breakpoint" in str(w.message)
+    )
+    first_capped = next(cell for cell in media.flat_labels() if "channel_1" in cell)
+    assert f"{first_capped} (breakpoint" in message

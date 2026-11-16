@@ -224,7 +224,11 @@ class SettleRun:
         self.solves = [self.first]
 
     def track(self, plan: PiecewisePlan) -> PiecewisePlan:
-        """Keep a successful pass if its objective is the lowest so far, and return the best pass."""
+        """Keep a pass if its objective is the lowest so far, and return the best pass.
+
+        Only successful passes get here: :meth:`BreakpointSettler._next` and ``_held`` return ``None`` for a failed
+        solve, whose ``value`` is ``inf``.
+        """
         best = self.best
         if best is None or plan.value < best.value:
             self.best = best = plan
@@ -317,9 +321,9 @@ class BreakpointSettler:
 
         Every exit records ``result["breakpoint_status"]``: ``"certified"`` when no entry on a breakpoint would
         gain by leaving it, ``"settled"`` when letting entries go stopped buying anything, ``"unsettled"`` when a
-        pass failed, the check could not be solved, the passes ran out or no solve succeeded. An unsettled plan is
-        the best successful pass, else ``first``, with a warning when it succeeded. ``nit``, ``nfev`` and ``njev``
-        are summed over every solve.
+        pass failed, the check could not be solved, the passes ran out, a plan held on every knot breaks a constraint
+        there, or no solve succeeded. An unsettled plan is the best successful pass, else ``first``, with a warning
+        when it succeeded. ``nit``, ``nfev`` and ``njev`` are summed over every solve.
         """
         run = SettleRun(first, self.max_passes)
         plan = self._arrive(
