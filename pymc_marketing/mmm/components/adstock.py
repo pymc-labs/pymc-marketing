@@ -79,6 +79,7 @@ from pymc_marketing.mmm.transformers import (
     geometric_adstock,
     weibull_adstock,
 )
+from pymc_marketing.names.mmm import Dim
 from pymc_marketing.serialization import serialization
 
 
@@ -164,7 +165,7 @@ class AdstockTransformation(Transformation):
         """
         time_since = np.arange(0, self.l_max)
         coords = {
-            "time since exposure": time_since,
+            Dim.TIME_SINCE_EXPOSURE: time_since,
         }
         x = np.zeros(self.l_max)
         x[0] = amount
@@ -270,7 +271,7 @@ class AdstockTransformation(Transformation):
             )
 
         weights = self.sample_curve(parameters, **sample_posterior_predictive_kwargs)
-        lag = "time since exposure"
+        lag = Dim.TIME_SINCE_EXPOSURE
 
         # Dividing by the cumulative sum's own last entry makes the whole kernel
         # exactly one, so the share beyond it is exactly zero; a sum taken in

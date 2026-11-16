@@ -20,6 +20,8 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from pymc_marketing.names.mmm import Dim
+
 
 def _dates(values: Any) -> pd.DatetimeIndex:
     """Parse dates without accepting missing values or numeric timestamps."""
@@ -51,7 +53,7 @@ def _align_labels(
             raise ValueError(f"Dimension {dim!r} must have matching named coordinates.")
         source = array.get_index(dim)
         target = reference.get_index(dim)
-        if dim == "date":
+        if dim == Dim.DATE:
             source = _dates(source).as_unit("us")
             target = _dates(target).as_unit("us")
             array = array.assign_coords(date=source)
@@ -63,7 +65,7 @@ def _align_labels(
             raise ValueError(
                 f"Coordinate labels for dimension {dim!r} do not match the data."
             )
-        indexers[dim] = target if dim == "date" else reference.coords[dim]
+        indexers[dim] = target if dim == Dim.DATE else reference.coords[dim]
     return array.sel(indexers)
 
 
@@ -102,7 +104,7 @@ def validate_dataset(data: xr.Dataset) -> xr.Dataset:
         index = data.get_index(dim)
         if not index.is_unique or pd.isna(index).any():
             raise ValueError(f"Coordinate {dim!r} must have unique, nonmissing labels.")
-    if "date" in data.dims:
+    if Dim.DATE in data.dims:
         dates = _dates(data.get_index("date")).as_unit("us")
         if not dates.is_unique or not dates.is_monotonic_increasing:
             raise ValueError("Dates must be unique and in increasing order.")

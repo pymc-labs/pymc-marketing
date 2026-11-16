@@ -190,6 +190,8 @@ from pymc_marketing.mmm.fourier import (
     YearlyFourier,
     generate_fourier_modes,
 )
+from pymc_marketing.names import Key
+from pymc_marketing.names.mmm import DatasetVar, Dim, Var
 from pymc_marketing.serialization import serialization
 
 __all__ = ["BudgetModelEffect", "exogeneity_summary", "lift_test_design"]
@@ -412,7 +414,9 @@ class _TrainingData:
 
     @property
     def dims(self) -> tuple[str, ...]:
-        return tuple(str(d) for d in self.spend.dims if d not in ("date", "channel"))
+        return tuple(
+            str(d) for d in self.spend.dims if d not in (Dim.DATE, Dim.CHANNEL)
+        )
 
     @property
     def channels(self) -> list[str]:
@@ -643,7 +647,7 @@ class BudgetModelEffect(MuEffect):
         user_dims = getattr(user, "dims", None) or ()
         user_dims = (user_dims,) if isinstance(user_dims, str) else tuple(user_dims)
         extra = {
-            "spend_control": {"control"},
+            "spend_control": {Dim.CONTROL},
             "spend_fourier": {self.fourier_dim},
             "gamma_lag": {self.lag_dim},
         }
@@ -663,13 +667,13 @@ class BudgetModelEffect(MuEffect):
         built, so the warning is not repeated on every prediction.
         """
         dataset = mmm.xarray_dataset
-        all_channels = list(dataset["_channel"].coords["channel"].values)
+        all_channels = list(dataset[DatasetVar.CHANNEL].coords["channel"].values)
         channels = all_channels if self.channels is None else list(self.channels)
         unknown = sorted(set(channels) - set(all_channels))
         if unknown:
             raise ValueError(f"Unknown channels in BudgetModelEffect: {unknown}.")
         spend = (
-            dataset["_channel"]
+            dataset[DatasetVar.CHANNEL]
             .sel(channel=channels)
             .transpose("date", *mmm.dims, "channel")
             .astype(float)
@@ -678,8 +682,10 @@ class BudgetModelEffect(MuEffect):
         spend_scale = abs((spend - shift).where(~holdout, 0.0)).max("date")
 
         control_stats = None
-        if self.use_controls and "_control" in dataset:
-            control_stats = _standardise_stats(dataset["_control"], keep="control")
+        if self.use_controls and DatasetVar.CONTROL in dataset:
+            control_stats = _standardise_stats(
+                dataset[DatasetVar.CONTROL], keep=Dim.CONTROL
+            )
         instrument_stats = {}
         for name in self.instruments:
             values = self._instrument(mmm, name)
@@ -731,7 +737,7 @@ class BudgetModelEffect(MuEffect):
         dim_coords = {
             d: list(spend.coords[d].values)
             for d in spend.dims
-            if d not in ("date", "channel")
+            if d not in (Dim.DATE, Dim.CHANNEL)
         }
         shift, holdout = lift_test_design(
             self.design[keep], dates=dates, channels=channels, dim_coords=dim_coords
@@ -768,9 +774,9 @@ class BudgetModelEffect(MuEffect):
                 "column of X."
             )
         values = mmm.xarray_dataset[name]
-        if "date" not in values.dims:
+        if Dim.DATE not in values.dims:
             raise ValueError(f"Instrument {name!r} must have a 'date' dim.")
-        extra = sorted(set(values.dims) - {"date", *mmm.dims})
+        extra = sorted(set(values.dims) - {Dim.DATE, *mmm.dims})
         if extra:
             raise ValueError(
                 f"Instrument {name!r} has dims {extra} beyond the model's "
@@ -789,7 +795,9 @@ class BudgetModelEffect(MuEffect):
                 f"design has columns {extra} the effect does not use. The design is "
                 "saved with the model, so drop them."
             )
-        mmm_channels = set(mmm.xarray_dataset["_channel"].coords["channel"].values)
+        mmm_channels = set(
+            mmm.xarray_dataset[DatasetVar.CHANNEL].coords["channel"].values
+        )
         unknown = sorted(set(self.design["channel"]) - mmm_channels)
         if unknown:
             raise ValueError(f"design has channels {unknown} the MMM does not have.")
@@ -940,9 +948,9 @@ class BudgetModelEffect(MuEffect):
 
         # The spend equation's mean m_{c,t}.
         spend_mu = prior("spend_intercept", f"{p}_spend_intercept")
-        if data.control_stats is not None and "control_data" in model.named_vars:
+        if data.control_stats is not None and Var.CONTROL_DATA in model.named_vars:
             mean, std = data.control_stats
-            z = (model["control_data"] - as_xtensor(mean.values, dims=mean.dims)) / (
+            z = (model[Var.CONTROL_DATA] - as_xtensor(mean.values, dims=mean.dims)) / (
                 as_xtensor(std.values, dims=std.dims)
             )
             coef = prior("spend_control", f"{p}_spend_control_coef")
@@ -1091,13 +1099,13 @@ class BudgetModelEffect(MuEffect):
         training: designed changes are subtracted and designed holdouts
         masked, so a test in a held-out fold is not scored as a surprise.
         """
-        if X is None or "_channel" not in X.data_vars:
+        if X is None or DatasetVar.CHANNEL not in X.data_vars:
             raise ValueError(
                 "surprise_out_of_sample='observed' reads spend on new dates from the "
                 "prediction data, but it has no channel spend."
             )
         spend = (
-            X["_channel"]
+            X[DatasetVar.CHANNEL]
             .sel(channel=data.channels)
             .reindex(date=new_dates)
             .transpose("date", *data.dims, "channel")
@@ -1254,7 +1262,7 @@ def _prior_from_dict(value: dict[str, Any] | None) -> VariableFactory | None:
 
     if value is None:
         return None
-    if "__type__" in value:
+    if Key.TYPE in value:
         return serialization.deserialize(value)
     return deserialize(value)
 
@@ -1337,7 +1345,7 @@ def exogeneity_summary(
         prior_sds.append(effect._prior_sd(mmm, "gamma_lag"))
     gamma = xr.concat(gammas, dim="lag")
     tail = (1 - interval_prob) / 2
-    per_unit = gamma * mmm.scalers["_target"] / data.spend_scale.rename(rename)
+    per_unit = gamma * mmm.scalers[DatasetVar.TARGET] / data.spend_scale.rename(rename)
 
     summary = xr.Dataset(
         {

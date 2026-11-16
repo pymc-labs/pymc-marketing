@@ -18,8 +18,11 @@ import gc
 import weakref
 
 import numpy as np
+import pandas as pd
 import pytest
+from pytensor.graph.traversal import ancestors
 
+from pymc_marketing.mmm import MMM, GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.additive_effect import IncrementalitySpec
 from pymc_marketing.mmm.counterfactual import CounterfactualEvaluator
 from pymc_marketing.mmm.incrementality import kernel_trailing_lags
@@ -32,7 +35,14 @@ from pymc_marketing.mmm.spend_reach import (
     SpendReach,
     TemporalReach,
     linear_predictor,
+    refuse_blocked_spend_paths,
     resolve_channel_dependent_effects,
+)
+from tests.mmm.conftest import (
+    FrozenLevelEffect,
+    ObservedDemandEffect,
+    RandomContributionEffect,
+    SpendScaledPriorEffect,
 )
 
 
@@ -419,6 +429,125 @@ class TestResolveChannelDependentEffects:
         resolved = resolve_channel_dependent_effects(mmm)
 
         assert any(effect.contribution_var == contribution_var for effect in resolved)
+
+
+def build_with_effect(data, effect):
+    """An identity-link MMM on the funnel frame carrying *effect*, built and not fitted.
+
+    The guard on blocked spend paths reads the graph alone, so there is no
+    posterior to make up.
+    """
+    mmm = MMM(
+        channel_columns=["channel_1", "channel_2"],
+        date_column="date",
+        target_column="y",
+        adstock=GeometricAdstock(l_max=3),
+        saturation=LogisticSaturation(),
+    )
+    mmm.add_mu_effect(effect)
+    mmm.build_model(data["X_df"], data["y_series"])
+    return mmm
+
+
+class TestRefuseBlockedSpendPaths:
+    """What a posterior-conditioned evaluation holds fixed on a path from spend.
+
+    A random variable keeps its draws and a frozen deterministic its posterior
+    values whatever spend is, so a path from ``channel_data`` to the linear
+    predictor through one of them is cut.  The evaluations cannot show it: the
+    predictor and the accounted nodes fail to move through it together.  The
+    refusal is therefore read off the graph, and names the variable.
+
+    The four ways of writing a latent mediator are tested through the public
+    methods in ``test_incrementality.py``.  The shapes here are the other things
+    the posterior holds fixed.
+    """
+
+    @pytest.mark.parametrize(
+        "effect, held",
+        [
+            pytest.param(
+                ObservedDemandEffect(prefix="measured"),
+                "measured_demand",
+                id="an observed variable",
+            ),
+            pytest.param(
+                RandomContributionEffect(prefix="noisy"),
+                "noisy_effect_contribution",
+                id="a contribution that is a random variable",
+            ),
+            pytest.param(
+                FrozenLevelEffect(prefix="scaled"),
+                "scaled_level",
+                id="a frozen deterministic",
+            ),
+            pytest.param(
+                SpendScaledPriorEffect(prefix="empirical"),
+                "empirical_beta",
+                id="a prior scaled by spend",
+            ),
+        ],
+    )
+    def test_a_held_variable_on_a_spend_path_is_refused_by_name(
+        self, funnel_mmm_data, effect, held
+    ):
+        """Each kind of held variable is refused, and the refusal says which one.
+
+        The last case is not a structural equation: ``beta`` is a parameter, and
+        today's number for that model is right.  The graph cannot tell it from a
+        latent mediator, so it is refused with the others.
+        """
+        mmm = build_with_effect(funnel_mmm_data, effect)
+
+        with pytest.raises(NotImplementedError, match=held):
+            refuse_blocked_spend_paths(mmm, resolve_channel_dependent_effects(mmm))
+
+    def test_a_likelihood_that_reads_spend_and_feeds_nothing_is_not_on_a_path(self):
+        """A calibration likelihood is downstream of spend, and no path runs through it.
+
+        ``roas_calibration`` is the one random variable besides the target that
+        the library itself puts downstream of ``channel_data``.  It is a leaf,
+        as the likelihood on a mediator's indicator is, so the model is answered.
+        """
+        rng = np.random.default_rng(3128)
+        dates = pd.date_range("2025-01-05", periods=12, freq="W")
+        X = pd.concat(
+            [
+                pd.DataFrame(
+                    {
+                        "date": dates,
+                        "geo": geo,
+                        "C1": rng.uniform(50, 150, len(dates)),
+                        "C2": rng.uniform(20, 80, len(dates)),
+                    }
+                )
+                for geo in ("a", "b")
+            ],
+            ignore_index=True,
+        )
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["C1", "C2"],
+            dims=("geo",),
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            link="log",
+        )
+        mmm.build_model(X, pd.Series(rng.uniform(500, 900, len(X)), name="y"))
+        mmm.add_cost_per_target_calibration(
+            data=X,
+            calibration_data=pd.DataFrame(
+                {"channel": ["C1"], "geo": ["a"], "roas": [2.0], "sigma": [0.5]}
+            ),
+            name_prefix="roas_calibration",
+            target_column="roas",
+            target_per_cost=True,
+        )
+        model = mmm.model
+        calibration = model["roas_calibration"]
+        assert model["channel_data"] in set(ancestors([calibration]))
+
+        assert refuse_blocked_spend_paths(mmm, effects=()) is None
 
 
 class TestSpendProbe:
