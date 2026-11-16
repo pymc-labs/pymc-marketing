@@ -30,15 +30,16 @@ from pytensor.graph.traversal import ancestors
 from scipy.optimize import OptimizeResult
 from xarray import DataArray
 
+import pymc_marketing.mmm.breakpoints as breakpoints_module
 import pymc_marketing.mmm.budget_optimizer as budget_optimizer_module
 from pymc_marketing.mmm import MMM
 from pymc_marketing.mmm.additive_effect import MuEffect
+from pymc_marketing.mmm.breakpoints import leaving_breakpoints
 from pymc_marketing.mmm.budget_optimizer import (
     BudgetOptimizationResult,
     BudgetOptimizer,
     CustomModelWrapper,
     MinimizeException,
-    _leaving_breakpoints,
     optimizer_xarray_builder,
 )
 from pymc_marketing.mmm.components.adstock import GeometricAdstock
@@ -3643,7 +3644,7 @@ def _check(
     size=(10.0, 10.0, 10.0),
 ):
     right = np.asarray(right, dtype=float)
-    return _leaving_breakpoints(
+    return leaving_breakpoints(
         right=right,
         left=right if left is None else np.asarray(left, dtype=float),
         x=np.asarray(x, dtype=float),
@@ -3741,8 +3742,9 @@ def test_leaving_breakpoints(kwargs, up, down):
     lies between its two slopes; the linear program answers that under any active
     constraints. A steep lever held on its bound must not shrink the media cells' costs
     below the solver's tolerances, and a partial move under a ratio still counts."""
-    released_up, released_down, solved = _check(**kwargs)
-    assert solved
+    leaving = _check(**kwargs)
+    assert leaving is not None
+    released_up, released_down = leaving
     assert bool(released_up[0]) is up
     assert bool(released_down[0]) is down
     assert not released_up[1:].any() and not released_down[1:].any()
@@ -3855,6 +3857,7 @@ class TestExactPasses:
         result = optimizer.allocate_budget(total_budget=9.0, callback=True)
 
         assert result.scipy_result.success
+        assert result.scipy_result["breakpoint_status"] == "certified"
         assert result.budgets.sel(channel="a").item() == 4.0
         np.testing.assert_allclose(
             result.budgets.sel(channel="b").item(), 5.0, atol=1e-8
@@ -3876,6 +3879,25 @@ class TestExactPasses:
         )
         np.testing.assert_allclose(
             report["implied_marginal_price"].sel(channel="a").values, 2.0
+        )
+
+    def test_a_time_shaped_plan_settles_on_its_breakpoint(self):
+        """Under a budget_distribution_over_period each period's knot is the breakpoint
+        times that period's share of the plan, while the passes cut pieces in budget
+        units; the two agree, so the cell comes back on its breakpoint and its next unit
+        costs the incremental rate in every period it spends."""
+        shape = xr.DataArray(
+            [[0.4, 0.3, 0.2, 0.1], [0.25, 0.25, 0.25, 0.25]],
+            dims=("channel", "date"),
+            coords={"channel": HAND_CHANNELS, "date": list(range(4))},
+        )
+        result = _hand_optimizer(
+            A_ON_FOUR, budget_distribution_over_period=shape
+        ).allocate_budget(total_budget=9.0)
+        assert result.scipy_result["breakpoint_status"] == "certified"
+        assert result.budgets.sel(channel="a").item() == 4.0
+        np.testing.assert_allclose(
+            result.implied_marginal_price.sel(channel="a").values, 2.0, rtol=1e-12
         )
 
     def test_a_cell_that_belongs_above_its_breakpoint(self):
@@ -3925,6 +3947,7 @@ class TestExactPasses:
             )
         first = calls[0][1]
         assert result.scipy_result.success
+        assert result.scipy_result["breakpoint_status"] == "unsettled"
         np.testing.assert_array_equal(result.budgets.values, first.x)
         exact = optimizer.evaluate_plan(result.budgets).objective
         assert result.scipy_result.fun == exact
@@ -3934,25 +3957,24 @@ class TestExactPasses:
         assert abs(blended - exact) > 1e-3
 
     def test_a_release_that_buys_nothing_stops(self, monkeypatch):
-        """A check that keeps letting the same cell go is stopped by the progress rule,
-        and that is a settled plan, not a failure."""
+        """A check that keeps letting the same cell go is stopped by the progress rule:
+        a settled plan, not a failure, held on its breakpoint by a closing solve."""
 
         def always_up(**kwargs):
             up = np.zeros(kwargs["x"].size, dtype=bool)
             up[0] = True
-            return up, np.zeros_like(up), True
+            return up, np.zeros_like(up)
 
-        monkeypatch.setattr(budget_optimizer_module, "_leaving_breakpoints", always_up)
+        monkeypatch.setattr(breakpoints_module, "leaving_breakpoints", always_up)
         with warnings.catch_warnings():
             warnings.filterwarnings("error", message=".*not settled.*")
             result = _hand_optimizer(A_ON_FOUR).allocate_budget(
                 total_budget=9.0, callback=True
             )
         assert result.scipy_result.success
+        assert result.scipy_result["breakpoint_status"] == "settled"
         assert len({entry["solve"] for entry in result.callback_info}) <= 4
-        np.testing.assert_allclose(
-            result.budgets.sel(channel="a").item(), 4.0, atol=1e-6
-        )
+        assert result.budgets.sel(channel="a").item() == 4.0
 
     def test_a_failed_first_solve_is_recovered_by_the_passes(self, monkeypatch):
         _record_minimize(monkeypatch, fail=_caller_bounds(9.0))
@@ -4045,6 +4067,7 @@ class TestExactPasses:
         assert [b for b, _ in scheduled_calls] == [b for b, _ in calls]
         assert len(scheduled_evaluations) == len(plain_evaluations)
         np.testing.assert_array_equal(scheduled.budgets.values, plain.budgets.values)
+        assert "breakpoint_status" not in scheduled.scipy_result
         np.testing.assert_allclose(
             scheduled.scipy_result.fun, plain.scipy_result.fun, rtol=1e-14
         )
@@ -4084,6 +4107,7 @@ class TestExactPasses:
                 total_budget=9.0, minimize_kwargs={"method": "trust-constr"}
             )
         assert result.scipy_result.success
+        assert result.scipy_result["breakpoint_status"] == "skipped"
         assert all(
             [tuple(map(float, b)) for b in call_bounds] == [(0.0, 9.0)] * 2
             for call_bounds, _ in calls

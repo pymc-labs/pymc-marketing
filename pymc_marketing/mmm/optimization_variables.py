@@ -858,6 +858,14 @@ class MediaVariable(OptimizationVariable):
         full[self._bool_mask] = x
         return DataArray(full, dims=self.dims, coords=self.coords)
 
+    def flat_labels(self) -> list[tuple]:
+        """Return the coordinate labels of the flat entries, in flat-vector order."""
+        labels = {dim: np.asarray(self.coords[dim]).tolist() for dim in self.dims}
+        return [
+            tuple(labels[dim][int(i)] for dim, i in zip(self.dims, index, strict=True))
+            for index in np.argwhere(self._bool_mask)
+        ]
+
     def pack(self, da: DataArray) -> np.ndarray:
         """Flatten a labelled allocation into this variable's flat-vector order."""
         missing = set(self.dims) - set(da.dims)

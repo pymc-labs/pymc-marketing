@@ -2059,25 +2059,29 @@ class TestPriceResponseOptimality:
 class TestTieredPriceResponseGuards:
     """The warnings that catch a schedule typed in the wrong units."""
 
-    def test_no_window_price_warns_for_any_response_on_a_priced_model(
-        self, simple_mmm_data
-    ):
-        """On a model fitted in money, a schedule's multipliers multiply cost_per_unit as a
-        power law's base price does; without a window price that base is 1 and money
-        reaches the model as units, whether or not the response bends money."""
-        response = TieredPriceResponse(rate_multipliers=[1.1])
+    def test_a_priced_model_reads_its_fitted_level_in_money(self, simple_mmm_data):
+        """The table prices every channel, so its data are units. Without a window price
+        the base price is 1 and money reaches the model as units, which warns for any
+        response; the fitted level a breakpoint is compared with is still money, the
+        table's spend, with or without a window price."""
         mmm = _fit_with_table(simple_mmm_data, "post_fit")
         start, end = _window(mmm)
-        with pytest.warns(UserWarning, match="no cost_per_unit for the window"):
-            mmm.budget_optimizer(start, end, price_response=response)
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", UserWarning)
-            mmm.budget_optimizer(
-                start,
-                end,
-                price_response=response,
-                cost_per_unit=_window_cpu(mmm, dict.fromkeys(CHANNELS_3, 2.0)),
-            )
+        spend = mmm.idata.constant_data["channel_spend"]
+        schedule = TieredPriceResponse(
+            breakpoints=13.0 * spend.where(spend > 0).mean("date"),
+            rate_multipliers=xr.DataArray([1.0, 1.6], dims="bracket"),
+        )
+        for cost_per_unit in (None, _window_cpu(mmm, dict.fromkeys(CHANNELS_3, 2.0))):
+            with warnings.catch_warnings(record=True) as record:
+                warnings.simplefilter("always")
+                mmm.budget_optimizer(
+                    start, end, price_response=schedule, cost_per_unit=cost_per_unit
+                )
+            messages = [str(w.message) for w in record]
+            no_price = any("no cost_per_unit for the window" in m for m in messages)
+            assert no_price is (cost_per_unit is None)
+            fitted = next(m for m in messages if "fitted at" in m)
+            assert "('channel_1',) (13 times)" in fitted
 
     def test_a_breakpoint_far_above_the_fitted_level_warns(self, simple_fitted_mmm):
         """A breakpoint typed as a window total is num_periods times too large; one at 13
@@ -2215,6 +2219,20 @@ class TestTieredPriceResponseAllocation:
         np.testing.assert_allclose(
             marginal, np.tile(self.RATES[on], (WINDOW_WEEKS, 1)), rtol=1e-12
         )
+
+    def test_a_total_equal_to_the_commitments_returns_every_cell_on_its_breakpoint(
+        self, simple_fitted_mmm
+    ):
+        """Every cell belongs on its breakpoint and the breakpoints add up to the total, so
+        no solve is left to run once all are held: the plan comes back on the breakpoints
+        exactly, not where the last solve left it, a few ulp away on one cell."""
+        optimizer, breakpoints = self._scheduled(
+            simple_fitted_mmm, 0.9, rates=[3.0, 3.0, 3.0]
+        )
+        result = optimizer.allocate_budget(total_budget=float(breakpoints.sum()))
+        assert result.scipy_result.success
+        assert result.scipy_result["breakpoint_status"] == "certified"
+        np.testing.assert_array_equal(result.budgets.values, breakpoints.values)
 
     def test_a_cap_on_the_breakpoint(self, simple_fitted_mmm):
         """Capped at the breakpoint, the schedule never leaves its first bracket: the plan is
