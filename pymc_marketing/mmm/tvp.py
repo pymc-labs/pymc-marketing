@@ -365,7 +365,9 @@ def create_time_varying_gp_multiplier(
     if hsgp_kwargs.L is None:
         # The data's largest distance from time_index_mid (time_index_mid itself
         # for a zero-start index), plus a year of room for out-of-sample dates.
-        half_range = float(_half_range(time_index.values.eval(), time_index_mid))
+        half_range = float(
+            _half_range(as_xtensor(time_index).values.eval(), time_index_mid)
+        )
         hsgp_kwargs.L = half_range + DAYS_IN_YEAR / time_resolution
     if hsgp_kwargs.ls_mu is None:
         hsgp_kwargs.ls_mu = DAYS_IN_YEAR / time_resolution * 2

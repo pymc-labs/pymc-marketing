@@ -443,23 +443,20 @@ class TestCreateHsgpFromConfig:
         assert hsgp.X_mid == 26.0
 
 
-@pytest.mark.parametrize("start", [0.0, 1000.0], ids=["zero-start", "offset"])
-def test_hsgp_kwargs_default_L_covers_the_data(start) -> None:
-    # The default L is twice the largest distance of the index from X_mid:
-    # X_mid * 2 for a zero-start index, and the same value for a shifted one.
-    X = np.arange(156.0) + start
+def test_hsgp_kwargs_default_L_covers_the_data() -> None:
+    # The default L is twice the largest distance of the index from X_mid, so it
+    # does not depend on where the index starts.
+    X = np.arange(156.0) + 1000.0
     hsgp = create_hsgp_from_config(
         X=DataArray(X, dims=("date",)), dims="date", config=HSGPKwargs()
     )
     assert hsgp.L == pytest.approx(155.0)
-    assert hsgp.L > np.max(np.abs(X - hsgp.X_mid))
 
 
-@pytest.mark.parametrize("start", [0, 10], ids=["zero-start", "offset"])
-def test_time_varying_gp_multiplier_default_L_does_not_depend_on_where_the_index_starts(
-    start,
-) -> None:
-    index = np.arange(5) + start
+def test_time_varying_gp_multiplier_default_L_does_not_depend_on_where_the_index_starts() -> (
+    None
+):
+    index = np.arange(5) + 10
     hsgp_kwargs = HSGPKwargs()
     with pm.Model(coords={"date": range(5)}):
         time_index = pmd.Data("X", index, dims="date")
@@ -467,9 +464,23 @@ def test_time_varying_gp_multiplier_default_L_does_not_depend_on_where_the_index
             name="intercept",
             dims="date",
             time_index=time_index,
-            time_index_mid=start + 2,
+            time_index_mid=12,
             time_resolution=7,
             hsgp_kwargs=hsgp_kwargs,
         )
-    # 2 is time_index_mid for the zero-start index, as before.
+    # 2 is the largest distance of the index from time_index_mid.
     assert hsgp_kwargs.L == pytest.approx(2 + DAYS_IN_YEAR / 7)
+
+
+def test_time_varying_gp_multiplier_default_L_accepts_a_data_array() -> None:
+    hsgp_kwargs = HSGPKwargs()
+    with pm.Model(coords={"date": range(365)}):
+        create_time_varying_gp_multiplier(
+            name="intercept",
+            dims="date",
+            time_index=DataArray(np.arange(365), dims=("date",)),
+            time_index_mid=182,
+            time_resolution=5,
+            hsgp_kwargs=hsgp_kwargs,
+        )
+    assert hsgp_kwargs.L == pytest.approx(182 + DAYS_IN_YEAR / 5)

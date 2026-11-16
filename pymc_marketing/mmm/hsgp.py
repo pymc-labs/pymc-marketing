@@ -112,7 +112,7 @@ def create_constrained_inverse_gamma_prior(
     ).constrain(lower=lower, upper=upper, mass=mass)
 
 
-def _half_range(x, x_center):
+def _half_range(x: npt.ArrayLike, x_center: float | npt.ArrayLike) -> np.ndarray:
     """Largest distance of the data from its center, ``S`` in Riutort-Mayol et al.
 
     The HSGP approximation lives on ``[-L, L]`` around ``x_center``, with
