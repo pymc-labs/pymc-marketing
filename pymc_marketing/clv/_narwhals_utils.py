@@ -118,7 +118,7 @@ def _resolve_time_spec(
     time_unit: str | None,
     week_start: str | None,
 ) -> tuple[str, str, int]:
-    """Validate the new-path time parameters and fill in their defaults.
+    """Validate the time parameters and fill in their defaults.
 
     Returns ``(unit, time_unit, week_start_offset)`` where ``unit`` is the
     granularity unit (``"d"``, ``"w"``, ``"mo"``, ``"q"`` or ``"y"``) and
@@ -153,7 +153,7 @@ def _resolve_time_spec(
     return unit, time_unit, offset
 
 
-def _elapsed(days: Any, unit: str, time_unit: str, extra_divisor: float = 1.0) -> Any:
+def _elapsed(days: Any, unit: str, time_unit: str) -> Any:
     """Express a day count between two period starts in ``time_unit``.
 
     ``days`` is a Narwhals expression or a plain number. When ``time_unit`` names the
@@ -167,7 +167,7 @@ def _elapsed(days: Any, unit: str, time_unit: str, extra_divisor: float = 1.0) -
         elapsed = (
             elapsed.round() if isinstance(elapsed, nw.Expr) else float(round(elapsed))
         )
-    return elapsed / extra_divisor
+    return elapsed
 
 
 def _days_from_civil(year: Any, month: Any, day: Any) -> Any:
@@ -378,7 +378,7 @@ def _finalize(
 
     ``backend=None`` keeps the input's own library and laziness. Otherwise the result
     is collected into the requested eager library. A pandas result gets a fresh
-    ``RangeIndex``, like the legacy path.
+    ``RangeIndex``.
     """
     result: nw.DataFrame[Any] | nw.LazyFrame[Any]
     if backend is not None:

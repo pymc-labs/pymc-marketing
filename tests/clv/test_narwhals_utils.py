@@ -11,15 +11,13 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Tests for the dataframe-agnostic (Narwhals) path of the RFM utilities.
+"""Tests for the RFM utilities, which accept any Narwhals dataframe.
 
-The legacy pandas behaviour is covered by ``tests/clv/test_utils.py``. This module
-checks the private helpers in ``pymc_marketing.clv._narwhals_utils``, that every
-supported backend reproduces the legacy results, that routing between the two paths
-behaves, and that the new ``granularity`` / ``time_unit`` API is right.
+This module checks the private helpers in ``pymc_marketing.clv._narwhals_utils``,
+that every supported backend gives the expected results, and the ``granularity`` /
+``time_unit`` API.
 """
 
-import warnings
 from datetime import UTC, date, datetime, timedelta, timezone
 
 import narwhals.stable.v2 as nw
@@ -43,12 +41,7 @@ from pymc_marketing.clv._narwhals_utils import (
     _validate_input,
 )
 from pymc_marketing.clv.utils import (
-    _rfm_segments_legacy,
-    _rfm_segments_nw,
-    _rfm_summary_legacy,
-    _rfm_summary_nw,
-    _rfm_train_test_split_legacy,
-    _rfm_train_test_split_nw,
+    _default_rfm_segment_config,
     rfm_segments,
     rfm_summary,
     rfm_train_test_split,
@@ -512,7 +505,7 @@ EXPECTED_FIRST_TRANSACTION = pd.DataFrame(
 
 
 # --------------------------------------------------------------------------- #
-# Cross-backend equivalence with the legacy expected outputs
+# Every backend against hand-written expected outputs
 # --------------------------------------------------------------------------- #
 
 
@@ -897,324 +890,9 @@ PARITY_CASES = [
 ]
 
 
-def translate(time_unit: str) -> dict:
-    return {
-        "D": {"granularity": "1d", "time_unit": "day"},
-        "W": {"granularity": "1w", "time_unit": "week"},
-        "M": {"granularity": "1mo", "time_unit": "month"},
-    }[time_unit]
-
-
-class TestLegacyParity:
-    @pytest.mark.parametrize("time_unit, monetary, include_first, end", PARITY_CASES)
-    def test_summary(self, transaction_data, time_unit, monetary, include_first, end):
-        legacy = _rfm_summary_legacy(
-            transaction_data,
-            "identifier",
-            "date",
-            monetary_value_col=monetary,
-            observation_period_end=end,
-            time_unit=time_unit,
-            include_first_transaction=include_first,
-        )
-        new = _rfm_summary_nw(
-            transaction_data,
-            "identifier",
-            "date",
-            monetary_value_col=monetary,
-            observation_period_end=end,
-            include_first_transaction=include_first,
-            **translate(time_unit),
-        )
-        assert_frame_equal(sorted_frame(legacy), sorted_frame(new))
-
-    @pytest.mark.parametrize("time_unit", ["D", "W"])
-    @pytest.mark.parametrize("time_scaler", [1, 7, 30.4375])
-    def test_summary_time_scaler(self, cdnow_datetime, time_unit, time_scaler):
-        legacy = _rfm_summary_legacy(
-            cdnow_datetime,
-            "id",
-            "date",
-            "spent",
-            observation_period_end="1997-10-01",
-            time_unit=time_unit,
-            time_scaler=time_scaler,
-        )
-        new = _rfm_summary_nw(
-            cdnow_datetime,
-            "id",
-            "date",
-            "spent",
-            observation_period_end="1997-10-01",
-            extra_divisor=float(time_scaler),
-            **translate(time_unit),
-        )
-        assert_frame_equal(sorted_frame(legacy), sorted_frame(new))
-
-    @pytest.mark.parametrize("time_unit", ["D", "W"])
-    @pytest.mark.parametrize("monetary", [None, "monetary_value"])
-    @pytest.mark.parametrize("test_end", [None, "2015-02-07", "2015-02-04"])
-    def test_train_test_split(self, transaction_data, time_unit, monetary, test_end):
-        legacy = _rfm_train_test_split_legacy(
-            transaction_data,
-            "identifier",
-            "date",
-            "2015-02-01",
-            test_period_end=test_end,
-            time_unit=time_unit,
-            monetary_value_col=monetary,
-        )
-        new = _rfm_train_test_split_nw(
-            transaction_data,
-            "identifier",
-            "date",
-            "2015-02-01",
-            test_period_end=test_end,
-            monetary_value_col=monetary,
-            **translate(time_unit),
-        )
-        # The legacy path leaves test_frequency as int64 whenever every customer
-        # buys in the test period; the new path always returns floats.
-        assert_frame_equal(sorted_frame(legacy), sorted_frame(new), check_dtype=False)
-
-    def test_train_test_split_cdnow(self, cdnow_datetime):
-        legacy = _rfm_train_test_split_legacy(
-            cdnow_datetime,
-            "id",
-            "date",
-            "1997-09-30",
-            test_period_end="1998-06-30",
-            time_unit="W",
-            monetary_value_col="spent",
-        )
-        new = _rfm_train_test_split_nw(
-            cdnow_datetime,
-            "id",
-            "date",
-            "1997-09-30",
-            test_period_end="1998-06-30",
-            monetary_value_col="spent",
-            granularity="1w",
-            time_unit="week",
-        )
-        assert_frame_equal(sorted_frame(legacy), sorted_frame(new), check_dtype=False)
-
-    @pytest.mark.parametrize("time_unit", ["D", "W"])
-    def test_segments(self, transaction_data, time_unit):
-        legacy = _rfm_segments_legacy(
-            transaction_data,
-            "identifier",
-            "date",
-            "monetary_value",
-            time_unit=time_unit,
-        )
-        new = _rfm_segments_nw(
-            transaction_data,
-            "identifier",
-            "date",
-            "monetary_value",
-            **translate(time_unit),
-        )
-        assert_frame_equal(sorted_frame(legacy), sorted_frame(new))
-
-    def test_segments_cdnow(self, cdnow_datetime):
-        legacy = _rfm_segments_legacy(
-            cdnow_datetime, "id", "date", "spent", observation_period_end="1997-10-01"
-        )
-        new = _rfm_segments_nw(
-            cdnow_datetime,
-            "id",
-            "date",
-            "spent",
-            observation_period_end="1997-10-01",
-            granularity="1d",
-        )
-        assert_frame_equal(sorted_frame(legacy), sorted_frame(new))
-
-    def test_segments_heavy_ties(self, heavy_ties):
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", UserWarning)
-            legacy = _rfm_segments_legacy(heavy_ties, "id", "date", "spend")
-            new = _rfm_segments_nw(heavy_ties, "id", "date", "spend", granularity="1d")
-        assert_frame_equal(sorted_frame(legacy), sorted_frame(new))
-
-    def test_segments_heavy_ties_on_every_backend(self, to_backend, heavy_ties):
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", UserWarning)
-            legacy = _rfm_segments_legacy(heavy_ties, "id", "date", "spend")
-            new = rfm_segments(
-                to_backend(heavy_ties), "id", "date", "spend", granularity="1d"
-            )
-        assert_frame_equal(sorted_frame(legacy), collect_sorted(new))
-
-
 # --------------------------------------------------------------------------- #
 # Routing
 # --------------------------------------------------------------------------- #
-
-
-class TestRouting:
-    @pytest.mark.parametrize(
-        "legacy_kwargs",
-        [
-            {"time_unit": "W"},
-            {"time_scaler": 7},
-            {"datetime_format": "%Y-%m-%d"},
-            {"sort_transactions": False},
-        ],
-    )
-    @pytest.mark.parametrize(
-        "new_kwargs",
-        [
-            {"granularity": "1d"},
-            {"week_start": "monday"},
-            {"backend": "pandas"},
-            {"time_unit": "week"},
-        ],
-    )
-    def test_mixed_parameters_raise(self, transaction_data, legacy_kwargs, new_kwargs):
-        if "time_unit" in legacy_kwargs and "time_unit" in new_kwargs:
-            pytest.skip("one keyword cannot carry two values")
-        with pytest.raises(TypeError, match="cannot be combined"):
-            rfm_summary(
-                transaction_data, "identifier", "date", **legacy_kwargs, **new_kwargs
-            )
-
-    @pytest.mark.parametrize(
-        "kwargs",
-        [
-            {},
-            {"time_unit": "W"},
-            {"time_unit": "M"},
-            # pandas aliases without a named counterpart keep working.
-            {"time_unit": "Q"},
-            {"time_unit": "W-WED"},
-            {"time_unit": "2D"},
-            {"time_scaler": 7},
-            {"datetime_format": "%Y-%m-%d"},
-            {"sort_transactions": False},
-        ],
-    )
-    def test_pandas_legacy_parameters_keep_legacy_output(
-        self, transaction_data, kwargs
-    ):
-        with warnings.catch_warnings():
-            warnings.simplefilter("error")
-            actual = rfm_summary(transaction_data, "identifier", "date", **kwargs)
-        expected = _rfm_summary_legacy(transaction_data, "identifier", "date", **kwargs)
-        assert_frame_equal(actual, expected)
-
-    def test_non_pandas_translates_legacy_time_unit(self, transaction_data):
-        native = pl.from_pandas(transaction_data)
-        actual = rfm_summary(
-            native,
-            "identifier",
-            "date",
-            observation_period_end="2015-02-07",
-            time_unit="W",
-        )
-        assert_frame_equal(collect_sorted(actual), EXPECTED_WEEKLY)
-
-    def test_non_pandas_monthly_alias_counts_whole_months(self, transaction_data):
-        legacy = _rfm_summary_legacy(
-            transaction_data, "identifier", "date", time_unit="M"
-        )
-        actual = rfm_summary(
-            pl.from_pandas(transaction_data), "identifier", "date", time_unit="M"
-        )
-        assert_frame_equal(collect_sorted(actual), sorted_frame(legacy))
-
-    def test_non_pandas_default_time_unit_is_silent(self, transaction_data):
-        native = pl.from_pandas(transaction_data)
-        with warnings.catch_warnings():
-            warnings.simplefilter("error")
-            actual = rfm_summary(
-                native, "identifier", "date", observation_period_end="2015-02-07"
-            )
-        assert_frame_equal(collect_sorted(actual), EXPECTED_DAILY)
-
-    def test_non_pandas_translates_time_scaler(self, transaction_data):
-        native = pl.from_pandas(transaction_data)
-        actual = collect_sorted(
-            rfm_summary(
-                native,
-                "identifier",
-                "date",
-                observation_period_end="2015-02-07",
-                time_scaler=7,
-            )
-        )
-        expected = EXPECTED_DAILY.assign(
-            recency=EXPECTED_DAILY["recency"] / 7, T=EXPECTED_DAILY["T"] / 7
-        )
-        assert_frame_equal(actual, expected)
-
-    @pytest.mark.parametrize("time_unit", ["Q", "H", "h", "fortnight"])
-    def test_non_pandas_rejects_untranslatable_time_unit(
-        self, transaction_data, time_unit
-    ):
-        with pytest.raises(TypeError, match="only supported for pandas input"):
-            rfm_summary(
-                pl.from_pandas(transaction_data),
-                "identifier",
-                "date",
-                time_unit=time_unit,
-            )
-
-    def test_non_pandas_rejects_datetime_format(self, transaction_data):
-        with pytest.raises(TypeError, match="cast the column to a datetime dtype"):
-            rfm_summary(
-                pl.from_pandas(transaction_data),
-                "identifier",
-                "date",
-                datetime_format="%Y-%m-%d",
-            )
-
-    def test_non_pandas_ignores_sort_transactions_with_warning(self, transaction_data):
-        native = pl.from_pandas(transaction_data)
-        with pytest.warns(UserWarning, match="sort_transactions is ignored"):
-            actual = rfm_summary(
-                native,
-                "identifier",
-                "date",
-                observation_period_end="2015-02-07",
-                sort_transactions=False,
-            )
-        assert_frame_equal(collect_sorted(actual), EXPECTED_DAILY)
-
-    def test_unknown_time_unit_raises(self, transaction_data):
-        with pytest.raises(ValueError, match="Invalid frequency"):
-            rfm_summary(transaction_data, "identifier", "date", time_unit="fortnight")
-
-    def test_named_time_unit_matches_its_legacy_alias(self, transaction_data):
-        """``"week"`` buckets by week like ``"W"``, on the Narwhals path."""
-        actual = rfm_summary(
-            transaction_data,
-            "identifier",
-            "date",
-            observation_period_end="2015-02-07",
-            time_unit="week",
-        )
-        assert_frame_equal(actual, EXPECTED_WEEKLY)
-
-    def test_explicit_granularity_overrides_the_implied_one(self, transaction_data):
-        actual = rfm_summary(
-            transaction_data,
-            "identifier",
-            "date",
-            observation_period_end="2015-02-07",
-            granularity="1d",
-            time_unit="week",
-        )
-        # Daily periods, measured in weeks.
-        expected = EXPECTED_DAILY.assign(
-            recency=EXPECTED_DAILY["recency"] / 7, T=EXPECTED_DAILY["T"] / 7
-        )
-        assert_frame_equal(actual, expected)
-
-    def test_invalid_backend_fails_before_any_work(self):
-        with pytest.raises(ValueError, match="Unsupported backend"):
-            rfm_summary(object(), "identifier", "date", backend="dask")
 
 
 # --------------------------------------------------------------------------- #
@@ -1507,7 +1185,7 @@ class TestNewApi:
         assert actual["T"].tolist() == [9.0]
 
     def test_weekly_end_includes_the_whole_final_week(self, to_backend):
-        # Like the legacy "W" path, a purchase later in the week of
+        # A purchase later in the week of
         # observation_period_end still belongs to the observed final period.
         df = pd.DataFrame(
             {
@@ -1625,7 +1303,7 @@ class TestNewApi:
 
 
 # --------------------------------------------------------------------------- #
-# Regressions: public functions on every backend against the legacy path
+# Regressions: public functions on every backend
 # --------------------------------------------------------------------------- #
 
 
@@ -1648,31 +1326,123 @@ def random_transactions(seed: int) -> pd.DataFrame:
     )
 
 
-class TestRandomLogsMatchLegacy:
+# pandas period alias of each time unit the reference implementation covers.
+REFERENCE_FREQ = {"day": "D", "week": "W", "month": "M"}
+
+
+def n_periods(difference: pd.Series) -> pd.Series:
+    """Whole periods in a Series of period differences."""
+    return difference.map(lambda offset: offset.n).astype(float)
+
+
+def reference_summary(
+    df: pd.DataFrame, time_unit: str, end=None, include_first: bool = False
+) -> pd.DataFrame:
+    """RFM summary written with pandas periods, independent of the library code."""
+    freq = REFERENCE_FREQ[time_unit]
+    df = df.assign(period=df["date"].dt.to_period(freq))
+    end = df["period"].max() if end is None else pd.Timestamp(end).to_period(freq)
+    spend = (
+        df[df["period"] <= end].groupby(["id", "period"], as_index=False)["spend"].sum()
+    )
+    first = spend.groupby("id")["period"].transform("min")
+    customers = spend.groupby("id").agg(
+        first=("period", "min"), last=("period", "max"), n=("period", "count")
+    )
+    recency = n_periods(customers["last"] - customers["first"])
+    t_value = n_periods(end - customers["first"])
+    n = customers["n"].astype(float)
+    if include_first:
+        columns = {
+            "frequency": n,
+            "recency": t_value - recency,
+            "monetary_value": spend.groupby("id")["spend"].sum() / n,
+        }
+    else:
+        repeat_spend = spend[spend["period"] != first].groupby("id")["spend"].sum()
+        columns = {
+            "frequency": n - 1,
+            "recency": recency,
+            "T": t_value,
+            "monetary_value": (repeat_spend / (n - 1)).reindex(n.index).fillna(0.0),
+        }
+    return (
+        pd.DataFrame(columns)
+        .rename_axis("customer_id")
+        .reset_index()
+        .sort_values("customer_id", ignore_index=True)
+    )
+
+
+def reference_split(
+    df: pd.DataFrame, time_unit: str, train_end: str, test_end: str | None
+) -> pd.DataFrame:
+    freq = REFERENCE_FREQ[time_unit]
+    in_test = df["date"] > pd.Timestamp(train_end)
+    if test_end is not None:
+        in_test &= df["date"] <= pd.Timestamp(test_end)
+    test = df[in_test].assign(period=df["date"].dt.to_period(freq))
+    result = reference_summary(
+        df[df["date"] <= pd.Timestamp(train_end)], time_unit, end=train_end
+    ).set_index("customer_id")
+    test_frequency = test.groupby("id")["period"].nunique()
+    result["test_frequency"] = (
+        test_frequency.reindex(result.index).fillna(0.0).astype(float)
+    )
+    result["test_monetary_value"] = (
+        (test.groupby("id")["spend"].sum() / test_frequency)
+        .reindex(result.index)
+        .fillna(0.0)
+    )
+    study_end = (
+        test["period"].max()
+        if test_end is None
+        else pd.Timestamp(test_end).to_period(freq)
+    )
+    result["test_T"] = float((study_end - pd.Timestamp(train_end).to_period(freq)).n)
+    return result.reset_index()
+
+
+def reference_segments(df: pd.DataFrame) -> pd.DataFrame:
+    result = reference_summary(df, "day", include_first=True)
+    score = ""
+    for metric in ("recency", "frequency", "monetary_value"):
+        bins = pd.qcut(result[metric], q=4, labels=False, duplicates="drop")
+        # A low recency is good, so its labels run backwards.
+        label = bins.max() + 1 - bins if metric == "recency" else bins + 1
+        score = score + label.astype(str)
+    result["rfm_score"] = score
+    result["segment"] = "Other"
+    for name, scores in _default_rfm_segment_config.items():
+        result.loc[result["rfm_score"].isin(scores), "segment"] = name
+    return result
+
+
+class TestRandomLogsMatchReference:
     @pytest.mark.parametrize("seed", range(8))
-    @pytest.mark.parametrize("time_unit", ["D", "W", "M"])
-    def test_summary(self, to_backend, seed, time_unit):
+    @pytest.mark.parametrize("time_unit", ["day", "week", "month"])
+    @pytest.mark.parametrize("end", [None, "2015-05-13"])
+    @pytest.mark.parametrize("include_first", [False, True])
+    def test_summary(self, to_backend, seed, time_unit, end, include_first):
         df = random_transactions(seed)
-        legacy = _rfm_summary_legacy(df, "id", "date", "spend", time_unit=time_unit)
         actual = rfm_summary(
-            to_backend(df), "id", "date", "spend", **translate(time_unit)
+            to_backend(df),
+            "id",
+            "date",
+            "spend",
+            observation_period_end=end,
+            include_first_transaction=include_first,
+            time_unit=time_unit,
         )
-        assert_frame_equal(collect_sorted(actual), sorted_frame(legacy))
+        assert_frame_equal(
+            collect_sorted(actual), reference_summary(df, time_unit, end, include_first)
+        )
 
     @pytest.mark.parametrize("seed", range(8))
-    @pytest.mark.parametrize("time_unit", ["D", "W"])
+    @pytest.mark.parametrize("time_unit", ["day", "week", "month"])
     @pytest.mark.parametrize("test_end", [None, "2015-06-10"])
     def test_train_test_split(self, to_backend, seed, time_unit, test_end):
         df = random_transactions(seed)
-        legacy = _rfm_train_test_split_legacy(
-            df,
-            "id",
-            "date",
-            "2015-04-15",
-            test_period_end=test_end,
-            time_unit=time_unit,
-            monetary_value_col="spend",
-        )
         actual = rfm_train_test_split(
             to_backend(df),
             "id",
@@ -1680,18 +1450,83 @@ class TestRandomLogsMatchLegacy:
             "2015-04-15",
             test_period_end=test_end,
             monetary_value_col="spend",
-            **translate(time_unit),
+            time_unit=time_unit,
         )
         assert_frame_equal(
-            collect_sorted(actual), sorted_frame(legacy), check_dtype=False
+            collect_sorted(actual),
+            reference_split(df, time_unit, "2015-04-15", test_end),
         )
 
     @pytest.mark.parametrize("seed", range(8))
     def test_segments(self, to_backend, seed):
         df = random_transactions(seed)
-        legacy = _rfm_segments_legacy(df, "id", "date", "spend")
-        actual = rfm_segments(to_backend(df), "id", "date", "spend", granularity="1d")
-        assert_frame_equal(collect_sorted(actual), sorted_frame(legacy))
+        actual = rfm_segments(to_backend(df), "id", "date", "spend")
+        assert_frame_equal(collect_sorted(actual), reference_segments(df))
+
+
+class TestTimeUnit:
+    def test_unknown_time_unit_raises(self, transaction_data):
+        with pytest.raises(ValueError, match="Unsupported time_unit 'fortnight'"):
+            rfm_summary(transaction_data, "identifier", "date", time_unit="fortnight")
+
+    @pytest.mark.parametrize(
+        "removed",
+        [
+            {"time_scaler": 7},
+            {"datetime_format": "%Y-%m-%d"},
+            {"sort_transactions": False},
+        ],
+    )
+    def test_removed_parameters_raise(self, transaction_data, removed):
+        with pytest.raises(TypeError, match="unexpected keyword argument"):
+            rfm_summary(transaction_data, "identifier", "date", **removed)
+
+    def test_explicit_granularity_overrides_the_implied_one(self, transaction_data):
+        daily = rfm_summary(
+            transaction_data, "identifier", "date", observation_period_end="2015-02-07"
+        )
+        actual = rfm_summary(
+            transaction_data,
+            "identifier",
+            "date",
+            observation_period_end="2015-02-07",
+            granularity="1d",
+            time_unit="week",
+        )
+        # Daily periods, measured in weeks.
+        assert_frame_equal(
+            actual, daily.assign(recency=daily["recency"] / 7, T=daily["T"] / 7)
+        )
+
+    def test_monthly_split_counts_the_test_window_in_months(self, to_backend):
+        df = pd.DataFrame(
+            {
+                "id": [1, 1, 2, 2, 3],
+                "date": pd.to_datetime(
+                    [
+                        "2024-01-05",
+                        "2024-03-10",
+                        "2024-01-20",
+                        "2024-05-02",
+                        "2024-02-11",
+                    ]
+                ),
+            }
+        )
+        actual = collect_sorted(
+            rfm_train_test_split(
+                to_backend(df),
+                "id",
+                "date",
+                train_period_end="2024-03-31",
+                test_period_end="2024-05-31",
+                time_unit="month",
+            )
+        )
+        assert actual["test_T"].tolist() == [2.0, 2.0, 2.0]
+        assert actual["test_frequency"].tolist() == [0.0, 1.0, 0.0]
+        assert actual["recency"].tolist() == [2.0, 0.0, 0.0]
+        assert actual["T"].tolist() == [2.0, 2.0, 1.0]
 
 
 class TestRegressions:
@@ -1738,13 +1573,15 @@ class TestRegressions:
                 "spend": [1.0, 2.0, 3.0, 4.0, 5.0],
             }
         )
-        legacy = _rfm_summary_legacy(df, "id", "date", "spend")
         native = to_backend(df)
         summary = collect_sorted(
             rfm_summary(native, "id", "date", "spend", granularity="1d")
         )
         assert summary["customer_id"].tolist() == ["a", "b"]
-        assert_frame_equal(summary, sorted_frame(legacy))
+        assert summary["frequency"].tolist() == [1.0, 0.0]
+        assert summary["recency"].tolist() == [10.0, 0.0]
+        assert summary["T"].tolist() == [10.0, 8.0]
+        assert summary["monetary_value"].tolist() == [2.0, 0.0]
 
         split = collect_sorted(
             rfm_train_test_split(native, "id", "date", "2015-01-04", granularity="1d")
