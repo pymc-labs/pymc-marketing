@@ -811,13 +811,9 @@ class SharedPosterior:
             name, posterior_da, self._layouts[name], sample_dims=("sample",)
         )
         var = self._variables[name]
-        # astype always allocates, so the shared variable owns the array and
-        # borrow=True cannot alias the caller's data.
-        # The C order matches the layout _get_or_create binds: the numba
-        # linker keys its signatures on the array layout.  The label alignment
-        # in align_posterior_dim can return a non-C-contiguous array, so a bare
-        # astype would hand over that layout and the first rebind would
-        # compile a second version of the graph.
+        # A fresh C-ordered copy: the shared variable owns it, so borrow=True
+        # cannot alias the caller's data, and numba, which compiles one
+        # signature per layout, never sees the layout label realignment leaves.
         return aligned.values.astype(var.type.dtype, order="C")
 
     def _get_or_create(self, posterior_da: xr.DataArray, *, name: str, dtype: str):
@@ -838,11 +834,10 @@ class SharedPosterior:
                         f"Posterior variable {name!r} has duplicated {dim} labels: "
                         f"{index[index.duplicated()].unique().tolist()}."
                     )
-            # Store the draws C-contiguous: _aligned_values lays a rebind out
-            # the same way, so the numba linker sees one layout and does not
-            # compile a second signature on the first set_posterior.
+            # A fresh C-ordered copy, the layout _aligned_values hands every
+            # rebind, so shared() can borrow it and numba compiles one signature.
             self._variables[name] = shared(
-                posterior_da.values.astype(dtype, order="C"), name=name
+                posterior_da.values.astype(dtype, order="C"), name=name, borrow=True
             )
             self._layouts[name] = layout
             dims = ("sample", *layout.dims)
