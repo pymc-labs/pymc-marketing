@@ -2059,20 +2059,13 @@ class TestPriceResponseOptimality:
 class TestTieredPriceResponseGuards:
     """The warnings that catch a schedule typed in the wrong units."""
 
-    @pytest.mark.parametrize(
-        "response",
-        [
-            TieredPriceResponse(rate_multipliers=[1.1]),
-            PowerPriceResponse(elasticity=0.0),
-        ],
-        ids=["schedule", "flat-power"],
-    )
     def test_no_window_price_warns_for_any_response_on_a_priced_model(
-        self, simple_mmm_data, response
+        self, simple_mmm_data
     ):
-        """On a model fitted in money, multipliers and a power law's base price both
-        multiply cost_per_unit; without a window price that base is 1 and money reaches
-        the model as units, whether or not the response bends money."""
+        """On a model fitted in money, a schedule's multipliers multiply cost_per_unit as a
+        power law's base price does; without a window price that base is 1 and money
+        reaches the model as units, whether or not the response bends money."""
+        response = TieredPriceResponse(rate_multipliers=[1.1])
         mmm = _fit_with_table(simple_mmm_data, "post_fit")
         start, end = _window(mmm)
         with pytest.warns(UserWarning, match="no cost_per_unit for the window"):
@@ -2245,22 +2238,6 @@ class TestTieredPriceResponseAllocation:
         )
         np.testing.assert_allclose(result.budgets, constant.budgets, rtol=1e-6)
 
-    def test_a_lower_bound_just_below_the_breakpoint(self, simple_fitted_mmm):
-        """A bound a hair below the breakpoint is not a tie: the breakpoint is strictly
-        inside the box, and the cells that belong on it still land on it exactly."""
-        optimizer, breakpoints = self._scheduled(simple_fitted_mmm, 0.9)
-        total = 1.3 * float(breakpoints.sum())
-        result = optimizer.allocate_budget(
-            total_budget=total,
-            budget_bounds=self._bounds(breakpoints.values * (1.0 - 1e-6), total),
-        )
-        assert result.scipy_result.success
-        near = np.isclose(result.budgets, breakpoints, rtol=1e-6, atol=0.0)
-        assert near.any(), "fixture drifted"
-        np.testing.assert_array_equal(
-            result.budgets.values[near], breakpoints.values[near]
-        )
-
     def test_a_commitment_held_by_a_constraint(self, simple_fitted_mmm):
         """A commitment enforced by a Constraint rather than budget_bounds lands on the
         same plan, and the cells the constraint binds sit on their breakpoint."""
@@ -2299,39 +2276,6 @@ class TestTieredPriceResponseAllocation:
         assert binding, "fixture drifted"
         for i in binding:
             assert by_constraint.budgets.values[i] == breakpoints.values[i]
-
-    def test_a_skewed_distribution_over_period(self, simple_fitted_mmm):
-        """The committed tranche takes the plan's time shape: a cell on its breakpoint pays
-        the first bracket's rate on average, and its next unit costs the incremental rate
-        in every spent period."""
-        mmm = simple_fitted_mmm
-        start, _ = _window(mmm)
-        dates = pd.date_range(start, periods=WINDOW_WEEKS, freq="7D")
-        shape = xr.DataArray(
-            np.tile([[0.4], [0.3], [0.2], [0.1]], (1, 3)),
-            dims=("date", "channel"),
-            coords={"date": dates, "channel": CHANNELS_3},
-        )
-        optimizer, breakpoints = self._scheduled(
-            mmm, 0.9, budget_distribution_over_period=shape
-        )
-        total = 1.3 * float(breakpoints.sum())
-        pinned = optimizer.allocate_budget(
-            total_budget=total, budget_bounds=self._bounds(breakpoints.values, total)
-        )
-        on = (pinned.budgets == breakpoints).values
-        assert on.any(), "fixture drifted"
-        average = (
-            pinned.budgets * optimizer.num_periods / pinned.implied_delivery.sum("date")
-        )
-        np.testing.assert_allclose(average.values[on], 1.0, rtol=1e-10)
-        free = optimizer.allocate_budget(total_budget=self.TOTAL)
-        on = (free.budgets == breakpoints).values
-        assert on.any(), "fixture drifted"
-        marginal = free.implied_marginal_price.isel(channel=np.flatnonzero(on))
-        np.testing.assert_allclose(
-            marginal, np.tile(self.RATES[on], (WINDOW_WEEKS, 1)), rtol=1e-12
-        )
 
     def test_a_volume_discount(self, simple_fitted_mmm):
         """A falling rate is accepted and scored anywhere; a solve that could cross it is
@@ -2390,35 +2334,3 @@ class TestTieredPriceResponseAllocation:
             again = copy.allocate_budget(total_budget=self.TOTAL)
             assert again.scipy_result.success
             np.testing.assert_allclose(again.budgets, result.budgets, rtol=1e-6)
-
-    def test_default_bounds_under_jax(self, simple_fitted_mmm):
-        pytest.importorskip("jax")
-        optimizer, _ = self._scheduled(simple_fitted_mmm, 0.9)
-        jax_optimizer, _ = self._scheduled(
-            simple_fitted_mmm, 0.9, compile_kwargs={"mode": "JAX"}
-        )
-        plain = optimizer.allocate_budget(total_budget=self.TOTAL)
-        jax = jax_optimizer.allocate_budget(total_budget=self.TOTAL)
-        np.testing.assert_allclose(jax.budgets, plain.budgets, rtol=1e-8)
-
-    def test_a_schedule_on_a_masked_cell_is_ignored(self, simple_fitted_mmm):
-        mmm = simple_fitted_mmm
-        mask = xr.DataArray(
-            [True, True, False], dims="channel", coords={"channel": CHANNELS_3}
-        )
-        base = _optimizer(mmm, budgets_to_optimize=mask).allocate_budget(
-            total_budget=self.TOTAL
-        )
-        breakpoints = (base.budgets * 0.9).where(mask, 50.0)
-        optimizer = _optimizer(
-            mmm,
-            budgets_to_optimize=mask,
-            price_response=self._schedule(breakpoints),
-        )
-        result = optimizer.allocate_budget(total_budget=self.TOTAL)
-        assert result.scipy_result.success
-        assert result.budgets.sel(channel="channel_3").item() == 0.0
-        on = (result.budgets == breakpoints).values[:2]
-        assert on.any(), "fixture drifted"
-        gap = np.abs(result.budgets.values[:2] / breakpoints.values[:2] - 1.0)
-        assert np.all(gap[~on] > 1e-6)

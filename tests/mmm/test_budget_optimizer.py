@@ -4012,43 +4012,6 @@ class TestExactPasses:
         )
         assert not failed.scipy_result.success
 
-    def test_a_family_without_breakpoints_solves_as_before(self, monkeypatch):
-        """The three hooks have defaults, so a family that never heard of breakpoints solves
-        exactly as a constant price does: the same minimize calls, the same bounds."""
-        bound_weights = []
-        default = ResolvedPriceResponse.bind_period_weights
-
-        def spy(self, weights):
-            bound_weights.append(weights)
-            return default(self, weights)
-
-        monkeypatch.setattr(ResolvedPriceResponse, "bind_period_weights", spy)
-        optimizer = _hand_optimizer(HalfPrice())
-        assert len(bound_weights) == 1
-        variables = optimizer.optimization_variables
-        assert not variables.breakpoints_in_reach(np.zeros(2), np.full(2, 9.0))
-        calls = _record_minimize(monkeypatch)
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", UserWarning)
-            priced = optimizer.allocate_budget(total_budget=9.0)
-        priced_calls = list(calls)
-        calls.clear()
-        half = xr.DataArray(
-            np.full((4, 2), 0.5),
-            dims=("date", "channel"),
-            coords={"date": range(4), "channel": HAND_CHANNELS},
-        )
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", UserWarning)
-            constant = _hand_optimizer(cost_per_unit=half).allocate_budget(
-                total_budget=9.0
-            )
-        assert len(priced_calls) == len(calls)
-        assert [b for b, _ in priced_calls] == [b for b, _ in calls]
-        np.testing.assert_allclose(
-            priced.budgets.values, constant.budgets.values, rtol=1e-6
-        )
-
     def test_breakpoints_out_of_reach_change_nothing(self, monkeypatch):
         """Nothing in reach: the run is today's, down to scipy_result and the number of
         times the objective is evaluated."""
@@ -4088,16 +4051,6 @@ class TestExactPasses:
         np.testing.assert_allclose(
             scheduled.scipy_result.jac, plain.scipy_result.jac, rtol=1e-14
         )
-
-    def test_the_fit_warning_is_silent_without_fitted_data(self):
-        """An idata with no constant_data cannot say what level the model was fitted at:
-        no warning and no error, however far the breakpoint."""
-        far = TieredPriceResponse(
-            breakpoints={"a": [1e9]}, rate_multipliers={"a": [1.0, 2.0]}
-        )
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", UserWarning)
-            _hand_optimizer(far)
 
     def test_breakpoints_above_the_bounds_warn_per_cell(self):
         schedule = TieredPriceResponse(

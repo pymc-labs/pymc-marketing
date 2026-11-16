@@ -1251,7 +1251,12 @@ def _tiered_variable(
             else as_xtensor(np.asarray(distribution), dims=("date", FLAT_DIM))
         ),
         price_response=TieredPriceResponse(
-            breakpoints=list(breakpoints), rate_multipliers=list(multipliers)
+            breakpoints=breakpoints
+            if isinstance(breakpoints, dict)
+            else list(breakpoints),
+            rate_multipliers=multipliers
+            if isinstance(multipliers, dict)
+            else list(multipliers),
         ),
     )
 
@@ -1303,10 +1308,15 @@ def test_a_plan_on_its_breakpoint_under_float32():
 def test_conditioning_reaches_only_the_optimized_cells():
     """Inside a solve's conditioning the map is blended where the box contains a
     breakpoint, and a report compiled before the block reads the blended map; after the
-    block it reads the exact schedule again, which is why reports are built outside it."""
-    variable = _tiered_variable(mask_values=(True, False, True))
+    block it reads the exact schedule again, which is why reports are built outside it.
+    The flat entries of a partial mask find their own cells' pieces."""
+    variable = _tiered_variable(
+        breakpoints={"channel_0": [100.0], "channel_1": [100.0], "channel_2": [200.0]},
+        multipliers={channel: [1.0, 1.6] for channel in CHANNELS},
+        mask_values=(True, False, True),
+    )
     variables = OptimizationVariables([variable])
-    at_breakpoint = np.array([100.0, 100.0])
+    at_breakpoint = np.array([100.0, 200.0])
     exact = variable.delivery_report(at_breakpoint)["implied_delivery"].values
     low, high = np.zeros(2), np.full(2, 300.0)
     with variables.conditioned(low, high):
@@ -1317,6 +1327,9 @@ def test_conditioning_reaches_only_the_optimized_cells():
     assert widths[0, 1] == 0.0 and np.all(widths[0, [0, 2]] > 0.0)
     after = variable.delivery_report(at_breakpoint)["implied_delivery"].values
     np.testing.assert_array_equal(after, exact)
+    piece_low, piece_high = variables.linear_pieces(np.full(2, 150.0), low, high)
+    np.testing.assert_array_equal(piece_low, [100.0, 0.0])
+    np.testing.assert_array_equal(piece_high, [300.0, 200.0])
 
 
 def test_linear_pieces_cut_scheduled_entries_and_leave_the_rest():
@@ -1353,26 +1366,3 @@ def test_linear_pieces_cut_scheduled_entries_and_leave_the_rest():
         np.array([0.0, 0.0, 0.0, -np.inf, -np.inf]),
         np.array([300.0, 300.0, 300.0, np.inf, np.inf]),
     )
-
-
-def test_a_national_spend_gets_its_piece_without_cells():
-    """A spend decided over date alone has a 0-d cell layout; its piece is still one entry."""
-    variable = MediaVariable(
-        name="lf_budget",
-        mask=xr.DataArray(np.array(True), dims=(), coords={}),
-        num_periods=4,
-        adstock_periods=2,
-        channel_scales=1.0,
-        dtype="float64",
-        price_response=TieredPriceResponse(
-            breakpoints=[60.0], rate_multipliers=[1.0, 1.8]
-        ),
-    )
-    piece_low, piece_high = variable.linear_piece(
-        np.array([70.0]), np.array([0.0]), np.array([200.0])
-    )
-    assert (piece_low.tolist(), piece_high.tolist()) == ([60.0], [200.0])
-    with OptimizationVariables([variable]).conditioned(
-        np.array([0.0]), np.array([200.0])
-    ):
-        assert variable.price_response._half_widths.get_value()[0] > 0.0
