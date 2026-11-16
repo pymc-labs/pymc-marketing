@@ -1051,6 +1051,9 @@ class TestEvaluatePlan:
         with pytest.raises(ValueError, match="carry no coordinates"):
             optimizer.evaluate_response_distribution(coordless)
 
+        with pytest.raises(ValueError, match="carry no coordinates"):
+            optimizer.delivery_reports(coordless)
+
         # Named entries say which one is at fault, since a mapping may carry
         # several and only one of them be unlabelled.
         with pytest.raises(ValueError, match="'channel_data'"):
