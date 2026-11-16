@@ -2824,11 +2824,22 @@ class _DateLevelEffect(_ZeroEffect):
         return pmd.Deterministic(self.contribution_var_name, level)
 
 
+class _DateConstantEffect(_ZeroEffect):
+    """A date-indexed constant that is neither data nor a posterior variable."""
+
+    prefix: str = "constant"
+
+    def create_effect(self, mmm):
+        """A ramp over the model's dates, baked into the graph."""
+        n_dates = mmm.model.dim_lengths["date"].eval()
+        return as_xtensor(pt.as_tensor(np.linspace(0.0, 0.01, n_dates)), dims=("date",))
+
+
 @pytest.fixture
 def fit_mmm_with_effect(simple_mmm_data, mock_pymc_sample):
-    """Fit an MMM carrying the effect it is given."""
+    """Fit an MMM carrying the effects it is given."""
 
-    def fit(effect):
+    def fit(*effects):
         X, y = simple_mmm_data["X"], simple_mmm_data["y"]
         mmm = MMM(
             date_column="date",
@@ -2836,7 +2847,9 @@ def fit_mmm_with_effect(simple_mmm_data, mock_pymc_sample):
             channel_columns=["channel_1", "channel_2", "channel_3"],
             adstock=GeometricAdstock(l_max=1),
             saturation=LogisticSaturation(),
-        ).add_mu_effect(effect)
+        )
+        for effect in effects:
+            mmm.add_mu_effect(effect)
         mmm.fit(X, y, draws=50, chains=1, random_seed=42)
         return mmm
 
@@ -2849,8 +2862,8 @@ def test_monthly_incrementality_names_an_unfrozen_date_variable(fit_mmm_with_eff
 
     with pytest.raises(
         ValueError,
-        match=r"^The evaluation failed on windows shorter than the fitted dates\.  "
-        r"The graph reads 'level_draws', which has a 'date' dimension",
+        match=r"^Posterior variables not cut to windows meet a windowed 'date' axis "
+        r"in the graph: 'level_draws'\.",
     ):
         mmm.incrementality.compute_incremental_contribution(frequency="monthly")
 
@@ -2874,21 +2887,30 @@ def test_monthly_incrementality_evaluates_a_reduced_date_variable(
     assert np.isfinite(incremental).all()
 
 
-def test_monthly_incrementality_passes_on_an_error_without_an_uncut_date_variable(
-    fit_mmm_with_effect, monkeypatch
+@pytest.mark.parametrize(
+    "effects",
+    [
+        pytest.param([_DateConstantEffect()], id="constant"),
+        pytest.param(
+            [_DateConstantEffect(), _DateLevelEffect(reduce=True)],
+            id="constant-and-reduced-variable",
+        ),
+    ],
+)
+def test_monthly_incrementality_does_not_blame_a_variable_for_another_failure(
+    fit_mmm_with_effect, effects
 ):
-    """With nothing uncut to name, a failing windowed evaluation raises as it was."""
-    mmm = fit_mmm_with_effect(_FrozenPathEffect())
+    """A failure an uncut variable did not cause keeps its own error.
 
-    def fail(self, args, batch_size):
-        raise ValueError("evaluation failed")
+    A date-indexed constant fails windows on its shape, and a reduced variable the
+    graph also reads is not named for it.
+    """
+    mmm = fit_mmm_with_effect(*effects)
 
-    monkeypatch.setattr(CounterfactualEvaluator, "_evaluate_scenarios", fail)
-
-    with pytest.raises(ValueError, match=r"^evaluation failed$") as raised:
+    with pytest.raises(ValueError, match="incompatible shape") as raised:
         mmm.incrementality.compute_incremental_contribution(frequency="monthly")
 
-    assert any(entry.name == "_evaluate_windows" for entry in raised.traceback)
+    assert "level_draws" not in str(raised.value)
 
 
 def test_sample_posterior_predictive_same_data_with_include_last_observations(

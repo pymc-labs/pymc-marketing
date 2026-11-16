@@ -588,6 +588,102 @@ class TestDateIndexedInputs:
                     spend[scenario, :, 0] + expected[:, 1:4],
                 )
 
+    def _level_evaluator(
+        self, reduce: bool
+    ) -> tuple[CounterfactualEvaluator, np.ndarray]:
+        """Build an evaluator whose spend is scaled by a free ``level`` over date.
+
+        ``level`` is not frozen, so it keeps its draws over all fitted dates.  When
+        *reduce* is set, the graph takes its mean over ``date`` first.
+        """
+        n_dates = len(self.dates)
+        with pm.Model(coords={"date": range(n_dates), "channel": ["c"]}) as model:
+            channel_data = pmd.Data(
+                "channel_data", np.ones((n_dates, 1)), dims=("date", "channel")
+            )
+            level = pmd.Normal("level", dims="date")
+            if reduce:
+                level = level.mean("date")
+            pmd.Deterministic("channel_contribution", channel_data * level)
+
+        values = np.arange(1.0, n_dates + 1)
+        posterior = xr.Dataset(
+            {"level": (("chain", "draw", "date"), values[np.newaxis, np.newaxis])},
+            coords={"chain": [0], "draw": [0]},
+        )
+        evaluator = CounterfactualEvaluator(
+            pymc_model=model,
+            posterior=posterior,
+            response_vars=["channel_contribution"],
+            frozen_deterministics=[],
+            dates=self.dates,
+        )
+        return evaluator, values
+
+    @pytest.mark.parametrize(
+        "entry", ["evaluate_counterfactual", "iter_counterfactual"]
+    )
+    def test_an_uncut_variable_meeting_a_window_is_refused(self, entry):
+        """An uncut variable over date that meets spend's windowed date is refused.
+
+        One window spans every fitted date, so the padded length equals the fitted
+        one and no shape fails: the later window would read ``level`` from the
+        first fitted date instead of its own.
+        """
+        evaluator, _ = self._level_evaluator(reduce=False)
+        n_dates = len(self.dates)
+        windows = self._windows(
+            slice(0, n_dates), slice(2, n_dates), max_window=n_dates
+        )
+        scenarios = CounterfactualScenarios(
+            spend=np.ones((2, n_dates, 1)),
+            period_index=np.array([0, 1]),
+            rows={(0, None): 0, (1, None): 1},
+        )
+
+        with pytest.raises(
+            ValueError,
+            match=r"^Posterior variables not cut to windows meet a windowed 'date' "
+            r"axis in the graph: 'level'\.",
+        ):
+            getattr(evaluator, entry)(scenarios, windows=windows)
+
+    def test_an_uncut_variable_evaluates_on_a_full_window(self):
+        """A window that spans the fitted dates reads the variable at its own dates."""
+        evaluator, values = self._level_evaluator(reduce=False)
+        n_dates = len(self.dates)
+        windows = self._windows(slice(0, n_dates), max_window=n_dates)
+        spend = np.full((1, n_dates, 1), 2.0)
+        scenarios = CounterfactualScenarios(
+            spend=spend, period_index=np.array([0]), rows={(0, None): 0}
+        )
+
+        cut = evaluator.evaluate_counterfactual(scenarios, windows=windows)
+
+        np.testing.assert_allclose(
+            cut["channel_contribution"][0, 0, :, 0], 2.0 * values
+        )
+
+    def test_an_uncut_variable_reduced_over_date_evaluates_on_short_windows(self):
+        """Reduced over date first, the variable never meets a window's date axis."""
+        evaluator, values = self._level_evaluator(reduce=True)
+        n_dates = len(self.dates)
+        windows = self._windows(
+            slice(0, n_dates), slice(2, n_dates), max_window=n_dates
+        )
+        spend = np.ones((2, n_dates, 1))
+        scenarios = CounterfactualScenarios(
+            spend=spend,
+            period_index=np.array([0, 1]),
+            rows={(0, None): 0, (1, None): 1},
+        )
+
+        cut = evaluator.evaluate_counterfactual(scenarios, windows=windows)
+
+        np.testing.assert_allclose(
+            cut["channel_contribution"][1, 0, :, 0], values.mean()
+        )
+
     @pytest.mark.parametrize(
         "max_elements",
         [
