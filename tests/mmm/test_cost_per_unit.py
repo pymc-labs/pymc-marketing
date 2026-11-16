@@ -1790,14 +1790,14 @@ class TestPriceResponseAllocation:
             dims=("channel", "bound"),
             coords={"channel": CHANNELS_3, "bound": ["lower", "upper"]},
         )
-        with pytest.warns(UserWarning, match=r"\('channel_1',\).*elasticity") as record:
+        with pytest.warns(UserWarning, match=r"'channel_1'.*elasticity") as record:
             try:
                 optimizer.allocate_budget(total_budget=self.TOTAL, budget_bounds=bounds)
             except MinimizeException:
                 pass  # platform-dependent, and not what this test is about
         messages = [str(w.message) for w in record if "held at zero" in str(w.message)]
         assert len(messages) == 1
-        assert "cells [('channel_1',)]" in messages[0]
+        assert "cells ['channel_1']" in messages[0]
 
     def test_a_flat_channel_pinned_at_zero_does_not_warn(self, simple_fitted_mmm):
         """A pinned channel with elasticity 0 is the documented remedy, so it must stay
@@ -2081,7 +2081,7 @@ class TestTieredPriceResponseGuards:
             no_price = any("no cost_per_unit for the window" in m for m in messages)
             assert no_price is (cost_per_unit is None)
             fitted = next(m for m in messages if "fitted at" in m)
-            assert "('channel_1',) (13 times)" in fitted
+            assert "channel_1 (13 times)" in fitted
 
     def test_a_breakpoint_far_above_the_fitted_level_warns(self, simple_fitted_mmm):
         """A breakpoint typed as a window total is num_periods times too large; one at 13
@@ -2103,7 +2103,7 @@ class TestTieredPriceResponseGuards:
         ) as record:
             mmm.budget_optimizer(start, end, price_response=schedule(13.0))
         message = next(str(w.message) for w in record if "fitted at" in str(w.message))
-        assert "('channel_1',) (13 times)" in message
+        assert "channel_1 (13 times)" in message
         with warnings.catch_warnings():
             warnings.simplefilter("error", UserWarning)
             mmm.budget_optimizer(start, end, price_response=schedule(2.0))

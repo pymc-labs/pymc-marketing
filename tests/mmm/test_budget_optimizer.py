@@ -14,6 +14,7 @@
 import ast
 import inspect
 import warnings
+from functools import partial
 from unittest.mock import patch
 
 import numpy as np
@@ -30,11 +31,11 @@ from pytensor.graph.traversal import ancestors
 from scipy.optimize import OptimizeResult
 from xarray import DataArray
 
-import pymc_marketing.mmm.breakpoints as breakpoints_module
+import pymc_marketing.mmm._breakpoints as breakpoints_module
 import pymc_marketing.mmm.budget_optimizer as budget_optimizer_module
 from pymc_marketing.mmm import MMM
+from pymc_marketing.mmm._breakpoints import BreakpointSettler, leaving_breakpoints
 from pymc_marketing.mmm.additive_effect import MuEffect
-from pymc_marketing.mmm.breakpoints import leaving_breakpoints
 from pymc_marketing.mmm.budget_optimizer import (
     BudgetOptimizationResult,
     BudgetOptimizer,
@@ -3865,6 +3866,13 @@ def _caller_bounds(total):
     return lambda index, bounds: [tuple(map(float, b)) for b in bounds] == caller
 
 
+def _always_up(**kwargs):
+    """A check that always lets the first entry go up, whatever it is shown."""
+    up = np.zeros(kwargs["x"].size, dtype=bool)
+    up[0] = True
+    return up, np.zeros_like(up)
+
+
 class TestExactPasses:
     def test_a_cell_that_belongs_on_its_breakpoint_is_returned_on_it(self, monkeypatch):
         optimizer = _hand_optimizer(A_ON_FOUR)
@@ -3974,13 +3982,7 @@ class TestExactPasses:
     def test_a_release_that_buys_nothing_stops(self, monkeypatch):
         """A check that keeps letting the same cell go is stopped by the progress rule:
         a settled plan, not a failure, held on its breakpoint by a closing solve."""
-
-        def always_up(**kwargs):
-            up = np.zeros(kwargs["x"].size, dtype=bool)
-            up[0] = True
-            return up, np.zeros_like(up)
-
-        monkeypatch.setattr(breakpoints_module, "leaving_breakpoints", always_up)
+        monkeypatch.setattr(breakpoints_module, "leaving_breakpoints", _always_up)
         with warnings.catch_warnings():
             warnings.filterwarnings("error", message=".*not settled.*")
             result = _hand_optimizer(A_ON_FOUR).allocate_budget(
@@ -3990,6 +3992,59 @@ class TestExactPasses:
         assert result.scipy_result["breakpoint_status"] == "settled"
         assert len({entry["solve"] for entry in result.callback_info}) <= 4
         assert result.budgets.sel(channel="a").item() == 4.0
+
+    def test_a_release_that_buys_nothing_on_the_last_pass_still_closes(
+        self, monkeypatch
+    ):
+        """The progress rule may fire on the last pass the limit allows; the closing solve
+        that holds the new arrivals still runs, so the plan is settled, not unsettled."""
+        monkeypatch.setattr(breakpoints_module, "leaving_breakpoints", _always_up)
+        monkeypatch.setattr(
+            budget_optimizer_module,
+            "BreakpointSettler",
+            partial(BreakpointSettler, max_passes=2),
+        )
+        with warnings.catch_warnings():
+            warnings.filterwarnings("error", message=".*not settled.*")
+            result = _hand_optimizer(A_ON_FOUR).allocate_budget(total_budget=9.0)
+        assert result.scipy_result["breakpoint_status"] == "settled"
+        assert result.budgets.sel(channel="a").item() == 4.0
+
+    def test_knots_that_break_a_constraint_leave_the_plan_unsettled(self):
+        """Every entry is held, but a constraint fails at the knots: they are neither
+        returned nor certified, and the run ends unsettled on the last solve's plan."""
+        both = TieredPriceResponse(
+            breakpoints={"a": [4.0], "b": [5.0]},
+            rate_multipliers={"a": [1.0, 2.0], "b": [1.0, 2.0]},
+        )
+        optimizer = _hand_optimizer(both)
+        first = OptimizeResult(
+            x=np.array([4.0, 5.0]) * (1.0 + 1e-12),
+            success=True,
+            nit=1,
+            nfev=1,
+            njev=1,
+        )
+        broken = {"type": "ineq", "fun": lambda x: -1.0, "jac": lambda x: np.zeros(2)}
+
+        def no_solve(*args):
+            pytest.fail("every entry is held, so no solve is left to run")
+
+        settler = BreakpointSettler(
+            variables=optimizer.optimization_variables,
+            objective_and_grad=optimizer._objective_and_grad,
+            constraints=[broken],
+            solve=no_solve,
+            low=np.array([4.0, 5.0]),
+            high=np.array([9.0, 9.0]),
+            total_budget=9.0,
+            ftol=1e-6,
+            rescale=False,
+        )
+        with pytest.warns(UserWarning, match="not settled on its breakpoints"):
+            result = settler.settle(first)
+        assert result["breakpoint_status"] == "unsettled"
+        np.testing.assert_array_equal(result.x, first.x)
 
     def test_a_failed_first_solve_is_recovered_by_the_passes(self, monkeypatch):
         _record_minimize(monkeypatch, fail=_caller_bounds(9.0))
@@ -4020,9 +4075,9 @@ class TestExactPasses:
         np.testing.assert_array_equal(result.budgets.values, calls[0][1].x)
 
     def test_every_entry_held_is_not_solved_again(self, monkeypatch):
-        """With every cell held on its breakpoint by its lower bound, the first solve's plan
-        stands: SciPy's shortcut for bounds that fix every variable would accept the plan
-        only if the budget constraint held there to the last bit."""
+        """With every cell held on its breakpoint by its lower bound and the breakpoints
+        adding up to the total, no solve is left: the plan comes back on the breakpoints
+        exactly, and no call fixes every variable."""
         both = TieredPriceResponse(
             breakpoints={"a": [4.0], "b": [5.0]},
             rate_multipliers={"a": [1.0, 2.0], "b": [1.0, 2.0]},
@@ -4033,7 +4088,8 @@ class TestExactPasses:
             total_budget=9.0, budget_bounds=bounds
         )
         assert result.scipy_result.success
-        np.testing.assert_allclose(result.budgets.values, [4.0, 5.0], rtol=1e-9)
+        np.testing.assert_array_equal(result.budgets.values, [4.0, 5.0])
+        assert result.scipy_result["breakpoint_status"] == "certified"
         assert all(
             [tuple(map(float, b)) for b in call_bounds] == [(4.0, 9.0), (5.0, 9.0)]
             for call_bounds, _ in calls
@@ -4100,7 +4156,7 @@ class TestExactPasses:
         message = next(
             str(w.message) for w in record if "every breakpoint" in str(w.message)
         )
-        assert "('a',)" in message and "('b',)" not in message
+        assert "cells a (breakpoint 50" in message and "b (" not in message
         assert "50" in message and "upper bound 9" in message
         assert "num_periods=4" in message
         on_the_bound = _hand_bounds([0.0, 0.0], [4.0, 9.0])

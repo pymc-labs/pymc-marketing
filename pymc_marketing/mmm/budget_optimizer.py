@@ -231,6 +231,7 @@ import warnings
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from functools import partial
+from pathlib import Path
 from typing import (
     Any,
     ClassVar,
@@ -243,6 +244,7 @@ from typing import (
 )
 
 import numpy as np
+import pydantic
 import pymc as pm
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
@@ -266,7 +268,11 @@ from pytensor.xtensor.type import XTensorVariable
 from scipy.optimize import OptimizeResult, minimize
 from xarray import DataArray, DataTree
 
-from pymc_marketing.mmm.breakpoints import Bounds, BreakpointSettler
+from pymc_marketing.mmm._breakpoints import (
+    Bounds,
+    BreakpointSettler,
+    gradient_scale,
+)
 from pymc_marketing.mmm.constraints import (
     Constraint,
     build_default_sum_constraint,
@@ -280,7 +286,7 @@ from pymc_marketing.mmm.optimization_variables import (
     align_to_model_coords,
 )
 from pymc_marketing.mmm.price_response import PriceResponse
-from pymc_marketing.mmm.spend_reach import _VALIDATION_WARNING_SKIP
+from pymc_marketing.mmm.spend_reach import _PKG_PREFIX
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
 from pymc_marketing.names.mmm import Attr, Dim, Var
 from pymc_marketing.pytensor_utils import (
@@ -292,6 +298,13 @@ from pymc_marketing.pytensor_utils import (
 )
 from pymc_marketing.version import __version__
 
+_VALIDATION_WARNING_SKIP = (_PKG_PREFIX, str(Path(pydantic.__file__).resolve().parent))
+"""Frames to skip when warning from inside :class:`BudgetOptimizer` validation.
+
+Construction runs through pydantic's validator, so a warning raised there is
+attributed to the first frame outside both this package and pydantic: the
+caller's.
+"""
 DEFAULT_RESPONSE_VARIABLE = Var.TOTAL_MEDIA_CONTRIBUTION_ORIGINAL_SCALE
 """Objective used when no ``response_variable`` is given: the media contribution
 alone. A model whose response also travels through a ``MuEffect`` wants
@@ -517,6 +530,31 @@ def _media_report_fields(report: xr.Dataset | None) -> dict[str, DataArray | Non
     """
     names = ("implied_delivery", "implied_price", "implied_marginal_price")
     return {name: None if report is None else report[name] for name in names}
+
+
+@dataclass(frozen=True)
+class MinimizeSettings:
+    """How :meth:`BudgetOptimizer.allocate_budget` runs SciPy's ``minimize``, resolved once from ``minimize_kwargs``.
+
+    Attributes
+    ----------
+    kwargs : dict
+        The keyword arguments for :func:`scipy.optimize.minimize`, defaults merged.
+    slsqp : bool
+        Whether the method is SLSQP, named or SciPy's default under constraints. The exact passes that settle cells
+        on their breakpoints run only then.
+    rescale : bool
+        Whether SLSQP runs with the default tolerance, so each solve divides the objective by its steepest
+        gradient entry.
+    ftol : float
+        ``options["ftol"]``, else ``tol``, else SciPy's SLSQP default of ``1e-6``: what the exact passes' progress
+        rule compares a release's gain with.
+    """
+
+    kwargs: dict[str, Any]
+    slsqp: bool
+    rescale: bool
+    ftol: float
 
 
 @dataclass
@@ -2625,14 +2663,14 @@ class BudgetOptimizer(BaseModel):
         if not pinned:
             return
         labels = self._media_variable.flat_labels()
-        cells = [labels[i] for i in pinned]
+        cells = [self._cell_name(labels[i]) for i in pinned]
         warnings.warn(
             f"price_response: cells {cells} are held at zero by budget_bounds but carry a non-zero "
             "elasticity. The map is steepest at zero, so the solver is handed its largest gradient on "
             "cells that cannot move; SLSQP rejects that step on some platforms ('Positive directional "
             "derivative for linesearch'). Set their elasticity to 0 or drop them from budgets_to_optimize.",
             UserWarning,
-            skip_file_prefixes=_VALIDATION_WARNING_SKIP,
+            skip_file_prefixes=(_PKG_PREFIX,),
         )
 
     def _priced_without_window_price(self) -> bool:
@@ -3504,17 +3542,11 @@ class BudgetOptimizer(BaseModel):
 
     def _resolve_minimize_kwargs(
         self, minimize_kwargs: dict[str, Any] | None
-    ) -> tuple[dict[str, Any], bool]:
-        """Merge user ``minimize_kwargs`` into :attr:`DEFAULT_MINIMIZE_KWARGS`.
+    ) -> MinimizeSettings:
+        """Merge user ``minimize_kwargs`` into :attr:`DEFAULT_MINIMIZE_KWARGS` and resolve how the solves run.
 
         ``options`` are merged key by key, and only for the default method:
         another method does not get the SLSQP options.
-
-        Returns
-        -------
-        tuple of (dict, bool)
-            The keyword arguments for :func:`scipy.optimize.minimize`, and whether
-            SLSQP runs with the default tolerance, so that the objective is rescaled.
         """
         defaults = self.DEFAULT_MINIMIZE_KWARGS
         user_kwargs = dict(minimize_kwargs or {})
@@ -3538,13 +3570,20 @@ class BudgetOptimizer(BaseModel):
             and method.lower() == "slsqp"
             and not user_set_tolerance
         )
-        return kwargs, rescale
+        options = kwargs["options"]
+        ftol = options.get("ftol", kwargs.get("tol"))
+        return MinimizeSettings(
+            kwargs=kwargs,
+            slsqp=(isinstance(method, str) and method.lower() == "slsqp")
+            or (method is None and bool(self._compiled_constraints)),
+            rescale=rescale,
+            ftol=1e-6 if ftol is None else float(ftol),
+        )
 
     @staticmethod
-    def _gradient_scale(grad: np.ndarray) -> float:
-        """Return the largest absolute entry of ``grad``, or one if it is not larger than one."""
-        steepest = float(np.max(np.abs(grad), initial=0.0))
-        return steepest if np.isfinite(steepest) and steepest > 1.0 else 1.0
+    def _cell_name(label: tuple) -> object:
+        """Return a cell's label for a message: the label itself on a one-dim layout, the tuple otherwise."""
+        return label[0] if len(label) == 1 else label
 
     def _scheduled_variables(self) -> Iterator[MediaVariable]:
         """Yield the media-path variables that carry a price map, in decision-vector order."""
@@ -3569,7 +3608,10 @@ class BudgetOptimizer(BaseModel):
     def _named_cells(variable: MediaVariable, notes: dict[int, str]) -> str:
         """Name the first five flat entries of ``notes`` by their labels, each with its note."""
         labels = variable.flat_labels()
-        named = [f"{labels[i]} ({note})" for i, note in list(notes.items())[:5]]
+        named = [
+            f"{BudgetOptimizer._cell_name(labels[i])} ({note})"
+            for i, note in list(notes.items())[:5]
+        ]
         return ", ".join(named) + (", ..." if len(notes) > 5 else "")
 
     def _warn_breakpoints_above_bounds(self, high: np.ndarray) -> None:
@@ -3596,7 +3638,7 @@ class BudgetOptimizer(BaseModel):
                 f"commitment over the window of num_periods={self.num_periods} is that total divided by "
                 "num_periods, and a national commitment on a per-geo layout is split across the geos.",
                 UserWarning,
-                skip_file_prefixes=_VALIDATION_WARNING_SKIP,
+                skip_file_prefixes=(_PKG_PREFIX,),
             )
 
     def _warn_breakpoints_far_above_fit(self) -> None:
@@ -3637,7 +3679,8 @@ class BudgetOptimizer(BaseModel):
         mean ``cost_per_unit``; the mean is ``nan`` for an entry never on air. With no window ``cost_per_unit``
         on a model whose fitted table prices its channels, the data of those channels are units, so the media
         variable's level is read off ``constant_data["channel_spend"]`` instead: the table's prices times the
-        data, and every other channel's data as they are. ``None`` when the node is missing or has other dims.
+        data, and every other channel's data as they are. ``None`` when the node is missing or does not cover the
+        variable's cells.
         """
         from_spend = (
             variable is self._media_variable and self._priced_without_window_price()
@@ -3648,24 +3691,29 @@ class BudgetOptimizer(BaseModel):
             ]
         except (KeyError, AttributeError, TypeError):
             return None
-        if set(node.dims) != {self.date_dim, *variable.dims}:
+        if not self._covers(node, variable):
             return None
+        money = node if from_spend else node * self._money_per_node_unit(variable)
         coords = {dim: variable.coords[dim] for dim in variable.dims}
-        try:
-            money = node if from_spend else node * self._money_per_node_unit(variable)
-            stats = (
+        level, peak = (
+            stat.reindex(coords).transpose(*variable.dims).values[variable._bool_mask]
+            for stat in (
                 money.where(money > 0).mean(self.date_dim),
                 money.max(self.date_dim),
             )
-            level, peak = (
-                stat.reindex(coords)
-                .transpose(*variable.dims)
-                .values[variable._bool_mask]
-                for stat in stats
-            )
-        except (KeyError, ValueError):
-            return None
+        )
         return level, peak
+
+    def _covers(self, node: DataArray, variable: MediaVariable) -> bool:
+        """Whether a fitted node is over the date and the variable's dims, labelled on every cell of the variable."""
+        if set(node.dims) != {self.date_dim, *variable.dims}:
+            return False
+        return all(
+            dim in node.coords
+            and set(np.asarray(variable.coords[dim]).tolist())
+            <= set(node.coords[dim].values.tolist())
+            for dim in variable.dims
+        )
 
     def _money_per_node_unit(self, variable: MediaVariable) -> DataArray | float:
         """Return what one unit of a node's fitted data cost: its scales, times the window base price for media."""
@@ -3688,35 +3736,17 @@ class BudgetOptimizer(BaseModel):
         result: OptimizeResult,
         solve: Callable[[np.ndarray, Bounds, int], OptimizeResult],
         *,
-        minimize_kwargs: dict[str, Any],
-        rescale: bool,
+        settings: MinimizeSettings,
         low: np.ndarray,
         high: np.ndarray,
         total_budget: float,
     ) -> OptimizeResult:
-        """Run the exact passes of :class:`~pymc_marketing.mmm.breakpoints.BreakpointSettler` on the first solve.
+        """Run the exact passes of the breakpoint settler on the first solve.
 
         They run under SLSQP only; with another method the first solve's plan comes back with a warning and the
         status ``"skipped"``. Either way ``fun`` and ``jac`` are taken from the exact map at the returned plan.
         """
-        method = minimize_kwargs.get("method")
-        if not (
-            (isinstance(method, str) and method.lower() == "slsqp")
-            or (method is None and bool(self._compiled_constraints))
-        ):
-            warnings.warn(
-                "allocate_budget: the plan was not settled on its breakpoints. The exact passes that return a "
-                f"cell on its breakpoint run under SLSQP only, and minimize_kwargs asks for method={method!r}: "
-                "the plan is the first solve's, on a map with its breakpoints blended, and a cell near a "
-                "breakpoint may sit off it.",
-                UserWarning,
-                skip_file_prefixes=_VALIDATION_WARNING_SKIP,
-            )
-            result["breakpoint_status"] = "skipped"
-        else:
-            options = minimize_kwargs.get("options") or {}
-            tolerance = options.get("ftol", minimize_kwargs.get("tol"))
-            ftol = 1e-6 if tolerance is None else float(tolerance)
+        if settings.slsqp:
             result = BreakpointSettler(
                 variables=self._variables,
                 objective_and_grad=self._objective_and_grad,
@@ -3725,10 +3755,19 @@ class BudgetOptimizer(BaseModel):
                 low=low,
                 high=high,
                 total_budget=total_budget,
-                progress_tolerance=lambda grad: (
-                    ftol * (self._gradient_scale(grad) if rescale else 1.0)
-                ),
+                ftol=settings.ftol,
+                rescale=settings.rescale,
             ).settle(result)
+        else:
+            warnings.warn(
+                "allocate_budget: the plan was not settled on its breakpoints. The exact passes that return a "
+                "cell on its breakpoint run under SLSQP only, and minimize_kwargs asks for "
+                f"method={settings.kwargs.get('method')!r}: the plan is the first solve's, on a map with its "
+                "breakpoints blended, and a cell near a breakpoint may sit off it.",
+                UserWarning,
+                skip_file_prefixes=(_PKG_PREFIX,),
+            )
+            result["breakpoint_status"] = "skipped"
         # The returned solve may have seen a blended or a conditioned map; report the exact one.
         objective, grad = self._objective_and_grad(result.x)
         result.fun = float(objective)
@@ -3746,7 +3785,7 @@ class BudgetOptimizer(BaseModel):
             warnings.warn(
                 "No budget bounds provided. Using default bounds (0, total_budget) for each channel.",
                 UserWarning,
-                skip_file_prefixes=_VALIDATION_WARNING_SKIP,
+                skip_file_prefixes=(_PKG_PREFIX,),
             )
         else:
             per_cell = self._budget_bounds_array(budget_bounds)
@@ -3826,8 +3865,7 @@ class BudgetOptimizer(BaseModel):
         start: np.ndarray,
         bounds: Bounds,
         *,
-        minimize_kwargs: dict[str, Any],
-        rescale: bool,
+        settings: MinimizeSettings,
         callback: Callable[[np.ndarray], None] | None,
     ) -> OptimizeResult:
         """One solve over ``bounds``: SLSQP on the rescaled objective, then a polish when the scale moved.
@@ -3836,16 +3874,17 @@ class BudgetOptimizer(BaseModel):
         :meth:`allocate_budget` Notes). SciPy clips the start to the bounds before its first evaluation, so the
         scale is taken there too.
         """
-        if not rescale:
-            return self._minimize(start, bounds, 1.0, minimize_kwargs, callback)
+        kwargs = settings.kwargs
+        if not settings.rescale:
+            return self._minimize(start, bounds, 1.0, kwargs, callback)
         lower = [-np.inf if lo is None else lo for lo, _ in bounds]
         upper = [np.inf if hi is None else hi for _, hi in bounds]
         _, grad = self._objective_and_grad(np.clip(start, lower, upper))
-        scale = self._gradient_scale(grad)
-        result = self._minimize(start, bounds, scale, minimize_kwargs, callback)
+        scale = gradient_scale(grad)
+        result = self._minimize(start, bounds, scale, kwargs, callback)
         if scale == 1.0:
             return result
-        return self._polished(result, bounds, scale, minimize_kwargs, callback)
+        return self._polished(result, bounds, scale, kwargs, callback)
 
     def _minimize(
         self,
@@ -3887,7 +3926,7 @@ class BudgetOptimizer(BaseModel):
         counts cover both solves.
         """
         objective, grad = self._objective_and_grad(result.x)
-        solution_scale = self._gradient_scale(grad)
+        solution_scale = gradient_scale(grad)
         if result.success and solution_scale * 10.0 < scale:
             polish = self._minimize(
                 result.x, bounds, solution_scale, minimize_kwargs, callback
@@ -4076,15 +4115,16 @@ class BudgetOptimizer(BaseModel):
           the exact map at its ``x`` and ``nit``, ``nfev`` and ``njev`` summed over every
           solve. ``callback_info`` entries keep the ``fun`` and ``jac`` of the map their
           solve saw: blended for solve 0, conditioned on the linear pieces for a pass.
-        - Each solve has its own ``maxiter`` and polish, and there are at most 21: the
-          first and 20 passes, closing passes included.
+        - Each solve has its own ``maxiter`` and polish, and there are at most 22: the
+          first, 20 passes with their closing passes, and one more closing pass when
+          letting cells go stops buying anything on the last pass.
         - A cell whose every breakpoint is above its upper bound is warned about: all
           its money is priced in the first bracket.
         - The price maps hold the state of the solve in progress, so one optimizer must
           not run two solves at once, from two threads for example.
         """
         self._total_budget.set_value(np.asarray(total_budget, dtype="float64"))
-        minimize_kwargs, rescale = self._resolve_minimize_kwargs(minimize_kwargs)
+        settings = self._resolve_minimize_kwargs(minimize_kwargs)
         bounds = self._solve_bounds(total_budget, budget_bounds)
         low = np.array([-np.inf if lo is None else lo for lo, _ in bounds], dtype=float)
         high = np.array([np.inf if hi is None else hi for _, hi in bounds], dtype=float)
@@ -4101,8 +4141,7 @@ class BudgetOptimizer(BaseModel):
             return self._solve(
                 self._pack_decision_vector(start),
                 solve_bounds,
-                minimize_kwargs=minimize_kwargs,
-                rescale=rescale,
+                settings=settings,
                 callback=partial(self._record_iteration, callback_info, index)
                 if callback
                 else None,
@@ -4118,8 +4157,7 @@ class BudgetOptimizer(BaseModel):
             result = self._settle_on_breakpoints(
                 result,
                 solve,
-                minimize_kwargs=minimize_kwargs,
-                rescale=rescale,
+                settings=settings,
                 low=low,
                 high=high,
                 total_budget=total_budget,

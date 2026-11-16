@@ -20,6 +20,10 @@ breakpoint inside the bounds blended, and uses that solve only to find the linea
 on. :class:`BreakpointSettler` then solves on those pieces, where no breakpoint is left to cross: an entry a pass
 leaves at a breakpoint end of its piece is pinned there, and :func:`leaving_breakpoints` decides whether a pinned
 entry would gain by leaving it.
+
+The module is private: its classes are shaped around ``allocate_budget``'s solve and are not API. It also holds
+:func:`gradient_scale`, the objective scale every solve of ``allocate_budget`` uses, because the passes measure
+their progress on it and this module cannot import the optimizer.
 """
 
 from __future__ import annotations
@@ -27,16 +31,26 @@ from __future__ import annotations
 import warnings
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 import numpy as np
 from scipy.optimize import OptimizeResult, linprog
 
 from pymc_marketing.mmm.optimization_variables import OptimizationVariables
-from pymc_marketing.mmm.spend_reach import _VALIDATION_WARNING_SKIP
+from pymc_marketing.mmm.spend_reach import _PKG_PREFIX
 
 Bounds = list[tuple[float | None, float | None]]
 BreakpointStatus = Literal["certified", "settled", "unsettled", "skipped"]
+
+
+def gradient_scale(grad: np.ndarray) -> float:
+    """Return the largest absolute entry of ``grad``, or one if it is not larger than one.
+
+    ``allocate_budget`` divides the objective by it, so that SLSQP's absolute ``ftol`` is relative to the steepest
+    marginal response; the passes measure their progress against the same scale.
+    """
+    steepest = float(np.max(np.abs(grad), initial=0.0))
+    return steepest if np.isfinite(steepest) and steepest > 1.0 else 1.0
 
 
 def leaving_breakpoints(
@@ -77,17 +91,8 @@ def leaving_breakpoints(
     # The program is homogeneous and a pinned entry moves at most 1, so a move above a millionth of that is a
     # direction, not HiGHS rounding a zero.
     released = 1e-6
-    reach = rtol * size
-    free_cap = np.where(pinned, 1.0, 4.0 * n)
-    caps = np.concatenate(
-        [
-            np.where(x >= high - reach, 0.0, free_cap),
-            np.where(x <= low + reach, 0.0, free_cap),
-        ]
-    )
-    cost = np.concatenate(
-        [right + tolerance * np.abs(right), -left + tolerance * np.abs(left)]
-    )
+    caps = _direction_caps(x, low, high, pinned, rtol * size)
+    cost = _direction_costs(right, left, tolerance)
     improving = (caps > 0.0) & (cost < 0.0)
     scale = float(np.max(np.abs(cost[improving]), initial=0.0)) or 1.0
     program = linprog(
@@ -102,12 +107,36 @@ def leaving_breakpoints(
     )
     if program.status != 0:
         return None
-    moves = (
-        program.x > released
-        if program.fun < -lp_tolerance
-        else np.zeros(2 * n, dtype=bool)
-    )
+    if program.fun >= -lp_tolerance:
+        return np.zeros(n, dtype=bool), np.zeros(n, dtype=bool)
+    moves = program.x > released
     return pinned & moves[:n], pinned & moves[n:]
+
+
+def _direction_caps(
+    x: np.ndarray,
+    low: np.ndarray,
+    high: np.ndarray,
+    pinned: np.ndarray,
+    reach: np.ndarray,
+) -> np.ndarray:
+    """Return how far each entry may move up, then down: 1 if pinned, ``4 n`` if free, 0 within ``reach`` of a bound."""
+    free_cap = np.where(pinned, 1.0, 4.0 * x.size)
+    return np.concatenate(
+        [
+            np.where(x >= high - reach, 0.0, free_cap),
+            np.where(x <= low + reach, 0.0, free_cap),
+        ]
+    )
+
+
+def _direction_costs(
+    right: np.ndarray, left: np.ndarray, tolerance: float
+) -> np.ndarray:
+    """Return the cost of moving each entry up, then down: its one-sided slope, charged ``tolerance`` of itself."""
+    return np.concatenate(
+        [right + tolerance * np.abs(right), -left + tolerance * np.abs(left)]
+    )
 
 
 def _direction_constraints(
@@ -134,8 +163,8 @@ def _direction_constraints(
 
 
 @dataclass(frozen=True)
-class _Candidate:
-    """A solve's plan, with the linear piece of the map each entry is on.
+class PiecewisePlan:
+    """A solve's plan, with the linear piece of the price map each entry is on.
 
     ``x`` is the plan with every pinned entry on its knot; a pinned entry's piece is that knot at both ends.
     ``newly`` marks the entries this solve left at a knot without holding them there, which a closing solve holds
@@ -153,13 +182,20 @@ class _Candidate:
 
     @property
     def closed(self) -> bool:
+        """Whether every entry the solve left at a knot was held there by its bounds."""
         return not self.newly.any()
 
     @property
     def held(self) -> np.ndarray:
+        """Which entries are held on a knot: their piece is a single point."""
         return self.piece_low == self.piece_high
 
+    def spans(self, low: np.ndarray, high: np.ndarray) -> bool:
+        """Whether every piece is the whole box, so no breakpoint is in any entry's way."""
+        return not np.any((self.piece_low > low) | (self.piece_high < high))
+
     def bounds(self) -> Bounds:
+        """Return the pieces as SciPy bounds, ``None`` where open."""
         return [
             (
                 float(lo) if np.isfinite(lo) else None,
@@ -170,8 +206,66 @@ class _Candidate:
 
 
 @dataclass
+class SettleRun:
+    """The state of one :meth:`BreakpointSettler.settle` call.
+
+    ``solves`` holds every solve, the first one first, for the summed counts; ``best`` the successful pass with the
+    lowest objective on the exact map; ``previous`` the objective the progress rule last compared with.
+    """
+
+    first: OptimizeResult
+    max_passes: int
+    solves: list[OptimizeResult] = field(init=False)
+    best: PiecewisePlan | None = None
+    previous: float = np.inf
+
+    def __post_init__(self) -> None:
+        """Start the list of solves with the first one."""
+        self.solves = [self.first]
+
+    def track(self, plan: PiecewisePlan) -> PiecewisePlan:
+        """Keep a successful pass if its objective is the lowest so far, and return the best pass."""
+        best = self.best
+        if best is None or plan.value < best.value:
+            self.best = best = plan
+        return best
+
+    def stalled(self, plan: PiecewisePlan, tolerance: float) -> bool:
+        """Apply the progress rule: whether letting entries go since the last check bought less than ``tolerance``."""
+        stalled = plan.value > self.previous - tolerance
+        self.previous = plan.value
+        return stalled
+
+    def finish(
+        self, status: BreakpointStatus, plan: PiecewisePlan | None = None
+    ) -> OptimizeResult:
+        """Return a copy of the plan's result, else the best pass's, else the first solve's, with the run's record.
+
+        Without a plan the run did not settle, and a successful result says so with a warning. The copy gets the
+        counts summed over every solve and ``breakpoint_status``; the solves themselves are left as they were.
+        """
+        chosen = plan or self.best
+        result = OptimizeResult(dict(self.first if chosen is None else chosen.result))
+        if plan is None and result.success:
+            warnings.warn(
+                "allocate_budget: the plan was not settled on its breakpoints: a pass failed, the check could "
+                f"not be solved, or {self.max_passes} passes did not settle it. The best plan found comes back; "
+                "a cell near a breakpoint may sit off it.",
+                UserWarning,
+                skip_file_prefixes=(_PKG_PREFIX,),
+            )
+        if len(self.solves) > 1:
+            for key in ("nit", "nfev", "njev"):
+                result[key] = sum(int(solve.get(key, 0)) for solve in self.solves)
+        result["breakpoint_status"] = status
+        return result
+
+
+@dataclass
 class BreakpointSettler:
     """Solve again on each entry's linear piece until no entry on a breakpoint would gain by leaving it.
+
+    A settler is configuration only; each :meth:`settle` call keeps its own :class:`SettleRun`.
 
     Parameters
     ----------
@@ -188,11 +282,14 @@ class BreakpointSettler:
         The caller's bounds of every flat entry, ``-inf`` and ``inf`` where open.
     total_budget : float
         The size of a monetary entry, against which closeness to a bound is measured.
-    progress_tolerance : callable
-        The absolute objective change, given the gradient at the plan, below which letting entries go bought
-        nothing.
+    ftol : float
+        The objective change below which letting entries go bought nothing, on the scale of :func:`gradient_scale`
+        when ``rescale`` and in objective units otherwise, as SLSQP reads it.
+    rescale : bool
+        Whether the solves divide the objective by :func:`gradient_scale`.
     max_passes : int
-        Solves after the first, closing solves included. Default 20.
+        Solves after the first, closing solves included; the progress rule's exit may add one closing solve.
+        Default 20.
     rtol : float
         How close, relative, an entry is to the bound or breakpoint that holds it, and a constraint value to
         zero, when SLSQP leaves them; it leaves about ``8e-10``. Default ``1e-9``.
@@ -205,12 +302,11 @@ class BreakpointSettler:
     low: np.ndarray
     high: np.ndarray
     total_budget: float
-    progress_tolerance: Callable[[np.ndarray], float]
+    ftol: float
+    rescale: bool
     max_passes: int = 20
     rtol: float = 1e-9
     size: np.ndarray = field(init=False)
-    _solves: list[OptimizeResult] = field(init=False, default_factory=list)
-    _best: _Candidate | None = field(init=False, default=None)
 
     def __post_init__(self) -> None:
         """Measure every entry's size once: closeness to a bound and constraint slack are relative to it."""
@@ -225,96 +321,115 @@ class BreakpointSettler:
         the best successful pass, else ``first``, with a warning when it succeeded. ``nit``, ``nfev`` and ``njev``
         are summed over every solve.
         """
-        self._solves, self._best = [first], None
-        current = self._arrive(
+        run = SettleRun(first, self.max_passes)
+        plan = self._arrive(
             first, *self.variables.linear_pieces(first.x, self.low, self.high)
         )
-        if not np.any(
-            (current.piece_low > self.low) | (current.piece_high < self.high)
-        ):
+        if plan.spans(self.low, self.high):
             # Nothing was blended and no entry is on a breakpoint: the first solve was on the exact map.
-            return self._finish("certified" if first.success else "unsettled", current)
-        previous = np.inf
+            return run.finish("certified" if first.success else "unsettled", plan)
         for index in range(1, self.max_passes + 1):
-            following = self._next(current, index)
-            if following is None:
-                return self._finish("unsettled")
-            current = following
-            self._track(current)
-            leaving = self._leaving(current)
-            if leaving is None:
-                return self._finish("unsettled")
-            up, down = leaving
-            if not (up | down).any():
-                if current.closed:
-                    return self._finish("certified", current)
-                continue  # a closing pass holds the new arrivals with both bounds
-            if current.value > previous - self.progress_tolerance(current.grad):
-                closed = self._close(cast(_Candidate, self._best), index + 1)
-                return (
-                    self._finish("settled", closed)
-                    if closed
-                    else self._finish("unsettled")
-                )
-            previous = current.value
-            current = self._released(current, up, down)
-        return self._finish("unsettled")
+            step = self._step(run, plan, index)
+            if isinstance(step, OptimizeResult):
+                return step
+            plan = step
+        return run.finish("unsettled")
 
-    def _next(self, candidate: _Candidate, index: int) -> _Candidate | None:
-        """Solve on the candidate's pieces, or put every entry on its knot when all are held; ``None`` on failure."""
-        if candidate.held.all():
-            return self._held(candidate)
-        start = np.clip(candidate.x, candidate.piece_low, candidate.piece_high)
-        with self.variables.conditioned(candidate.piece_low, candidate.piece_high):
-            result = self.solve(start, candidate.bounds(), index)
-        self._solves.append(result)
+    def _step(
+        self, run: SettleRun, plan: PiecewisePlan, index: int
+    ) -> PiecewisePlan | OptimizeResult:
+        """Run one pass and its check: return the plan the next pass solves, or the finished result."""
+        solved = self._next(run, plan, index)
+        if solved is None:
+            return run.finish("unsettled")
+        best = run.track(solved)
+        leaving = self._leaving(solved)
+        if leaving is None:
+            return run.finish("unsettled")
+        up, down = leaving
+        if not (up | down).any():
+            # An open plan goes round once more, so a closing pass holds its new arrivals with both bounds.
+            return run.finish("certified", solved) if solved.closed else solved
+        if run.stalled(solved, self._progress_tolerance(solved.grad)):
+            closed = self._close(run, best, index + 1)
+            return run.finish("settled", closed) if closed else run.finish("unsettled")
+        return self._released(solved, up, down)
+
+    def _next(
+        self, run: SettleRun, plan: PiecewisePlan, index: int
+    ) -> PiecewisePlan | None:
+        """Solve on the plan's pieces, or put every entry on its knot when all are held; ``None`` on failure."""
+        if plan.held.all():
+            return self._held(plan)
+        start = np.clip(plan.x, plan.piece_low, plan.piece_high)
+        with self.variables.conditioned(plan.piece_low, plan.piece_high):
+            result = self.solve(start, plan.bounds(), index)
+        run.solves.append(result)
         if not result.success:
             return None
-        return self._arrive(result, candidate.piece_low, candidate.piece_high)
+        return self._arrive(result, plan.piece_low, plan.piece_high)
 
-    def _held(self, candidate: _Candidate) -> _Candidate | None:
-        """Every entry is held, so no solve is left: return the plan on the knots when the constraints hold there.
+    def _held(self, plan: PiecewisePlan) -> PiecewisePlan | None:
+        """Every entry is held, so no solve is left: return the plan on its knots, or ``None`` if they are infeasible.
 
         SciPy answers bounds that fix every variable without running SLSQP, and accepts them only if every
-        constraint holds to the last bit, so the knots are checked here within ``rtol``. When they do not hold,
-        the last solve's plan stands, within ``rtol`` of its knots. Either way the result keeps that solve's
-        ``multipliers`` and counts.
+        constraint holds to the last bit, so the knots are checked here within ``rtol``. When they fail, the run
+        ends unsettled: a check on the knots would certify a point the result does not hold. The result keeps the
+        last solve's ``multipliers`` and counts.
         """
-        if not candidate.result.success:
+        knots = plan.piece_low.copy()
+        if not plan.result.success or not self._feasible(knots):
             return None
-        knots = candidate.piece_low
-        result = candidate.result
-        if self._feasible(knots):
-            result = OptimizeResult({**result, "x": knots.copy()})
-        value, grad = self.objective_and_grad(result.x)
+        result = OptimizeResult({**plan.result, "x": knots})
+        value, grad = self._evaluated(result)
         return replace(
-            candidate,
+            plan,
             result=result,
-            x=knots.copy(),
+            x=knots,
             newly=np.zeros(knots.size, dtype=bool),
-            value=float(value),
-            grad=np.asarray(grad, dtype="float64"),
+            value=value,
+            grad=grad,
         )
 
-    def _close(self, candidate: _Candidate, index: int) -> _Candidate | None:
-        """Hold the entries a candidate's solve left at a knot, solving again until none is left."""
-        while not candidate.closed and index <= self.max_passes:
-            following = self._next(candidate, index)
+    def _close(
+        self, run: SettleRun, plan: PiecewisePlan, index: int
+    ) -> PiecewisePlan | None:
+        """Hold the entries a plan's solve left at a knot, solving again until none is left.
+
+        It may use one solve past ``max_passes``, so a run whose progress rule fires on the last pass still closes.
+        """
+        while not plan.closed and index <= self.max_passes + 1:
+            following = self._next(run, plan, index)
             if following is None:
                 return None
-            candidate, index = following, index + 1
-        return candidate if candidate.closed else None
+            plan, index = following, index + 1
+        return plan if plan.closed else None
 
     def _arrive(
         self, result: OptimizeResult, piece_low: np.ndarray, piece_high: np.ndarray
-    ) -> _Candidate:
-        """Pin the entries a solve left at an end of their piece that is a breakpoint, and put them on it.
+    ) -> PiecewisePlan:
+        """Build the plan of a solve on the given pieces, pinning the entries it left at a breakpoint end."""
+        x = np.asarray(result.x, dtype="float64")
+        pin, knot = self._pins(x, piece_low, piece_high)
+        value, grad = self._evaluated(result)
+        return PiecewisePlan(
+            result=result,
+            x=np.where(pin, knot, x),
+            piece_low=np.where(pin, knot, piece_low),
+            piece_high=np.where(pin, knot, piece_high),
+            newly=pin,
+            value=value,
+            grad=grad,
+        )
+
+    def _pins(
+        self, x: np.ndarray, piece_low: np.ndarray, piece_high: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Return which entries sit at an end of their piece that is a breakpoint, and that end.
 
         The end is a breakpoint inside the entry's bounds, or one of its own bounds when that bound is a
-        breakpoint; breakpoints are positive, so "at the end" is relative. The move is for the check and the next
-        solve; the plan a solve returned is not moved.
+        breakpoint; breakpoints are positive, so "at the end" is relative. The top end wins a tie.
         """
-        x = np.asarray(result.x, dtype="float64")
         is_breakpoint = self.variables.is_breakpoint
         open_piece = piece_low < piece_high
         top = (
@@ -328,41 +443,30 @@ class BreakpointSettler:
             & ((piece_low > self.low) | is_breakpoint(piece_low))
             & (x <= piece_low * (1.0 + self.rtol))
         )
-        pin = top | bottom
-        knot = np.where(top, piece_high, piece_low)
-        value, grad = (
-            self.objective_and_grad(result.x)
-            if result.success
-            else (np.inf, np.zeros(x.size))
-        )
-        return _Candidate(
-            result=result,
-            x=np.where(pin, knot, x),
-            piece_low=np.where(pin, knot, piece_low),
-            piece_high=np.where(pin, knot, piece_high),
-            newly=pin,
-            value=float(value),
-            grad=np.asarray(grad, dtype="float64"),
-        )
+        return top | bottom, np.where(top, piece_high, piece_low)
 
-    def _track(self, candidate: _Candidate) -> None:
-        """Keep the successful pass with the lowest objective on the exact map."""
-        if candidate.result.success and (
-            self._best is None or candidate.value < self._best.value
-        ):
-            self._best = candidate
+    def _evaluated(self, result: OptimizeResult) -> tuple[float, np.ndarray]:
+        """Return the objective and gradient at a result's plan on the exact map; ``inf`` for a failed solve."""
+        if not result.success:
+            return np.inf, np.zeros(np.size(result.x))
+        value, grad = self.objective_and_grad(result.x)
+        return float(value), np.asarray(grad, dtype="float64")
 
-    def _leaving(self, candidate: _Candidate) -> tuple[np.ndarray, np.ndarray] | None:
+    def _progress_tolerance(self, grad: np.ndarray) -> float:
+        """Return the objective change below which letting entries go bought nothing, at a plan's gradient."""
+        return self.ftol * (gradient_scale(grad) if self.rescale else 1.0)
+
+    def _leaving(self, plan: PiecewisePlan) -> tuple[np.ndarray, np.ndarray] | None:
         """Ask :func:`leaving_breakpoints` which held entries would gain by leaving their breakpoint."""
-        right, left = self._one_sided_gradients(candidate.x)
-        equalities, active = self._constraint_rows(candidate.x)
+        right, left = self._one_sided_gradients(plan.x)
+        equalities, active = self._constraint_rows(plan.x)
         return leaving_breakpoints(
             right=right,
             left=left,
-            x=candidate.x,
+            x=plan.x,
             low=self.low,
             high=self.high,
-            pinned=candidate.held & (self.low < self.high),
+            pinned=plan.held & (self.low < self.high),
             equalities=equalities,
             active_inequalities=active,
             size=self.size,
@@ -370,38 +474,18 @@ class BreakpointSettler:
         )
 
     def _released(
-        self, candidate: _Candidate, up: np.ndarray, down: np.ndarray
-    ) -> _Candidate:
+        self, plan: PiecewisePlan, up: np.ndarray, down: np.ndarray
+    ) -> PiecewisePlan:
         """Give the entries the check lets go the piece on the side that gains."""
         new_low, new_high = self.variables.linear_pieces(
-            candidate.x, self.low, self.high, from_below=down
+            plan.x, self.low, self.high, from_below=down
         )
         moved = up | down
         return replace(
-            candidate,
-            piece_low=np.where(moved, new_low, candidate.piece_low),
-            piece_high=np.where(moved, new_high, candidate.piece_high),
+            plan,
+            piece_low=np.where(moved, new_low, plan.piece_low),
+            piece_high=np.where(moved, new_high, plan.piece_high),
         )
-
-    def _finish(
-        self, status: BreakpointStatus, candidate: _Candidate | None = None
-    ) -> OptimizeResult:
-        """Return the candidate's plan; without one, the best pass, else the first solve, warned if it succeeded."""
-        chosen = candidate or self._best
-        result = self._solves[0] if chosen is None else chosen.result
-        if candidate is None and result.success:
-            warnings.warn(
-                "allocate_budget: the plan was not settled on its breakpoints: a pass failed, the check could "
-                f"not be solved, or {self.max_passes} passes did not settle it. The best plan found comes back; "
-                "a cell near a breakpoint may sit off it.",
-                UserWarning,
-                skip_file_prefixes=_VALIDATION_WARNING_SKIP,
-            )
-        if len(self._solves) > 1:
-            for key in ("nit", "nfev", "njev"):
-                result[key] = sum(int(solve.get(key, 0)) for solve in self._solves)
-        result["breakpoint_status"] = status
-        return result
 
     def _one_sided_gradients(self, x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Return the objective's gradient at ``x`` with every entry on the piece above it, and below it.
@@ -431,24 +515,26 @@ class BreakpointSettler:
             jacobian = np.asarray(constraint["jac"](x), dtype="float64").reshape(-1)
             if constraint["type"] == "eq":
                 equalities.append(jacobian)
-            elif float(constraint["fun"](x)) <= self.rtol * float(
-                np.abs(jacobian) @ self.size
-            ):
+            elif float(constraint["fun"](x)) <= self._slack(jacobian):
                 active.append(jacobian)
         return equalities, active
 
     def _feasible(self, x: np.ndarray) -> bool:
-        """Whether every constraint holds at ``x`` to within ``rtol`` of what moving every entry would move it by."""
+        """Whether every constraint holds at ``x`` to within :meth:`_slack`."""
         for constraint in self.constraints:
             jacobian = np.asarray(constraint["jac"](x), dtype="float64").reshape(-1)
-            slack = self.rtol * float(np.abs(jacobian) @ self.size)
             value = np.asarray(constraint["fun"](x), dtype="float64")
+            slack = self._slack(jacobian)
             violated = (
                 np.abs(value) > slack if constraint["type"] == "eq" else value < -slack
             )
             if np.any(violated):
                 return False
         return True
+
+    def _slack(self, jacobian: np.ndarray) -> float:
+        """Return ``rtol`` of what moving every entry across its size would move a constraint by."""
+        return self.rtol * float(np.abs(jacobian) @ self.size)
 
     def _entry_sizes(self) -> np.ndarray:
         """Each flat entry's size: ``total_budget`` for money, and for a lever its largest finite bound.

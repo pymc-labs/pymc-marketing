@@ -71,7 +71,6 @@ from pymc_marketing.mmm.optimization_variables import (
     align_to_model_coords,
     reject_unknown_coords,
 )
-from pymc_marketing.mmm.spend_reach import _VALIDATION_WARNING_SKIP
 from pymc_marketing.names.mmm import Dim
 
 __all__ = [
@@ -1816,7 +1815,8 @@ class TieredPriceResponse(PriceResponse):
             "saturation curve absorbed them and pricing them again double-counts them: that needs a model "
             "fitted on delivery units and a curved family such as PowerPriceResponse.",
             UserWarning,
-            skip_file_prefixes=_VALIDATION_WARNING_SKIP,
+            # Raised from a pydantic validator: this method, the validator, pydantic's constructor, the caller.
+            stacklevel=4,
         )
 
     @staticmethod

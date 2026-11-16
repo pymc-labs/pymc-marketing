@@ -66,7 +66,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar, Literal
 
 import numpy as np
-import pydantic
 import xarray as xr
 from pytensor.graph.basic import Variable
 from pytensor.graph.traversal import ancestors
@@ -95,13 +94,6 @@ the stack.  Call depth from here to user code differs by entry point --
 ``mmm.summary.roas(method="incremental")`` -- so no static ``stacklevel``
 integer is right for all of them at once; Python >= 3.12 is required by
 ``pyproject.toml``, so ``skip_file_prefixes`` is always available.
-"""
-
-_VALIDATION_WARNING_SKIP = (_PKG_PREFIX, str(Path(pydantic.__file__).resolve().parent))
-"""Frames to skip when warning from code that pydantic validation runs.
-
-A warning raised inside a validator, or from a method a validated object calls, is
-attributed to the first frame outside both this package and pydantic: the caller's.
 """
 
 __all__ = [
