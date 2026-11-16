@@ -308,6 +308,52 @@ def test_linear_trend_effect(
     pd.testing.assert_index_equal(effect_predictions.date.to_index(), new_dates)
 
 
+def test_linear_trend_effect_extrapolates_out_of_sample(
+    create_mock_mmm, dates, linear_trend_model
+) -> None:
+    """Out of sample, the trend continues from the changepoints fit in sample.
+
+    Regression test for #1569 and #3298: the prediction dates must not be
+    rescaled into the training period.
+    """
+    n_changepoints = 8
+    effect = LinearTrendEffect(
+        trend=LinearTrend(n_changepoints=n_changepoints, include_intercept=True),
+        prefix="trend",
+    )
+    mmm = create_mock_mmm(dims=(), model=linear_trend_model)
+    name = "trend_effect_contribution"
+
+    with mmm.model:
+        effect.create_data(mmm)
+        effect.create_effect(mmm)
+        prior = pm.sample_prior_predictive(draws=20, random_seed=1).prior
+
+    def expected_trend(new_dates: pd.DatetimeIndex) -> xr.DataArray:
+        span = (dates.max() - dates[0]).days
+        t = xr.DataArray(
+            ((new_dates - dates[0]).days / span).to_numpy(),
+            dims="date",
+            coords={"date": new_dates},
+        )
+        s = xr.DataArray(np.linspace(0, 1, n_changepoints), dims="changepoint")
+        slopes = ((t > s) * prior["delta"] * (t - s)).sum("changepoint")
+        return (prior["k"] + slopes).transpose("chain", "draw", "date")
+
+    xr.testing.assert_allclose(prior[name], expected_trend(dates))
+
+    # Start at the last training date, so the forecast overlaps the fitted trend.
+    future_dates = pd.date_range(dates.max(), periods=12, freq="W-MON", name="date")
+    with mmm.model:
+        set_new_model_dates(future_dates)
+        effect.set_data(mmm, mmm.model, None)
+        predictions = pm.sample_posterior_predictive(
+            prior, var_names=[name], random_seed=1
+        ).posterior_predictive[name]
+
+    xr.testing.assert_allclose(predictions, expected_trend(future_dates))
+
+
 class TestMuEffectRoundtrips:
     @pytest.mark.parametrize(
         "fourier_cls_name",
@@ -489,6 +535,8 @@ def test_additive_effect_type_registered(type_key):
 
 class TestDataVarMuEffect:
     """Tests for the DataVarMuEffect base class."""
+
+    GEOS = ["north", "east", "south"]  # not sorted
 
     def test_instantiation_error(self):
         """DataVarMuEffect is abstract and cannot be instantiated directly."""
@@ -680,6 +728,73 @@ class TestDataVarMuEffect:
                 new_ds["shared"].values,
             )
 
+    def _make_geo_setup(self, dates):
+        """Mock MMM and effect reading a ``(date, geo)`` column on unsorted geos."""
+        rng = np.random.default_rng(42)
+        ds = xr.Dataset(
+            {"feature": (("date", "geo"), rng.normal(size=(len(dates), 3)))},
+            coords={"date": dates, "geo": self.GEOS},
+        )
+        model = pm.Model(coords={"date": dates, "geo": self.GEOS})
+        mmm = self._make_mock_mmm(model, ds)
+
+        class Effect(DataVarMuEffect):
+            data_vars: list[str] = ["feature"]
+            prefix: str = "geo"
+
+            def create_effect(self, mmm):  # type: ignore
+                return pt.as_tensor(0.0)
+
+        effect = Effect()
+        with model:
+            effect.create_data(mmm)
+        return mmm, ds, model, effect
+
+    def test_set_data_aligns_labels_to_the_model(self, dates):
+        """Each label's values land in that label's slot, whatever the input order."""
+        mmm, ds, model, effect = self._make_geo_setup(dates)
+        new_ds = ds.sortby("geo") + 1.0
+
+        effect.set_data(mmm, model, new_ds)
+
+        np.testing.assert_allclose(
+            model["feature"].get_value(borrow=False),
+            new_ds["feature"].sel(geo=self.GEOS).values,
+        )
+
+    def test_set_data_keeps_a_variable_absent_from_X(self, dates):
+        """A variable ``X`` does not carry keeps its training values.
+
+        This pins the documented contract rather than endorsing it: freezing
+        effect data at training values without a warning is the sharp edge
+        discussed in issue #2938.
+        """
+        mmm, ds, model, effect = self._make_geo_setup(dates)
+        before = model["feature"].get_value(borrow=False)
+
+        effect.set_data(mmm, model, ds.drop_vars("feature") + 1.0)
+
+        np.testing.assert_array_equal(model["feature"].get_value(borrow=False), before)
+
+    @pytest.mark.parametrize(
+        "geos, pattern",
+        [
+            (["north", "east", "south", "west"], r"does not have.*west"),
+            (["north", "east", "west"], r"does not have.*west"),
+            (["east", "north"], r"missing.*south"),
+        ],
+        ids=["extra_label", "relabelled", "missing_label"],
+    )
+    def test_set_data_rejects_labels_that_do_not_match_the_model(
+        self, dates, geos, pattern
+    ):
+        """A label the model lacks, or a model label the data lacks, is an error."""
+        mmm, ds, model, effect = self._make_geo_setup(dates)
+        new_ds = ds.reindex(geo=geos, fill_value=0.0)
+
+        with pytest.raises(ValueError, match=pattern):
+            effect.set_data(mmm, model, new_ds)
+
     def test_create_data_raises_on_non_data_name_collision(self, dates):
         """A dataset column that matches a non-data variable must not be skipped."""
         mmm, _, _, _ = self._make_shared_var_setup(dates)
@@ -717,6 +832,87 @@ class TestDataVarMuEffect:
             pmd.Data("shared", np.ones((len(dates), 2)), dims=("date", "other"))
             with pytest.raises(ValueError, match=r"Cannot reuse pm\.Data"):
                 Effect().create_data(mmm)
+
+    @pytest.mark.parametrize(
+        "new_dims, n_products",
+        [
+            # Equal lengths: a positional write would not raise and would store
+            # the values transposed.
+            pytest.param(("date", "channel", "product"), 2, id="same_length_swap"),
+            pytest.param(("product", "date", "channel"), 3, id="date_not_first"),
+        ],
+    )
+    def test_set_data_matches_values_by_dimension_name(
+        self, dates, new_dims, n_products
+    ):
+        """Regression for #3224: the prediction dataset's layout does not matter."""
+        coords = {
+            "date": dates,
+            "product": [f"p{i}" for i in range(n_products)],
+            "channel": ["tv", "radio"],
+        }
+        shape = tuple(len(values) for values in coords.values())
+        rng = np.random.default_rng(0)
+        ds = xr.Dataset(
+            {"feature": (tuple(coords), rng.normal(size=shape))}, coords=coords
+        )
+        new_ds = xr.Dataset(
+            {"feature": (tuple(coords), rng.normal(size=shape))}, coords=coords
+        )
+        new_ds["feature"] = new_ds["feature"].transpose(*new_dims)
+        model = pm.Model(coords=coords)
+        mmm = self._make_mock_mmm(model, ds)
+
+        class Effect(DataVarMuEffect):
+            data_vars: list[str] = ["feature"]
+            prefix: str = "test"
+
+            def create_effect(self, mmm):  # type: ignore
+                return pt.as_tensor(0.0)
+
+        effect = Effect()
+        with model:
+            effect.create_data(mmm)
+        effect.set_data(mmm, model, new_ds)
+
+        model_dims = model.named_vars_to_dims["feature"]
+        np.testing.assert_array_equal(
+            model["feature"].get_value(),
+            new_ds["feature"].transpose(*model_dims).values,
+        )
+
+    def test_set_data_writes_node_registered_without_dims(self, dates):
+        """A subclass may register its ``pm.Data`` without dims and inherit ``set_data``."""
+        rng = np.random.default_rng(0)
+        ds = xr.Dataset(
+            {"feature": (("date",), rng.normal(size=len(dates)))},
+            coords={"date": dates},
+        )
+        new_ds = xr.Dataset(
+            {"feature": (("date",), rng.normal(size=len(dates)))},
+            coords={"date": dates},
+        )
+        model = pm.Model(coords={"date": dates})
+        mmm = self._make_mock_mmm(model, ds)
+
+        class Effect(DataVarMuEffect):
+            data_vars: list[str] = ["feature"]
+            prefix: str = "test"
+
+            def create_data(self, mmm):  # type: ignore
+                pm.Data("feature", mmm.xarray_dataset["feature"].values)
+
+            def create_effect(self, mmm):  # type: ignore
+                return pt.as_tensor(0.0)
+
+        effect = Effect()
+        with model:
+            effect.create_data(mmm)
+        effect.set_data(mmm, model, new_ds)
+
+        np.testing.assert_array_equal(
+            model["feature"].get_value(), new_ds["feature"].values
+        )
 
 
 class TestMediaMuEffect:

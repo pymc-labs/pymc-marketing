@@ -68,6 +68,7 @@ from pymc_marketing.mmm.summary.sensitivity import (
     sensitivity_uplift as _sensitivity_uplift,
 )
 from pymc_marketing.mmm.xarray_utils import _select_dims
+from pymc_marketing.names.mmm import Dim, Var
 
 __all__ = [
     "MMMSummaryFactory",
@@ -732,11 +733,12 @@ class MMMSummaryFactory:
         )
 
         spend = self.data.get_channel_spend()
+        # The value column carries the name of the idata variable it holds.
         col_name = (
-            "channel_spend"
+            Var.CHANNEL_SPEND
             if hasattr(self.data.idata, "constant_data")
-            and "channel_spend" in self.data.idata.constant_data
-            else "channel_data"
+            and Var.CHANNEL_SPEND in self.data.idata.constant_data
+            else Var.CHANNEL_DATA
         )
         df = spend.to_dataframe(name=col_name).reset_index()
 
@@ -1015,7 +1017,9 @@ class MMMSummaryFactory:
             component_data = contributions[component_name]
             # Sum across the component dimension if present (e.g., sum across channels)
             component_dims = list(component_data.dims)
-            sum_dims = [d for d in component_dims if d not in ["chain", "draw", "date"]]
+            sum_dims = [
+                d for d in component_dims if d not in ["chain", "draw", Dim.DATE]
+            ]
 
             if sum_dims:
                 summed_data = component_data.sum(dim=sum_dims)
@@ -1094,7 +1098,7 @@ class MMMSummaryFactory:
         )
 
         # Check for date dimension
-        if "date" not in contributions.dims:
+        if Dim.DATE not in contributions.dims:
             raise ValueError(
                 "change_over_time requires date dimension. "
                 "Data may have been aggregated with frequency='all_time', "

@@ -9,7 +9,7 @@ There are 4 main ways of contributing to the PyMC-Marketing project (in ascendin
 3. Fixing outstanding issues (bugs) with the existing codebase. They range from low-level software bugs to higher-level design problems.
 4. Adding new or improved functionality to the existing codebase.
 
-Items 2-4 require setting up a local development environment, see [Local development steps](#Contributing-code-via-pull-requests) for more information.
+Items 2-4 require setting up a local development environment, see [Local development steps](#Contributing-code-via-pull-requests) for more information. A first pull request also needs a maintainer assignment. See [First pull requests](#first-pull-requests).
 
 ## Opening issues
 We appreciate being notified of problems with the existing PyMC-Marketing code. We prefer that issues be filed the on [Github Issue Tracker](https://github.com/pymc-labs/pymc-marketing/issues), rather than on social media or by direct email to the developers.
@@ -18,13 +18,24 @@ Please verify that your issue is not being currently addressed by other issues o
 
 ## Contributing code via pull requests
 
-While issue reporting is valuable, we strongly encourage users who are inclined to do so to submit patches for new or existing issues via pull requests. This is particularly the case for simple fixes, such as typos or tweaks to documentation, which do not require a heavy investment of time and attention.
+Anyone may open an issue. A pull request is a review obligation, so we accept a first pull request for review when a maintainer has assigned that author to an issue in this repository that the pull request fixes. The automatic check labels other first pull requests; it does not close them. See [First pull requests](#first-pull-requests).
 
-Contributors are also encouraged to contribute new code to enhance PyMC-Marketing's functionality, via pull requests.
+Commenting "I will take this" is not an assignment. Opening an issue and a pull request together is not an assignment. Organization members, collaborators, owners, and authors who already have a merged pull request here are not gated by that automatic check. The preferred workflow is still to fork the repository, clone it, and develop on a feature branch.
 
-The preferred workflow for contributing to PyMC-Marketing is to fork the GitHub repository, clone it to your local machine, and develop on a feature branch.
+For more instructions see the [Pull request checklist](#pull-request-checklist).
 
-For more instructions see the [Pull request checklist](#pull-request-checklist)
+### First pull requests
+
+This is the policy enforced by [`.github/workflows/first-pr-assignment.yml`](./.github/workflows/first-pr-assignment.yml). It applies when the pull request API reports `author_association` as `FIRST_TIMER`, `FIRST_TIME_CONTRIBUTOR`, or `NONE`: no commit of theirs has been merged to this repository yet. A member token sees the first two values for a new author. The workflow token sees `NONE` for those authors, and it still sees `MEMBER`, `OWNER`, `COLLABORATOR`, or `CONTRIBUTOR` for everyone else. The check uses the value that token gets. It is an automation hook, not a judgment of the person or the change.
+
+- Anyone may open an issue.
+- A first pull request is in good standing only when its author is an assignee of an issue in this repository that the pull request fixes. Being the issue author, or having commented, is not an assignment. Comment on the issue you want to work on, and wait for a maintainer to assign you. GitHub allows assigning anyone who has commented on the issue.
+- "Fixes" means a GitHub closing reference, not a bare `#123`. Use a closing keyword in the pull request description or in a commit message: `close`, `closes`, `closed`, `fix`, `fixes`, `fixed`, `resolve`, `resolves`, or `resolved`, followed by an issue reference such as `Fixes #123`. A keyword in the title alone does not count. A bare `#123` does not count. An issue in another repository does not count.
+- The check passes if any closing issue in this repository lists the pull request author as an assignee. The login comparison is case-insensitive.
+- The check does not apply to organization members, collaborators, owners, existing contributors, or bots. After one merged pull request, GitHub records the author as `CONTRIBUTOR` and this automatic check stops. That is a known limit. Later unsolicited pull requests are still not the desired path: comment on the issue and wait for an assignment.
+- The check does not close the pull request. A real fix can arrive without the assignment. The pull request is labeled `spam?`. That label is a triage flag, not a rejection and not a claim that the author or the change is spam. A maintainer may still review it, and removes the label by hand. The workflow does not remove the label when an assignment is added later.
+
+The rule exists to keep maintainer time for work that was asked for, rather than a flood of unsolicited pull requests. An issue comment of "do not start" is cheap. A pull request runs CI, and closing it has a social cost. We want that decision recorded before the pull request exists.
 
 ## Local development steps
 
@@ -110,6 +121,8 @@ We recommend that your contribution complies with the following guidelines befor
 - Documentation and high-coverage tests are necessary for enhancements to be accepted.
 
 - Documentation follows [NumPy style guide](https://numpydoc.readthedocs.io/en/latest/format.html)
+
+- Names that more than one place in the library has to agree on are `Final` constants in the `pymc_marketing/names/` package: `__init__.py` for the names all models share, and `mmm.py`, `clv.py`, `customer_choice.py` and `bass.py` for each model package. This covers model variables, dimensions, fixed DataFrame columns, InferenceData groups, `idata.attrs` keys and serialization keys such as `__type__`, when one place creates the name and another reads it back, or when several modules create it. Add such a name to the names module and use the constant instead of the string literal, so that `mypy` catches a typo. A name stays a literal when a single place uses it, when the user chooses it (including the default of such a parameter), when it is a `model_config` key or a math-symbol parameter, or when it is an `idata.attrs` copy of an `__init__` parameter that only the model's own `create_idata_attrs` and `attrs_to_init_kwargs` use. The MMM dims `date`, `channel`, `control`, `cv` and `sweep` use the constant only where a typo would fail silently (`in`, `==`, `.get`, set literals), and keep the literal elsewhere for now. The `validate-names` pre-commit hook checks these rules: a value from a names module that is typed by hand fails unless `scripts/validate_names.py` lists it for that file in `ALLOWED` with a reason, and so does a names constant in a function without type annotations. The shared names (`id`, `version`, `model_type`, `model_config`, `sampler_config`, `fit_data`, `__type__` and the other values in `names/__init__.py`) are checked in every file of the package, so a literal with one of these strings needs an `ALLOWED` entry even when it means something else there. Tests keep the literal strings, and `tests/test_names.py` pins every value: a changed value fails there and shows the breaking change.
 
 - Run any of the pre-existing examples in `pymc-marketing/docs/source/*` that contain analyses that would be affected by your changes to ensure that nothing breaks. This is a useful opportunity to not only check your work for bugs that might not be revealed by unit test, but also to show how your contribution improves PyMC-Marketing for end users.
 

@@ -33,12 +33,14 @@ import xarray as xr
 from pymc_extras.prior import Prior
 from tqdm.auto import tqdm
 
+from pymc_marketing.mmm.additive_effect import fitted_dates_only_effects
 from pymc_marketing.mmm.builders.yaml import build_mmm_from_yaml
 from pymc_marketing.mmm.link import LinkFunction
 from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.plotting.cv import MMMCVPlotSuite
 from pymc_marketing.mmm.summary.cv import MMMCVSummaryFactory
 from pymc_marketing.mmm.types import MMMBuilder
+from pymc_marketing.names.mmm import Group, Var, original_scale_name
 from pymc_marketing.serialization import serialization
 
 
@@ -87,7 +89,7 @@ def _add_original_scale_predictions(idata: xr.DataTree, output_var: str) -> None
     output_var : str
         Name of the observed variable (``MMM.output_var``).
     """
-    name = f"{output_var}_original_scale"
+    name = original_scale_name(output_var)
     pp = None
     target_scale = None
     if isinstance(idata, xr.DataTree):
@@ -97,7 +99,7 @@ def _add_original_scale_predictions(idata: xr.DataTree, output_var: str) -> None
             return
         if "posterior_predictive_constant_data" in idata.children:
             target_scale = idata["posterior_predictive_constant_data"].dataset.get(
-                "target_scale"
+                Var.TARGET_SCALE
             )
 
     if not isinstance(idata, xr.DataTree):
@@ -363,7 +365,7 @@ class TimeSliceCrossValidator:
             meta_arr[i] = m
 
         ds_meta = xr.Dataset(
-            {"metadata": ("cv", meta_arr)},
+            {Var.METADATA: ("cv", meta_arr)},
             coords={"cv": cv_coord},
         )
 
@@ -450,7 +452,7 @@ class TimeSliceCrossValidator:
 
             # Build a cv_metadata Dataset that stores per-fold metadata
             ds_meta = self._create_metadata(cv_coord)
-            combined_kwargs["cv_metadata"] = ds_meta
+            combined_kwargs[Group.CV_METADATA] = ds_meta
 
             if combined_kwargs:
                 cv_idata = xr.DataTree.from_dict(
@@ -615,7 +617,21 @@ class TimeSliceCrossValidator:
         -------
         TimeSliceCrossValidationResult
             Results container with fitted model data and predictions.
+
+        Raises
+        ------
+        NotImplementedError
+            If a mu effect of ``mmm`` takes only the dates the MMM was fitted on
+            (``supports_new_dates=False``). This is raised before fitting.
         """
+        if effects := fitted_dates_only_effects(getattr(mmm, "mu_effects", ())):
+            names = ", ".join(name for name, _ in effects)
+            raise NotImplementedError(
+                "Time-slice cross-validation predicts on each fold's test dates, but "
+                f"the contribution of {names} exists only on the dates each fold's "
+                "MMM is fitted on."
+            )
+
         # Fit the model for this fold. sampler_config can override the validator-level config.
         mmm = self._fit_mmm(mmm, X_train, y_train, sampler_config=sampler_config)
 
@@ -639,7 +655,7 @@ class TimeSliceCrossValidator:
         )
         if mmm.idata is not None:
             _add_original_scale_predictions(
-                mmm.idata, output_var=getattr(mmm, "output_var", "y")
+                mmm.idata, output_var=getattr(mmm, "output_var", Var.Y)
             )
 
         return TimeSliceCrossValidationResult(
@@ -864,6 +880,10 @@ class TimeSliceCrossValidator:
             If neither ``yaml_path`` nor ``mmm`` is provided.
             If ``model_names`` length doesn't match the number of splits.
             If no DataTree objects are produced during CV.
+        NotImplementedError
+            If the MMM has a mu effect that takes only the dates the MMM was fitted
+            on (``supports_new_dates=False``), since each fold predicts on its test
+            dates. This is raised before the first fold is fitted.
 
         See Also
         --------

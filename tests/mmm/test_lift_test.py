@@ -15,10 +15,12 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pymc.dims as pmd
+import pytensor.tensor as pt
 import pytest
 from pymc.model_graph import fast_eval
-from pymc_extras.prior import Prior
+from pymc_extras.prior import Censored, Prior, Scaled
 from pytensor.xtensor import as_xtensor
+from scipy import stats
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MaxAbsScaler
 from xarray import DataArray
@@ -44,6 +46,7 @@ from pymc_marketing.mmm.lift_test import (
     scale_channel_lift_measurements,
     scale_lift_measurements,
     scale_target_for_lift_measurements,
+    validate_cost_per_target_rows,
 )
 from pymc_marketing.mmm.mmm import MMM
 
@@ -217,15 +220,59 @@ def test_lift_likelihood_rejects_user_sigma_parameter() -> None:
 
 
 @pytest.mark.parametrize(
-    ("likelihood", "parameter"),
+    ("likelihood", "match"),
     [
-        (Prior("Normal", mu=0.0), "mu"),
-        (Prior("Normal", dims="channel"), "dims"),
+        (Prior("Normal", mu=0.0), "Do not pass `mu` in `likelihood`"),
+        (Prior("Normal", dims="channel"), "Do not pass `dims` in `likelihood`"),
+        (Prior("Normal", tau=4.0), "Do not pass `tau` in `likelihood`"),
+        (Prior("StudentT", nu=4, lam=2.0), "Do not pass `lam` in `likelihood`"),
+        (Prior("Gamma", alpha=2.0), "Do not pass `alpha` in `likelihood`"),
+        (
+            Prior("StudentT", nu=4, centered=False),
+            "Do not pass `centered=False` in `likelihood`",
+        ),
+        (
+            Prior("StudentT", nu=Prior("Gamma", alpha=2, beta=0.1, dims="channel")),
+            "Do not pass `dims` or arrays in `nu`",
+        ),
+        (Prior("StudentT", nu=-1), "`nu` must be a positive finite number"),
+        (
+            Prior("StudentT", nu=pt.constant(-2.0)),
+            "`nu` must be a positive finite number",
+        ),
+        (
+            Prior("StudentT", nu=Prior("Normal", mu=1, sigma=2)),
+            "a Normal prior on it can be negative",
+        ),
+        (
+            Prior("StudentT", nu=Scaled(Prior("StudentT", nu=3), factor=2.0)),
+            "a StudentT prior on it can be negative",
+        ),
+        (
+            Prior(
+                "StudentT",
+                nu=Scaled(Prior("Gamma", alpha=2, beta=1), factor=-1.0),
+            ),
+            "a Scaled prior with a negative factor on it can be negative",
+        ),
+        (
+            Prior("StudentT", nu=Prior("Uniform", lower=-5, upper=5)),
+            "a Uniform prior with a lower bound below zero",
+        ),
+        (
+            Prior("StudentT", nu=Prior("TruncatedNormal", mu=5, sigma=10, upper=9)),
+            "a TruncatedNormal prior with a lower bound below zero",
+        ),
+        (
+            Prior("StudentT", nu=Censored(Prior("Normal"), upper=1)),
+            "a Normal prior on it can be negative",
+        ),
     ],
 )
 def test_lift_likelihood_rejects_model_determined_parameters(
-    likelihood: Prior, parameter: str
+    likelihood: Prior, match: str
 ) -> None:
+    """Parameters the lift data and model decide are refused before any graph change."""
     with pm.Model(coords={"channel": ["one"]}) as model:
         pmd.HalfNormal("beta", sigma=1.0, dims="channel")
     lift = pd.DataFrame(
@@ -237,7 +284,8 @@ def test_lift_likelihood_rejects_model_determined_parameters(
             "sigma": [0.5],
         }
     )
-    with pytest.raises(ValueError, match=f"Do not pass `{parameter}` in `likelihood`"):
+    names, coords = set(model.named_vars), dict(model.coords)
+    with pytest.raises(ValueError, match=match):
         add_saturation_observations(
             lift,
             variable_mapping={"beta": "beta"},
@@ -245,6 +293,90 @@ def test_lift_likelihood_rejects_model_determined_parameters(
             model=model,
             likelihood=likelihood,
         )
+    assert set(model.named_vars) == names
+    assert model.coords == coords
+
+
+@pytest.mark.parametrize(
+    "nu",
+    [
+        Prior("Gamma", alpha=2, beta=0.1),
+        Prior("HalfStudentT", nu=4, sigma=10),
+        Prior("Uniform", lower=1, upper=50),
+        Prior("TruncatedNormal", mu=5, sigma=10, lower=1),
+        Prior("Gamma", mu=Prior("HalfNormal", sigma=10), sigma=1),
+        Prior("Normal", mu=1, sigma=1, transform="exp"),
+        Censored(Prior("Normal", mu=5, sigma=2), lower=1),
+        Scaled(Prior("Gamma", alpha=2, beta=1), factor=2.0),
+    ],
+    ids=[
+        "gamma",
+        "halfstudentt",
+        "uniform",
+        "truncated-normal",
+        "hierarchical",
+        "exp-transform",
+        "censored-above-zero",
+        "scaled",
+    ],
+)
+def test_lift_likelihood_accepts_positive_nu_priors(nu: Prior) -> None:
+    """A ``nu`` prior that cannot go negative is accepted and sampled."""
+    with pm.Model(coords={"channel": ["one"]}) as model:
+        pmd.HalfNormal("beta", sigma=1.0, dims="channel")
+    lift = pd.DataFrame(
+        {
+            "channel": ["one"],
+            "x": [0.0],
+            "delta_x": [1.0],
+            "delta_y": [1.0],
+            "sigma": [0.5],
+        }
+    )
+    add_saturation_observations(
+        lift,
+        variable_mapping={"beta": "beta"},
+        saturation_function=lambda x, beta: beta * x,
+        model=model,
+        likelihood=Prior("StudentT", nu=nu),
+    )
+    assert "lift_measurements_nu" in model.named_vars
+    assert np.isfinite(model.compile_logp()(model.initial_point()))
+
+
+def test_lift_likelihood_transform_keeps_the_observed_density() -> None:
+    """A ``transform`` renames the observed variable and leaves its density alone.
+
+    Lift tests have accepted it since before the calibration likelihoods
+    became configurable, so records saved with one keep loading.
+    """
+    lift = pd.DataFrame(
+        {
+            "channel": ["one"],
+            "x": [1.0],
+            "delta_x": [0.2],
+            "delta_y": [0.3],
+            "sigma": [0.05],
+        }
+    )
+    logps = {}
+    for likelihood in (Prior("Normal"), Prior("Normal", transform="exp")):
+        with pm.Model(coords={"channel": ["one"]}) as model:
+            pmd.HalfNormal("beta", sigma=1.0, dims="channel")
+        add_saturation_observations(
+            lift,
+            variable_mapping={"beta": "beta"},
+            saturation_function=lambda x, beta: beta * x,
+            model=model,
+            likelihood=likelihood,
+        )
+        (observed,) = model.observed_RVs
+        point = {"beta_log__": np.array([0.7])}
+        logps[observed.name] = model.compile_logp()(point)
+    assert set(logps) == {"lift_measurements", "lift_measurements_raw"}
+    np.testing.assert_allclose(
+        logps["lift_measurements_raw"], logps["lift_measurements"], rtol=1e-12
+    )
 
 
 def test_student_t_likelihood_requires_degrees_of_freedom() -> None:
@@ -881,10 +1013,26 @@ def test_add_cost_per_target_observations(dummy_mmm_model):
 
 
 @pytest.mark.parametrize("target_per_cost", [False, True])
+@pytest.mark.parametrize(
+    "likelihood",
+    [
+        None,
+        Prior("StudentT", nu=4),
+        Prior("StudentT", nu=pt.constant(4.0)),
+        Prior("LogNormal"),
+    ],
+    ids=["normal", "studentt", "studentt-tensor-nu", "lognormal"],
+)
 def test_add_cost_per_target_observations_ratio_direction(
-    dummy_mmm_model, target_per_cost
+    dummy_mmm_model, target_per_cost, likelihood
 ):
-    """`target_per_cost` flips mean(cost)/mean(target) to mean(target)/mean(cost)."""
+    """`target_per_cost` flips mean(cost)/mean(target) to mean(target)/mean(cost).
+
+    Every family is centred on that ratio with ``sigma`` read as the standard
+    error of the table value: ``Normal`` and ``StudentT`` take it as is,
+    ``LogNormal`` as the log-scale width ``sigma / target`` (the table's
+    target, not the model ratio).
+    """
     model = dummy_mmm_model.model
 
     dates = model.coords["date"]
@@ -919,6 +1067,7 @@ def test_add_cost_per_target_observations_ratio_direction(
         target_column=target_column,
         name_prefix="ratio_calibration",
         target_per_cost=target_per_cost,
+        likelihood=likelihood,
     )
 
     # Ratio of means over dates for the two calibrated channels, not the mean
@@ -937,12 +1086,310 @@ def test_add_cost_per_target_observations_ratio_direction(
             as_xtensor(observed, dims=("_ratio_calibration",)),
         )
     )
-    expected_logp = (
-        -0.5 * ((observed - expected_mu) / sigma) ** 2
-        - np.log(sigma)
-        - 0.5 * np.log(2 * np.pi)
-    )
+    if likelihood is None:
+        expected_logp = stats.norm.logpdf(observed, loc=expected_mu, scale=sigma)
+    elif likelihood.distribution == "StudentT":
+        expected_logp = stats.t.logpdf(observed, df=4, loc=expected_mu, scale=sigma)
+    else:
+        expected_logp = stats.lognorm.logpdf(
+            observed, s=sigma / observed, scale=expected_mu
+        )
     np.testing.assert_allclose(logp, expected_logp, rtol=1e-6)
+
+
+def _constant_cost_and_target(model, cost_level=30.0, target_level=1.0):
+    shape = (len(model.coords["date"]), len(model.coords["channel"]))
+    cost = as_xtensor(np.full(shape, cost_level), dims=("date", "channel"))
+    target = as_xtensor(np.full(shape, target_level), dims=("date", "channel"))
+    return cost, target
+
+
+@pytest.mark.parametrize(
+    ("likelihood", "match"),
+    [
+        pytest.param(
+            Prior("Normal", sigma=1.0),
+            "Do not pass `sigma` in `likelihood`",
+            id="sigma",
+        ),
+        pytest.param(
+            Prior("Normal", mu=0.0), "Do not pass `mu` in `likelihood`", id="mu"
+        ),
+        pytest.param(
+            Prior("Normal", dims="channel"),
+            "Do not pass `dims` in `likelihood`",
+            id="dims",
+        ),
+        pytest.param(Prior("StudentT"), "requires a `nu` parameter", id="no-nu"),
+        pytest.param(
+            Prior("Gamma"),
+            "Gamma distribution is not supported as a calibration likelihood",
+            id="gamma",
+        ),
+        pytest.param(
+            Prior("HalfNormal"),
+            "HalfNormal distribution is not supported",
+            id="halfnormal",
+        ),
+        pytest.param(
+            Prior("Normal", transform="log"),
+            "Do not pass `transform` in `likelihood`",
+            id="transform",
+        ),
+        pytest.param(
+            Prior("Normal", tau=4.0), "Do not pass `tau` in `likelihood`", id="tau"
+        ),
+        pytest.param(
+            Prior("LogNormal", tau=4.0),
+            "Do not pass `tau` in `likelihood`",
+            id="lognormal-tau",
+        ),
+        pytest.param(
+            Prior("StudentT", nu=4, lam=2.0),
+            "Do not pass `lam` in `likelihood`",
+            id="lam",
+        ),
+        pytest.param(
+            Prior("StudentT", nu=4, centered=False),
+            "Do not pass `centered=False` in `likelihood`",
+            id="non-centered",
+        ),
+        pytest.param(
+            Prior("StudentT", nu=Prior("Gamma", alpha=2, beta=0.1, dims="channel")),
+            "Do not pass `dims` or arrays in `nu`",
+            id="nu-dims",
+        ),
+        pytest.param(
+            Prior(
+                "StudentT",
+                nu=Prior("Gamma", mu=Prior("HalfNormal", dims="channel"), sigma=1),
+            ),
+            "Do not pass `dims` or arrays in `nu`",
+            id="nu-hyperprior-dims",
+        ),
+        pytest.param(
+            Prior("StudentT", nu=np.array([4.0, 4.0])),
+            "Do not pass `dims` or arrays in `nu`",
+            id="nu-array",
+        ),
+        pytest.param(
+            Prior("StudentT", nu=Prior("Gamma", alpha=[2.0, 3.0], beta=0.1)),
+            "Do not pass `dims` or arrays in `nu`",
+            id="nu-hyperprior-array",
+        ),
+        pytest.param(
+            Prior(
+                "StudentT",
+                nu=Scaled(
+                    Prior("Gamma", mu=Prior("HalfNormal", dims="channel"), sigma=1),
+                    factor=2.0,
+                ),
+            ),
+            "Do not pass `dims` or arrays in `nu`",
+            id="nu-wrapper-dims",
+        ),
+        pytest.param(
+            Prior("StudentT", nu=0),
+            "`nu` must be a positive finite number",
+            id="nu-zero",
+        ),
+        pytest.param(
+            Prior("StudentT", nu=pt.constant(-2.0)),
+            "`nu` must be a positive finite number",
+            id="nu-negative-tensor",
+        ),
+        pytest.param(
+            Prior("StudentT", nu=Prior("Normal", mu=1, sigma=2)),
+            "a Normal prior on it can be negative",
+            id="nu-real-line-prior",
+        ),
+    ],
+)
+def test_add_cost_per_target_observations_refuses_bad_likelihood(
+    dummy_mmm_model, likelihood, match
+):
+    """A likelihood whose contents the table decides is refused before any graph change."""
+    model = dummy_mmm_model.model
+    cost, target = _constant_cost_and_target(model)
+    calibration_df = pd.DataFrame(
+        {
+            "channel": [model.coords["channel"][0]],
+            "cost_per_target": [30.0],
+            "sigma": [2.0],
+        }
+    )
+    names, coords = set(model.named_vars), dict(model.coords)
+    with pytest.raises(ValueError, match=match):
+        add_cost_per_target_observations(
+            calibration_df,
+            model=model,
+            cost_value=cost,
+            target_value=target,
+            likelihood=likelihood,
+        )
+    assert set(model.named_vars) == names
+    assert model.coords == coords
+
+
+def test_add_cost_per_target_observations_rejects_non_prior_likelihood(
+    dummy_mmm_model,
+):
+    model = dummy_mmm_model.model
+    cost, target = _constant_cost_and_target(model)
+    calibration_df = pd.DataFrame(
+        {
+            "channel": [model.coords["channel"][0]],
+            "cost_per_target": [30.0],
+            "sigma": [2.0],
+        }
+    )
+    with pytest.raises(TypeError, match=r"must be a pymc_extras\.prior\.Prior"):
+        add_cost_per_target_observations(
+            calibration_df,
+            model=model,
+            cost_value=cost,
+            target_value=target,
+            likelihood=pmd.LogNormal,
+        )
+
+
+@pytest.mark.parametrize("target", [0.0, -2.0])
+def test_add_cost_per_target_observations_lognormal_refuses_nonpositive_target(
+    dummy_mmm_model, target
+):
+    """LogNormal needs a positive table value; the real-line families accept it."""
+    model = dummy_mmm_model.model
+    cost, target_value = _constant_cost_and_target(model)
+    calibration_df = pd.DataFrame(
+        {
+            "channel": [model.coords["channel"][0]],
+            "cost_per_target": [target],
+            "sigma": [2.0],
+        }
+    )
+    names, coords = set(model.named_vars), dict(model.coords)
+    with pytest.raises(ValueError, match=r"LogNormal.*positive calibration values"):
+        add_cost_per_target_observations(
+            calibration_df,
+            model=model,
+            cost_value=cost,
+            target_value=target_value,
+            likelihood=Prior("LogNormal"),
+        )
+    assert set(model.named_vars) == names
+    assert model.coords == coords
+
+    add_cost_per_target_observations(
+        calibration_df,
+        model=model,
+        cost_value=cost,
+        target_value=target_value,
+        likelihood=Prior("Normal"),
+    )
+    assert "cpt_calibration" in {rv.name for rv in model.observed_RVs}
+
+
+def test_add_cost_per_target_observations_lognormal_floor_is_the_same_both_ways():
+    """A negative contribution gets a finite LogNormal penalty in either direction.
+
+    With a real-line channel prior the initial point can be positive and the
+    sampler still reach a negative contribution. Each mean is floored before
+    the log, so a CPA table and the ROAS table holding its reciprocals give
+    the same term there, as they do for positive contributions.
+    """
+    spend_values = np.array([[1.0, 2.0], [2.0, 3.0], [3.0, 4.0]])
+    logps = {}
+    for target_per_cost in (False, True):
+        with pm.Model(coords={"date": [0, 1, 2], "channel": ["a", "b"]}) as model:
+            pmd.Data("channel_data", spend_values, dims=("date", "channel"))
+            beta = pmd.Normal("beta", mu=1.0, sigma=1.0, dims="channel")
+        cost = as_xtensor(spend_values, dims=("date", "channel"))
+        column = "roas" if target_per_cost else "cost_per_target"
+        values = np.array([1.0, 2.0])
+        add_cost_per_target_observations(
+            pd.DataFrame(
+                {
+                    "channel": ["a", "b"],
+                    column: values if target_per_cost else 1 / values,
+                    "sigma": 0.1 * (values if target_per_cost else 1 / values),
+                }
+            ),
+            model=model,
+            cost_value=cost,
+            target_value=cost * beta,
+            target_column=column,
+            target_per_cost=target_per_cost,
+            likelihood=Prior("LogNormal"),
+        )
+        logp = model.compile_logp(vars=[model["cpt_calibration"]], sum=False)
+        logps[target_per_cost] = [
+            float(np.sum(logp({"beta": np.array([b, 1.0])})))
+            for b in (1.0, 0.001, -0.5)
+        ]
+    assert np.isfinite(logps[True]).all()
+    # The two tables differ by a constant (the log-Jacobian of the reciprocal).
+    np.testing.assert_allclose(np.diff(logps[False]), np.diff(logps[True]), rtol=1e-9)
+
+
+@pytest.mark.parametrize("target_per_cost", [False, True])
+@pytest.mark.parametrize("zero", ["spend", "contribution"])
+def test_add_cost_per_target_observations_lognormal_refuses_nonpositive_ratio(
+    target_per_cost, zero
+):
+    """A calibrated row with zero mean spend or zero mean contribution is refused.
+
+    Either gives LogNormal no positive ratio to take the log of, whichever
+    way the table is written: zero spend makes the cost-per-target ratio
+    zero, and a zero contribution leaves it at the clip floor of its
+    denominator. The check runs at the initial point, before the coordinate
+    and the observed variable are added; ``Normal`` accepts the same table.
+    """
+    spend_values = np.array([[1.0, 2.0], [2.0, 3.0], [3.0, 4.0]])
+    if zero == "spend":
+        spend_values[:, 0] = 0.0
+    coords = {"date": [0, 1, 2], "channel": ["a", "b"]}
+    with pm.Model(coords=coords) as model:
+        spend = pmd.Data("channel_data", spend_values, dims=("date", "channel"))
+        beta = pmd.HalfNormal("beta", dims="channel")
+        # Channel `a` contributes nothing when `zero == "contribution"`.
+        mask = as_xtensor(
+            np.array([0.0 if zero == "contribution" else 1.0, 1.0]), dims=("channel",)
+        )
+        contribution = spend * beta * mask
+    cost = as_xtensor(spend_values, dims=("date", "channel"))
+    target_column = "roas" if target_per_cost else "cost_per_target"
+    calibration_df = pd.DataFrame(
+        {"channel": ["a", "b"], target_column: [1.0, 2.0], "sigma": [0.1, 0.2]}
+    )
+    kwargs = dict(
+        model=model,
+        cost_value=cost,
+        target_value=contribution,
+        target_column=target_column,
+        target_per_cost=target_per_cost,
+    )
+
+    names, model_coords = set(model.named_vars), dict(model.coords)
+    with pytest.raises(
+        ValueError, match=r"positive model-implied ratio.*initial point.*Rows \[0\]"
+    ):
+        add_cost_per_target_observations(
+            calibration_df, likelihood=Prior("LogNormal"), **kwargs
+        )
+    assert set(model.named_vars) == names
+    assert model.coords == model_coords
+    assert not model.observed_RVs
+
+    add_cost_per_target_observations(
+        calibration_df.iloc[[1]], likelihood=Prior("LogNormal"), **kwargs
+    )
+    assert "cpt_calibration" in {rv.name for rv in model.observed_RVs}
+    assert np.isfinite(model.compile_logp()(model.initial_point()))
+
+    add_cost_per_target_observations(
+        calibration_df, name_prefix="normal", likelihood=Prior("Normal"), **kwargs
+    )
+    assert "normal" in {rv.name for rv in model.observed_RVs}
 
 
 def test_add_cost_per_target_observations_missing_columns(dummy_mmm_model):
@@ -1116,7 +1563,213 @@ def test_add_cost_per_target_potentials_emits_deprecation_warning(dummy_mmm_mode
             cost_value=cost,
             target_value=target,
             name_prefix="cpt_calibration",
+            likelihood=Prior("LogNormal"),
         )
 
-    obs_names = [rv.name for rv in model.model.observed_RVs]
-    assert "cpt_calibration" in obs_names
+    observed = model.model["cpt_calibration"]
+    assert observed in model.model.observed_RVs
+    # The alias forwards `likelihood`: a LogNormal is centred on log(30 / 1).
+    logp = fast_eval(
+        pm.logp(
+            observed, as_xtensor(np.array([30.0, 45.0]), dims=("_cpt_calibration",))
+        )
+    )
+    expected = stats.lognorm.logpdf(
+        [30.0, 45.0], s=np.array([2.0, 3.0]) / np.array([30.0, 45.0]), scale=30.0
+    )
+    np.testing.assert_allclose(logp, expected, rtol=1e-6)
+
+
+@pytest.mark.parametrize("column", ["x", "delta_x", "delta_y", "sigma"])
+@pytest.mark.parametrize("bad_value", [np.nan, np.inf, -np.inf])
+def test_lift_rejects_nonfinite_measurements_before_model_mutation(column, bad_value):
+    with pm.Model(coords={"channel": ["one"]}) as model:
+        pmd.HalfNormal("beta", sigma=1.0, dims="channel")
+    frame = pd.DataFrame(
+        {
+            "channel": ["one", "one"],
+            "x": [1.0, 1.0],
+            "delta_x": [0.2, 0.2],
+            "delta_y": [0.1, 0.1],
+            "sigma": [0.05, 0.05],
+        }
+    )
+    original_value = frame.loc[1, column]
+    frame.loc[1, column] = bad_value
+    names = set(model.named_vars)
+    coords = dict(model.coords)
+    with pytest.raises(ValueError, match=rf"'{column}'.*finite real numeric"):
+        add_saturation_observations(
+            frame,
+            variable_mapping={"beta": "beta"},
+            saturation_function=lambda x, beta: beta * x,
+            model=model,
+        )
+    assert set(model.named_vars) == names
+    assert model.coords == coords
+    assert not model.observed_RVs
+
+    frame.loc[1, column] = original_value
+    add_saturation_observations(
+        frame,
+        variable_mapping={"beta": "beta"},
+        saturation_function=lambda x, beta: beta * x,
+        model=model,
+    )
+    assert len(model.observed_RVs) == 1
+    assert model.rvs_to_values[model["lift_measurements"]].eval().shape == (2,)
+
+
+@pytest.mark.parametrize("distribution", ["Normal", "StudentT"])
+@pytest.mark.parametrize("delta_y", [0.0, -0.1, 1e-12])
+@pytest.mark.parametrize("sigma", [0.5, 3.3e-11])
+def test_lift_accepts_null_signed_estimates_and_small_uncertainty(
+    distribution, delta_y, sigma
+):
+    with pm.Model(coords={"channel": ["one"]}) as model:
+        pmd.HalfNormal("beta", sigma=1.0, dims="channel")
+    frame = pd.DataFrame(
+        {
+            "channel": ["one"],
+            "x": [1.0],
+            "delta_x": [-0.2],
+            "delta_y": [delta_y],
+            "sigma": [sigma],
+        }
+    )
+    likelihood = (
+        Prior("StudentT", nu=4) if distribution == "StudentT" else Prior("Normal")
+    )
+    add_saturation_observations(
+        frame,
+        variable_mapping={"beta": "beta"},
+        saturation_function=lambda x, beta: beta * x,
+        model=model,
+        likelihood=likelihood,
+    )
+    observed = model["lift_measurements"]
+    assert model.rvs_to_values[observed].eval().item() == delta_y
+    assert np.isfinite(model.compile_logp(vars=[observed])(model.initial_point()))
+
+
+@pytest.mark.parametrize("sigma", [0.0, -0.1])
+def test_lift_rejects_nonpositive_standard_errors(sigma):
+    frame = pd.DataFrame(
+        {"x": [1.0], "delta_x": [0.2], "delta_y": [-0.1], "sigma": [sigma]}
+    )
+    with pytest.raises(ValueError, match=r"'sigma'.*strictly positive"):
+        add_saturation_observations(
+            frame, variable_mapping={}, saturation_function=lambda x: x
+        )
+
+
+@pytest.mark.parametrize("column", ["cost_per_target", "sigma"])
+@pytest.mark.parametrize("bad_value", [np.nan, np.inf, -np.inf])
+def test_cost_per_target_rejects_nonfinite_measurements(
+    dummy_mmm_model, column, bad_value
+):
+    model = dummy_mmm_model.model
+    shape = (len(model.coords["date"]), len(model.coords["channel"]))
+    cost = as_xtensor(np.ones(shape), dims=("date", "channel"))
+    target = as_xtensor(np.ones(shape), dims=("date", "channel"))
+    frame = pd.DataFrame(
+        {
+            "channel": [model.coords["channel"][0]],
+            "cost_per_target": [2.0],
+            "sigma": [0.2],
+        }
+    )
+    frame.loc[0, column] = bad_value
+    names = set(model.named_vars)
+    coords = set(model.coords)
+    with pytest.raises(ValueError, match=rf"'{column}'.*finite real numeric"):
+        add_cost_per_target_observations(
+            frame, model=model, cost_value=cost, target_value=target
+        )
+
+    assert set(model.named_vars) == names
+    assert set(model.coords) == coords
+
+
+@pytest.mark.parametrize("sigma", [0.0, -1.0])
+def test_cost_per_target_rejects_nonpositive_standard_errors(dummy_mmm_model, sigma):
+    model = dummy_mmm_model.model
+    shape = (len(model.coords["date"]), len(model.coords["channel"]))
+    cost = as_xtensor(np.ones(shape), dims=("date", "channel"))
+    target = as_xtensor(np.ones(shape), dims=("date", "channel"))
+    frame = pd.DataFrame(
+        {
+            "channel": [model.coords["channel"][0]],
+            "cost_per_target": [2.0],
+            "sigma": [sigma],
+        }
+    )
+    with pytest.raises(ValueError, match=r"'sigma'.*strictly positive"):
+        add_cost_per_target_observations(
+            frame, model=model, cost_value=cost, target_value=target
+        )
+
+
+@pytest.mark.parametrize(
+    "value", ["not numeric", "0.1", 1 + 2j, pd.Timestamp("2026-01-01"), True]
+)
+@pytest.mark.parametrize("column", ["x", "delta_x", "delta_y", "sigma"])
+def test_lift_rejects_nonreal_measurement_dtypes(column, value):
+    values = {"x": [1.0], "delta_x": [0.2], "delta_y": [0.1], "sigma": [0.05]}
+    values[column] = [value]
+    with pytest.raises(ValueError, match=rf"'{column}'.*finite real numeric"):
+        add_saturation_observations(
+            pd.DataFrame(values), variable_mapping={}, saturation_function=lambda x: x
+        )
+
+
+def test_lift_rejects_nullable_missing_measurements():
+    frame = pd.DataFrame(
+        {
+            "x": [1.0],
+            "delta_x": [0.2],
+            "delta_y": pd.Series([pd.NA], dtype="Float64"),
+            "sigma": [0.05],
+        }
+    )
+    with pytest.raises(ValueError, match=r"'delta_y'.*finite real numeric"):
+        add_saturation_observations(
+            frame, variable_mapping={}, saturation_function=lambda x: x
+        )
+
+
+def test_cost_per_target_validates_custom_target_before_mutation(dummy_mmm_model):
+    model = dummy_mmm_model.model
+    names, coords = set(model.named_vars), set(model.coords)
+    frame = pd.DataFrame(
+        {
+            "channel": [model.coords["channel"][0]],
+            "custom_target": [np.nan],
+            "sigma": [0.2],
+        }
+    )
+    with pytest.raises(ValueError, match=r"'custom_target'.*finite real numeric"):
+        add_cost_per_target_observations(
+            frame,
+            model=model,
+            cost_value=None,
+            target_value=None,
+            target_column="custom_target",
+        )
+    assert set(model.named_vars) == names
+    assert set(model.coords) == coords
+
+
+def test_cost_per_target_preserves_numeric_string_conversion(dummy_mmm_model):
+    model = dummy_mmm_model.model
+    frame = pd.DataFrame(
+        {
+            "channel": [model.coords["channel"][0]],
+            "cost_per_target": ["-2.0"],
+            "sigma": ["0.2"],
+        }
+    )
+    _, targets, sigmas, likelihood = validate_cost_per_target_rows(frame, model)
+    np.testing.assert_allclose(targets, [-2.0])
+    np.testing.assert_allclose(sigmas, [0.2])
+    assert likelihood == Prior("Normal")

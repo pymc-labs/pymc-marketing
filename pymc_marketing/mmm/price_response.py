@@ -61,8 +61,8 @@ from pytensor.xtensor.type import XTensorVariable
 from xarray import DataArray
 
 from pymc_marketing.mmm.optimization_variables import (
-    _reject_unknown_coords,
     align_to_model_coords,
+    reject_unknown_coords,
 )
 
 __all__ = [
@@ -557,7 +557,9 @@ class PowerPriceResponse(PriceResponse):
     elasticities differ.
 
     **Reading the result.** ``result.implied_delivery`` is per-period delivery before ``channel_scales``.
-    Score a plan with
+    With ``spend_vars``, ``result.delivery_reports[name]`` carries the same arrays plus ``spend`` for every
+    priced variable; a spend variable has no ``cost_per_unit``, so its base price is 1 at its
+    ``reference_spend``. Score a plan with
     :meth:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.evaluate_response_distribution`, which runs
     the same graph the solver used, price map included. The deprecated ``sample_response_distribution``
     repeats one date-less allocation over the window, so ``implied_delivery.mean(date_dim)`` passed on its
@@ -917,7 +919,7 @@ class PowerPriceResponse(PriceResponse):
             )
         self._require_labelled(ref, f"{label}: reference_spend")
         coords = {d: template.coords[d].values.tolist() for d in dims}
-        _reject_unknown_coords(ref, coords, label=f"{label}: reference_spend")
+        reject_unknown_coords(ref, coords, label=f"{label}: reference_spend")
         return np.asarray(ref.reindex(coords).transpose(*dims).values, dtype="float64")
 
     def _guard_supplied_reference(

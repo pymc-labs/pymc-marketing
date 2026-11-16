@@ -34,6 +34,7 @@ from pymc_marketing.mmm.summary.budget import (
     prepare_allocation_roas,
     prepare_contribution_over_time,
 )
+from pymc_marketing.names.mmm import Dim, Var
 
 
 class BudgetPlots:
@@ -175,12 +176,12 @@ class BudgetPlots:
         --------
         BudgetSummaryFactory.contribution_over_time : Tabular export for custom frontends
         """
-        for dim in ("channel", "date", "sample"):
+        for dim in (Dim.CHANNEL, Dim.DATE, "sample"):
             if dim not in samples.dims:
                 raise ValueError(
                     f"Expected '{dim}' dimension in samples, but none found."
                 )
-        if "channel_contribution_original_scale" not in samples.data_vars:
+        if Var.CHANNEL_CONTRIBUTION_ORIGINAL_SCALE not in samples.data_vars:
             raise ValueError(
                 "Expected 'channel_contribution_original_scale' variable in samples, "
                 "but none found."
@@ -198,7 +199,7 @@ class BudgetPlots:
         extra_dims = [
             d
             for d in da.dims
-            if d not in {"channel", "date", "sample", "chain", "draw"}
+            if d not in {Dim.CHANNEL, Dim.DATE, "sample", "chain", "draw"}
         ]
         ds = da.to_dataset(name="contribution")
 

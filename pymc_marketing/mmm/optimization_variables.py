@@ -44,7 +44,7 @@ from pymc import Model
 from pytensor import In, function
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
-from xarray import DataArray
+from xarray import DataArray, Dataset
 
 if TYPE_CHECKING:
     from pymc_marketing.mmm.price_response import PriceResponse, ResolvedPriceResponse
@@ -56,6 +56,8 @@ __all__ = [
     "OptimizationVariable",
     "OptimizationVariables",
     "align_to_model_coords",
+    "reject_missing_coords",
+    "reject_unknown_coords",
 ]
 
 #: Name of the flat decision vector's dimension, shared by every variable and
@@ -63,8 +65,8 @@ __all__ = [
 FLAT_DIM = "budgets_flat"
 
 
-def _reject_unknown_coords(
-    da: DataArray,
+def reject_unknown_coords(
+    da: DataArray | Dataset,
     coords: Mapping[str, list],
     *,
     label: str,
@@ -83,7 +85,7 @@ def _reject_unknown_coords(
 
     Parameters
     ----------
-    da : DataArray
+    da : DataArray or Dataset
         User-supplied input carrying some or all of the budget dims.
     coords : Mapping[str, list]
         The model's coordinates for the budget dims.
@@ -107,6 +109,42 @@ def _reject_unknown_coords(
         raise ValueError(
             f"{label} has coordinates the model does not have: {unknown}. "
             "They would be dropped silently, so the input is rejected instead."
+        )
+
+
+def reject_missing_coords(
+    da: DataArray | Dataset,
+    coords: Mapping[str, list],
+    *,
+    label: str,
+) -> None:
+    """Refuse an input that does not cover every coordinate the model has.
+
+    Parameters
+    ----------
+    da : DataArray or Dataset
+        User-supplied input carrying some or all of the model's dims.
+    coords : Mapping[str, list]
+        The model's coordinates for those dims.
+    label : str
+        Name of the input, used in the error message.
+
+    Raises
+    ------
+    ValueError
+        If the input lacks coordinates the model has, on a dim it carries.
+    """
+    missing = {
+        dim: sorted(
+            set(values) - set(np.asarray(da.coords[dim].values).ravel().tolist())
+        )
+        for dim, values in coords.items()
+        if dim in da.coords
+    }
+    missing = {dim: labels for dim, labels in missing.items() if labels}
+    if missing:
+        raise ValueError(
+            f"{label} does not cover every model coordinate; missing {missing}."
         )
 
 
@@ -148,23 +186,12 @@ def align_to_model_coords(
         If the input carries coordinates the model does not have, or does not
         cover every coordinate the model does.
     """
-    _reject_unknown_coords(da, coords, label=label)
+    reject_unknown_coords(da, coords, label=label)
 
     aligned = da.reindex(coords)
     if bool(aligned.isnull().any()):
-        missing = {
-            dim: sorted(
-                set(values) - set(np.asarray(da.coords[dim].values).ravel().tolist())
-            )
-            for dim, values in coords.items()
-            if dim in da.coords
-        }
-        missing = {dim: labels for dim, labels in missing.items() if labels}
-        raise ValueError(
-            f"{label} does not cover every model coordinate; missing {missing}."
-            if missing
-            else f"{label} contains missing values (NaN) after alignment."
-        )
+        reject_missing_coords(da, coords, label=label)
+        raise ValueError(f"{label} contains missing values (NaN) after alignment.")
     return aligned
 
 
@@ -267,6 +294,30 @@ class OptimizationVariable(ABC):
         The amount must follow the same convention as the media budgets, which
         are per-period rates rather than totals over the horizon, since the
         constraint sums the contributions directly.
+        """
+        return None
+
+    def delivery_report(
+        self, x: np.ndarray, date_coords: Sequence | None = None
+    ) -> Dataset | None:
+        """Delivery and clearing prices at a solution slice, for a variable whose money buys units.
+
+        Returns None by default, for a variable with no price response: a lever is
+        not bought, and a monetary variable optimized without a ``price_response``
+        reports nothing. :class:`OptimizationVariables` keys the reports it gets
+        back by variable name, so a variable joins the result by overriding this.
+
+        Parameters
+        ----------
+        x : np.ndarray
+            This variable's slice of the flat decision vector.
+        date_coords : Sequence or None
+            Labels for the date dim of the report.
+
+        Returns
+        -------
+        xarray.Dataset or None
+            The report, or None when the variable has none.
         """
         return None
 
@@ -638,7 +689,7 @@ class MediaVariable(OptimizationVariable):
 
     def delivery_report(
         self, x: np.ndarray, date_coords: Sequence | None = None
-    ) -> dict[str, DataArray]:
+    ) -> Dataset | None:
         """Implied delivery and clearing prices at a flat solution slice.
 
         Evaluated from the same symbolic maps :meth:`to_model` used, on the same
@@ -654,17 +705,18 @@ class MediaVariable(OptimizationVariable):
 
         Returns
         -------
-        dict[str, DataArray]
-            Empty when the variable has no price response. Otherwise three arrays
-            over ``(date_dim, *dims)``: ``implied_delivery``, the units bought
-            (before ``channel_scales``; ``0.0`` at zero money), and
+        xarray.Dataset or None
+            None when the variable has no price response. Otherwise four arrays
+            over ``(date_dim, *dims)``: ``spend``, the money spent per period and
+            cell (``0.0`` outside the mask); ``implied_delivery``, the units it
+            buys (before ``channel_scales``; ``0.0`` at zero money); and
             ``implied_price`` / ``implied_marginal_price`` in money per unit,
             ``nan`` wherever no money was spent. On spent cells
             ``(implied_delivery * implied_price).sum(date_dim)`` equals
-            ``budgets * num_periods``.
+            ``spend.sum(date_dim)``, which is ``unpack(x) * num_periods``.
         """
         if self.price_response is None:
-            return {}
+            return None
         x = np.asarray(x, dtype="float64")
         if x.shape != (self.size,):
             raise ValueError(
@@ -686,11 +738,15 @@ class MediaVariable(OptimizationVariable):
         coords: dict = dict(self.coords)
         if date_coords is not None:
             coords[self.date_dim] = list(date_coords)
-        return {
-            "implied_delivery": DataArray(delivery, dims=dims, coords=coords),
-            "implied_price": DataArray(price, dims=dims, coords=coords),
-            "implied_marginal_price": DataArray(marginal, dims=dims, coords=coords),
-        }
+        return Dataset(
+            {
+                "spend": (dims, money),
+                "implied_delivery": (dims, delivery),
+                "implied_price": (dims, price),
+                "implied_marginal_price": (dims, marginal),
+            },
+            coords=coords,
+        )
 
     def _compile_delivery_report(
         self, response: ResolvedPriceResponse
@@ -740,7 +796,7 @@ class MediaVariable(OptimizationVariable):
         # check below cannot catch it -- dropping a label leaves no NaN -- and
         # stays scoped to the mask, because a cell outside the optimization
         # may legitimately be omitted.
-        _reject_unknown_coords(da, self.coords, label=self.name)
+        reject_unknown_coords(da, self.coords, label=self.name)
         aligned = da.reindex(self.coords).transpose(*self.dims)
         values = aligned.values[self._bool_mask]
         if np.isnan(values).any():
@@ -1086,6 +1142,39 @@ class OptimizationVariables:
             variable.name: variable.unpack(x[self.slices[variable.name]])
             for variable in self.variables
         }
+
+    def delivery_reports(
+        self, x: np.ndarray, date_coords: Sequence | None = None
+    ) -> dict[str, Dataset]:
+        """Split a flat solution into one delivery report per priced variable.
+
+        Parameters
+        ----------
+        x : np.ndarray
+            The flat decision vector, of length :attr:`size`.
+        date_coords : Sequence or None
+            Labels for the date dim of every report; the variables share the
+            window, so one set of labels serves them all.
+
+        Returns
+        -------
+        dict[str, xarray.Dataset]
+            Keyed by variable name, in flat-vector order, for every variable whose
+            :meth:`OptimizationVariable.delivery_report` is not None. Each report
+            keeps its own variable's dims: they are not stacked, because
+            variables differ in dims and a stack would broadcast or pad them.
+        """
+        x = np.asarray(x)
+        if x.shape != (self.size,):
+            raise ValueError(f"expected shape ({self.size},), got {x.shape}")
+        reports = {}
+        for variable in self.variables:
+            report = variable.delivery_report(
+                x[self.slices[variable.name]], date_coords=date_coords
+            )
+            if report is not None:
+                reports[variable.name] = report
+        return reports
 
     def spending_variables(self) -> list[OptimizationVariable]:
         """Return the variables that draw from the shared budget.

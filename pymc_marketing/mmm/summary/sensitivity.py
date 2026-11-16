@@ -30,6 +30,7 @@ from pymc_marketing.mmm.summary.helpers import (
     convert_output,
     prepare_sensitivity_data,
 )
+from pymc_marketing.names.mmm import Group
 
 __all__ = [
     "sensitivity_analysis",
@@ -73,7 +74,7 @@ def _sensitivity_summary(
 ) -> DataFrameType:
     _stats.validate_hdi_probs(hdi_probs)
 
-    if not hasattr(data.idata, "sensitivity_analysis"):
+    if not hasattr(data.idata, Group.SENSITIVITY_ANALYSIS):
         raise ValueError(
             "idata has no 'sensitivity_analysis' group. "
             "Run SensitivityAnalysis with extend_idata=True first."

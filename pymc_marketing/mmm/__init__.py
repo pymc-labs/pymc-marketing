@@ -20,6 +20,7 @@ from pymc_marketing.mmm.additive_effect import (
     IncrementalitySpec,
     MediaMuEffect,
 )
+from pymc_marketing.mmm.budget_model import BudgetModelEffect, lift_test_design
 from pymc_marketing.mmm.budget_optimizer import (
     BudgetOptimizationResult,
     BudgetOptimizer,
@@ -97,12 +98,14 @@ from pymc_marketing.mmm.time_slice_cross_validation import (
 )
 from pymc_marketing.mmm.types import MMMBuilder
 from pymc_marketing.mmm.validating import validation_method_X, validation_method_y
+from pymc_marketing.mmm.var_baseline import VARBaselineEffect
 
 __all__ = [
     "HSGP",
     "MMM",
     "AdstockTransformation",
     "BinomialAdstock",
+    "BudgetModelEffect",
     "BudgetOptimizationResult",
     "BudgetOptimizer",
     "BudgetOptimizerWrapper",
@@ -148,6 +151,7 @@ __all__ = [
     "TanhSaturationBaselined",
     "TimeSliceCrossValidationResult",
     "TimeSliceCrossValidator",
+    "VARBaselineEffect",
     "VariableScaling",
     "WeeklyFourier",
     "WeibullCDFAdstock",
@@ -158,6 +162,7 @@ __all__ = [
     "create_constrained_inverse_gamma_prior",
     "create_eta_prior",
     "create_m_and_L_recommendations",
+    "lift_test_design",
     "merge_inference_data",
     "merge_models_and_idata",
     "preprocessing",

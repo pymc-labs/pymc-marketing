@@ -22,14 +22,17 @@ import pandas as pd
 import xarray as xr
 from pymc_extras.prior import Prior
 
+from pymc_marketing.data.idata.io import load_idata
 from pymc_marketing.mmm.builders.factories import build, naming, resolve
 from pymc_marketing.mmm.builders.schema import CalibrationStep, MMMYamlConfig
 from pymc_marketing.mmm.data_conversion import (
     _dataset_has_target,
     _validate_extra_vars,
+    has_embedded_target,
     to_mmm_dataset,
 )
 from pymc_marketing.mmm.mmm import MMM
+from pymc_marketing.names.mmm import Dim
 
 
 def _load_df(path: str | Path) -> pd.DataFrame:
@@ -139,12 +142,7 @@ def build_mmm_from_yaml(
         X = _load_df(data_cfg.X_path)
     target_column = model_spec["kwargs"].get("target_column")
     if y is None:
-        has_embedded_target = (
-            isinstance(X, xr.Dataset) and _dataset_has_target(X)
-        ) or (
-            isinstance(X, pd.DataFrame) and target_column and target_column in X.columns
-        )
-        if not has_embedded_target:
+        if not has_embedded_target(X, target_column):
             if data_cfg is None or data_cfg.y_path is None:
                 raise ValueError("y not provided and no `data.y_path` found in YAML.")
             y = _load_df(data_cfg.y_path)
@@ -163,7 +161,7 @@ def build_mmm_from_yaml(
                 f"Date column '{date_column}' specified in config not found "
                 f"in either X or y data."
             )
-    elif isinstance(X, xr.Dataset) and date_column and "date" not in X.coords:
+    elif isinstance(X, xr.Dataset) and date_column and Dim.DATE not in X.coords:
         raise ValueError(
             f"Date column '{date_column}' specified in config but Dataset "
             f"input is missing a 'date' coordinate."
@@ -210,6 +208,6 @@ def build_mmm_from_yaml(
     if cfg.idata_path is not None:
         idata_path = Path(cfg.idata_path)
         if os.path.exists(idata_path):
-            model.idata = xr.open_datatree(str(idata_path))
+            model.idata = load_idata(idata_path)
 
     return model
