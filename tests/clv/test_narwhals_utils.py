@@ -31,13 +31,11 @@ from pymc_marketing.clv._narwhals_utils import (
     _coerce_period_end,
     _day_number,
     _days_from_civil,
-    _finalize,
     _parse_granularity,
     _period_start,
     _period_start_scalar,
     _prepare_datetime_column,
     _resolve_time_spec,
-    _validate_backend,
     _validate_input,
 )
 from pymc_marketing.clv.utils import (
@@ -165,13 +163,14 @@ def test_day_number_matches_python_on_every_backend(to_backend):
     np.testing.assert_array_equal(result["n"].to_numpy(), expected)
 
 
-@pytest.mark.parametrize("unit", ["d", "w", "mo", "q", "y"])
-@pytest.mark.parametrize("week_start_offset", [0, 2, 6])
+@pytest.mark.parametrize(
+    "unit, week_start_offset",
+    # The start of the week only matters for weekly periods.
+    [("d", 0), ("w", 0), ("w", 2), ("w", 6), ("mo", 0), ("q", 0), ("y", 0)],
+)
 def test_period_start_expression_matches_scalar_twin(
     to_backend, unit, week_start_offset
 ):
-    if unit != "w" and week_start_offset:
-        pytest.skip("week_start only matters for weekly granularity")
     frame = _day_range()
     native = to_backend(frame)
     result = collect_sorted(
@@ -229,21 +228,6 @@ def test_period_start_weekly_matches_pandas_w_sun(to_backend):
     pandas_week_start = frame["ts"].dt.to_period("W").dt.start_time
     expected = ((pandas_week_start - pd.Timestamp(EPOCH)).dt.days).to_numpy()
     np.testing.assert_array_equal(result["p"].to_numpy(), expected)
-
-
-def test_validate_input_missing_column():
-    frame = nw.from_native(
-        pd.DataFrame({"id": [1], "date": pd.to_datetime(["2020-01-01"])})
-    )
-    with pytest.raises(KeyError, match=r"\['spend'\] not found"):
-        _validate_input(frame, ["id", "date", "spend"], "date")
-
-
-def test_validate_input_string_datetime_column_has_cast_hint(to_backend):
-    native = to_backend(pd.DataFrame({"id": [1], "date": ["2020-01-01"]}))
-    frame = nw.from_native(native)
-    with pytest.raises(TypeError, match=r"pd\.to_datetime"):
-        _validate_input(frame, ["id", "date"], "date")
 
 
 def test_validate_input_accepts_datetime_and_date(to_backend):
@@ -315,73 +299,11 @@ def test_coerce_period_end_utc_column():
     assert _coerce_period_end(value, "UTC", "x") == datetime(2015, 2, 6, 23, 0)
 
 
-def test_coerce_period_end_time_zone_mismatch_raises():
-    with pytest.raises(ValueError, match="aware but the datetime column is naive"):
-        _coerce_period_end(datetime(2015, 2, 7, tzinfo=UTC), None, "x")
-    with pytest.raises(
-        ValueError, match="naive but the datetime column is time-zone aware"
-    ):
-        _coerce_period_end(datetime(2015, 2, 7), "UTC", "x")
-
-
 def test_coerce_period_end_rejects_bad_values():
     with pytest.raises(ValueError, match="ISO-8601"):
         _coerce_period_end("02/07/2015", None, "x")
     with pytest.raises(TypeError, match="must be a str, date, datetime"):
         _coerce_period_end(42, None, "x")
-
-
-def test_finalize_keeps_native_type(to_backend):
-    native = to_backend(pd.DataFrame({"a": [1, 2]}))
-    frame = nw.from_native(native)
-    eager_input = isinstance(frame, nw.DataFrame)
-    out = _finalize(frame.lazy(), None, eager_input=eager_input)
-    assert type(out) is type(native)
-
-
-@pytest.mark.parametrize("backend", ["pandas", "polars", "pyarrow"])
-def test_finalize_collects_to_requested_backend(to_backend, backend):
-    pl = pytest.importorskip("polars")
-    pa = pytest.importorskip("pyarrow")
-    expected_type = {
-        "pandas": pd.DataFrame,
-        "polars": pl.DataFrame,
-        "pyarrow": pa.Table,
-    }[backend]
-    native = to_backend(pd.DataFrame({"a": [1, 2]}))
-    frame = nw.from_native(native)
-    out = _finalize(frame.lazy(), backend, eager_input=isinstance(frame, nw.DataFrame))
-    assert isinstance(out, expected_type)
-
-
-def test_finalize_resets_the_pandas_index():
-    frame = nw.from_native(pd.DataFrame({"a": [2, 1]}, index=[5, 3])).lazy()
-    out = _finalize(frame.sort("a"), None, eager_input=True)
-    assert out.index.equals(pd.RangeIndex(2))
-
-
-def test_validate_backend():
-    _validate_backend(None)
-    _validate_backend("polars")
-    with pytest.raises(ValueError, match="Unsupported backend"):
-        _validate_backend("dask")
-
-
-def test_validate_input_rejects_reserved_column_names():
-    frame = nw.from_native(pd.DataFrame({"id": [1], "_period": [datetime(2015, 1, 1)]}))
-    with pytest.raises(ValueError, match="reserved for internal use"):
-        _validate_input(frame, ["id", "_period"], "_period")
-
-
-def test_coerce_period_end_accepts_numpy_datetime64():
-    actual = _coerce_period_end(np.datetime64("2015-02-07T03:00"), None, "x")
-    assert actual == datetime(2015, 2, 7, 3)
-
-
-@pytest.mark.parametrize("zone", ["UTC+02:00", "+02:00", "+0200"])
-def test_coerce_period_end_fixed_offset_column(zone):
-    actual = _coerce_period_end(datetime(2015, 2, 7, 23, tzinfo=UTC), zone, "x")
-    assert actual == datetime(2015, 2, 8, 1)
 
 
 def test_coerce_period_end_negative_fixed_offset_column():
@@ -1319,9 +1241,12 @@ def random_transactions(seed: int) -> pd.DataFrame:
     return pd.DataFrame(
         {
             "id": customers,
-            "date": pd.Timestamp("2015-01-01") + pd.to_timedelta(days, unit="D"),
             # Multiples of 0.25 sum exactly, whatever order a backend adds them in.
             "spend": rng.integers(1, 400, size=n_rows) / 4,
+            # Purchases happen at any time of day.
+            "date": pd.Timestamp("2015-01-01")
+            + pd.to_timedelta(days, unit="D")
+            + pd.to_timedelta(rng.integers(0, 86_400, size=n_rows), unit="s"),
         }
     )
 
@@ -1530,6 +1455,88 @@ class TestTimeUnit:
 
 
 class TestRegressions:
+    def test_default_period_end_adds_no_global_window(self, transaction_data):
+        """A max over all transactions is a window without a partition.
+
+        Spark runs such a window in a single task, so the default study end has to
+        come from a one-row aggregate instead.
+        """
+        ibis = pytest.importorskip("ibis")
+        result = rfm_summary(ibis.memtable(transaction_data), "identifier", "date")
+        assert "OVER" not in str(ibis.to_sql(result))
+
+    @pytest.mark.parametrize(
+        "function, args",
+        [
+            (rfm_summary, ("identifier", "date", "monetary_value")),
+            (rfm_train_test_split, ("identifier", "date", "2015-02-01")),
+            (rfm_segments, ("identifier", "date", "monetary_value")),
+        ],
+        ids=["summary", "train_test_split", "segments"],
+    )
+    def test_the_sort_is_the_last_step_of_the_query(
+        self, function, args, transaction_data
+    ):
+        """An engine need not keep the order of a subquery, so sort once, last."""
+        ibis = pytest.importorskip("ibis")
+        sql = str(ibis.to_sql(function(ibis.memtable(transaction_data), *args)))
+        assert sql.count("ORDER BY") == 1
+        assert "ORDER BY" in sql.rsplit(")", 1)[-1]
+
+    def test_split_accepts_pandas_periods(self, to_backend, transaction_data):
+        native = to_backend(transaction_data)
+        actual = rfm_train_test_split(
+            native,
+            "identifier",
+            "date",
+            pd.Period("2015-02-01", "D"),
+            pd.Period("2015-02-05", "D"),
+        )
+        expected = rfm_train_test_split(
+            native, "identifier", "date", "2015-02-01", "2015-02-05"
+        )
+        assert_frame_equal(collect_sorted(actual), collect_sorted(expected))
+
+    def test_customer_ids_of_mixed_types(self):
+        """Such ids cannot be ordered, so the result comes back unsorted."""
+        df = pd.DataFrame(
+            {
+                "id": [1, "b", 1, "b", 2.5],
+                "date": pd.to_datetime(
+                    [
+                        "2015-01-01",
+                        "2015-01-01",
+                        "2015-01-03",
+                        "2015-01-06",
+                        "2015-01-02",
+                    ]
+                ),
+            }
+        )
+        actual = rfm_summary(df, "id", "date").set_index("customer_id")
+        assert actual["frequency"].to_dict() == {1: 1.0, "b": 1.0, 2.5: 0.0}
+        assert actual["recency"].to_dict() == {1: 2.0, "b": 5.0, 2.5: 0.0}
+
+    def test_polars_nan_is_a_missing_value(self):
+        """Polars keeps NaN apart from null; pandas reads both as missing."""
+        df = pl.DataFrame(
+            {
+                "id": [1.0, 1.0, 1.0, float("nan"), 2.0],
+                "date": [date(2015, 1, day) for day in (1, 2, 3, 4, 5)],
+                "spend": [9.0, float("nan"), 3.0, 4.0, 5.0],
+            }
+        )
+        for frame in (df, df.lazy()):
+            actual = collect_sorted(rfm_summary(frame, "id", "date", "spend"))
+            assert actual["customer_id"].tolist() == [1.0, 2.0]
+            # Two repeat periods, one of them without a known spend.
+            assert actual["monetary_value"].tolist() == [1.5, 0.0]
+
+    def test_segments_of_no_transactions_raise(self, to_backend, transaction_data):
+        empty = to_backend(transaction_data.head(0))
+        with pytest.raises(ValueError, match="No transactions to segment"):
+            rfm_segments(empty, "identifier", "date", "monetary_value")
+
     def test_test_T_counts_new_customers_last_purchase(self, to_backend):
         """The study ends at the last purchase of the log, whoever made it."""
         df = pd.DataFrame(

@@ -33,7 +33,7 @@ from pymc_marketing.clv.models import (
 )
 
 # Dataframe libraries the Narwhals-based CLV utilities are tested against.
-BACKENDS = ["pandas", "polars", "polars_lazy", "pyarrow", "duckdb"]
+BACKENDS = ["pandas", "pandas_pyarrow", "polars", "polars_lazy", "pyarrow", "duckdb"]
 
 
 @pytest.fixture(params=BACKENDS)
@@ -44,6 +44,10 @@ def to_backend(request) -> Callable[[pd.DataFrame], Any]:
     def convert(df: pd.DataFrame):
         if name == "pandas":
             return df
+        if name == "pandas_pyarrow":
+            # What pd.read_parquet(..., dtype_backend="pyarrow") returns.
+            pytest.importorskip("pyarrow")
+            return df.convert_dtypes(dtype_backend="pyarrow")
         if name in ("polars", "polars_lazy"):
             pl = pytest.importorskip("polars")
             out = pl.from_pandas(df)
@@ -64,7 +68,11 @@ def collect_sorted(result, by: str | list[str] = "customer_id") -> pd.DataFrame:
     frame = nw.from_native(result)
     if isinstance(frame, nw.LazyFrame):
         frame = frame.collect()
-    return frame.sort(by).to_pandas().reset_index(drop=True)
+    result = frame.sort(by).to_pandas().reset_index(drop=True)
+    if any(isinstance(dtype, pd.ArrowDtype) for dtype in result.dtypes):
+        # Compare values, not the PyArrow dtypes of the pandas_pyarrow backend.
+        result = frame.sort(by).to_arrow().replace_schema_metadata(None).to_pandas()
+    return result
 
 
 @pytest.fixture(scope="module")

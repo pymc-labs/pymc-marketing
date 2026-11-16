@@ -32,6 +32,8 @@ import numpy as np
 import pandas
 from narwhals.stable.v2.typing import FrameT
 
+from pymc_marketing.names.clv import Col
+
 Backend = Literal["pandas", "polars", "pyarrow"]
 
 # Fixed divisors turning a duration in days into the named ``time_unit``.
@@ -174,8 +176,8 @@ def _days_from_civil(year: Any, month: Any, day: Any) -> Any:
     """Days since 1970-01-01 of a proleptic Gregorian date.
 
     Works on Narwhals expressions and on plain integers alike, using only
-    multiplication, floor division and modulo on non-negative operands (Howard
-    Hinnant's ``days_from_civil`` algorithm).
+    multiplication and floor division on non-negative operands (Howard Hinnant's
+    ``days_from_civil`` algorithm).
     """
     if any(isinstance(part, nw.Expr) for part in (year, month, day)):
         # Scalars become literals so that every comparison below is an expression.
@@ -185,13 +187,16 @@ def _days_from_civil(year: Any, month: Any, day: Any) -> Any:
             else nw.lit(part, dtype=nw.Int64)
             for part in (year, month, day)
         )
+        # No modulo: pandas columns with a PyArrow dtype do not implement it.
         shifted_year = nw.when(month <= 2).then(year - 1).otherwise(year)
+        month_index = nw.when(month <= 2).then(month + 9).otherwise(month - 3)
     else:
         shifted_year = year - 1 if month <= 2 else year
+        month_index = month + 9 if month <= 2 else month - 3
 
+    # month_index: March -> 0 ... February -> 11
     era = shifted_year // 400
     year_of_era = shifted_year - era * 400
-    month_index = (month + 9) % 12  # March -> 0 ... February -> 11
     day_of_year = (153 * month_index + 2) // 5 + day - 1
     day_of_era = year_of_era * 365 + year_of_era // 4 - year_of_era // 100 + day_of_year
     return era * 146097 + day_of_era - _CIVIL_EPOCH_SHIFT
@@ -374,12 +379,16 @@ def _finalize(
     *,
     eager_input: bool,
 ) -> Any:
-    """Return ``frame`` as a native object.
+    """Return ``frame`` as a native object, sorted by customer.
 
     ``backend=None`` keeps the input's own library and laziness. Otherwise the result
     is collected into the requested eager library. A pandas result gets a fresh
     ``RangeIndex``.
     """
+    # The sort is the last step of the query: an engine need not keep the order of
+    # a subquery. Ids of mixed types (a pandas object column) cannot be ordered.
+    if not isinstance(frame.collect_schema()[Col.CUSTOMER_ID], nw.Object):
+        frame = frame.sort(Col.CUSTOMER_ID)
     result: nw.DataFrame[Any] | nw.LazyFrame[Any]
     if backend is not None:
         result = frame.collect(backend=backend)
