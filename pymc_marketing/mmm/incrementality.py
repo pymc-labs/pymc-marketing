@@ -1772,7 +1772,9 @@ class Incrementality:
             observations before the period to capture historical effects
             carrying into the evaluation period. The dates summed outside the
             period follow ``adstock.mode``: after the period for ``After``,
-            before it for ``Before``, and on both sides for ``Overlap``.
+            and on both sides for ``Before`` and ``Overlap``.  Under
+            ``Before`` the dates after the period hold the movement of an
+            effect whose own adstock carries forward.
         num_samples : int or None, optional
             Number of posterior samples to use. If None, all samples are used.
             Otherwise the same randomly chosen draws are kept in every chain,
@@ -2666,9 +2668,9 @@ class Incrementality:
             the axis, and the dates before the period are left out by
             convention: a node that reduces over ``date`` can move them, and
             keeping them would make rows overlap.  A leading kernel places real
-            mass before the period, so those dates are kept: from the start of
-            the axis to its end under ``ConvMode.Overlap``, and to the period's
-            end under ``ConvMode.Before``.
+            mass before the period, so those dates are kept: under
+            ``ConvMode.Before`` and ``ConvMode.Overlap`` a row runs from the
+            start of the axis to its end.
 
             Second, no horizon was measured, so the unobserved tail runs to the
             period's last spend date plus the kernel's own trailing lags
@@ -7594,9 +7596,9 @@ class Incrementality:
           period are excluded by convention, not measured: a node that reduces
           over ``date`` can move them, and keeping them would make rows
           overlap.  A leading kernel keeps the dates before the period, where
-          it places real mass: the band starts at the axis start and ends at
-          the axis end under ``ConvMode.Overlap``, at the period's end under
-          ``ConvMode.Before``.
+          it places real mass: under ``ConvMode.Before`` and
+          ``ConvMode.Overlap`` the band starts at the axis start and ends at
+          the axis end.
 
         A sum over ``realization_date`` with xarray's default ``skipna`` therefore
         reproduces :meth:`compute_incremental_contribution` exactly.
