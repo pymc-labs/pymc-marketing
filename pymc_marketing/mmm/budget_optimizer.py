@@ -519,12 +519,6 @@ def _media_report_fields(report: xr.Dataset | None) -> dict[str, DataArray | Non
     return {name: None if report is None else report[name] for name in names}
 
 
-def _add_counts(into: OptimizeResult, other: OptimizeResult) -> None:
-    """Add ``other``'s iteration and evaluation counts to ``into``'s."""
-    for key in ("nit", "nfev", "njev"):
-        into[key] += other[key]
-
-
 @dataclass
 class PlanEvaluation:
     """The compiled objective and its gradient at one labelled plan.
@@ -3899,16 +3893,22 @@ class BudgetOptimizer(BaseModel):
                 result.x, bounds, solution_scale, minimize_kwargs, callback
             )
             if polish.success:
-                _add_counts(polish, result)
+                self._add_counts(polish, result)
                 result, scale = polish, solution_scale
                 objective, grad = self._objective_and_grad(result.x)
             else:
-                _add_counts(result, polish)
+                self._add_counts(result, polish)
         result.fun = float(objective)
         result.jac = np.asarray(grad)
         if "multipliers" in result:
             result.multipliers = result.multipliers * scale
         return result
+
+    @staticmethod
+    def _add_counts(into: OptimizeResult, other: OptimizeResult) -> None:
+        """Add ``other``'s iteration and evaluation counts to ``into``'s."""
+        for key in ("nit", "nfev", "njev"):
+            into[key] += other[key]
 
     def _optimization_result(
         self,
