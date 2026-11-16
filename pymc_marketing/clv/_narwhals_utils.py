@@ -31,6 +31,7 @@ from zoneinfo import ZoneInfo
 import narwhals.stable.v2 as nw
 import numpy as np
 import pandas
+from narwhals.stable.v2.typing import IntoFrameT
 
 from pymc_marketing.names.clv import Col
 
@@ -82,7 +83,9 @@ _CIVIL_EPOCH_SHIFT = 719468
 _WEEK_SHIFT = 719470
 
 
-def _days_from_civil(year: Any, month: Any, day: Any) -> Any:
+def _days_from_civil[IntOrExpr: (int, nw.Expr)](
+    year: IntOrExpr, month: IntOrExpr | int, day: IntOrExpr | int
+) -> IntOrExpr:
     """Days since 1970-01-01 of a proleptic Gregorian date.
 
     Works on Narwhals expressions and on plain integers alike, using only
@@ -131,7 +134,9 @@ class TimeSpec:
     time_unit: str
     week_start_offset: int = 0
 
-    def _period_start(self, year: Any, month: Any, day: Any) -> Any:
+    def _period_start[IntOrExpr: (int, nw.Expr)](
+        self, year: IntOrExpr, month: IntOrExpr, day: IntOrExpr
+    ) -> IntOrExpr:
         """Day number of the first day of the period holding a calendar date."""
         if self.unit == "day":
             return _days_from_civil(year, month, day)
@@ -156,7 +161,7 @@ class TimeSpec:
         """Period of one datetime, as the day number of its first day."""
         return self._period_start(value.year, value.month, value.day)
 
-    def elapsed(self, days: Any) -> Any:
+    def elapsed[FloatOrExpr: (float, nw.Expr)](self, days: FloatOrExpr) -> FloatOrExpr:
         """Express a day count between two period starts in ``time_unit``.
 
         ``days`` is a Narwhals expression or a plain number. When ``time_unit`` is
@@ -350,7 +355,7 @@ def _coerce_period_end(
     return value
 
 
-def _finalize(frame: nw.LazyFrame[Any], transactions: Any) -> Any:
+def _finalize(frame: nw.LazyFrame[Any], transactions: IntoFrameT) -> IntoFrameT:
     """Return ``frame`` sorted by customer, in the library of ``transactions``.
 
     An in-memory input gives an in-memory result and a lazy input stays lazy. A

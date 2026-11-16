@@ -35,7 +35,13 @@ from pymc_marketing.clv._narwhals_utils import (
 )
 from pymc_marketing.clv.rfm import (
     _bin_edges,
+    _customer_periods,
     _default_rfm_segment_config,
+    _quartile_edges,
+    _segment_names,
+    _summary_columns,
+    _test_period_summary,
+    _with_study_end,
     rfm_segments,
     rfm_summary,
     rfm_train_test_split,
@@ -173,6 +179,123 @@ def test_bin_edges_leave_room_for_float_noise():
     assert bounds[0] == pytest.approx(1e-10)
 
 
+def lazy(to_backend, data: dict) -> nw.LazyFrame:
+    return nw.from_native(to_backend(pd.DataFrame(data))).lazy()
+
+
+def rows(frame: nw.LazyFrame, by: str) -> list[dict]:
+    return frame.collect().sort(by).rows(named=True)
+
+
+# Two customers, with periods given as day numbers: "a" buys on days 0, 0 and 7,
+# "b" on day 3.
+PERIOD_ROWS = {
+    "id": ["a", "a", "a", "b"],
+    "_period": [0, 0, 7, 3],
+    "spend": [1.0, 2.0, 4.0, 8.0],
+}
+
+
+@pytest.mark.parametrize(
+    "include_first, monetary_sums", [(True, [7.0, 8.0]), (False, [4.0, 0.0])]
+)
+def test_customer_periods(to_backend, include_first, monetary_sums):
+    actual = rows(
+        _customer_periods(lazy(to_backend, PERIOD_ROWS), "id", "spend", include_first),
+        "id",
+    )
+    assert [row["_first"] for row in actual] == [0, 3]
+    assert [row["_last"] for row in actual] == [7, 3]
+    # Two purchases in one period are one transaction.
+    assert [row["_n_periods"] for row in actual] == [2, 1]
+    assert [row["_monetary_sum"] for row in actual] == monetary_sums
+
+
+def test_customer_periods_without_spend(to_backend):
+    frame = _customer_periods(lazy(to_backend, PERIOD_ROWS), "id", None, False)
+    assert frame.collect_schema().names() == ["id", "_first", "_last", "_n_periods"]
+
+
+@pytest.mark.parametrize("end_period, expected", [(None, 7), (30, 30)])
+def test_with_study_end(to_backend, end_period, expected):
+    """The study ends at the given period, else at the last one with a purchase."""
+    transactions = lazy(to_backend, PERIOD_ROWS)
+    customers = lazy(to_backend, {"id": ["a", "b"]})
+    actual = rows(_with_study_end(customers, transactions, end_period), "id")
+    assert actual == [{"id": "a", "_end": expected}, {"id": "b", "_end": expected}]
+
+
+CUSTOMERS = {
+    "id": ["a", "b"],
+    "_first": [0, 3],
+    "_last": [7, 3],
+    "_n_periods": [2, 1],
+    "_monetary_sum": [4.0, 0.0],
+    "_end": [14, 14],
+}
+
+
+def test_summary_columns_for_modeling(to_backend):
+    columns = _summary_columns(True, False, TimeSpec("day", "week"))
+    actual = rows(lazy(to_backend, CUSTOMERS).select("id", *columns), "id")
+    assert actual == [
+        {"id": "a", "frequency": 1.0, "recency": 1.0, "T": 2.0, "monetary_value": 4.0},
+        # A customer with one purchase has no repeat spend to average.
+        {
+            "id": "b",
+            "frequency": 0.0,
+            "recency": 0.0,
+            "T": 11 / 7,
+            "monetary_value": 0.0,
+        },
+    ]
+
+
+def test_summary_columns_for_segmentation(to_backend):
+    """Every period counts and recency is the time since the last purchase."""
+    columns = _summary_columns(False, True, TimeSpec("day", "day"))
+    actual = rows(lazy(to_backend, CUSTOMERS).select("id", *columns), "id")
+    assert actual == [
+        {"id": "a", "frequency": 2.0, "recency": 7.0},
+        {"id": "b", "frequency": 1.0, "recency": 11.0},
+    ]
+
+
+def test_test_period_summary(to_backend):
+    actual = rows(
+        _test_period_summary(lazy(to_backend, PERIOD_ROWS), "id", "spend"),
+        "customer_id",
+    )
+    assert actual == [
+        # 7.0 spent over two periods.
+        {"customer_id": "a", "test_frequency": 2, "test_monetary_value": 3.5},
+        {"customer_id": "b", "test_frequency": 1, "test_monetary_value": 8.0},
+    ]
+    without_spend = _test_period_summary(lazy(to_backend, PERIOD_ROWS), "id", None)
+    assert without_spend.collect_schema().names() == ["customer_id", "test_frequency"]
+
+
+def test_quartile_edges(to_backend):
+    values = [0.0, 1.0, 2.0, 3.0, 4.0]
+    summary = lazy(
+        to_backend,
+        {"recency": values, "frequency": [10.0] * 5, "monetary_value": values[::-1]},
+    )
+    assert _quartile_edges(summary) == {
+        "recency": values,
+        "frequency": [10.0] * 5,
+        "monetary_value": values,
+    }
+
+
+def test_segment_names(to_backend):
+    scores = lazy(to_backend, {"rfm_score": ["111", "444", "123"]})
+    # A score listed twice goes to the later segment.
+    config = {"Low": ["111", "444"], "High": ["444"]}
+    actual = rows(scores.with_columns(_segment_names(config)), "rfm_score")
+    assert [row["segment"] for row in actual] == ["Low", "Other", "High"]
+
+
 @pytest.mark.parametrize(
     "value",
     [
@@ -212,10 +335,6 @@ def test_coerce_period_end_negative_fixed_offset_column():
     actual = _coerce_period_end(datetime(2015, 2, 7, 1, tzinfo=UTC), "UTC-05:30", "x")
     assert actual == datetime(2015, 2, 6, 19, 30)
 
-
-# --------------------------------------------------------------------------- #
-# Public functions
-# --------------------------------------------------------------------------- #
 
 pl = pytest.importorskip("polars")
 pa = pytest.importorskip("pyarrow")
@@ -326,11 +445,6 @@ EXPECTED_FIRST_TRANSACTION = pd.DataFrame(
     ],
     columns=["customer_id", "frequency", "recency", "monetary_value"],
 )
-
-
-# --------------------------------------------------------------------------- #
-# Every backend against hand-written expected outputs
-# --------------------------------------------------------------------------- #
 
 
 class TestCrossBackendSummary:
@@ -699,10 +813,6 @@ class TestCrossBackendSegments:
             rfm_segments(to_backend(df), "id", "date", "spend", granularity="1d")
 
 
-# --------------------------------------------------------------------------- #
-# Legacy-to-new parity on pandas input
-# --------------------------------------------------------------------------- #
-
 PARITY_CASES = [
     pytest.param("D", None, False, None, id="D"),
     pytest.param("D", "monetary_value", False, "2015-02-07", id="D-monetary-end"),
@@ -712,16 +822,6 @@ PARITY_CASES = [
     pytest.param("W", "monetary_value", True, None, id="W-monetary-first"),
     pytest.param("M", "monetary_value", False, "2015-03-15", id="M-monetary-end"),
 ]
-
-
-# --------------------------------------------------------------------------- #
-# Routing
-# --------------------------------------------------------------------------- #
-
-
-# --------------------------------------------------------------------------- #
-# Return types
-# --------------------------------------------------------------------------- #
 
 
 class TestReturnTypes:
@@ -757,11 +857,6 @@ class TestReturnTypes:
             actual[col].dtype == "float64"
             for col in ["frequency", "recency", "T", "monetary_value"]
         )
-
-
-# --------------------------------------------------------------------------- #
-# New API
-# --------------------------------------------------------------------------- #
 
 
 def _warehouse_frame(backend: str, df: pd.DataFrame):
@@ -1101,11 +1196,6 @@ class TestNewApi:
                 observation_period_end="02/07/2015",
                 granularity="1d",
             )
-
-
-# --------------------------------------------------------------------------- #
-# Regressions: public functions on every backend
-# --------------------------------------------------------------------------- #
 
 
 def random_transactions(seed: int) -> pd.DataFrame:

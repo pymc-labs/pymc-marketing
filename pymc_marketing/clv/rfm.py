@@ -14,7 +14,7 @@
 """RFM summaries of transaction data, on any Narwhals dataframe."""
 
 import warnings
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import date, datetime
 from typing import Any
 
@@ -90,9 +90,6 @@ _SCORED_METRICS = (
 # Slack on a quartile edge, as a share of the largest edge of the metric.
 _EDGE_TOLERANCE = 1e-12
 
-_NO_DATA_MESSAGE = """No data available. Check `train_period_end` and `test_period_end`
-        and confirm `transactions` holds purchases on both sides of the split."""
-
 
 def _end_period(
     period_end: PeriodEnd | None, time_zone: str | None, name: str, spec: TimeSpec
@@ -101,6 +98,94 @@ def _end_period(
     if period_end is None:
         return None
     return spec.period_of(_coerce_period_end(period_end, time_zone, name))
+
+
+def _with_study_end(
+    frame: nw.LazyFrame[Any], transactions: nw.LazyFrame[Any], end_period: int | None
+) -> nw.LazyFrame[Any]:
+    """Add ``_end``, the period the study ends in, to every row of ``frame``.
+
+    Without ``end_period`` the study ends in the last period of ``transactions``.
+    That is a one-row aggregate, cross joined. Broadcasting the max over the
+    transactions instead is a window without a partition, which Spark runs in a
+    single task.
+    """
+    if end_period is not None:
+        return frame.with_columns(nw.lit(end_period, dtype=nw.Int64).alias("_end"))
+    study_end = transactions.select(nw.col("_period").max().alias("_end"))
+    return frame.join(study_end, how="cross")
+
+
+def _customer_periods(
+    frame: nw.LazyFrame[Any],
+    customer_id_col: str,
+    monetary_value_col: str | None,
+    include_first_transaction: bool,
+) -> nw.LazyFrame[Any]:
+    """Aggregate prepared transactions into one row per customer.
+
+    The row holds the customer's first and last period, the number of periods with
+    a purchase (purchases inside one period count as a single transaction) and,
+    with ``monetary_value_col``, the spend: all of it, or only what follows the
+    first period when ``include_first_transaction`` is False.
+    """
+    aggs = [
+        nw.col("_period").min().alias("_first"),
+        nw.col("_period").max().alias("_last"),
+        nw.col("_period").n_unique().alias("_n_periods"),
+    ]
+    if monetary_value_col:
+        spend = nw.col(monetary_value_col)
+        if not include_first_transaction:
+            # A window function isolates the repeat spend, so that neither a join
+            # nor a subtraction is needed.
+            first_period = nw.col("_period").min().over(customer_id_col)
+            frame = frame.with_columns(
+                nw.when(nw.col("_period") != first_period)
+                .then(spend)
+                .otherwise(nw.lit(0.0))
+                .alias("_repeat_monetary")
+            )
+            spend = nw.col("_repeat_monetary")
+        aggs.append(spend.sum().alias("_monetary_sum"))
+    return frame.group_by(customer_id_col).agg(*aggs)
+
+
+def _summary_columns(
+    monetary_value: bool, include_first_transaction: bool, spec: TimeSpec
+) -> list[nw.Expr]:
+    """Build the RFM columns from the columns of :func:`_customer_periods` and ``_end``.
+
+    For modeling, *frequency* counts repeat periods, *recency* runs from the first
+    to the last purchase and *monetary_value* is the mean repeat spend. With
+    ``include_first_transaction``, the segmentation definition applies: every
+    period counts, *recency* is the time since the last purchase and there is no *T*.
+    """
+    n_periods = nw.col("_n_periods").cast(nw.Float64)
+    recency = spec.elapsed((nw.col("_last") - nw.col("_first")).cast(nw.Float64))
+    t_value = spec.elapsed((nw.col("_end") - nw.col("_first")).cast(nw.Float64))
+    monetary_sum = nw.col("_monetary_sum")
+
+    if include_first_transaction:
+        columns = [
+            n_periods.alias(Col.FREQUENCY),
+            (t_value - recency).alias(Col.RECENCY),
+        ]
+        monetary = monetary_sum / n_periods
+    else:
+        columns = [
+            (n_periods - 1).alias(Col.FREQUENCY),
+            recency.alias(Col.RECENCY),
+            t_value.alias(Col.T),
+        ]
+        monetary = (
+            nw.when(nw.col("_n_periods") > 1)
+            .then(monetary_sum / (n_periods - 1))
+            .otherwise(nw.lit(0.0))
+        )
+    if monetary_value:
+        columns.append(monetary.cast(nw.Float64).alias(Col.MONETARY_VALUE))
+    return columns
 
 
 def _rfm_summary_frame(
@@ -116,73 +201,34 @@ def _rfm_summary_frame(
     ``frame`` comes from ``_prepare_transactions``. ``end_period`` is the period the
     study ends in; ``None`` means the last period that holds a transaction.
     """
-    if end_period is None:
-        # A one-row aggregate, cross joined below. Broadcasting the max over the
-        # transactions instead is a window without a partition, which Spark runs
-        # in a single task.
-        study_end = frame.select(nw.col("_period").max().alias("_end"))
-    else:
+    if end_period is not None:
         frame = frame.filter(nw.col("_period") <= end_period)
+    customers = _customer_periods(
+        frame, customer_id_col, monetary_value_col, include_first_transaction
+    )
+    return _with_study_end(customers, frame, end_period).select(
+        nw.col(customer_id_col).alias(Col.CUSTOMER_ID),
+        *_summary_columns(bool(monetary_value_col), include_first_transaction, spec),
+    )
 
-    # Purchases inside one period count as a single transaction.
-    customer_aggs = [
-        nw.col("_period").min().alias("_first"),
-        nw.col("_period").max().alias("_last"),
-        nw.col("_period").n_unique().alias("_n_periods"),
-    ]
+
+def _test_period_summary(
+    test_rows: nw.LazyFrame[Any], customer_id_col: str, monetary_value_col: str | None
+) -> nw.LazyFrame[Any]:
+    """Summarise the transactions of the test period into one row per customer.
+
+    *test_frequency* counts the periods with a purchase and *test_monetary_value*
+    is the mean spend per such period.
+    """
+    aggs = [nw.col("_period").n_unique().alias(Col.TEST_FREQUENCY)]
     if monetary_value_col:
-        spend = nw.col(monetary_value_col)
-        if not include_first_transaction:
-            # Spend after the customer's first period, isolated with a window
-            # function so that neither a join nor a subtraction is needed.
-            frame = frame.with_columns(
-                nw.when(
-                    nw.col("_period") != nw.col("_period").min().over(customer_id_col)
-                )
-                .then(spend)
-                .otherwise(nw.lit(0.0))
-                .alias("_repeat_monetary")
-            )
-            spend = nw.col("_repeat_monetary")
-        customer_aggs.append(spend.sum().alias("_monetary_sum"))
-    customers = frame.group_by(customer_id_col).agg(*customer_aggs)
-
-    if end_period is None:
-        customers = customers.join(study_end, how="cross")
-    else:
-        customers = customers.with_columns(
-            nw.lit(end_period, dtype=nw.Int64).alias("_end")
+        aggs.append(nw.col(monetary_value_col).sum().alias(Col.TEST_MONETARY_VALUE))
+    summary = test_rows.group_by(customer_id_col).agg(*aggs)
+    if monetary_value_col:
+        summary = summary.with_columns(
+            nw.col(Col.TEST_MONETARY_VALUE) / nw.col(Col.TEST_FREQUENCY)
         )
-
-    n_periods = nw.col("_n_periods").cast(nw.Float64)
-    recency = spec.elapsed((nw.col("_last") - nw.col("_first")).cast(nw.Float64))
-    t_value = spec.elapsed((nw.col("_end") - nw.col("_first")).cast(nw.Float64))
-
-    if include_first_transaction:
-        # Segmentation definition: time since the last purchase.
-        summary = [
-            n_periods.alias(Col.FREQUENCY),
-            (t_value - recency).alias(Col.RECENCY),
-        ]
-    else:
-        summary = [
-            (n_periods - 1).alias(Col.FREQUENCY),
-            recency.alias(Col.RECENCY),
-            t_value.alias(Col.T),
-        ]
-
-    if monetary_value_col:
-        if include_first_transaction:
-            monetary = nw.col("_monetary_sum") / n_periods
-        else:
-            monetary = (
-                nw.when(nw.col("_n_periods") > 1)
-                .then(nw.col("_monetary_sum") / (n_periods - 1))
-                .otherwise(nw.lit(0.0))
-            )
-        summary.append(monetary.cast(nw.Float64).alias(Col.MONETARY_VALUE))
-
-    return customers.select(nw.col(customer_id_col).alias(Col.CUSTOMER_ID), *summary)
+    return summary.rename({customer_id_col: Col.CUSTOMER_ID})
 
 
 def rfm_summary(
@@ -418,65 +464,45 @@ def rfm_train_test_split(
 
     train_end = _coerce_period_end(train_period_end, time_zone, "train_period_end")
     train_end_period = spec.period_of(train_end)
-    train_mask = nw.col(datetime_col) <= nw.lit(train_end)
-    test_mask = nw.col(datetime_col) > nw.lit(train_end)
+    train_rows = frame.filter(nw.col(datetime_col) <= nw.lit(train_end))
+    test_rows = frame.filter(nw.col(datetime_col) > nw.lit(train_end))
+    test_end_period = None
     if test_period_end is not None:
         test_end = _coerce_period_end(test_period_end, time_zone, "test_period_end")
-        test_mask = test_mask & (nw.col(datetime_col) <= nw.lit(test_end))
+        test_end_period = spec.period_of(test_end)
+        test_rows = test_rows.filter(nw.col(datetime_col) <= nw.lit(test_end))
 
     # One row per period is enough to tell; a lazy input runs two small queries.
-    for mask in (train_mask, test_mask):
-        if frame.filter(mask).head(1).collect().is_empty():
-            raise ValueError(_NO_DATA_MESSAGE)
+    for rows in (train_rows, test_rows):
+        if rows.head(1).collect().is_empty():
+            raise ValueError(
+                "No data available. Check `train_period_end` and `test_period_end` "
+                "and confirm `transactions` holds purchases on both sides of the "
+                "split."
+            )
 
     training = _rfm_summary_frame(
-        frame.filter(train_mask),
+        train_rows,
         customer_id_col,
         monetary_value_col,
         train_end_period,
         include_first_transaction,
         spec,
     )
-
-    test_rows = frame.filter(test_mask)
-    test_aggs = [nw.col("_period").n_unique().alias(Col.TEST_FREQUENCY)]
-    if monetary_value_col:
-        test_aggs.append(
-            nw.col(monetary_value_col).sum().alias(Col.TEST_MONETARY_VALUE)
-        )
-    test_data = (
-        test_rows.group_by(customer_id_col)
-        .agg(*test_aggs)
-        .rename({customer_id_col: Col.CUSTOMER_ID})
-    )
-    result = training.join(test_data, on=Col.CUSTOMER_ID, how="left")
-
-    test_columns = [Col.TEST_FREQUENCY]
-    if monetary_value_col:
-        # Mean spend per test period.
-        result = result.with_columns(
-            nw.col(Col.TEST_MONETARY_VALUE) / nw.col(Col.TEST_FREQUENCY)
-        )
-        test_columns.append(Col.TEST_MONETARY_VALUE)
-    # Customers without a purchase in the test period.
-    result = result.with_columns(
+    test = _test_period_summary(test_rows, customer_id_col, monetary_value_col)
+    test_columns = test.collect_schema().names()[1:]
+    result = training.join(test, on=Col.CUSTOMER_ID, how="left").with_columns(
+        # Customers without a purchase in the test period.
         *[nw.col(name).fill_null(0.0).cast(nw.Float64) for name in test_columns]
     )
 
-    if test_period_end is None:
-        # The study ends at the last transaction of the whole log, whoever made it:
-        # customers who first buy in the test window count here even though they
-        # have no row in the result.
-        study_end = test_rows.select(nw.col("_period").max().alias("_end"))
-        test_days = (nw.col("_end") - train_end_period).cast(nw.Float64)
-        result = result.join(study_end, how="cross").with_columns(
-            spec.elapsed(test_days).alias(Col.TEST_T)
-        )
-    else:
-        test_days = spec.period_of(test_end) - train_end_period
-        result = result.with_columns(
-            nw.lit(spec.elapsed(test_days), dtype=nw.Float64).alias(Col.TEST_T)
-        )
+    # Without ``test_period_end`` the study ends at the last transaction of the
+    # whole log, whoever made it: customers who first buy in the test window count
+    # here even though they have no row in the result.
+    test_days = (nw.col("_end") - train_end_period).cast(nw.Float64)
+    result = _with_study_end(result, test_rows, test_end_period).with_columns(
+        spec.elapsed(test_days).alias(Col.TEST_T)
+    )
 
     columns = [*training.collect_schema().names(), *test_columns, Col.TEST_T]
     return _finalize(result.select(columns), transactions)
@@ -528,6 +554,53 @@ def _quartile_score(score_name: str, metric: str, bounds: list[float]) -> nw.Exp
     for bound, label in zip(bounds[2:-1], labels[1:-1], strict=True):
         score = score.when(nw.col(metric) <= bound).then(nw.lit(label))
     return score.otherwise(nw.lit(labels[-1])).alias(score_name)
+
+
+def _quartile_edges(summary: nw.LazyFrame[Any]) -> dict[str, list[float]]:
+    """Collect the five quartile edges of each scored metric, lowest first.
+
+    The edges have to be materialised: how many of them are distinct decides how
+    many score labels exist. The outer two are a plain min and max because Spark
+    computes every quantile exactly, which is far more work.
+    """
+    metrics = [metric for _, metric in _SCORED_METRICS]
+    row = (
+        summary.select(
+            *[nw.col(metric).min().alias(f"{metric}_0") for metric in metrics],
+            *[
+                nw.col(metric)
+                .quantile(probability, interpolation="linear")
+                .alias(f"{metric}_{position}")
+                for metric in metrics
+                for position, probability in enumerate((0.25, 0.5, 0.75), start=1)
+            ],
+            *[nw.col(metric).max().alias(f"{metric}_4") for metric in metrics],
+        )
+        .collect()
+        .rows(named=True)[0]
+    )
+    # An empty summary has no edges: None, or NaN on pandas.
+    if any(edge is None or edge != edge for edge in row.values()):
+        raise ValueError("No transactions to segment. Check `transactions`.")
+    return {
+        metric: [float(row[f"{metric}_{position}"]) for position in range(5)]
+        for metric in metrics
+    }
+
+
+def _segment_names(segment_config: Mapping[str, Sequence[str]]) -> nw.Expr:
+    """Map each RFM score to the name of its segment, or to "Other".
+
+    Later segments win when a score is listed twice.
+    """
+    segment: Any = nw.lit("Other")
+    for name, scores in segment_config.items():
+        segment = (
+            nw.when(nw.col(Col.RFM_SCORE).is_in(list(scores)))
+            .then(nw.lit(name))
+            .otherwise(segment)
+        )
+    return segment.alias(Col.SEGMENT)
 
 
 def rfm_segments(
@@ -637,54 +710,11 @@ def rfm_segments(
     if isinstance(nw.from_native(transactions), nw.DataFrame):
         summary = summary.collect().lazy()
 
-    # The edges have to be materialised: how many of them are distinct decides how
-    # many score labels exist. The outer two are a plain min and max because Spark
-    # computes every quantile exactly, which is far more work.
-    metrics = [metric for _, metric in _SCORED_METRICS]
-    edges = summary.select(
-        *[nw.col(metric).min().alias(f"{metric}_0") for metric in metrics],
-        *[
-            nw.col(metric)
-            .quantile(probability, interpolation="linear")
-            .alias(f"{metric}_{probability}")
-            for metric in metrics
-            for probability in (0.25, 0.5, 0.75)
-        ],
-        *[nw.col(metric).max().alias(f"{metric}_1") for metric in metrics],
-    ).collect()
-    edge_values = {
-        name: values[0] for name, values in edges.to_dict(as_series=False).items()
-    }
-    # An empty summary has no edges: None, or NaN on pandas.
-    if any(edge is None or edge != edge for edge in edge_values.values()):
-        raise ValueError("No transactions to segment. Check `transactions`.")
-
+    edges = _quartile_edges(summary)
     scores = [
-        _quartile_score(
-            score_name,
-            metric,
-            _bin_edges(
-                [
-                    float(edge)
-                    for name, edge in edge_values.items()
-                    if name.rsplit("_", 1)[0] == metric
-                ]
-            ),
-        )
+        _quartile_score(score_name, metric, _bin_edges(edges[metric]))
         for score_name, metric in _SCORED_METRICS
     ]
-
-    if segment_config is None:
-        segment_config = _default_rfm_segment_config
-    # Later segments win when a score is listed twice.
-    segment: Any = nw.lit("Other")
-    for name, segment_scores in segment_config.items():
-        segment = (
-            nw.when(nw.col(Col.RFM_SCORE).is_in(list(segment_scores)))
-            .then(nw.lit(name))
-            .otherwise(segment)
-        )
-
     result = (
         summary.with_columns(*scores)
         .with_columns(
@@ -692,7 +722,7 @@ def rfm_segments(
                 Col.RFM_SCORE
             )
         )
-        .with_columns(segment.alias(Col.SEGMENT))
+        .with_columns(_segment_names(segment_config or _default_rfm_segment_config))
         .select(
             Col.CUSTOMER_ID,
             Col.FREQUENCY,
