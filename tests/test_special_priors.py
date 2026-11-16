@@ -1379,8 +1379,7 @@ def test_parent_labels_are_not_used_in_variable_names():
     assert sorted(model.named_vars) == [
         "beta",
         "beta_brand",
-        "beta_brand_raw",
-        "beta_brand_raw_offset",
+        "beta_brand_offset",
         "beta_family",
         "beta_family_offset",
         "beta_mu",
@@ -1516,7 +1515,7 @@ def test_the_coefficient_keeps_floatx():
     ("terms", "interactions", "duplicate"),
     [
         ({"brand": {}}, {"brand_offset": {"dims": ["brand"]}}, "beta_brand_offset"),
-        (NEST, {"brand_raw_offset": {"dims": ["brand"]}}, "beta_brand_raw_offset"),
+        (NEST, {"brand_offset": {"dims": ["brand"]}}, "beta_brand_offset"),
     ],
     ids=["crossed_term", "child_term"],
 )
@@ -1575,6 +1574,34 @@ def test_children_name_labels_missing_from_the_map():
         prior.children("brand", "f0", labels=[0, 9])
 
 
+@pytest.mark.parametrize(
+    ("centered", "expected"),
+    [
+        (  # like Prior(centered=False): the standardized `<t>_offset` and the offset `<t>`, no other copy
+            False,
+            {
+                "beta_brand_offset": ("channel", "beta_brand_free"),
+                "beta_brand": ("channel", "brand"),
+            },
+        ),
+        (  # the scaled free values `<t>_raw`, then the offset `<t>`
+            True,
+            {
+                "beta_brand_raw": ("channel", "beta_brand_free"),
+                "beta_brand": ("channel", "brand"),
+            },
+        ),
+    ],
+    ids=["non_centered", "centered"],
+)
+def test_a_child_term_mirrors_the_variables_of_a_prior(centered, expected):
+    model, _ = build(nzs(NEST, centered=centered))
+    child = {
+        k: v for k, v in model.named_vars_to_dims.items() if k.startswith("beta_brand")
+    }
+    assert child == expected
+
+
 def test_a_child_term_draws_one_free_value_per_child_less_one_per_parent():
     # groups of 4, 2 and 1: 7 children, 3 parents, so 4 free values, as many as one ZeroSumNormal per parent
     fam = {
@@ -1588,7 +1615,7 @@ def test_a_child_term_draws_one_free_value_per_child_less_one_per_parent():
     }
     prior = nzs({"family": {}, "brand": {"within": "family", "map": fam}})
     model, _ = build(prior, COORDS | {"brand": list(fam)})
-    assert model.named_vars_to_dims["beta_brand_raw_offset"] == (
+    assert model.named_vars_to_dims["beta_brand_offset"] == (
         "channel",
         "beta_brand_free",
     )
@@ -1601,7 +1628,7 @@ def test_a_child_term_with_only_lone_children_draws_nothing():
     prior = nzs({"family": {}, "brand": {"within": "family", "map": fam}})
     with pytest.warns(UserWarning, match="every family has one brand"):
         model, _ = build(prior, COORDS | {"brand": list(fam)})
-    assert "beta_brand_raw_offset" not in model.named_vars
+    assert "beta_brand_offset" not in model.named_vars
     assert "beta_brand_free" not in model.coords
 
 
@@ -2139,10 +2166,11 @@ GROUPED = {  # one parent term, two children within it
             r"model coord 'tier' has labels \['t0', 't1', 't2'\], but beta needs the labels \[0, 1, 2\]",
         ),
         (
-            lambda: nzs(NEST, {"brand_raw": {"dims": ["brand"]}}),
+            # centered, the free values of `brand` and the interaction `brand_raw` are both beta_brand_raw
+            lambda: nzs(NEST, {"brand_raw": {"dims": ["brand"]}}, centered=True),
             COORDS,
             # both the raw Normal of `brand` and the non-centered interaction `brand_raw` create these
-            r"RV or coord names \['beta_brand_raw', 'beta_brand_raw_offset'\] are generated twice",
+            r"RV or coord names \['beta_brand_raw'\] are generated twice",
         ),
         (  # beta_sigma_brand is made inside the IndependentSigmas: pymc's own error
             lambda: nzs({"sigma_brand": {}, "brand": {}}),
@@ -2500,8 +2528,7 @@ def test_parent_effect_false_builds_nesting_without_the_parent_term():
     assert sorted(model.named_vars) == [
         "beta",
         "beta_dma",
-        "beta_dma_raw",
-        "beta_dma_raw_offset",
+        "beta_dma_offset",
         "beta_mu",
         "beta_sigma",
         "beta_sigma_dma",
@@ -2579,7 +2606,7 @@ def term_only(model, beta, level, n=20):
 
     def keep(
         rv_name,
-    ):  # beta_brand, beta_brand_raw, beta_brand_raw_offset; not beta_brand_dma
+    ):  # beta_brand, beta_brand_raw, beta_brand_offset; not beta_brand_dma
         return "sigma" in rv_name or level_rv(level, rv_name)
 
     return np.stack(
@@ -2652,10 +2679,8 @@ def test_each_cell_gets_its_own_parent_and_child_offsets(
     def scale(level):
         return 1.0 if centered else v[f"beta_sigma_{level}"]
 
-    def rv(level, raw=False):  # the free RV a level's offset is made from
-        return (
-            f"beta_{level}" + ("_raw" if raw else "") + ("" if centered else "_offset")
-        )
+    def rv(level):  # the free RV a level's offset is made from
+        return f"beta_{level}" + ("" if centered else "_offset")
 
     families = list(np.unique(list(fam.values())))
     tiers = list(np.unique(list(tier.values())))
@@ -2999,8 +3024,7 @@ def test_mmm_builds_with_the_prior_on_saturation_beta(panel, dims):
         "saturation_beta_brand",
         "saturation_beta_brand_dma",
         "saturation_beta_brand_dma_offset",
-        "saturation_beta_brand_raw",
-        "saturation_beta_brand_raw_offset",
+        "saturation_beta_brand_offset",
         "saturation_beta_dma",
         "saturation_beta_dma_offset",
         "saturation_beta_family",

@@ -1527,7 +1527,11 @@ class _GroupedZeroSumOffset:
     def create_variable(
         self, name: str, xdist: bool = False
     ) -> TensorVariable | XTensorVariable:
-        """Create the offset as ``name``, from the free values ``<name>_raw`` on the coord ``<name>_free``."""
+        """Create the offset as ``name``, from the free values on the coord ``<name>_free``.
+
+        Centered, the free values are ``<name>_raw``; not centered, they are the standardized ``<name>_offset``,
+        times the scale, as ``Prior(..., centered=False)`` names them.
+        """
         basis = _zero_sum_basis(self.codes).astype(pytensor.config.floatX)
         model = pm.modelcontext(None)
         # every group has one child: the offset is 0 and nothing is drawn
@@ -1541,13 +1545,18 @@ class _GroupedZeroSumOffset:
             # a no-op when the prior added the coord first
             model.add_coord(free_dim, list(range(basis.shape[1])))
             base = tuple(d for d in self.dims if d != self.child_dim)
-            raw = Prior(
-                "Normal",
-                mu=0,
-                sigma=self.scale,
-                centered=self.centered,
-                dims=(*base, free_dim),
-            ).create_variable(f"{name}_raw", xdist=True)
+            free = (*base, free_dim)
+            # as Prior("Normal", centered=...): centered, one variable with the scale; not centered, the
+            # standardized `<name>_offset`, scaled here, with no stored copy of the scaled free values
+            if self.centered:
+                raw = Prior(
+                    "Normal", mu=0, sigma=self.scale, dims=free
+                ).create_variable(f"{name}_raw", xdist=True)
+            else:
+                standardized = Prior("Normal", mu=0, sigma=1, dims=free)
+                raw = self.scale * standardized.create_variable(
+                    f"{name}_offset", xdist=True
+                )
             offset = pmd.dot(
                 raw, as_xtensor(basis, dims=(self.child_dim, free_dim)), dim=free_dim
             )
@@ -1751,8 +1760,10 @@ class NestedZeroSumPrior:
         A term is one of three kinds:
 
         - A model coord with ``within``: zero-sum inside each parent.
-          Creates the free values ``<name>_<term>_raw``, on the coord ``<name>_<term>_free`` (added to the model).
-          Creates the offset ``<name>_<term>``, on the coord ``<term>``.
+          Creates the offset ``<name>_<term>``, on the coord ``<term>``, from free values on the coord
+          ``<name>_<term>_free`` (added to the model).
+          As a ``Prior`` names them, the free values are ``<name>_<term>_raw`` when centered, and the standardized
+          ``<name>_<term>_offset`` when not.
           The number of variables does not depend on the number of parents, and no parent label is part of a name.
           A lone child has offset 0.
         - A model coord without ``within``: zero-sum over the coord. Creates
@@ -2176,10 +2187,15 @@ class NestedZeroSumPrior:
         names = [
             name,
             *(f"{name}_{k}" for k in specs),
-            *(f"{name}_{c}_raw" for c in groups),
-            # a non-centered Prior creates `<name>_offset`: of the ZeroSumNormal, or of the raw Normal of a child term
+            # centered, a child term creates its free values `<name>_<term>_raw`
             *(
-                f"{name}_{c}_raw_offset" if c in groups else f"{name}_{c}_offset"
+                f"{name}_{c}_raw"
+                for c in groups
+                if (self.centered if terms[c].centered is None else terms[c].centered)
+            ),
+            # not centered, a level creates `<name>_<level>_offset`, as a non-centered Prior does
+            *(
+                f"{name}_{c}_offset"
                 for c, t in terms.items()
                 if not (self.centered if t.centered is None else t.centered)
             ),
