@@ -29,6 +29,7 @@ from matplotlib.lines import Line2D
 
 from pymc_marketing.clv import BetaGeoModel, ParetoNBDModel
 from pymc_marketing.clv.utils import _expected_cumulative_transactions
+from pymc_marketing.names.clv import Col, Dim, Var
 
 __all__ = [
     "plot_customer_exposure",
@@ -128,8 +129,8 @@ def plot_customer_exposure(
     n = len(df)
     customer_idx = np.arange(1, n + 1)
 
-    recency = df["recency"].to_numpy()
-    T = df["T"].to_numpy()
+    recency = df[Col.RECENCY].to_numpy()
+    T = df[Col.T].to_numpy()
 
     if colors is None:
         colors = ["C0", "C1"]
@@ -224,10 +225,10 @@ def plot_frequency_recency_matrix(
 
     """  # noqa: E501
     if max_frequency is None:
-        max_frequency = int(model.data["frequency"].max())
+        max_frequency = int(model.data[Col.FREQUENCY].max())
 
     if max_recency is None:
-        max_recency = int(model.data["recency"].max())
+        max_recency = int(model.data[Col.RECENCY].max())
 
     mesh_frequency, mesh_recency = _create_frequency_recency_meshes(
         max_frequency=max_frequency,
@@ -237,10 +238,10 @@ def plot_frequency_recency_matrix(
     # create dataframe for model input
     transaction_data = pd.DataFrame(
         {
-            "customer_id": np.arange(mesh_recency.size),  # placeholder
-            "frequency": mesh_frequency.ravel(),
-            "recency": mesh_recency.ravel(),
-            "T": max_recency,
+            Col.CUSTOMER_ID: np.arange(mesh_recency.size),  # placeholder
+            Col.FREQUENCY: mesh_frequency.ravel(),
+            Col.RECENCY: mesh_recency.ravel(),
+            Col.T: max_recency,
         }
     )
 
@@ -317,10 +318,10 @@ def plot_probability_alive_matrix(
 
     """
     if max_frequency is None:
-        max_frequency = int(model.data["frequency"].max())
+        max_frequency = int(model.data[Col.FREQUENCY].max())
 
     if max_recency is None:
-        max_recency = int(model.data["recency"].max())
+        max_recency = int(model.data[Col.RECENCY].max())
 
     mesh_frequency, mesh_recency = _create_frequency_recency_meshes(
         max_frequency=max_frequency,
@@ -330,10 +331,10 @@ def plot_probability_alive_matrix(
     # create dataframe for model input
     transaction_data = pd.DataFrame(
         {
-            "customer_id": np.arange(mesh_recency.size),  # placeholder
-            "frequency": mesh_frequency.ravel(),
-            "recency": mesh_recency.ravel(),
-            "T": max_recency,
+            Col.CUSTOMER_ID: np.arange(mesh_recency.size),  # placeholder
+            Col.FREQUENCY: mesh_frequency.ravel(),
+            Col.RECENCY: mesh_recency.ravel(),
+            Col.T: max_recency,
         }
     )
 
@@ -571,17 +572,17 @@ def plot_expected_purchases_ppc(
             )
 
             # obs_var must be retrieved from prior_idata if model has not been fit
-            obs_freq = prior_idata.observed_data["recency_frequency"].sel(
-                obs_var="frequency"
+            obs_freq = prior_idata.observed_data[Var.RECENCY_FREQUENCY].sel(
+                {Dim.OBS_VAR: Col.FREQUENCY}
             )
-            ppc_freq = prior_idata.prior_predictive["recency_frequency"].sel(
-                obs_var="frequency"
+            ppc_freq = prior_idata.prior_predictive[Var.RECENCY_FREQUENCY].sel(
+                {Dim.OBS_VAR: Col.FREQUENCY}
             )
             title = "Prior Predictive Check for Customer Frequency"
             title_prefix = "Prior Predictive"
         case "posterior":
-            obs_freq = model.idata.observed_data["recency_frequency"].sel(
-                obs_var="frequency"
+            obs_freq = model.idata.observed_data[Var.RECENCY_FREQUENCY].sel(
+                {Dim.OBS_VAR: Col.FREQUENCY}
             )
             # n_samples only takes effect for a point-estimate fit, where the posterior holds a
             # single draw; a sampled posterior already provides (chain * draw * customer) samples.
@@ -589,7 +590,7 @@ def plot_expected_purchases_ppc(
             ppc_freq = model.distribution_new_customer_recency_frequency(
                 random_seed=random_seed,
                 n_samples=_REFERENCE_DRAWS if plot_type == "ecdf" else 1,
-            ).sel(obs_var="frequency")
+            ).sel({Dim.OBS_VAR: Col.FREQUENCY})
             title = "Posterior Predictive Check for Customer Frequency"
             title_prefix = "Posterior Predictive"
         case _:

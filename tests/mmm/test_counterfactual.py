@@ -1119,6 +1119,45 @@ class TestPeriodEdgeCases:
         spend = scenarios.spend[scenarios.rows[(0, None)]]
         np.testing.assert_array_equal(spend[:, 0], [1.0, 1.0, 0.0, 1.0, 1.0])
 
+    @pytest.mark.parametrize("channel_axis", [None, 0])
+    def test_factual_rows_are_appended_and_hold_actual_spend(self, channel_axis):
+        """Asked for, each period gets one more row with nothing perturbed.
+
+        A request that checks its own accounting compares every perturbed row
+        with actual spend evaluated on the same window.  The rows go last, so
+        the perturbed ones keep their positions and their keys.
+        """
+        baseline = np.random.default_rng(0).uniform(1.0, 2.0, (len(self.dates), 2))
+        windows = EvaluationWindows.build(
+            periods=[(self.dates[1], self.dates[2]), (self.dates[5], self.dates[6])],
+            dates=self.dates,
+            l_max=1,
+            freq_offset=self.freq_offset,
+        )
+
+        def build(**kwargs):
+            return windows.build_scenarios(
+                baseline_array=baseline,
+                counterfactual_spend_factor=0.0,
+                dtype="float64",
+                channel_axis=channel_axis,
+                n_channels=2,
+                estimand="per_channel",
+                **kwargs,
+            )
+
+        plain, with_factual = build(), build(factual_rows=True)
+
+        n_perturbed = len(plain.spend)
+        assert plain.factual_rows == {}
+        assert with_factual.rows == plain.rows
+        np.testing.assert_array_equal(with_factual.spend[:n_perturbed], plain.spend)
+        assert with_factual.factual_rows == {0: n_perturbed, 1: n_perturbed + 1}
+        np.testing.assert_array_equal(with_factual.period_index[n_perturbed:], [0, 1])
+        np.testing.assert_array_equal(
+            with_factual.spend[n_perturbed:], windows.cut(baseline, "float64")
+        )
+
     @pytest.mark.parametrize(
         ("mode", "full_axis", "expected_eval_dates"),
         [
@@ -1300,6 +1339,41 @@ class TestInterventionValidation:
         model, posterior = build_observed_model()
         with pytest.raises(ValueError, match="depend on the intervention target"):
             self._construct(model, posterior, intervention_target="unrelated")
+
+    def test_a_response_that_reads_no_batched_input_is_refused_by_name(self):
+        """A response no scenario can reach is named, next to one a scenario moves.
+
+        ``held`` reads a parameter alone: neither the target nor any other
+        date-indexed input.  It used to fail on a missing ``__batch__``
+        dimension, which names neither the response nor the reason.
+        """
+        model, posterior = build_observed_model()
+        with model:
+            pmd.Deterministic("held", 2.0 * model["alpha"])
+
+        with pytest.raises(ValueError, match="held"):
+            self._construct(
+                model, posterior, response_vars=["channel_contribution", "held"]
+            )
+
+    def test_a_response_that_reads_other_date_indexed_data_is_evaluated(self):
+        """A response the target does not move is still answered when it is windowed.
+
+        ``baseline`` never reads ``channel_data``, and it reads ``unrelated``,
+        which is cut to each scenario's window as the target is.  It has a
+        value in every scenario, so it is not what the refusal above is for.
+        """
+        model, posterior = build_observed_model()
+        with model:
+            pmd.Deterministic("baseline", model["alpha"] + model["unrelated"])
+        evaluator = self._construct(
+            model, posterior, response_vars=["channel_contribution", "baseline"]
+        )
+
+        baseline = evaluator.evaluate_baseline(np.ones(len(self.dates)))["baseline"]
+
+        alpha = posterior["alpha"].values.reshape(-1, 1)
+        np.testing.assert_allclose(baseline, np.broadcast_to(alpha + 1.0, (2, 6)))
 
 
 class TestResponseNameValidation:
@@ -1575,7 +1649,7 @@ class TestConditionedModelRebinding:
         spend = np.ones((len(self.dates), 2, 1))
 
         refused = xr.DataTree.from_dict({"/posterior": first.drop_vars("beta")})
-        with pytest.raises(KeyError, match="missing variables"):
+        with pytest.raises(KeyError, match="missing variables this graph reads"):
             reused.set_posterior(refused)
 
         self._assert_same_as_fresh(
