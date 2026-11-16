@@ -1,0 +1,21 @@
+pymc_marketing/mmm/builders/yaml.py
+  s_4332a92d19632f::t_49b0ab7924eed7 95,97-98
+tests/mmm/builders/test_yaml.py
+  s_4332a92d19632f::t_de3eb2bd1d3dfc 31,661-669
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "fcf404ef08dd467649ed0f794e96a16ec2bc702a",
+  "prompts": {},
+  "sessions": {
+    "s_4332a92d19632f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "56a94c10-f209-485c-8814-8a8eba45e197",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "daimon-pymclabs <daimon@pymc-labs.com>"
+    }
+  }
+}
