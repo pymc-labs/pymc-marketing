@@ -24,11 +24,17 @@ import xarray as xr
 from scipy.optimize import approx_fprime
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
-from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation, PowerPriceResponse
+from pymc_marketing.mmm import (
+    GeometricAdstock,
+    LogisticSaturation,
+    PowerPriceResponse,
+    TieredPriceResponse,
+)
 from pymc_marketing.mmm.budget_optimizer import (
     BudgetOptimizer,
     MinimizeException,
 )
+from pymc_marketing.mmm.constraints import Constraint, build_default_sum_constraint
 from pymc_marketing.mmm.mmm import (
     MMM,
     BudgetOptimizerWrapper,
@@ -2048,3 +2054,315 @@ class TestPriceResponseOptimality:
         np.testing.assert_allclose(price, p0 * (s / reference) ** 0.4, rtol=1e-9)
         np.testing.assert_allclose(marginal, price / 0.6, rtol=1e-9)
         assert marginal < p0
+
+
+class TestTieredPriceResponseAllocation:
+    """A bracket schedule on a fitted model: breakpoints at a fraction of the constant-price
+    plan, with a different incremental rate per channel. At 0.9 of that plan and a total of
+    300, channel_1 (3 times dearer above) and channel_3 (1.6) belong on their breakpoint and
+    channel_2 (1.2) above it, with a margin of 27% (measured), so every claim about cells on a
+    breakpoint is tested on cells that are there; each test asserts so ("fixture drifted")."""
+
+    TOTAL = 300.0
+    RATES = np.array([3.0, 1.2, 1.6])
+
+    @staticmethod
+    def _base(mmm, total=300.0):
+        return _optimizer(mmm).allocate_budget(total_budget=total)
+
+    @classmethod
+    def _schedule(cls, breakpoints, rates=None):
+        rates = cls.RATES if rates is None else np.asarray(rates)
+        return TieredPriceResponse(
+            breakpoints=breakpoints,
+            rate_multipliers=xr.DataArray(
+                np.column_stack([np.ones(3), rates]),
+                dims=("channel", "bracket"),
+                coords={"channel": CHANNELS_3},
+            ),
+        )
+
+    def _scheduled(self, mmm, factor, rates=None, **kwargs):
+        base = self._base(mmm)
+        breakpoints = base.budgets * np.asarray(factor)
+        optimizer = _optimizer(
+            mmm, price_response=self._schedule(breakpoints, rates), **kwargs
+        )
+        return optimizer, breakpoints
+
+    @staticmethod
+    def _bounds(low, high):
+        return xr.DataArray(
+            np.column_stack([np.broadcast_to(low, 3), np.broadcast_to(high, 3)]),
+            dims=("channel", "bound"),
+            coords={"channel": CHANNELS_3, "bound": ["lower", "upper"]},
+        )
+
+    def test_a_baseline_pinned_by_budget_bounds(self, simple_fitted_mmm):
+        """The milestone the issue asks for first: the committed baseline is held by its
+        lower bound and keeps its contracted price while the increment is optimized at the
+        incremental rate. No table and no warning on a model fitted on spend."""
+        mmm = simple_fitted_mmm
+        breakpoints = self._base(mmm).budgets * 0.9
+        start, end = _window(mmm)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            optimizer = mmm.budget_optimizer(
+                start, end, price_response=self._schedule(breakpoints)
+            )
+        total = 1.3 * float(breakpoints.sum())
+        result = optimizer.allocate_budget(
+            total_budget=total,
+            budget_bounds=self._bounds(breakpoints.values, total),
+            callback=True,
+        )
+        assert result.scipy_result.success
+        on = np.isclose(result.budgets, breakpoints, rtol=1e-9, atol=0.0)
+        assert on.any(), "fixture drifted"
+        np.testing.assert_array_equal(result.budgets.values[on], breakpoints.values[on])
+        assert {entry["solve"] for entry in result.callback_info} == {0, 1}
+        np.testing.assert_allclose(
+            result.implied_marginal_price,
+            np.tile(self.RATES, (WINDOW_WEEKS, 1)),
+            rtol=1e-12,
+        )
+        price = result.implied_price.sel(channel=np.array(CHANNELS_3)[on])
+        np.testing.assert_allclose(price, 1.0, rtol=1e-12)
+        z, b = result.budgets.values, breakpoints.values
+        expected = b + (z - b) / self.RATES
+        np.testing.assert_allclose(
+            result.implied_delivery.values,
+            np.tile(expected, (WINDOW_WEEKS, 1)),
+            rtol=1e-10,
+        )
+
+    def test_default_bounds_settle_cells_on_their_breakpoints(self, simple_fitted_mmm):
+        """With the default bounds the commitment may be cut as well as topped up; a cell
+        whose best budget is its breakpoint comes back equal to it, priced at the next
+        bracket's rate, and the result's reports are the reports of its plan."""
+        optimizer, breakpoints = self._scheduled(simple_fitted_mmm, 0.9)
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+        assert result.scipy_result.success
+        on = (result.budgets == breakpoints).values
+        assert on.any(), "fixture drifted"
+        gap = np.abs(result.budgets.values / breakpoints.values - 1.0)
+        assert np.all(gap[~on] > 1e-6)
+        held = optimizer.allocate_budget(
+            total_budget=self.TOTAL,
+            budget_bounds=self._bounds(
+                np.where(on, breakpoints.values, 0.0),
+                np.where(on, breakpoints.values, self.TOTAL),
+            ),
+        )
+        np.testing.assert_allclose(result.budgets, held.budgets, rtol=1e-6)
+        plan = {"channel_data": result.budgets, **result.optimized_vars}
+        assert optimizer.evaluate_plan(plan, total_budget=self.TOTAL).feasible()
+        assert result.scipy_result.fun == optimizer.evaluate_plan(plan).objective
+        reports = optimizer.delivery_reports(plan)
+        assert set(reports) == set(result.delivery_reports)
+        for name, report in result.delivery_reports.items():
+            xr.testing.assert_identical(report, reports[name])
+        marginal = result.implied_marginal_price.sel(channel=np.array(CHANNELS_3)[on])
+        np.testing.assert_allclose(
+            marginal, np.tile(self.RATES[on], (WINDOW_WEEKS, 1)), rtol=1e-12
+        )
+
+    def test_a_cap_on_the_breakpoint(self, simple_fitted_mmm):
+        """Capped at the breakpoint, the schedule never leaves its first bracket: the plan is
+        the constant-price plan under the same bounds, and capped cells sit on the cap."""
+        mmm = simple_fitted_mmm
+        optimizer, breakpoints = self._scheduled(mmm, [0.6, 1.0, 1.0])
+        total = 0.95 * float(breakpoints.sum())
+        bounds = self._bounds(0.0, breakpoints.values)
+        result = optimizer.allocate_budget(
+            total_budget=total, budget_bounds=bounds, callback=True
+        )
+        assert result.scipy_result.success
+        capped = np.isclose(result.budgets, breakpoints, rtol=1e-9, atol=0.0)
+        assert capped.any(), "fixture drifted"
+        np.testing.assert_array_equal(
+            result.budgets.values[capped], breakpoints.values[capped]
+        )
+        assert {entry["solve"] for entry in result.callback_info} == {0, 1}
+        constant = _optimizer(mmm).allocate_budget(
+            total_budget=total, budget_bounds=bounds
+        )
+        np.testing.assert_allclose(result.budgets, constant.budgets, rtol=1e-6)
+
+    def test_a_lower_bound_just_below_the_breakpoint(self, simple_fitted_mmm):
+        """A bound a hair below the breakpoint is not a tie: the breakpoint is strictly
+        inside the box, and the cells that belong on it still land on it exactly."""
+        optimizer, breakpoints = self._scheduled(simple_fitted_mmm, 0.9)
+        total = 1.3 * float(breakpoints.sum())
+        result = optimizer.allocate_budget(
+            total_budget=total,
+            budget_bounds=self._bounds(breakpoints.values * (1.0 - 1e-6), total),
+        )
+        assert result.scipy_result.success
+        near = np.isclose(result.budgets, breakpoints, rtol=1e-6, atol=0.0)
+        assert near.any(), "fixture drifted"
+        np.testing.assert_array_equal(
+            result.budgets.values[near], breakpoints.values[near]
+        )
+
+    def test_a_commitment_held_by_a_constraint(self, simple_fitted_mmm):
+        """A commitment enforced by a Constraint rather than budget_bounds lands on the
+        same plan, and the cells the constraint binds sit on their breakpoint."""
+        mmm = simple_fitted_mmm
+        breakpoints = self._base(mmm).budgets * 0.9
+        held = [0, 2]
+
+        def floor(index, level):
+            return Constraint(
+                key=f"floor_{index}",
+                constraint_type="ineq",
+                constraint_fun=lambda budgets, total, optimizer: (
+                    budgets.isel(channel=index) - level
+                ),
+            )
+
+        constraints = [build_default_sum_constraint()] + [
+            floor(i, float(breakpoints[i])) for i in held
+        ]
+        total = 0.9 * float(breakpoints.sum())
+        by_constraint = _optimizer(
+            mmm, price_response=self._schedule(breakpoints), constraints=constraints
+        ).allocate_budget(total_budget=total)
+        low = np.zeros(3)
+        low[held] = breakpoints.values[held]
+        by_bounds = _optimizer(
+            mmm, price_response=self._schedule(breakpoints)
+        ).allocate_budget(total_budget=total, budget_bounds=self._bounds(low, total))
+        assert by_constraint.scipy_result.success and by_bounds.scipy_result.success
+        np.testing.assert_allclose(by_constraint.budgets, by_bounds.budgets, rtol=1e-5)
+        binding = [
+            i
+            for i in held
+            if by_constraint.budgets.values[i] - breakpoints.values[i] < 1e-9 * total
+        ]
+        assert binding, "fixture drifted"
+        for i in binding:
+            assert by_constraint.budgets.values[i] == breakpoints.values[i]
+
+    def test_a_skewed_distribution_over_period(self, simple_fitted_mmm):
+        """The committed tranche takes the plan's time shape: a cell on its breakpoint pays
+        the first bracket's rate on average, and its next unit costs the incremental rate
+        in every spent period."""
+        mmm = simple_fitted_mmm
+        start, _ = _window(mmm)
+        dates = pd.date_range(start, periods=WINDOW_WEEKS, freq="7D")
+        shape = xr.DataArray(
+            np.tile([[0.4], [0.3], [0.2], [0.1]], (1, 3)),
+            dims=("date", "channel"),
+            coords={"date": dates, "channel": CHANNELS_3},
+        )
+        optimizer, breakpoints = self._scheduled(
+            mmm, 0.9, budget_distribution_over_period=shape
+        )
+        total = 1.3 * float(breakpoints.sum())
+        pinned = optimizer.allocate_budget(
+            total_budget=total, budget_bounds=self._bounds(breakpoints.values, total)
+        )
+        on = (pinned.budgets == breakpoints).values
+        assert on.any(), "fixture drifted"
+        average = (
+            pinned.budgets * optimizer.num_periods / pinned.implied_delivery.sum("date")
+        )
+        np.testing.assert_allclose(average.values[on], 1.0, rtol=1e-10)
+        free = optimizer.allocate_budget(total_budget=self.TOTAL)
+        on = (free.budgets == breakpoints).values
+        assert on.any(), "fixture drifted"
+        marginal = free.implied_marginal_price.isel(channel=np.flatnonzero(on))
+        np.testing.assert_allclose(
+            marginal, np.tile(self.RATES[on], (WINDOW_WEEKS, 1)), rtol=1e-12
+        )
+
+    def test_a_volume_discount(self, simple_fitted_mmm):
+        """A falling rate is accepted and scored anywhere; a solve that could cross it is
+        refused, naming the cells, and one whose bounds end on it is solved."""
+        mmm = simple_fitted_mmm
+        optimizer, breakpoints = self._scheduled(mmm, 0.9, rates=[0.8, 0.8, 0.8])
+        with pytest.raises(
+            ValueError,
+            match="the rate falls across a breakpoint strictly inside the bounds",
+        ) as info:
+            optimizer.allocate_budget(total_budget=self.TOTAL)
+        assert "channel_1" in str(info.value)
+        total = 1.3 * float(breakpoints.sum())
+        above = optimizer.allocate_budget(
+            total_budget=total, budget_bounds=self._bounds(breakpoints.values, total)
+        )
+        below_total = 0.8 * float(breakpoints.sum())
+        below = optimizer.allocate_budget(
+            total_budget=below_total,
+            budget_bounds=self._bounds(0.0, breakpoints.values),
+        )
+        assert above.scipy_result.success and below.scipy_result.success
+        mixed = breakpoints.copy(data=breakpoints.values * np.array([0.5, 1.5, 1.0]))
+        assert np.isfinite(optimizer.evaluate_plan(mixed).objective)
+
+    def test_gradient_matches_finite_differences_inside_a_blend_window(
+        self, simple_fitted_mmm
+    ):
+        """Acceptance 5: across a knot, inside the window a solve blends, the compiled
+        gradient is the derivative of the objective the solver sees."""
+        optimizer, breakpoints = self._scheduled(simple_fitted_mmm, 0.9)
+        variables = optimizer.optimization_variables
+        x = breakpoints.values * 1.003
+        with variables.conditioned(np.zeros(3), np.full(3, self.TOTAL)):
+            _, gradient = optimizer._objective_and_grad(x)
+            finite_differences = approx_fprime(
+                x, lambda z: optimizer._objective_and_grad(z)[0], 1e-6
+            )
+        np.testing.assert_allclose(gradient, finite_differences, rtol=1e-4)
+
+    def test_copies_solve_and_leave_the_map_exact(self, simple_fitted_mmm):
+        """A copy shares the media variable and with it the per-solve state; every solve
+        restores the state, so after one the map is exact on the optimizer and on both
+        kinds of copy, and each copy solves to the same plan."""
+        optimizer, breakpoints = self._scheduled(simple_fitted_mmm, 0.9)
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+        copies = [optimizer.model_copy(), optimizer.model_copy(deep=True)]
+        for candidate in [optimizer, *copies]:
+            marginal = candidate.delivery_reports(breakpoints)["channel_data"][
+                "implied_marginal_price"
+            ]
+            np.testing.assert_allclose(
+                marginal, np.tile(self.RATES, (WINDOW_WEEKS, 1)), rtol=1e-12
+            )
+        for copy in copies:
+            again = copy.allocate_budget(total_budget=self.TOTAL)
+            assert again.scipy_result.success
+            np.testing.assert_allclose(again.budgets, result.budgets, rtol=1e-6)
+
+    def test_default_bounds_under_jax(self, simple_fitted_mmm):
+        pytest.importorskip("jax")
+        optimizer, _ = self._scheduled(simple_fitted_mmm, 0.9)
+        jax_optimizer, _ = self._scheduled(
+            simple_fitted_mmm, 0.9, compile_kwargs={"mode": "JAX"}
+        )
+        plain = optimizer.allocate_budget(total_budget=self.TOTAL)
+        jax = jax_optimizer.allocate_budget(total_budget=self.TOTAL)
+        np.testing.assert_allclose(jax.budgets, plain.budgets, rtol=1e-8)
+
+    def test_a_schedule_on_a_masked_cell_is_ignored(self, simple_fitted_mmm):
+        mmm = simple_fitted_mmm
+        mask = xr.DataArray(
+            [True, True, False], dims="channel", coords={"channel": CHANNELS_3}
+        )
+        base = _optimizer(mmm, budgets_to_optimize=mask).allocate_budget(
+            total_budget=self.TOTAL
+        )
+        breakpoints = (base.budgets * 0.9).where(mask, 50.0)
+        optimizer = _optimizer(
+            mmm,
+            budgets_to_optimize=mask,
+            price_response=self._schedule(breakpoints),
+        )
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+        assert result.scipy_result.success
+        assert result.budgets.sel(channel="channel_3").item() == 0.0
+        on = (result.budgets == breakpoints).values[:2]
+        assert on.any(), "fixture drifted"
+        gap = np.abs(result.budgets.values[:2] / breakpoints.values[:2] - 1.0)
+        assert np.all(gap[~on] > 1e-6)

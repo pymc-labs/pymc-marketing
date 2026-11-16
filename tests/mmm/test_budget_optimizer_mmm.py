@@ -27,7 +27,12 @@ from pytensor.graph.traversal import ancestors
 from pytensor.xtensor import as_xtensor
 from scipy.optimize import approx_fprime
 
-from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation, PowerPriceResponse
+from pymc_marketing.mmm import (
+    GeometricAdstock,
+    LogisticSaturation,
+    PowerPriceResponse,
+    TieredPriceResponse,
+)
 from pymc_marketing.mmm.additive_effect import LinearTrendEffect, MuEffect
 from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer, BuildMergedModel
 from pymc_marketing.mmm.linear_trend import LinearTrend
@@ -2768,6 +2773,33 @@ class TestMonetarySpendVariables:
                 price_response={"channel_data": PowerPriceResponse(elasticity=0.0)},
             )
 
+    def test_a_schedule_on_a_spend_variable_settles_on_its_breakpoint(
+        self, funnel_identity_fitted_mmm
+    ):
+        """A spend variable's bounds cannot be set, so a commitment on one is held by the
+        schedule alone: decided over date alone, its one cell comes back on the breakpoint
+        and its report prices the next unit at the incremental rate in every period."""
+        mmm = funnel_identity_fitted_mmm
+        base = self._optimizer(mmm, spend_vars=["lf_budget"]).allocate_budget(
+            total_budget=self.TOTAL
+        )
+        breakpoint_ = 0.85 * float(base.spend_var_allocations["lf_budget"])
+        optimizer = self._optimizer(
+            mmm,
+            spend_vars=["lf_budget"],
+            price_response={
+                "channel_data": TieredPriceResponse(rate_multipliers=[1.0]),
+                "lf_budget": TieredPriceResponse(
+                    breakpoints=[breakpoint_], rate_multipliers=[1.0, 1.8]
+                ),
+            },
+        )
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+        assert result.scipy_result.success, result.scipy_result.message
+        assert float(result.spend_var_allocations["lf_budget"]) == breakpoint_
+        marginal = result.delivery_reports["lf_budget"]["implied_marginal_price"]
+        np.testing.assert_allclose(marginal, 1.8, rtol=1e-12)
+
     def test_a_curved_spend_variable_needs_the_attestation_then_a_reference(
         self, funnel_identity_fitted_mmm
     ):
@@ -3262,3 +3294,32 @@ class TestControlData:
 
         xr.testing.assert_allclose(zeros, default)
         assert not np.allclose(raised.values, zeros.values)
+
+
+def test_a_dict_schedule_reaches_every_geo(dummy_df, fitted_mmm):
+    """A dict keyed by channel gives the same breakpoint to that channel in every geo,
+    and each geo's cell is settled on its own."""
+    _, X_dummy, _ = dummy_df
+    start = X_dummy["date_week"].max() + pd.Timedelta(weeks=1)
+    end = X_dummy["date_week"].max() + pd.Timedelta(weeks=10)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        base = fitted_mmm.budget_optimizer(start, end).allocate_budget(total_budget=1.0)
+        level = float(base.budgets.sel(channel="channel_1").mean())
+        schedule = TieredPriceResponse(
+            breakpoints={"channel_1": [level]},
+            rate_multipliers={"channel_1": [1.0, 3.0]},
+        )
+        optimizer = fitted_mmm.budget_optimizer(start, end, price_response=schedule)
+        result = optimizer.allocate_budget(total_budget=1.0)
+    media = optimizer.optimization_variables.variables[0]
+    edges = xr.DataArray(
+        media.price_response.edges[0], dims=media.dims, coords=media.coords
+    )
+    assert (edges.sel(channel="channel_1") == level).all()
+    assert edges.sel(channel="channel_2").isnull().all()
+    assert result.scipy_result.success
+    channel_1 = result.budgets.sel(channel="channel_1").values
+    assert (channel_1 == level).any(), "fixture drifted"
+    near = np.abs(channel_1 / level - 1.0) < 1e-6
+    np.testing.assert_array_equal(channel_1[near], level)
