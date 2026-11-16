@@ -1077,13 +1077,13 @@ class TestTieredPriceResponseDeclaration:
             ),
             pytest.param(
                 dict(rate_multipliers=[1.0], reference_rate=-5.0),
-                "reference_rate must be positive and finite",
+                "greater than 0",
                 id="reference-negative",
             ),
             pytest.param(
-                dict(rate_multipliers={"tv": [1.0]}, reference_rate={"radio": 5.0}),
-                "which the schedule does not",
-                id="reference-label",
+                dict(rate_multipliers=[1.0], reference_rate=float("inf")),
+                "finite number",
+                id="reference-infinite",
             ),
             pytest.param(
                 dict(
@@ -1106,18 +1106,6 @@ class TestTieredPriceResponseDeclaration:
                 ),
                 "one multiplier per bracket",
                 id="array-count-no-breakpoints",
-            ),
-            pytest.param(
-                dict(
-                    rate_multipliers=xr.DataArray(
-                        [1.0, 1.1], dims="channel", coords={"channel": ["tv", "radio"]}
-                    ),
-                    reference_rate=xr.DataArray(
-                        [5.0], dims="channel", coords={"channel": ["podcast"]}
-                    ),
-                ),
-                "which the schedule does not",
-                id="reference-array-label",
             ),
         ],
     )
@@ -1200,9 +1188,7 @@ class TestTieredPriceResponseDeclaration:
             TieredPriceResponse(
                 breakpoints=xr.DataArray([1e6], dims="bracket"),
                 rate_multipliers=multipliers,
-                reference_rate=xr.DataArray(
-                    [6.0, 5.0], dims="channel", coords={"channel": ["tv", "radio"]}
-                ),
+                reference_rate=5.0,
             )
 
     def test_many_brackets_warn(self):
@@ -1275,7 +1261,7 @@ class TestTieredPriceResponseDeclaration:
         by_label = TieredPriceResponse(
             breakpoints={"tv": [100.0]},
             rate_multipliers={"tv": [1.0, 1.6]},
-            reference_rate={"tv": 5.0},
+            reference_rate=5.0,
         )
         by_label.rate_multipliers["tv"] = (1.0, 8.0)
         with pytest.raises(ValueError, match=r"8 / 5 = 1\.6"):
@@ -1284,9 +1270,7 @@ class TestTieredPriceResponseDeclaration:
         array = TieredPriceResponse(
             breakpoints=xr.DataArray([100.0], dims="bracket"),
             rate_multipliers=multipliers,
-            reference_rate=xr.DataArray(
-                [5.0], dims="channel", coords={"channel": ["tv"]}
-            ),
+            reference_rate=5.0,
         )
         multipliers.values[1] = -1.0
         with pytest.raises(ValueError, match="must be positive and finite"):
@@ -1346,6 +1330,31 @@ class TestTieredSolveHooks:
                 raise RuntimeError("inside")
         assert resolved._knots.get_value()[0, 0] == default
         assert resolved._half_widths.get_value()[0, 0] == 0.0
+
+    def test_a_nested_conditioning_restores_the_outer_block(self):
+        """Leaving an inner conditioned_on gives back the outer block's knots, not the
+        declared map; leaving the outer one gives back the declared map."""
+        b = 1e6
+        resolved = two_bracket(b)
+        default = resolved._knots.get_value().copy()
+
+        def state():
+            return (
+                resolved._knots.get_value().copy(),
+                resolved._half_widths.get_value().copy(),
+            )
+
+        with resolved.conditioned_on(np.array([0.0]), np.array([3 * b])):
+            outer = state()
+            with resolved.conditioned_on(np.array([0.0]), np.array([b])):
+                inner = state()
+            assert not np.array_equal(inner[0], outer[0])
+            assert not np.array_equal(inner[1], outer[1])
+            after_inner = state()
+            np.testing.assert_array_equal(after_inner[0], outer[0])
+            np.testing.assert_array_equal(after_inner[1], outer[1])
+        np.testing.assert_array_equal(resolved._knots.get_value(), default)
+        np.testing.assert_array_equal(resolved._half_widths.get_value(), 0.0)
 
     def test_a_tie_with_a_bound_is_within_the_snap(self):
         """The table's "at a bound" is within the snap: a bound one ulp either side of the

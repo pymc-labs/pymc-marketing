@@ -46,6 +46,7 @@ import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
+from dataclasses import dataclass
 from typing import Self
 
 import numpy as np
@@ -87,12 +88,6 @@ __all__ = [
 # (1 + gamma) / (1 - gamma) * MIN_FLOOR_FRACTION ** -gamma is below the cap. It also guards the
 # underflow below gamma ~ 0.006, where the formula's fraction is 0 and a, b would be inf.
 MIN_FLOOR_FRACTION = 1e-12
-
-# A knot sits this many ulp of floatX below its breakpoint, so money equal to the breakpoint is in the
-# bracket above whatever rounding it went through: 1.4e-14 in float64, 7.6e-6 in float32.
-KNOT_SNAP_ULPS = 64
-# More brackets than this on one cell looks like a price curve cut into steps (see TieredPriceResponse).
-MAX_BRACKETS_UNWARNED = 4
 
 _Schedule = tuple[float, ...]
 
@@ -406,31 +401,53 @@ class ResolvedTieredPriceResponse(ResolvedPriceResponse):
         self.dims = tuple(dims)
         self.coords = {dim: list(coords[dim]) for dim in self.dims}
         self.label = label
-        self.first_slope = np.asarray(first_slope, dtype="float64")
-        self.edges = np.asarray(edges, dtype="float64")
-        self.slope_drops = np.asarray(slope_drops, dtype="float64")
-        expected = (self.edges.shape[0], *self.first_slope.shape)
-        if self.edges.shape != expected or self.slope_drops.shape != expected:
-            raise ValueError(
-                f"{label}: edges {self.edges.shape} and slope_drops {self.slope_drops.shape} must both be "
-                f"(K, *cells) with cells {self.first_slope.shape}."
-            )
+        self.first_slope, self.edges, self.slope_drops = self._checked_coefficients(
+            first_slope, edges, slope_drops, label
+        )
         self.knot_width = float(knot_width)
         # The decision vector is created in floatX, so a knot snapped for floatX is on the right side of any
-        # budget the solver hands back.
+        # budget the solver hands back. A knot sits 64 ulp of floatX below its breakpoint, so money equal to
+        # the breakpoint is in the bracket above whatever rounding it went through: 1.4e-14 in float64,
+        # 7.6e-6 in float32.
         self.dtype = pytensor.config.floatX
-        self.snap = KNOT_SNAP_ULPS * float(np.finfo(self.dtype).eps)
+        self.snap = 64 * float(np.finfo(self.dtype).eps)
         self._kink = np.isfinite(self.edges)
         self._edge = np.where(self._kink, self.edges, 1.0)
         self.is_identity = bool(
             np.all(self.first_slope == 1.0) and not self._kink.any()
         )
         self.curved = np.zeros(self.first_slope.shape, dtype=bool)
-        smallest = np.where(self._kink, self.edges, np.inf).min(axis=0, initial=np.inf)
+        self.money_scale = self._money_scale(self.edges, self._kink)
+        self._create_knot_state()
+        self._weights: XTensorVariable | None = None
+
+    @staticmethod
+    def _checked_coefficients(
+        first_slope: np.ndarray, edges: np.ndarray, slope_drops: np.ndarray, label: str
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Read the three arrays as float64 and refuse ``edges`` or ``slope_drops`` not shaped ``(K, *cells)``."""
+        first_slope = np.asarray(first_slope, dtype="float64")
+        edges = np.asarray(edges, dtype="float64")
+        slope_drops = np.asarray(slope_drops, dtype="float64")
+        expected = (edges.shape[0], *first_slope.shape)
+        if edges.shape != expected or slope_drops.shape != expected:
+            raise ValueError(
+                f"{label}: edges {edges.shape} and slope_drops {slope_drops.shape} must both be "
+                f"(K, *cells) with cells {first_slope.shape}."
+            )
+        return first_slope, edges, slope_drops
+
+    @staticmethod
+    def _money_scale(edges: np.ndarray, kink: np.ndarray) -> np.ndarray:
+        """Per cell, its smallest kink, else the smallest kink of the schedule, else 1."""
+        smallest = np.where(kink, edges, np.inf).min(axis=0, initial=np.inf)
         overall = float(np.min(smallest, initial=np.inf))
-        self.money_scale = np.where(
+        return np.where(
             np.isfinite(smallest), smallest, overall if np.isfinite(overall) else 1.0
         )
+
+    def _create_knot_state(self) -> None:
+        """Create the hard knots and the shared knots and half-widths that :meth:`conditioned_on` moves."""
         # Where there is no kink the knot is a finite sentinel: its drop is 0, and a nan would poison the value
         # and the gradient.
         self._default_knots = np.where(self._kink, self.edges * (1.0 - self.snap), 1.0)
@@ -440,7 +457,6 @@ class ResolvedTieredPriceResponse(ResolvedPriceResponse):
         self._half_widths = pytensor.shared(
             self._fresh(np.zeros(self.edges.shape)), name="tiered_half_widths"
         )
-        self._weights: XTensorVariable | None = None
 
     @staticmethod
     def _fresh(values: np.ndarray) -> np.ndarray:
@@ -492,14 +508,15 @@ class ResolvedTieredPriceResponse(ResolvedPriceResponse):
 
     @contextmanager
     def conditioned_on(self, low: np.ndarray, high: np.ndarray) -> Iterator[None]:
-        """Condition the knots for one solve over the box ``[low, high]``, and restore them on exit.
+        """Condition the knots for one solve over the box ``[low, high]``, and restore the previous ones on exit.
 
         Per kink, with "at" meaning within ``snap``: a breakpoint at or below ``low`` keeps a hard knot just below
         ``min(B, low)``, so the box sees only the bracket above (a piece whose two ends are one breakpoint takes
         this case, and the solve sees the exact map); one at or above ``high`` gets a hard knot just above
         ``max(B, high)``, so the box sees only the bracket below; one strictly inside is blended over
         ``[B (1 - knot_width), B (1 + knot_width)]``, where the rate rises, and refused where it falls: delivery
-        is convex across it, and no local solver can be trusted to find the better side.
+        is convex across it, and no local solver can be trusted to find the better side. On exit the knots are
+        the ones in place on entry, so a conditioning nested in another gives back the outer one's knots.
 
         Raises
         ------
@@ -509,10 +526,33 @@ class ResolvedTieredPriceResponse(ResolvedPriceResponse):
         shape = self.first_slope.shape
         low = np.broadcast_to(np.asarray(low, dtype="float64"), shape)
         high = np.broadcast_to(np.asarray(high, dtype="float64"), shape)
+        below, above, inside = self._regions(low, high)
+        self._refuse_falling(inside)
+        knots = self._fresh(self._knots.get_value())
+        half_widths = self._fresh(self._half_widths.get_value())
+        self._knots.set_value(
+            self._fresh(self._conditioned_knots(low, high, below, above))
+        )
+        self._half_widths.set_value(
+            self._fresh(np.where(inside, self.knot_width * self._edge, 0.0))
+        )
+        try:
+            yield
+        finally:
+            self._knots.set_value(knots)
+            self._half_widths.set_value(half_widths)
+
+    def _regions(
+        self, low: np.ndarray, high: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Per kink, whether its breakpoint is at or below ``low``, at or above ``high``, or strictly inside."""
         # Masked cells have no kink, so their nan bounds select nothing below.
         below = self._kink & (self._edge <= low * (1.0 + self.snap))
         above = self._kink & ~below & (self._edge >= high * (1.0 - self.snap))
-        inside = self._kink & ~below & ~above
+        return below, above, self._kink & ~below & ~above
+
+    def _refuse_falling(self, inside: np.ndarray) -> None:
+        """Refuse a rate that falls across a breakpoint strictly inside a cell's bounds."""
         falling = inside & (self.slope_drops < 0.0)
         if falling.any():
             raise ValueError(
@@ -524,19 +564,15 @@ class ResolvedTieredPriceResponse(ResolvedPriceResponse):
                 "variable's bounds cannot be set, so a falling schedule on one can be scored with evaluate_plan "
                 "and not solved."
             )
+
+    def _conditioned_knots(
+        self, low: np.ndarray, high: np.ndarray, below: np.ndarray, above: np.ndarray
+    ) -> np.ndarray:
+        """Hard knots off the box: just below ``min(B, low)`` where ``below``, above ``max(B, high)`` if ``above``."""
         knots = np.where(
             below, np.minimum(self._edge, low) * (1.0 - self.snap), self._default_knots
         )
-        knots = np.where(above, np.maximum(self._edge, high) * (1.0 + self.snap), knots)
-        self._knots.set_value(self._fresh(knots))
-        self._half_widths.set_value(
-            self._fresh(np.where(inside, self.knot_width * self._edge, 0.0))
-        )
-        try:
-            yield
-        finally:
-            self._knots.set_value(self._fresh(self._default_knots))
-            self._half_widths.set_value(self._fresh(np.zeros(self.edges.shape)))
+        return np.where(above, np.maximum(self._edge, high) * (1.0 + self.snap), knots)
 
     def linear_piece(
         self,
@@ -1380,6 +1416,119 @@ class PowerPriceResponse(PriceResponse):
         return np.where(on & valid, values, 1.0)
 
 
+@dataclass(frozen=True)
+class _ScheduleRows:
+    """A schedule as ``nan``-padded rows, one per label or cell, and the name of row ``i`` for messages.
+
+    ``breakpoints`` is ``None`` where the two fields could not be laid over the same cells, and ``multipliers``
+    has no columns where only the breakpoints are checked.
+    """
+
+    breakpoints: np.ndarray | None
+    multipliers: np.ndarray
+    name: Callable[[int], object]
+
+    def refuse_invalid(
+        self, rate_tolerance: float, label: str, reference_rate: float | None
+    ) -> None:
+        """Refuse what is not a schedule.
+
+        Run at construction and again on the resolved cells: ``frozen`` stops a field being reassigned, but the
+        declaration holds the caller's dict or ``DataArray``, which can still be mutated in place. Counts are
+        checked where both arrays are given, on the rows that have multipliers.
+        """
+        self._refuse_inner_nan(label)
+        self._refuse_bad_multipliers(label)
+        self._refuse_bad_breakpoints(label)
+        self._refuse_mismatched_counts(label)
+        self._refuse_far_multipliers(rate_tolerance, label, reference_rate)
+
+    def bracket_counts(self) -> np.ndarray:
+        """Return the number of brackets per row."""
+        return (~np.isnan(self.multipliers)).sum(axis=1)
+
+    def _cells(self, bad: np.ndarray) -> str:
+        rows = np.flatnonzero(bad)
+        return (
+            f"{[self.name(int(i)) for i in rows[:5]]}{', ...' if rows.size > 5 else ''}"
+        )
+
+    def _refuse_inner_nan(self, label: str) -> None:
+        for what, values in (
+            ("breakpoints", self.breakpoints),
+            ("rate_multipliers", self.multipliers),
+        ):
+            if values is None or values.shape[1] < 2:
+                continue
+            present = ~np.isnan(values)
+            gap = (~present[:, :-1] & present[:, 1:]).any(axis=1)
+            if gap.any():
+                raise ValueError(
+                    f"{label}: {what} on {self._cells(gap)} has nan before a value along {Dim.BRACKET!r}. nan "
+                    "pads a cell with fewer brackets, so nan may only trail."
+                )
+
+    def _refuse_bad_multipliers(self, label: str) -> None:
+        r = self.multipliers
+        bad = (~np.isnan(r) & ~(np.isfinite(r) & (r > 0.0))).any(axis=1)
+        if bad.any():
+            raise ValueError(
+                f"{label}: rate_multipliers on {self._cells(bad)} must be positive and finite: each is the "
+                "price of a unit in its bracket relative to the base price."
+            )
+
+    def _refuse_bad_breakpoints(self, label: str) -> None:
+        b = self.breakpoints
+        if b is None:
+            return
+        present = ~np.isnan(b)
+        bad = (present & ~(np.isfinite(b) & (b >= 0.0))).any(axis=1)
+        bad |= (present[:, 1:] & ~(b[:, 1:] > b[:, :-1])).any(axis=1)
+        if bad.any():
+            raise ValueError(
+                f"{label}: breakpoints on {self._cells(bad)} must be non-negative, finite and strictly "
+                "ascending: each is where a bracket ends, in budget units."
+            )
+
+    def _refuse_mismatched_counts(self, label: str) -> None:
+        if self.breakpoints is None:
+            return
+        n_breakpoints = (~np.isnan(self.breakpoints)).sum(axis=1)
+        n_multipliers = self.bracket_counts()
+        wrong = (n_multipliers > 0) & (n_multipliers != n_breakpoints + 1)
+        if wrong.any():
+            first = int(np.flatnonzero(wrong)[0])
+            raise ValueError(
+                f"{label}: one multiplier per bracket: {self._cells(wrong)} have breakpoints and multipliers "
+                f"that do not match ({n_breakpoints[first]} breakpoints and {n_multipliers[first]} multipliers "
+                "on the first). len(rate_multipliers) must be len(breakpoints) + 1."
+            )
+
+    def _refuse_far_multipliers(
+        self, rate_tolerance: float, label: str, reference_rate: float | None
+    ) -> None:
+        r = self.multipliers
+        far = ~np.isnan(r) & ((r > rate_tolerance) | (r < 1.0 / rate_tolerance))
+        rows = far.any(axis=1)
+        if not rows.any():
+            return
+        first = int(np.flatnonzero(rows)[0])
+        offending = r[first][far[first]]
+        worst = float(offending[np.argmax(np.abs(np.log(offending)))])
+        division = (
+            ""
+            if reference_rate is None
+            else f" With reference_rate {reference_rate:g}, the ratio is {worst:g} / {reference_rate:g} = "
+            f"{worst / reference_rate:g}."
+        )
+        raise ValueError(
+            f"{label}: rate_multipliers on {self._cells(rows)} include {worst:g}, which is too far from 1 to be "
+            f"a ratio of two rates (rate_tolerance={rate_tolerance:g}). Multipliers are ratios to the base price, "
+            "cost_per_unit: an absolute rate goes in cost_per_unit, or is divided by the rate the base stands "
+            f"for.{division} Raise rate_tolerance if the ratio is meant."
+        )
+
+
 class TieredPriceResponse(PriceResponse):
     r"""A schedule of marginal rates: each bracket of money buys units at its own price.
 
@@ -1413,10 +1562,10 @@ class TieredPriceResponse(PriceResponse):
         takes. A ``DataArray`` without the bracket dim is one breakpoint per cell, so a committed plan can be
         passed as it is. A first breakpoint of exactly 0 is an empty first bracket, which is what such a plan
         gives a channel with no commitment. Equal adjacent multipliers make a breakpoint with no kink.
-    reference_rate : float, dict[str, float], xarray.DataArray or None
-        The absolute rate a multiplier of 1 stands for, recorded so the declaration says what its multipliers
-        are relative to. It changes no number the map computes; it is shown in the repr and in the message
-        that refuses a multiplier too far from 1. A dict is keyed like ``rate_multipliers``.
+    reference_rate : float or None
+        The absolute rate a multiplier of 1 stands for, positive and finite, recorded so the declaration says
+        what its multipliers are relative to. It changes no number the map computes; it is shown in the repr and
+        in the message that refuses a multiplier too far from 1.
     rate_tolerance : float
         Every multiplier must lie in ``[1 / rate_tolerance, rate_tolerance]``. Default 3. Planning rates
         move by tens of percent around the base price, so a multiplier of 8 is an absolute rate typed where a
@@ -1544,7 +1693,7 @@ class TieredPriceResponse(PriceResponse):
 
     breakpoints: _Schedule | dict[str, _Schedule] | InstanceOf[DataArray] = ()
     rate_multipliers: _Schedule | dict[str, _Schedule] | InstanceOf[DataArray]
-    reference_rate: float | dict[str, float] | InstanceOf[DataArray] | None = None
+    reference_rate: float | None = Field(default=None, gt=0.0, allow_inf_nan=False)
     rate_tolerance: float = Field(default=3.0, gt=1.0)
     knot_width: float = Field(default=1e-2, gt=0.0, lt=1.0)
 
@@ -1560,11 +1709,6 @@ class TieredPriceResponse(PriceResponse):
         if isinstance(value, Mapping):
             return {key: cls._one_element(item) for key, item in value.items()}
         return cls._one_element(value)
-
-    @field_validator("reference_rate", mode="before")
-    @classmethod
-    def _reference_by_label_string(cls, value: object) -> object:
-        return cls._string_keys(value, "TieredPriceResponse: reference_rate")
 
     @staticmethod
     def _one_element(value: object) -> object:
@@ -1598,6 +1742,17 @@ class TieredPriceResponse(PriceResponse):
     @model_validator(mode="after")
     def _check_schedule(self) -> Self:
         label = "TieredPriceResponse"
+        self._require_one_form(label)
+        if isinstance(self.rate_multipliers, DataArray):
+            checked = self._array_rows_pair(self.rate_multipliers)
+        else:
+            checked = [self._sequence_rows(label)]
+        for rows in checked:
+            rows.refuse_invalid(self.rate_tolerance, label, self.reference_rate)
+        self._warn_many_brackets(checked[-1], label)
+        return self
+
+    def _require_one_form(self, label: str) -> None:
         b, r = self.breakpoints, self.rate_multipliers
         b_form, r_form = self._form(b), self._form(r)
         no_breakpoints = b_form == "sequence" and len(b) == 0
@@ -1611,79 +1766,58 @@ class TieredPriceResponse(PriceResponse):
                 f"{label}: breakpoints names {sorted(b)} and rate_multipliers names {sorted(r)}. The two "
                 "describe one schedule, so both dicts name the same labels."
             )
-        if isinstance(r, DataArray):
-            if isinstance(b, DataArray):
-                b_rows, b_names = self._array_rows(b)
-                self._require_valid_schedule(
-                    b_rows,
-                    None,
-                    rate_tolerance=self.rate_tolerance,
-                    label=label,
-                    name=b_names.__getitem__,
-                )
-            b_cells, r_cells = self._joint_cells(None if no_breakpoints else b, r)
-            r_rows, row_names = self._array_rows(r_cells)
-            self._require_valid_schedule(
-                None if b_cells is None else self._array_rows(b_cells)[0],
-                r_rows,
-                rate_tolerance=self.rate_tolerance,
-                label=label,
-                name=row_names.__getitem__,
-                reference_rate=self._reference_rows(r_cells),
+
+    def _array_rows_pair(self, multipliers: DataArray) -> list[_ScheduleRows]:
+        """Rows of the ``DataArray`` form: the breakpoints on their own cells, then both on the cells they share.
+
+        ``breakpoints`` is a ``DataArray`` or empty here, as :meth:`_require_one_form` checked.
+        """
+        breakpoints = (
+            self.breakpoints if isinstance(self.breakpoints, DataArray) else None
+        )
+        checked = []
+        if breakpoints is not None:
+            b_rows, b_names = self._array_rows(breakpoints)
+            no_multipliers = np.empty((b_rows.shape[0], 0))
+            checked.append(_ScheduleRows(b_rows, no_multipliers, b_names.__getitem__))
+        b_cells, r_cells = self._joint_cells(breakpoints, multipliers)
+        r_rows, names = self._array_rows(r_cells)
+        joint = None if b_cells is None else self._array_rows(b_cells)[0]
+        checked.append(_ScheduleRows(joint, r_rows, names.__getitem__))
+        return checked
+
+    def _sequence_rows(self, label: str) -> _ScheduleRows:
+        """Rows of the sequence or dict form, one per label, or one for every cell."""
+        b, r = self.breakpoints, self.rate_multipliers
+        keys = list(r) if isinstance(r, Mapping) else ["every cell"]
+        r_list = [self._values(self._field_row(r, key)) for key in keys]
+        b_list = [self._values(self._field_row(b, key)) for key in keys]
+        empty = [key for key, row in zip(keys, r_list, strict=True) if row.size == 0]
+        if empty:
+            raise ValueError(
+                f"{label}: one multiplier per bracket: rate_multipliers is empty for {empty[:5]}. "
+                "A schedule with no breakpoint is one multiplier."
             )
-            counts = (~np.isnan(r_rows)).sum(axis=1)
-        else:
-            keys = list(r) if isinstance(r, Mapping) else ["every cell"]
-            r_list = [self._values(self._field_row(r, key)) for key in keys]
-            b_list = [
-                self._values(() if no_breakpoints else self._field_row(b, key))
-                for key in keys
-            ]
-            empty = [
-                key for key, row in zip(keys, r_list, strict=True) if row.size == 0
-            ]
-            if empty:
-                raise ValueError(
-                    f"{label}: one multiplier per bracket: rate_multipliers is empty for {empty[:5]}. "
-                    "A schedule with no breakpoint is one multiplier."
-                )
-            reference = self.reference_rate
-            ref_rows = (
-                None
-                if reference is None or isinstance(reference, DataArray)
-                else np.array(
-                    [
-                        reference.get(k, np.nan)
-                        if isinstance(reference, Mapping)
-                        else reference
-                        for k in keys
-                    ],
-                    dtype="float64",
-                )
-            )
-            self._require_valid_schedule(
-                self._padded(b_list),
-                self._padded(r_list),
-                rate_tolerance=self.rate_tolerance,
-                label=label,
-                name=keys.__getitem__,
-                reference_rate=ref_rows,
-            )
-            counts = np.array([row.size for row in r_list])
-            row_names = keys
-        self._check_reference_rate(label)
-        many = counts > MAX_BRACKETS_UNWARNED
-        if many.any():
-            warnings.warn(
-                f"{label}: {int(counts.max())} brackets on {[row_names[i] for i in np.flatnonzero(many)[:5]]}. "
-                "A schedule with this many brackets looks like a discretized price curve. If those tiers were "
-                "already in effect during the fit window, the saturation curve absorbed them and pricing them "
-                "again double-counts them: that needs a model fitted on delivery units and a curved family such "
-                "as PowerPriceResponse.",
-                UserWarning,
-                skip_file_prefixes=_VALIDATION_WARNING_SKIP,
-            )
-        return self
+        return _ScheduleRows(
+            self._padded(b_list), self._padded(r_list), keys.__getitem__
+        )
+
+    @staticmethod
+    def _warn_many_brackets(rows: _ScheduleRows, label: str) -> None:
+        counts = rows.bracket_counts()
+        # More than four brackets on one cell looks like a price curve cut into steps (see the Notes).
+        many = counts > 4
+        if not many.any():
+            return
+        named = [rows.name(int(i)) for i in np.flatnonzero(many)[:5]]
+        warnings.warn(
+            f"{label}: {int(counts.max())} brackets on {named}. A schedule with this many brackets looks like a "
+            "discretized price curve. If those tiers were already in effect during the fit window, the "
+            "saturation curve absorbed them and pricing them again double-counts them: that needs a model "
+            "fitted on delivery units and a curved family such as PowerPriceResponse.",
+            UserWarning,
+            skip_file_prefixes=_VALIDATION_WARNING_SKIP,
+        )
 
     @staticmethod
     def _array_rows(value: DataArray) -> tuple[np.ndarray, list]:
@@ -1746,178 +1880,6 @@ class TieredPriceResponse(PriceResponse):
             multipliers.transpose(*cell_dims, Dim.BRACKET),
         )
 
-    def _reference_rows(self, multipliers: DataArray) -> np.ndarray | None:
-        """Return ``reference_rate`` per row of a schedule array, for the tolerance message, or ``None``."""
-        reference = self.reference_rate
-        rows = self._array_rows(multipliers)[0].shape[0]
-        if reference is None or isinstance(reference, Mapping):
-            return None
-        if not isinstance(reference, DataArray):
-            return np.full(rows, float(reference))
-        cell_dims = [dim for dim in multipliers.dims if dim != Dim.BRACKET]
-        if not set(reference.dims) <= set(cell_dims):
-            return None
-        template = (
-            multipliers.isel({Dim.BRACKET: 0}, drop=True)
-            if Dim.BRACKET in multipliers.dims
-            else multipliers
-        )
-        try:
-            aligned = reference.reindex(
-                {
-                    dim: template.coords[dim]
-                    for dim in reference.dims
-                    if dim in template.coords
-                }
-            ).broadcast_like(template)
-        except ValueError:
-            return None
-        return np.asarray(
-            aligned.transpose(*cell_dims).values, dtype="float64"
-        ).reshape(-1)
-
-    def _check_reference_rate(self, label: str) -> None:
-        reference = self.reference_rate
-        if reference is None:
-            return
-        if isinstance(reference, DataArray):
-            if Dim.BRACKET in reference.dims:
-                raise ValueError(
-                    f"{label}: reference_rate has a {Dim.BRACKET!r} dim. It is the rate a multiplier of 1 "
-                    "stands for, one per cell."
-                )
-            schedule = self.rate_multipliers
-            if isinstance(schedule, DataArray):
-                unknown = sorted(
-                    {
-                        label_
-                        for dim in reference.dims
-                        if dim in reference.coords and dim in schedule.coords
-                        for label_ in reference.coords[dim].values.tolist()
-                        if label_ not in set(schedule.coords[dim].values.tolist())
-                    },
-                    key=str,
-                )
-                if unknown:
-                    raise ValueError(
-                        f"{label}: reference_rate names {unknown}, which the schedule does not."
-                    )
-            values = np.asarray(reference.values, dtype="float64").ravel()
-            values = values[~np.isnan(values)]
-        elif isinstance(reference, Mapping):
-            if not isinstance(self.rate_multipliers, Mapping):
-                raise ValueError(
-                    f"{label}: reference_rate is a dict and rate_multipliers is not. A dict reference_rate is "
-                    "keyed like the schedule."
-                )
-            unknown = sorted(set(reference) - set(self.rate_multipliers))
-            if unknown:
-                raise ValueError(
-                    f"{label}: reference_rate names {unknown}, which the schedule does not."
-                )
-            values = np.asarray(list(reference.values()), dtype="float64")
-        else:
-            values = np.asarray([reference], dtype="float64")
-        if not np.all(np.isfinite(values) & (values > 0.0)):
-            raise ValueError(
-                f"{label}: reference_rate must be positive and finite, got {np.unique(values).tolist()}."
-            )
-
-    @staticmethod
-    def _require_valid_schedule(
-        breakpoints: np.ndarray | None,
-        multipliers: np.ndarray | None,
-        *,
-        rate_tolerance: float,
-        label: str,
-        name: Callable[[int], object],
-        reference_rate: np.ndarray | None = None,
-    ) -> None:
-        """Refuse what is not a schedule; rows are cells or labels, and ``nan`` pads a row.
-
-        Run at construction and again on the resolved cells: ``frozen`` stops a field being reassigned, but the
-        declaration holds the caller's dict or ``DataArray``, which can still be mutated in place. Counts are
-        checked where both arrays are given, on the rows that have multipliers.
-        """
-
-        def cells(bad: np.ndarray) -> str:
-            rows = np.flatnonzero(bad)
-            return (
-                f"{[name(int(i)) for i in rows[:5]]}{', ...' if rows.size > 5 else ''}"
-            )
-
-        for what, values in (
-            ("breakpoints", breakpoints),
-            ("rate_multipliers", multipliers),
-        ):
-            if values is None or values.shape[1] < 2:
-                continue
-            present = ~np.isnan(values)
-            gap = (~present[:, :-1] & present[:, 1:]).any(axis=1)
-            if gap.any():
-                raise ValueError(
-                    f"{label}: {what} on {cells(gap)} has nan before a value along {Dim.BRACKET!r}. nan pads a "
-                    "cell with fewer brackets, so nan may only trail."
-                )
-        if multipliers is not None:
-            present = ~np.isnan(multipliers)
-            bad = (present & ~(np.isfinite(multipliers) & (multipliers > 0.0))).any(
-                axis=1
-            )
-            if bad.any():
-                raise ValueError(
-                    f"{label}: rate_multipliers on {cells(bad)} must be positive and finite: each is the "
-                    "price of a unit in its bracket relative to the base price."
-                )
-        if breakpoints is not None:
-            present = ~np.isnan(breakpoints)
-            bad = (present & ~(np.isfinite(breakpoints) & (breakpoints >= 0.0))).any(
-                axis=1
-            )
-            bad |= (present[:, 1:] & ~(breakpoints[:, 1:] > breakpoints[:, :-1])).any(
-                axis=1
-            )
-            if bad.any():
-                raise ValueError(
-                    f"{label}: breakpoints on {cells(bad)} must be non-negative, finite and strictly "
-                    "ascending: each is where a bracket ends, in budget units."
-                )
-        if breakpoints is not None and multipliers is not None:
-            n_breakpoints = (~np.isnan(breakpoints)).sum(axis=1)
-            n_multipliers = (~np.isnan(multipliers)).sum(axis=1)
-            wrong = (n_multipliers > 0) & (n_multipliers != n_breakpoints + 1)
-            if wrong.any():
-                first = int(np.flatnonzero(wrong)[0])
-                raise ValueError(
-                    f"{label}: one multiplier per bracket: {cells(wrong)} have breakpoints and multipliers that "
-                    f"do not match ({n_breakpoints[first]} breakpoints and {n_multipliers[first]} multipliers "
-                    "on the first). len(rate_multipliers) must be len(breakpoints) + 1."
-                )
-        if multipliers is None:
-            return
-        far = ~np.isnan(multipliers) & (
-            (multipliers > rate_tolerance) | (multipliers < 1.0 / rate_tolerance)
-        )
-        rows = far.any(axis=1)
-        if not rows.any():
-            return
-        first = int(np.flatnonzero(rows)[0])
-        offending = multipliers[first][far[first]]
-        worst = float(offending[np.argmax(np.abs(np.log(offending)))])
-        reference = None if reference_rate is None else float(reference_rate[first])
-        division = (
-            f" With reference_rate {reference:g}, the ratio is {worst:g} / {reference:g} = "
-            f"{worst / reference:g}."
-            if reference is not None and np.isfinite(reference)
-            else ""
-        )
-        raise ValueError(
-            f"{label}: rate_multipliers on {cells(rows)} include {worst:g}, which is too far from 1 to be a "
-            f"ratio of two rates (rate_tolerance={rate_tolerance:g}). Multipliers are ratios to the base price, "
-            "cost_per_unit: an absolute rate goes in cost_per_unit, or is divided by the rate the base stands "
-            f"for.{division} Raise rate_tolerance if the ratio is meant."
-        )
-
     @property
     def adds_curvature(self) -> bool:
         """A schedule of rates that are new relative to the fit adds no curvature the fit already holds.
@@ -1948,30 +1910,17 @@ class TieredPriceResponse(PriceResponse):
                 f"{label}: the model has a budget dim named {Dim.BRACKET!r}, and the name is taken by the "
                 "schedule's own dim. Rename the model's dim to use a TieredPriceResponse."
             )
-        multipliers = self._cell_values(
-            self.rate_multipliers, template, date_dim, label, "rate_multipliers"
-        )
-        breakpoints = self._cell_values(
-            self.breakpoints, template, date_dim, label, "breakpoints"
-        )
-        n_cells = on.size
-        r = multipliers.reshape(n_cells, -1)
-        b = breakpoints.reshape(n_cells, -1)
-        scheduled = on.reshape(-1) & ~np.isnan(r).all(axis=1)
-        r = np.where(scheduled[:, None], r, np.nan)
-        b = np.where(scheduled[:, None], b, np.nan)
-        self._require_valid_schedule(
-            b,
-            r,
-            rate_tolerance=self.rate_tolerance,
-            label=label,
-            name=lambda i: self._cell_label(
+        breakpoints, multipliers = self._cell_rows(template, on, date_dim, label)
+        _ScheduleRows(
+            breakpoints,
+            multipliers,
+            lambda i: self._cell_label(
                 np.asarray(np.unravel_index(i, template.shape)), template
             ),
-            reference_rate=self._cell_reference(template, date_dim, label),
-        )
+        ).refuse_invalid(self.rate_tolerance, label, self.reference_rate)
         first_slope, edges, slope_drops = ResolvedTieredPriceResponse._coefficients(
-            b.reshape(*template.shape, -1), r.reshape(*template.shape, -1)
+            breakpoints.reshape(*template.shape, -1),
+            multipliers.reshape(*template.shape, -1),
         )
         return ResolvedTieredPriceResponse(
             first_slope=first_slope,
@@ -1981,6 +1930,22 @@ class TieredPriceResponse(PriceResponse):
             coords={dim: template.coords[dim].values.tolist() for dim in template.dims},
             knot_width=self.knot_width,
             label=label,
+        )
+
+    def _cell_rows(
+        self, template: DataArray, on: np.ndarray, date_dim: str, label: str
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Breakpoints and multipliers with one row per cell of ``template``, ``nan`` where masked or unscheduled."""
+        multipliers = self._cell_values(
+            self.rate_multipliers, template, date_dim, label, "rate_multipliers"
+        ).reshape(on.size, -1)
+        breakpoints = self._cell_values(
+            self.breakpoints, template, date_dim, label, "breakpoints"
+        ).reshape(on.size, -1)
+        scheduled = (on.reshape(-1) & ~np.isnan(multipliers).all(axis=1))[:, None]
+        return (
+            np.where(scheduled, breakpoints, np.nan),
+            np.where(scheduled, multipliers, np.nan),
         )
 
     def _cell_values(
@@ -2043,27 +2008,3 @@ class TieredPriceResponse(PriceResponse):
         aligned = aligned.drop_vars(Dim.BRACKET, errors="ignore")
         full = aligned.broadcast_like(template).transpose(*template.dims, Dim.BRACKET)
         return np.asarray(full.values, dtype="float64")
-
-    def _cell_reference(
-        self, template: DataArray, date_dim: str, label: str
-    ) -> np.ndarray | None:
-        """``reference_rate`` per cell, flattened, for the tolerance message; ``None`` when not given."""
-        reference = self.reference_rate
-        if reference is None:
-            return None
-        if isinstance(reference, DataArray):
-            values = self._aligned(
-                reference, template, date_dim, label, "reference_rate"
-            )[..., 0]
-        elif isinstance(reference, Mapping):
-            dim = self._owner_dim(set(reference), template, label, "reference_rate")
-            per_label = np.array(
-                [
-                    float(reference.get(str(lbl), np.nan))
-                    for lbl in template.coords[dim].values.tolist()
-                ]
-            )
-            values = per_label[np.indices(template.shape)[template.dims.index(dim)]]
-        else:
-            values = np.full(template.shape, float(reference))
-        return np.asarray(values, dtype="float64").reshape(-1)
