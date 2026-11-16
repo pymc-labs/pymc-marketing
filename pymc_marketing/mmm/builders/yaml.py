@@ -92,7 +92,10 @@ def _raise_if_lfs_pointer(path: Path) -> None:
 
     Without this check, xarray fails with a generic "did not find a match in any
     of xarray's currently installed IO backends" error that does not mention LFS.
+    Directories (Zarr stores) are skipped: an LFS pointer is always a single file.
     """
+    if not path.is_file():
+        return
     with open(path, "rb") as f:
         head = f.read(len(_LFS_POINTER_PREFIX))
     if head == _LFS_POINTER_PREFIX:

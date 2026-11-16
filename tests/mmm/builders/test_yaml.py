@@ -28,6 +28,7 @@ from pymc_extras.prior import Prior
 from pymc_marketing.mmm.builders.schema import CalibrationStep, MMMYamlConfig
 from pymc_marketing.mmm.builders.yaml import (
     _apply_and_validate_calibration_steps,
+    _raise_if_lfs_pointer,
     build_mmm_from_yaml,
 )
 from pymc_marketing.mmm.data_conversion import to_mmm_dataset
@@ -655,6 +656,15 @@ def test_build_mmm_lfs_pointer_idata_path_raises(
 
     with pytest.raises(FileNotFoundError, match="git lfs pull"):
         build_mmm_from_yaml(config_path, X=X, y=y)
+
+
+def test_raise_if_lfs_pointer_skips_zarr_directory(tmp_path):
+    """A Zarr store is a directory, so the LFS pointer check must not open it."""
+    store = tmp_path / "idata.zarr"
+    store.mkdir()
+    (store / "zarr.json").write_text("{}")
+
+    _raise_if_lfs_pointer(store)
 
 
 class TestValidateConfigStructure:
