@@ -211,7 +211,7 @@ coefficients.
 
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
-from typing import Annotated, Any, Literal, Protocol, Self
+from typing import Annotated, Any, Literal, Protocol, Self, get_args
 
 import numpy as np
 import numpy.typing as npt
@@ -235,6 +235,7 @@ from pydantic import (
 from pymc_extras.prior import Prior, VariableFactory
 from pytensor.xtensor.type import XTensorVariable
 
+from pymc_marketing.mmm.estimand_label import PathEffect
 from pymc_marketing.mmm.events import EventEffect, days_from_reference
 from pymc_marketing.mmm.fourier import FourierBase
 from pymc_marketing.mmm.linear_trend import LinearTrend
@@ -245,7 +246,7 @@ from pymc_marketing.mmm.optimization_variables import (
 )
 from pymc_marketing.mmm.validating import _validate_non_numeric_dtype
 from pymc_marketing.names import Key
-from pymc_marketing.names.mmm import Dim, effect_contribution_name
+from pymc_marketing.names.mmm import Dim, IncrementalityResult, effect_contribution_name
 from pymc_marketing.serialization import SerializableBaseModel, serialization
 
 
@@ -378,19 +379,21 @@ CarryoverLags = Annotated[
 
 RESERVED_MEDIATOR_NAMES = frozenset(
     {
-        "total",
-        "direct",
-        "mediated",
-        "spend_change",
-        "induced_spend",
-        "complete",
+        *get_args(PathEffect),
+        IncrementalityResult.SPEND_CHANGE,
+        IncrementalityResult.INDUCED_SPEND,
+        IncrementalityResult.COMPLETE,
         "chain",
         "draw",
         Dim.DATE,
         Dim.CHANNEL,
     }
 )
-"""Names an incrementality result already uses for a variable, a dimension or a coordinate."""
+"""Names an incrementality result already uses for a variable, a dimension or a coordinate.
+
+The paths of an increment name the variables of a decomposition, next to the
+names in :class:`~pymc_marketing.names.mmm.IncrementalityResult`.
+"""
 
 
 class MediatorSpec(BaseModel):
@@ -713,10 +716,19 @@ class MuEffect(SerializableBaseModel, ABC):
 
         The default returns ``None``, which is correct for every effect whose
         contribution does not depend on ``channel_data``: such an effect belongs
-        to the baseline, is unaffected by the counterfactual, and is skipped
-        without ever consulting this method.  An effect that *does* depend on
-        ``channel_data`` and returns ``None`` raises ``NotImplementedError``
+        to the baseline and is unaffected by the counterfactual, and a total
+        skips it without consulting this method.  An effect that *does* depend
+        on ``channel_data`` and returns ``None`` raises ``NotImplementedError``
         rather than being silently dropped from the increment.
+
+        A request that reads roles or mediator nodes -- ``paths="direct"`` or
+        ``"mediated"``, ``compute_incremental_mediator``, ``induced_spend`` and
+        :attr:`~pymc_marketing.mmm.incrementality.Incrementality.mediators` --
+        calls this method on every ``mu_effect``, also on one whose term does
+        not read spend, since such an effect may declare a node spend drives.
+        An exception raised here then propagates from the request, and a value
+        that is not a valid :class:`IncrementalitySpec` is refused with a
+        ``ValueError``.
 
         Opting in costs one line -- ``return IncrementalitySpec()`` -- because
         the spec's fields are overrides for quantities that are otherwise

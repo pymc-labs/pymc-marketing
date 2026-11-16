@@ -39,7 +39,11 @@ from pymc_marketing.mmm.components.saturation import SaturationTransformation
 from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.media_transformation import MediaTransformation
 from pymc_marketing.mmm.mmm import MMM
-from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
+from pymc_marketing.mmm.transformers import (
+    ConvMode,
+    geometric_adstock,
+    logistic_saturation,
+)
 from pymc_marketing.serialization import serialization
 from pymc_marketing.special_priors import LogNormalPrior
 
@@ -1340,6 +1344,7 @@ def _build_funnel_mmm(
     l_max=FUNNEL_L_MAX,
     time_varying_media=False,
     saturation=None,
+    adstock_mode=ConvMode.After,
 ):
     """Fit a funnel MMM under *link* with prior draws standing in for a posterior.
 
@@ -1368,13 +1373,16 @@ def _build_funnel_mmm(
         The model's own saturation, defaulting to a per-channel logistic one.
         Overridden by the mixing fixtures, whose whole point is a media transform
         that is *not* separable across channels.
+    adstock_mode : ConvMode, default=ConvMode.After
+        The convolution mode of the model's own adstock.  The funnel's
+        transforms keep ``After``.
     """
     mmm = MMM(
         channel_columns=["channel_1", "channel_2"],
         date_column="date",
         target_column="y",
         control_columns=None,
-        adstock=GeometricAdstock(l_max=l_max),
+        adstock=GeometricAdstock(l_max=l_max, mode=adstock_mode),
         saturation=LogisticSaturation() if saturation is None else saturation,
         time_varying_media=time_varying_media,
         link=link,

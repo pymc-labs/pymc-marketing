@@ -38,13 +38,15 @@ labels and ``complete`` coordinate together with the label's own fields.
 
 **Read a label before cutting a result.**  :meth:`EstimandLabel.read` verifies
 the digest, so it accepts the array the module returned, a copy, a transpose,
-the array under another name and the same array read back from a file.  It
-refuses anything derived from it: a selection, a sort, a renamed dimension,
-arithmetic, a reduction, a concatenation.  What xarray does with attributes
-under those operations differs between versions, so a derived array may still
-carry the attribute.  It then says what the array was computed from, and
-``read`` refuses it.  Drop the attributes of anything derived
-(``result.drop_attrs()``).
+the array under another name and the same array read back from a file, and
+it ignores a ``complete`` coordinate the result was not issued with, such as
+one xarray copies onto it from another result in the same ``Dataset``.  It
+refuses anything that changes a value, a dimension label or the order along a
+dimension: a selection, a sort, a renamed dimension, arithmetic that changes a
+value, a reduction, a concatenation.  What xarray does with attributes under
+those operations differs between versions, so a derived array may still carry
+the attribute.  It then says what the array was computed from, and ``read``
+refuses it.  Drop the attributes of anything derived (``result.drop_attrs()``).
 
 In the ``definition``, :math:`x` is actual spend, :math:`x'` the counterfactual
 spend, :math:`Y` the response, :math:`M(x)` the value the model implies for the
@@ -73,8 +75,9 @@ from pydantic import (
 )
 
 from pymc_marketing.data.idata.schema import Frequency
+from pymc_marketing.names.mmm import IncrementalityResult
 
-__all__ = ["COMPLETE", "LABEL_ATTR", "EstimandLabel", "PathEffect"]
+__all__ = ["LABEL_ATTR", "EstimandLabel", "PathEffect"]
 
 PathEffect = Literal["total", "direct", "mediated"]
 """Which paths from spend to the response an increment follows.
@@ -87,8 +90,8 @@ total.
 LABEL_ATTR = "incrementality_label"
 """The one attribute a result's label is written under."""
 
-COMPLETE = "complete"
-"""Coordinate marking the periods whose carryover the fitted dates do not cut short."""
+_DIGEST_BLOCK_ELEMENTS = 1 << 20
+"""Most values the digest converts to float64 at a time, so it never copies a whole result."""
 
 _Text = Annotated[str, StringConstraints(strict=True, min_length=1)]
 _Factor = Annotated[float, Field(strict=True, ge=0, allow_inf_nan=False)]
@@ -137,18 +140,29 @@ def _digest_v1(result: xr.DataArray, fields: dict) -> str:
         A hexadecimal digest of the dimension names, the shape, the values, the
         labels of every dimension, the ``complete`` coordinate when there is
         one, and *fields*.  The dimensions are laid out by name first, so a
-        transpose does not change it.
+        transpose does not change it.  The values are hashed as little-endian
+        float64 in C order, a block of leading indices at a time, which feeds
+        the hash the same bytes as the whole array at once.
     """
     ordered = result.transpose(*sorted(map(str, result.dims)))
     digest = hashlib.blake2b(digest_size=16)
     digest.update(repr((ordered.dims, ordered.shape)).encode())
-    digest.update(np.ascontiguousarray(ordered.values, dtype="<f8").data)
+    values = ordered.values
+    lead = 0
+    while (
+        lead < values.ndim
+        and int(np.prod(values.shape[lead:])) > _DIGEST_BLOCK_ELEMENTS
+    ):
+        lead += 1
+    for index in np.ndindex(values.shape[:lead]):
+        digest.update(np.ascontiguousarray(values[index], dtype="<f8").data)
     for dim in map(str, ordered.dims):
         digest.update(dim.encode())
         digest.update(_dimension_labels(ordered, dim))
-    if COMPLETE in ordered.coords:
-        mark = ordered.coords[COMPLETE]
-        digest.update(repr((COMPLETE, mark.dims)).encode())
+    complete = IncrementalityResult.COMPLETE
+    if complete in ordered.coords:
+        mark = ordered.coords[complete]
+        digest.update(repr((complete, mark.dims)).encode())
         digest.update(np.ascontiguousarray(mark.values, dtype=bool).data)
     digest.update(json.dumps(fields, sort_keys=True, separators=(",", ":")).encode())
     return digest.hexdigest()
@@ -251,10 +265,13 @@ class EstimandLabel(BaseModel):
             except ValueError:
                 problems.append(f"'{name}' is an ISO 8601 date or date-time")
         if len(period) == 2 and period[0] > period[1]:
-            problems.append("the period starts before it ends")
+            problems.append("a period does not end before it starts")
 
         of_mediator = self.quantity == "incremental_mediator"
-        of_spend = self.quantity in ("spend_change", "induced_spend")
+        of_spend = self.quantity in (
+            IncrementalityResult.SPEND_CHANGE,
+            IncrementalityResult.INDUCED_SPEND,
+        )
         is_path = self.paths in ("direct", "mediated")
         response_only = (self.paths, self.central_tendency, self.accounting_verified)
         if of_mediator:
@@ -294,7 +311,7 @@ class EstimandLabel(BaseModel):
             problems.append(
                 "'induced_spend_units' goes with 'induced_spend', and only with it"
             )
-        if self.quantity == "induced_spend":
+        if self.quantity == IncrementalityResult.INDUCED_SPEND:
             if not self.induced_spend:
                 problems.append("induced spend names its mediators")
         elif self.induced_spend and (
@@ -330,10 +347,13 @@ class EstimandLabel(BaseModel):
         with a positive effect has a positive number either way.
         """
         raised = self.counterfactual_spend_factor > 1.0
-        if self.quantity in ("incremental_mediator", "induced_spend"):
+        if self.quantity in (
+            "incremental_mediator",
+            IncrementalityResult.INDUCED_SPEND,
+        ):
             return "M(x') - M(x)" if raised else "M(x) - M(x')"
         spend = "S(x') - S(x)" if raised else "S(x) - S(x')"
-        if self.quantity == "spend_change":
+        if self.quantity == IncrementalityResult.SPEND_CHANGE:
             return spend
         contrasts: dict[tuple[PathEffect | None, bool], str] = {
             ("total", False): "Y(x) - Y(x')",
@@ -395,6 +415,9 @@ class EstimandLabel(BaseModel):
         -------
         EstimandLabel
             The label the array was issued with, upgraded to the current schema.
+            A ``complete`` coordinate the array was not issued with, such as
+            one xarray copies onto it from another result in the same
+            ``Dataset``, is ignored: the label says nothing about it.
 
         Raises
         ------
@@ -403,8 +426,8 @@ class EstimandLabel(BaseModel):
             that is not this module's; if the label was written by a newer
             schema than this code knows; or if the array and the label do not
             belong together, because a value, a dimension label, the
-            ``complete`` coordinate or a stored field differs from what the
-            label was issued for.
+            ``complete`` coordinate it was issued with or a stored field differs
+            from what the label was issued for.
         """
         if not isinstance(result, xr.DataArray):
             raise ValueError(
@@ -440,8 +463,15 @@ class EstimandLabel(BaseModel):
         payload.pop("definition", None)
         # Verified as stored, by the rule of the version that wrote it, before
         # anything is migrated: a match means these are the fields that version
-        # wrote, so an edited or truncated label never reaches a migration.
-        if stored_digest != cls.DIGESTS[version](result, payload):
+        # wrote, so an edited or truncated label never reaches a migration.  A
+        # result issued without a mark matches once the mark is dropped; one
+        # issued with it matches only with it.
+        rule = cls.DIGESTS[version]
+        if stored_digest != rule(result, payload) and (
+            IncrementalityResult.COMPLETE not in result.coords
+            or stored_digest
+            != rule(result.drop_vars(IncrementalityResult.COMPLETE), payload)
+        ):
             raise ValueError(
                 "The array and its label do not belong together: a value, a "
                 "dimension name, a coordinate label or the 'complete' mark "

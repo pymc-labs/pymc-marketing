@@ -348,7 +348,7 @@ from pymc_marketing.mmm.counterfactual import (
     Estimand,
     EvaluationWindows,
 )
-from pymc_marketing.mmm.estimand_label import COMPLETE, EstimandLabel, PathEffect
+from pymc_marketing.mmm.estimand_label import EstimandLabel, PathEffect
 from pymc_marketing.mmm.evaluator_cache import (
     EvaluatorCacheKey,
     EvaluatorLease,
@@ -362,9 +362,9 @@ from pymc_marketing.mmm.mediation import (
 )
 from pymc_marketing.mmm.spend_reach import (
     _PKG_PREFIX,
-    COMPLETENESS_ACCUMULATION_SAFETY_FACTOR,
     ProbeStatistics,
     SpendProbe,
+    completeness_tolerance,
     linear_predictor,
     refuse_blocked_spend_paths,
     resolve_channel_dependent_effects,
@@ -372,7 +372,7 @@ from pymc_marketing.mmm.spend_reach import (
 )
 from pymc_marketing.mmm.transformers import ConvMode
 from pymc_marketing.mmm.utils import infer_frequency
-from pymc_marketing.names.mmm import Dim, Var
+from pymc_marketing.names.mmm import Dim, IncrementalityResult, Var
 from pymc_marketing.pytensor_utils import (
     needed_posterior_names,
     reorder_to_model_coords,
@@ -471,6 +471,10 @@ class IncrementalReducer(ABC):
     A reducer only converts that change into a response-scale increment; it
     does not care how many nodes the change was collected from.
 
+    *base* is passed only when it is set, which is for the mediated part of a
+    path request.  A subclass whose methods predate the keyword still reduces
+    every total and direct part.
+
     See Also
     --------
     IdentityLinkReducer : Additive response (``link="identity"``).
@@ -535,6 +539,8 @@ class IncrementalReducer(ABC):
             Response-scale difference summed over ``date``.  The ``date``
             dimension is dropped; every other dimension is preserved.
         """
+        if base is None:
+            return self.per_date_increment(delta).sum(dim="date")
         return self.per_date_increment(delta, base=base).sum(dim="date")
 
     @abstractmethod
@@ -1246,8 +1252,9 @@ class PeriodResults:
         Whether the accounted terms were checked to reproduce the whole move in
         the linear predictor, or there was nothing to check.
     complete : list of bool or None
-        Per period, whether the fitted dates hold all of the carryover of what
-        the request reads.  ``None`` for a request that reads no mediator.
+        Per period, whether the dates it sums hold all of the carryover of what
+        the request reads; see :meth:`Incrementality._carryover_cut`.  ``None``
+        for a request that reads no mediator.
     """
 
     responses: dict[str, list[xr.DataArray]]
@@ -2097,7 +2104,7 @@ class Incrementality:
 
             With ``induced_spend=`` the variables share a boolean ``complete``
             coordinate, false for the periods whose carryover runs past the
-            fitted dates.
+            dates the period sums; see :meth:`compute_incremental_mediator`.
 
         Raises
         ------
@@ -2177,7 +2184,8 @@ class Incrementality:
             }
             for path in paths
         }
-        arrays["spend_change"] = self._spend_change(
+        spend_change = IncrementalityResult.SPEND_CHANGE
+        arrays[spend_change] = self._spend_change(
             frequency=frequency,
             start_date=start_date,
             end_date=end_date,
@@ -2185,11 +2193,12 @@ class Incrementality:
             scope=scope,
             like=arrays["total"],
         )
-        described["spend_change"] = {"quantity": "spend_change"}
+        described[spend_change] = {"quantity": spend_change}
         if results.mediators:
-            arrays["induced_spend"] = self._induced_movement(results, frequency)
-            described["induced_spend"] = {
-                "quantity": "induced_spend",
+            induced_spend_name = IncrementalityResult.INDUCED_SPEND
+            arrays[induced_spend_name] = self._induced_movement(results, frequency)
+            described[induced_spend_name] = {
+                "quantity": induced_spend_name,
                 "induced": results.mediators,
             }
         return xr.Dataset(
@@ -2269,8 +2278,8 @@ class Incrementality:
             fewer than the model's.  Each variable carries its
             :class:`~pymc_marketing.mmm.estimand_label.EstimandLabel` and a
             boolean ``complete`` coordinate, false for the periods whose
-            carryover runs past the fitted dates: the movement there is the
-            part the data covers.
+            carryover runs past the dates the period sums: the movement there
+            is the part those dates cover.
 
         Raises
         ------
@@ -2297,11 +2306,15 @@ class Incrementality:
 
         ``complete`` is read off the last lag at which the spend probe measured
         each node of the request to move, also for a model evaluated on the
-        full date axis.  For a model no probe can be placed on, the adstock's
-        own kernel stands in for the measurement, and a period marked complete
-        can then be cut short by a path that reaches further than the kernel.
-        A node the probe finds still moving at the last fitted date has no
-        last lag, and no period is marked complete.
+        full date axis.  A period is complete when that lag after its last
+        spend date is a date it sums.  The dates a period sums end at the last
+        fitted date, and under an adstock whose ``mode`` is not ``After`` they
+        can end sooner, as early as the period's own end, so a node with
+        carryover of its own is then marked incomplete.  For a model no probe
+        can be placed on, the adstock's own kernel plus the carryover the
+        effects declare stand in for the measurement.  A node the probe finds
+        still moving at the last fitted date, or before the date it perturbed,
+        has no last lag, and no period is marked complete.
 
         Examples
         --------
@@ -2382,6 +2395,10 @@ class Incrementality:
             If an effect of the model has not declared how it behaves under a
             counterfactual; see
             :meth:`~pymc_marketing.mmm.additive_effect.MuEffect.incrementality_spec`.
+        ValueError
+            If an effect's ``incrementality_spec`` returns something that is
+            not a valid
+            :class:`~pymc_marketing.mmm.additive_effect.IncrementalitySpec`.
         """
         registry = resolve_mediators(
             self.model, resolve_channel_dependent_effects(self.model)
@@ -5147,7 +5164,11 @@ class Incrementality:
             # so a declared node outside the request cannot fail it.  Sorted,
             # so that the order of the names does not make a new evaluator.
             mediators=tuple(sorted(mediator.variable for mediator in mediators)),
-            checks_rows=reads.is_path,
+            # Only a total rests on the probe for its accounting: a path checks
+            # its own rows, and a request for mediators alone returns no
+            # increment.
+            accounting_rests_on_probe=bool(reads.wanted) and not reads.is_path,
+            mediators_need_full_axis=any(mediator.full_axis for mediator in mediators),
         )
 
         # The stretch of dates each period is evaluated over, which of them enter
@@ -5236,7 +5257,8 @@ class Incrementality:
         counterfactual_spend_factor: float,
         validate_reach: Callable[[SpendReach], None] | None,
         mediators: Sequence[str] = (),
-        checks_rows: bool = False,
+        accounting_rests_on_probe: bool = True,
+        mediators_need_full_axis: bool = False,
     ) -> ProbedReach:
         """Compile the batched evaluator, evaluate the baseline and probe the reach.
 
@@ -5260,10 +5282,15 @@ class Incrementality:
             Variables of the mediator nodes the request reads.  The evaluator
             computes them next to the accounted terms, and they enter the
             baseline, the probe and the window.
-        checks_rows : bool, default=False
-            Whether the request checks its accounting on its own rows, which
-            the warning for a model no probe can be placed on takes into
-            account.
+        accounting_rests_on_probe : bool, default=True
+            Whether the request returns an increment whose accounting only the
+            probe checks: a total.  The warnings for a model whose predictor is
+            lost or on which no probe can be placed say that the accounting
+            goes unverified only then.
+        mediators_need_full_axis : bool, default=False
+            Whether an effect that declares a node in *mediators* asks for
+            ``evaluation_mode="full"``; see
+            :meth:`~pymc_marketing.mmm.spend_reach.SpendProbe.measure`.
 
         Returns
         -------
@@ -5285,7 +5312,7 @@ class Incrementality:
         posterior_predictive_model = self.model.model
         effect_names = tuple(effect.contribution_var for effect in effects)
         predictor = linear_predictor(self.model) if self.model.mu_effects else None
-        if self.model.mu_effects and predictor is None:
+        if self.model.mu_effects and predictor is None and accounting_rests_on_probe:
             # The one case the check exists for is a model with mu_effects, so
             # losing it here is worth a word: an effect that reports the wrong
             # contribution variable, or a model-level node reading spend outside
@@ -5397,9 +5424,12 @@ class Incrementality:
                 effects=effects,
                 l_max=self.model.adstock.l_max,
                 trailing_lags=trailing_lags,
-                # A request that checks its own rows does not rest on the
-                # probe, and a model without mu_effects has nothing to check.
-                accounting_needs_probe=bool(self.model.mu_effects) and not checks_rows,
+                # Only a total rests on the probe for its accounting, and a
+                # model without mu_effects has nothing to check.
+                accounting_needs_probe=(
+                    bool(self.model.mu_effects) and accounting_rests_on_probe
+                ),
+                mediators_need_full_axis=mediators_need_full_axis,
             )
             if validate_reach is not None:
                 validate_reach(reach)
@@ -5752,9 +5782,12 @@ class Incrementality:
                 # How far the carryover of what the request reads is known to
                 # land: the last lag the probe measured each node to move at.
                 # A declared full axis changes how a period is evaluated and
-                # not these measurements.  Where no probe could be placed the
-                # kernel's own trailing lags stand in from below, and they are
-                # the floor for a response in every case.
+                # not these measurements.  The kernel's own trailing lags are
+                # the floor for a response in every case.  Where no probe
+                # could be placed nothing was measured, and the kernel's lags
+                # plus the carryover the effects declare stand in: more than a
+                # node upstream of an effect's own adstock reaches, which for a
+                # mark that vouches for a period is the safer error.
                 read = [mediator.variable for mediator in mediators]
                 if reads.wanted:
                     read += [Var.CHANNEL_CONTRIBUTION, *effect_names]
@@ -5762,8 +5795,11 @@ class Incrementality:
                     reach.measured[node] for node in read if node in reach.measured
                 ]
                 lags = max((node.max_lag for node in measured), default=0)
-                if reads.wanted or len(measured) < len(read):
+                if reads.wanted:
                     lags = max(lags, trailing_lags)
+                if len(measured) < len(read):
+                    declared = reach.effective_l_max - self.model.adstock.l_max
+                    lags = max(lags, trailing_lags + declared)
                 # A node the probe found still moving at the end of the axis,
                 # or before the perturbed date, has no last lag, and no period
                 # can be vouched for.
@@ -5772,13 +5808,11 @@ class Incrementality:
                     not include_carryover
                     or not (
                         unbounded
-                        or len(
-                            self._tail_dates(
-                                window=window,
-                                dates=self.data.dates,
-                                tail_lags=lags,
-                                freq_offset=freq_offset,
-                            )
+                        or self._carryover_cut(
+                            window=window,
+                            dates=self.data.dates,
+                            lags=lags,
+                            freq_offset=freq_offset,
                         )
                     )
                     for window in windows.windows
@@ -6220,7 +6254,7 @@ class Incrementality:
         result : xr.DataArray
             A stacked result of the request.
         complete : sequence of bool or None
-            Per period, whether the fitted dates hold its whole carryover.
+            Per period, whether the dates it sums hold its whole carryover.
             ``None`` leaves the result as it is.
         frequency : Frequency
             ``"all_time"`` has one period and no ``date`` dimension.
@@ -6234,8 +6268,12 @@ class Incrementality:
         if complete is None:
             return result
         if frequency == "all_time":
-            return result.assign_coords({COMPLETE: bool(complete[0])})
-        return result.assign_coords({COMPLETE: ("date", list(complete))})
+            return result.assign_coords(
+                {IncrementalityResult.COMPLETE: bool(complete[0])}
+            )
+        return result.assign_coords(
+            {IncrementalityResult.COMPLETE: ("date", list(complete))}
+        )
 
     def _induced_movement(
         self, results: PeriodResults, frequency: Frequency
@@ -6306,28 +6344,6 @@ class Incrementality:
                 skip_file_prefixes=(_PKG_PREFIX,),
             )
         return denominator.where(positive)
-
-    @staticmethod
-    def _stack_periods(
-        increments: PeriodIncrements, frequency: Frequency
-    ) -> xr.DataArray:
-        """Stack per-period totals into one array, one ``date`` per period.
-
-        Parameters
-        ----------
-        increments : PeriodIncrements
-            Per-period totals, as returned by :meth:`_compute_increments`
-            without ``keep_date_axis``.
-        frequency : Frequency
-            Time aggregation frequency; ``"all_time"`` drops ``date``.
-
-        Returns
-        -------
-        xr.DataArray
-            Dims ``(chain, draw, date, *out_dims)``, without ``date`` for
-            ``"all_time"``.
-        """
-        return Incrementality._stack_period_arrays(increments.periods, frequency)
 
     @staticmethod
     def _stack_period_arrays(
@@ -6696,13 +6712,16 @@ class Incrementality:
             With keep_date_axis the per-date term is kept and ``date`` rides
             along by name, so the reshape threads it like any other dim.
             """
+            # Passed only for the mediated part, so that a reducer written
+            # before ``base`` existed still answers a total.
+            passed = {} if base is None else {"base": base}
             if keep_date_axis:
-                increment = active.per_date_increment(delta, base=base).transpose(
+                increment = active.per_date_increment(delta, **passed).transpose(
                     "sample", "date", *out_dims
                 )
             else:
                 increment = active.counterfactual_minus_baseline(
-                    delta, base=base
+                    delta, **passed
                 ).transpose("sample", *out_dims)
             return increment if raised else -increment
 
@@ -6795,19 +6814,23 @@ class Incrementality:
                         [cast(xr.DataArray, delta.released) for delta in deltas]
                     ).broadcast_like(kept)
 
+                # The kept move is reduced once: it is the direct part, and with
+                # nothing held also the total and the template of a mediated
+                # part that is zero.
+                kept_increment: xr.DataArray | None = None
                 for path in wanted:
-                    if path == "mediated":
+                    if released is not None and path == "mediated":
                         # Its own reduction, not the total less the direct part,
                         # which loses digits when the two are close.
-                        increment = (
-                            xr.zeros_like(reduce(kept))
-                            if released is None
-                            else reduce(released, base=kept)
-                        )
-                    elif path == "direct" or released is None:
-                        increment = reduce(kept)
-                    else:
+                        increment = reduce(released, base=kept)
+                    elif released is not None and path == "total":
                         increment = reduce(kept + released)
+                    elif kept_increment is None:
+                        kept_increment = increment = reduce(kept)
+                    else:
+                        increment = kept_increment.copy()
+                    if released is None and path == "mediated":
+                        increment = xr.zeros_like(increment)
                     results[path].append(
                         unstack(
                             increment,
@@ -6919,20 +6942,34 @@ class Incrementality:
             moved = {name: counterfactual[name][row][:, cf_mask] for name in compared}
             for name, values in moved.items():
                 SpendProbe._assert_finite(name, values)
-            gap = ProbeStatistics.fold(
-                moved, reference, accounted=accounted, non_date_dims=non_date_dims
-            ).accounting_gap()
+            stats = ProbeStatistics.fold(
+                moved,
+                reference,
+                accounted=accounted,
+                non_date_dims=non_date_dims,
+                measures_reach=False,
+            )
+            gap = stats.accounting_gap()
             if gap is None:
                 continue
             on_window = ProbeStatistics.fold(
-                moved, factual, accounted=accounted, non_date_dims=non_date_dims
+                moved,
+                factual,
+                accounted=accounted,
+                non_date_dims=non_date_dims,
+                measures_reach=False,
             ).accounting_gap()
             if on_window is not None:
                 raise unattributed_path_error(accounted, gap)
-            differing = [
-                name
+            # Each term against the tolerance the gap was judged by; failing
+            # that, the one that differs most.
+            atol = stats.tolerance()
+            sizes = {
+                name: float(np.abs(factual[name] - baseline[name]).max())
                 for name in accounted
-                if not np.allclose(factual[name], baseline[name], rtol=1e-9, atol=0.0)
+            }
+            differing = [name for name, size in sizes.items() if size > atol] or [
+                max(sizes, key=sizes.__getitem__)
             ]
             raise ValueError(
                 f"With spend unchanged, the accounted terms {differing} take "
@@ -7002,16 +7039,10 @@ class Incrementality:
                 )
                 for row in rows
             )
-            dtype = (
-                on_window.dtype
-                if np.issubdtype(on_window.dtype, np.inexact)
-                else np.dtype(np.float64)
-            )
-            atol = max(
-                SpendProbe.COMPLETENESS_TOLERANCE * largest_move,
-                COMPLETENESS_ACCUMULATION_SAFETY_FACTOR
-                * np.finfo(dtype).eps
-                * float(np.abs(on_axis).max()),
+            atol = completeness_tolerance(
+                scale=largest_move,
+                magnitude=float(np.abs(on_axis).max()),
+                dtype=on_window.dtype,
             )
             gap = float(np.abs(on_window - on_axis).max())
             if gap > atol:
@@ -7024,9 +7055,10 @@ class Incrementality:
                     "the effect of spend alone.  A node does this when it reads "
                     "a date-indexed input through more history than the window "
                     "carries, or when it reduces over 'date'.  Declare "
-                    "evaluation_mode='full' in the IncrementalitySpec of the "
-                    "effect, which evaluates every period on the full date "
-                    "axis, or leave the mediator out of the request."
+                    "evaluation_mode='full' in the IncrementalitySpec of an "
+                    "effect that declares it, which evaluates every period on "
+                    "the full date axis, or leave the mediator out of the "
+                    "request."
                 )
 
     def _finish_period(
@@ -7124,6 +7156,42 @@ class Incrementality:
             tail = pd.date_range(dates[-1], reach_end, freq=freq_offset)
             tail = tail[tail > dates[-1]]
         return tail
+
+    @staticmethod
+    def _carryover_cut(
+        *,
+        window: PeriodWindow,
+        dates: pd.DatetimeIndex,
+        lags: int,
+        freq_offset: BaseOffset,
+    ) -> bool:
+        """Whether a period's carryover lands past the last date its result sums.
+
+        That date is the last fitted date at most.  Under an adstock whose mode
+        is not ``After`` it can be earlier, down to the period's own end, while
+        a mediator with an adstock of its own still carries forward.
+
+        Parameters
+        ----------
+        window : PeriodWindow
+            The period's window.
+        dates : pd.DatetimeIndex
+            The full fitted date axis.
+        lags : int
+            Lags after the period's last fitted spend date that its carryover is
+            known to reach, in data periods.
+        freq_offset : BaseOffset
+            The data's date frequency.
+
+        Returns
+        -------
+        bool
+            False for a period with no fitted spend date, which moves nothing.
+        """
+        spend = dates[(dates >= window.start) & (dates <= window.end)]
+        if not len(spend):
+            return False
+        return spend[-1] + lags * freq_offset > window.eval_dates[-1]
 
     @staticmethod
     def _append_unobserved_tail(
@@ -7415,7 +7483,7 @@ class Incrementality:
             With ``induced_spend``, a draw whose denominator is not positive
             is NaN, with a warning, and the result has a boolean ``complete``
             coordinate that is false for the periods whose carryover runs past
-            the fitted dates.
+            the dates the period sums; see :meth:`compute_incremental_mediator`.
 
         Raises
         ------
@@ -7764,10 +7832,16 @@ class Incrementality:
             )
 
         factor = 1.0 + spend_increase_pct
-        if factor == 1.0:
+        # The scenarios are built in the dtype of the channel data, so that is
+        # where the increase has to survive (as a float, should it be integer).
+        spend_dtype = np.result_type(
+            self.model.model[Var.CHANNEL_DATA].dtype, np.float32
+        )
+        if spend_dtype.type(factor) == 1.0:
             raise ValueError(
                 f"spend_increase_pct={spend_increase_pct} is too small to change "
-                "spend: 1.0 + spend_increase_pct equals 1.0 in floating point."
+                "spend: 1.0 + spend_increase_pct equals 1.0 in the "
+                f"{spend_dtype} of the channel data."
             )
 
         marginal_contribution, results = self._increment(
@@ -7916,6 +7990,12 @@ class Incrementality:
         """
         # 1. Filter to date range
         data = self.data.filter_dates(start_date, end_date)
+        if frequency != "original" and not len(data.dates):
+            raise ValueError(
+                f"No fitted date falls between {start_date} and {end_date}, so "
+                "no spend falls in the range to aggregate.  Choose a range that "
+                "holds at least one date of the fitted data."
+            )
 
         # 2. Aggregate over time (no-op for "original")
         if frequency != "original":

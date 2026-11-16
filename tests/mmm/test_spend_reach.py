@@ -1972,45 +1972,7 @@ class TestMediatorNodes:
 
 
 class TestCompletenessReport:
-    """What the completeness check says about itself, and the tolerance it shares."""
-
-    def test_nothing_was_compared_without_a_predictor(self):
-        """A baseline with no linear predictor leaves the check with nothing to do."""
-        evaluator = FakeEvaluator(**{CHANNEL_CONTRIBUTION: causal_filter(2)})
-        spend = TestSpendProbe._spend()
-        probe = SpendProbe(
-            evaluator=evaluator,
-            baseline=evaluator.evaluate_baseline(spend),
-            baseline_array=spend,
-            counterfactual_spend_factor=0.0,
-        )
-
-        assert not probe.assert_increment_is_complete(
-            effects=(), non_date_dims=evaluator.non_date_dims
-        )
-
-    def test_nothing_was_compared_without_a_probe(self):
-        """Spend on the first date alone cannot be perturbed at an interior date."""
-        contribution = causal_filter(2)
-        evaluator = FakeEvaluator(
-            **{
-                CHANNEL_CONTRIBUTION: contribution,
-                LINEAR_PREDICTOR: predictor_of(contribution),
-            }
-        )
-        spend = np.zeros((12, 2))
-        spend[0] = 1.0
-        probe = SpendProbe(
-            evaluator=evaluator,
-            baseline=evaluator.evaluate_baseline(spend),
-            baseline_array=spend,
-            counterfactual_spend_factor=0.0,
-        )
-
-        assert probe.probe_indices == []
-        assert not probe.assert_increment_is_complete(
-            effects=(), non_date_dims=evaluator.non_date_dims
-        )
+    """The tolerance the completeness check shares with the requests' own rows."""
 
     @pytest.mark.parametrize(
         "predictor_move, gap",

@@ -49,7 +49,7 @@ the graph, and they cannot connect them.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -108,6 +108,11 @@ class ResolvedMediator:
     feeds_term : bool
         Whether a term of the linear predictor reads the node without passing
         through another term.  A node that only has a likelihood on it does not.
+    full_axis : bool
+        Whether an effect that declares it asks for every period to be
+        evaluated on the full date axis (``evaluation_mode="full"``).  Honoured
+        by a request that reads the node, also when the effect's own term does
+        not read spend.
     problem : str or None
         Why the node cannot mark where an effect's routes from spend are cut.
     unreadable : str or None
@@ -121,6 +126,7 @@ class ResolvedMediator:
     scale: float
     is_spend: bool
     feeds_term: bool
+    full_axis: bool
     problem: str | None
     unreadable: str | None
 
@@ -255,17 +261,20 @@ def resolve_mediators(
         if spec is None:
             continue
         label = type(effect).__name__
-        for mediator in _validated_spec(spec, label).mediators:
+        validated = _validated_spec(spec, label)
+        for mediator in validated.mediators:
             entry = declared.setdefault(
                 (mediator.name, mediator.variable),
                 {
                     "variable": mediator.variable,
                     "reporting": _DEFAULT_REPORTING,
                     "effects": [],
+                    "full_axis": False,
                     "fault": None,
                 },
             )
             entry["effects"].append(label)
+            entry["full_axis"] |= validated.evaluation_mode == "full"
             reporting = (mediator.units, mediator.scale, mediator.is_spend)
             if reporting != _DEFAULT_REPORTING:
                 if entry["reporting"] not in (_DEFAULT_REPORTING, reporting):
@@ -307,10 +316,11 @@ def resolve_mediators(
         upstream = set(ancestors([node]))
         if channel_data not in upstream:
             return f"spend does not reach {variable!r}"
-        if node in direct_path:
+        if node in direct_path or not direct_path.isdisjoint(_expression_under(node)):
             return (
                 f"{variable!r} is on the direct path: it is "
-                f"{CHANNEL_CONTRIBUTION!r} or upstream of it"
+                f"{CHANNEL_CONTRIBUTION!r}, upstream of it or registered on "
+                "either"
             )
         if variable in terms:
             return f"{variable!r} is the term an effect adds to the linear predictor"
@@ -371,6 +381,7 @@ def resolve_mediators(
                 scale=scale,
                 is_spend=is_spend,
                 feeds_term=any(node in reads for reads in inside),
+                full_axis=entry["full_axis"],
                 problem=problem(variable),
                 unreadable=unreadable(name, entry),
             )
@@ -382,6 +393,7 @@ def check_roles(
     model: MMM,
     effects: Sequence[ChannelDependentEffect],
     registry: Sequence[ResolvedMediator],
+    specs: Mapping[str, IncrementalitySpec],
 ) -> None:
     """Refuse a model whose graph contradicts the roles its effects declare.
 
@@ -406,10 +418,13 @@ def check_roles(
     model : MMM
         The model whose graph is read.
     effects : sequence of ChannelDependentEffect
-        Its channel-dependent effects.  One without a role is left alone here.
+        Its channel-dependent effects.
     registry : sequence of ResolvedMediator
         What :func:`resolve_mediators` returned.  Nodes with a ``problem`` are
         not used, and are named when an effect is left without a usable node.
+    specs : mapping
+        The validated spec of each effect in *effects*, by contribution
+        variable.  An effect without a role is left alone here.
 
     Raises
     ------
@@ -420,11 +435,6 @@ def check_roles(
     pymc_model = model.model
     channel_data = pymc_model[Var.CHANNEL_DATA]
     terms = _terms(model, effects)
-    specs = {
-        effect.contribution_var: _validated_spec(effect.spec, effect.label)
-        for effect in effects
-        if effect.spec is not None
-    }
     usable = {
         entry.variable: pymc_model[entry.variable]
         for entry in registry
@@ -573,11 +583,16 @@ def resolve_path_plan(
     ValueError
         If the graph contradicts the declared roles; see :func:`check_roles`.
     """
+    specs = {
+        effect.contribution_var: (
+            None if effect.spec is None else _validated_spec(effect.spec, effect.label)
+        )
+        for effect in effects
+    }
     undeclared = [
         effect
         for effect in effects
-        if effect.spec is None
-        or _validated_spec(effect.spec, effect.label).role is None
+        if (spec := specs[effect.contribution_var]) is None or spec.role is None
     ]
     if undeclared:
         listing = ", ".join(
@@ -592,13 +607,10 @@ def resolve_path_plan(
             "that is one more direct function of spend.  Totals do not need a "
             "role."
         )
-    check_roles(model, effects, registry)
+    roles = {name: spec for name, spec in specs.items() if spec is not None}
+    check_roles(model, effects, registry, roles)
     return PathPlan(
         held_terms=tuple(
-            sorted(
-                effect.contribution_var
-                for effect in effects
-                if _validated_spec(effect.spec, effect.label).role == "mediator"
-            )
+            sorted(name for name, spec in roles.items() if spec.role == "mediator")
         )
     )

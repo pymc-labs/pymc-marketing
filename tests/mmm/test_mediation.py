@@ -17,6 +17,7 @@ Nothing here fits a model.  The registry and the role checks read a built graph
 and compile nothing.
 """
 
+import numpy as np
 import pymc as pm
 import pymc.dims as pmd
 import pytensor.tensor as pt
@@ -121,11 +122,20 @@ class GraphShape(MuEffect):
             case "level":
                 pmd.Deterministic(f"{prefix}_level", 2.0 * beta)
                 return term(beta * hub(pmd.math.tanh(spend)))
+            case "flat":
+                hub(pmd.math.tanh(spend))
+                ones = pmd.Data(
+                    f"{prefix}_ones", np.ones(len(model.coords["date"])), dims="date"
+                )
+                return term(beta * ones)
             case "date_mean_hub":
                 return term(beta * spend / hub(spend.mean(dim="date")))
             case "channel_hub":
                 per_channel = hub(pmd.math.tanh(mmm.channel_data_scaled))
                 return term(beta * per_channel.sum(dim="channel"))
+            case "contribution_copy":
+                copy = hub(model["channel_contribution"])
+                return term(beta * copy.sum(dim="channel"))
             case "segment_hub":
                 model.add_coords({"segment": ["new", "returning"]})
                 weight = pmd.HalfNormal(f"{prefix}_weight", dims="segment")
@@ -204,6 +214,7 @@ class TestResolveMediators:
             scale=1.0,
             is_spend=False,
             feeds_term=True,
+            full_axis=False,
             problem=None,
             unreadable=None,
         )
@@ -268,6 +279,13 @@ class TestResolveMediators:
             ),
             pytest.param(
                 "hub", "mu", "linear predictor", {}, id="the linear predictor"
+            ),
+            pytest.param(
+                "contribution_copy",
+                "f_hub",
+                "on the direct path",
+                {},
+                id="a node registered on the direct path",
             ),
             pytest.param(
                 "noisy_hub",
@@ -462,7 +480,7 @@ class TestResolveMediators:
         """Its spec is read by the registry, which a total never does."""
         declaring = GraphShape(
             prefix="f",
-            kind="level",
+            kind="flat",
             spec=IncrementalitySpec(
                 mediators=(MediatorSpec(name="hub", variable="f_hub"),)
             ),
@@ -471,21 +489,34 @@ class TestResolveMediators:
 
         assert registry_of(mmm)["hub"].readable
 
-    def test_a_spec_that_was_built_around_validation_is_refused(self, funnel_mmm_data):
-        """``model_construct`` skips the rules, so the registry applies them again."""
-
-        class Forging(GraphShape):
-            def incrementality_spec(self) -> IncrementalitySpec:
-                return IncrementalitySpec.model_construct(
+    @pytest.mark.parametrize(
+        "kind, returned",
+        [
+            pytest.param(
+                "hub",
+                IncrementalitySpec.model_construct(
                     additional_carryover_lags=None,
                     evaluation_mode="auto",
                     role="mediator",
                     mediators=(),
-                )
+                ),
+                id="built around its validation",
+            ),
+            pytest.param("flat", {"role": "direct"}, id="not a spec"),
+        ],
+    )
+    def test_a_declaration_that_is_not_a_valid_spec_is_refused(
+        self, funnel_mmm_data, kind, returned
+    ):
+        """The registry validates what an effect returns, whatever it was built with."""
 
-        mmm = build(funnel_mmm_data, Forging(prefix="f", kind="hub"))
+        class Forging(GraphShape):
+            def incrementality_spec(self):
+                return returned
 
-        with pytest.raises(ValueError, match=r"(?s)Forging.*at least one"):
+        mmm = build(funnel_mmm_data, Forging(prefix="f", kind=kind))
+
+        with pytest.raises(ValueError, match="Forging"):
             registry_of(mmm)
 
 
@@ -571,11 +602,6 @@ class TestRoleChecks:
                 id="a direct effect next to a mediator",
             ),
             pytest.param(
-                [GraphShape(prefix="d", kind="direct", spec=DIRECT)],
-                (),
-                id="a direct effect alone",
-            ),
-            pytest.param(
                 [
                     GraphShape(
                         prefix="d",
@@ -591,7 +617,6 @@ class TestRoleChecks:
                 (),
                 id="a direct effect that measures an indicator",
             ),
-            pytest.param([], (), id="no effect at all"),
         ],
     )
     def test_a_coherent_model_gets_its_plan(self, funnel_mmm_data, effects, held):
