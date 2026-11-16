@@ -144,6 +144,9 @@ ALLOWED: dict[str, dict[str, str]] = {
     "mmm/components/adstock.py": {"adstock": _COMPONENT},
     "mmm/components/saturation.py": {"saturation": _COMPONENT},
     "mmm/counterfactual.py": {"time_index": "label of the batched input tensor"},
+    "mmm/estimand_label.py": {
+        "induced_spend": "name of a label field, in the message that names it",
+    },
     "mmm/events.py": {"saturation": _COMPONENT},
     "mmm/fourier.py": {"fourier_mode": _DEFAULT},
     "mmm/incrementality.py": {
@@ -152,6 +155,7 @@ ALLOWED: dict[str, dict[str, str]] = {
         "allocation": "estimand option",
         "link": "key of the reported assumptions",
         "time_varying_media": "key of the reported assumptions",
+        "induced_spend": "name of the argument, in the message that refuses it",
     },
     "mmm/lift_test.py": {"channel": _COLUMN, "date": _COLUMN, "mu": _PARAMETER},
     "mmm/media_transformation.py": {
