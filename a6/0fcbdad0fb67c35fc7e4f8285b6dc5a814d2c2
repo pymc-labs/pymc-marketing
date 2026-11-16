@@ -1,0 +1,23 @@
+.gitattributes
+  s_b9ca8167a5599d::t_0445307b3130b5 1
+.github/workflows/test_notebook.yml
+  s_b9ca8167a5599d::t_9985a612bc6716 51-68
+CONTRIBUTING.md
+  s_b9ca8167a5599d::t_0a1a9023347b66 52-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "a60fcbdad0fb67c35fc7e4f8285b6dc5a814d2c2",
+  "prompts": {},
+  "sessions": {
+    "s_b9ca8167a5599d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a22bc4bd-8d8c-45a0-a350-404d811da93d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}
