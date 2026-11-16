@@ -3608,7 +3608,7 @@ class BudgetOptimizer(BaseModel):
     def _warn_breakpoints_far_above_fit(self) -> None:
         """Name the cells whose first breakpoint is far above the level the model was fitted at.
 
-        A breakpoint is a per-period budget level. One more than three times a cell's on-air mean in the fitted
+        A breakpoint is a per-period budget level. One that is more than three times a cell's on-air mean in the fitted
         data, and above its peak, is more likely a window total, or a national commitment on a per-geo cell, than
         a level. A variable whose fitted data cannot be read in money gives no warning (see
         :meth:`_fitted_money`).
@@ -4063,7 +4063,8 @@ class BudgetOptimizer(BaseModel):
         - ``scipy_result["breakpoint_status"]`` says how the passes ended:
           ``"certified"`` (no cell on a breakpoint would gain by leaving it),
           ``"settled"`` (letting cells go stopped buying anything), ``"unsettled"`` (a
-          pass failed, the check could not be solved or the passes ran out) or
+          pass failed, the check could not be solved, the passes ran out or no solve
+          succeeded) or
           ``"skipped"`` (a ``method`` other than SLSQP, under which the passes do not
           run). The last two warn that the plan was not settled on its breakpoints, and
           an unsettled plan is the best successful pass, else the first solve. A settled

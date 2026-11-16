@@ -221,9 +221,9 @@ class BreakpointSettler:
 
         Every exit records ``result["breakpoint_status"]``: ``"certified"`` when no entry on a breakpoint would
         gain by leaving it, ``"settled"`` when letting entries go stopped buying anything, ``"unsettled"`` when a
-        pass failed, the check could not be solved or the passes ran out. An unsettled plan is the best successful
-        pass, else ``first``, with a warning when it succeeded. ``nit``, ``nfev`` and ``njev`` are summed over
-        every solve.
+        pass failed, the check could not be solved, the passes ran out or no solve succeeded. An unsettled plan is
+        the best successful pass, else ``first``, with a warning when it succeeded. ``nit``, ``nfev`` and ``njev``
+        are summed over every solve.
         """
         self._solves, self._best = [first], None
         current = self._arrive(
@@ -277,7 +277,8 @@ class BreakpointSettler:
 
         SciPy answers bounds that fix every variable without running SLSQP, and accepts them only if every
         constraint holds to the last bit, so the knots are checked here within ``rtol``. When they do not hold,
-        the last solve's plan stands, within ``rtol`` of its knots.
+        the last solve's plan stands, within ``rtol`` of its knots. Either way the result keeps that solve's
+        ``multipliers`` and counts.
         """
         if not candidate.result.success:
             return None
