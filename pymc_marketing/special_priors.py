@@ -1303,6 +1303,8 @@ class VarianceBudget:
         ``share`` (1/L for each of L levels) with ``concentration=L`` is the flat
         Dirichlet; a small concentration around an uneven center is sparse, not
         flat.
+        The default nearly fixes the shares: with two levels at 0.5, a share stays within [0.41, 0.59] (94%).
+        To let the data move the split, use a smaller value: 10 gives [0.22, 0.78].
     dims : str or tuple[str], optional
         The level dim, as for :class:`IndependentSigmas`. Leave it unset in a
         :class:`NestedZeroSumPrior`, which sets it on a copy.
@@ -1570,7 +1572,7 @@ def _non_scalar_params(prior: Prior, path: str) -> list[str]:
     for key, value in prior.parameters.items():
         if isinstance(value, Prior):
             found += _non_scalar_params(value, f"{path}.{key}")
-        elif not hasattr(value, "create_variable") and np.ndim(value) > 0:
+        elif not isinstance(value, VariableFactory) and np.ndim(value) > 0:
             found.append(f"{path}.{key}")
     return found
 
@@ -1779,6 +1781,10 @@ class NestedZeroSumPrior:
         so they must be str and cannot contain ``/``.
         The parent labels, the values of a ``map``, can.
     sigma : IndependentSigmas, VarianceBudget or Prior
+        The scale of each level is its scale before the zero-sum constraint, as in PyMC's ``ZeroSumNormal``.
+        It is not the standard deviation of each label's offset.
+        A zero-sum group of :math:`n` labels has the standard deviation :math:`\sigma \sqrt{1 - 1/n}` per label.
+        For a child term, :math:`n` is the number of children of each parent: 0.71σ for 2 children, 0 for one.
         The scales of the levels, the term and interaction labels. A
         single-variable factory: called as ``<name>_sigma``, it returns one
         vector on the dim ``<name>_sigma_level``, whose labels are the levels,
@@ -1999,9 +2005,8 @@ class NestedZeroSumPrior:
                     f"{kind} names {slashed} contain '/', which is not allowed in a variable name"
                 )
         self.mu, self.sigma = _as_prior(mu), _as_prior(sigma)
-        if not hasattr(
-            self.mu, "create_variable"
-        ):  # a constant: one number, or one per base label
+        # a constant: one number, or one per base label
+        if not isinstance(self.mu, VariableFactory):
             mu = np.asarray(self.mu)
             if mu.dtype.kind not in "iuf" or mu.ndim > 1:
                 raise ValueError(
@@ -2092,9 +2097,11 @@ class NestedZeroSumPrior:
                 f"and the interaction dims), in any order, and at most one base dim, got base dims {base}. "
                 "For a hierarchy over only some of the MMM dims, pass `dims` explicitly"
             )
-        is_prior = hasattr(self.mu, "create_variable")
-        mu_dims = _as_dims(getattr(self.mu, "dims", None)) if is_prior else ()
-        if mu_dims != tuple(base) if is_prior else np.ndim(self.mu) > len(base):
+        if isinstance(self.mu, VariableFactory):  # a prior: exactly the base dims
+            mu_fits = _as_dims(getattr(self.mu, "dims", None)) == tuple(base)
+        else:  # a constant: a number, or one number per base label
+            mu_fits = np.ndim(self.mu) <= len(base)
+        if not mu_fits:
             raise ValueError(
                 f"mu must have the base dims {tuple(base)}: a prior with those dims, a number, "
                 f"or one number per base label; got {self.mu!r}"
@@ -2158,7 +2165,7 @@ class NestedZeroSumPrior:
             for c, t in terms.items()
             if t.map is not None
         }
-        if not hasattr(mu, "create_variable") and np.shape(mu) not in ((), n_base):
+        if not isinstance(mu, VariableFactory) and np.shape(mu) not in ((), n_base):
             raise ValueError(
                 f"constant mu has shape {np.shape(mu)}; expected () or {n_base}, one value per {base} label"
             )
@@ -2205,7 +2212,7 @@ class NestedZeroSumPrior:
                 if not (self.centered if x.centered is None else x.centered)
             ),
             f"{name}_sigma",
-            *([f"{name}_mu"] if hasattr(mu, "create_variable") else []),
+            *([f"{name}_mu"] if isinstance(mu, VariableFactory) else []),
             *(k for k, _ in new_coords),
         ]
         if duplicates := sorted({r for r in names if names.count(r) > 1}):
@@ -2274,7 +2281,7 @@ class NestedZeroSumPrior:
 
         eta = as_xtensor(  # beta before the transform; a constant mu is a float or one value per base label
             mu.create_variable(f"{name}_mu", xdist=True)
-            if hasattr(mu, "create_variable")
+            if isinstance(mu, VariableFactory)
             else pt.broadcast_to(pt.as_tensor(mu), n_base),
             dims=base,
         )
