@@ -230,7 +230,6 @@ import json
 import warnings
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import (
     Any,
     ClassVar,
@@ -243,7 +242,6 @@ from typing import (
 )
 
 import numpy as np
-import pydantic
 import pymc as pm
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
@@ -280,7 +278,7 @@ from pymc_marketing.mmm.optimization_variables import (
     align_to_model_coords,
 )
 from pymc_marketing.mmm.price_response import PriceResponse
-from pymc_marketing.mmm.spend_reach import _PKG_PREFIX
+from pymc_marketing.mmm.spend_reach import _VALIDATION_WARNING_SKIP
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
 from pymc_marketing.names.mmm import Attr, Dim, Var
 from pymc_marketing.pytensor_utils import (
@@ -291,14 +289,6 @@ from pymc_marketing.pytensor_utils import (
     reorder_to_model_coords,
 )
 from pymc_marketing.version import __version__
-
-_VALIDATION_WARNING_SKIP = (_PKG_PREFIX, str(Path(pydantic.__file__).resolve().parent))
-"""Frames to skip when warning from inside :class:`BudgetOptimizer` validation.
-
-Construction runs through pydantic's validator, so a warning raised there is
-attributed to the first frame outside both this package and pydantic: the
-caller's.
-"""
 
 DEFAULT_RESPONSE_VARIABLE = Var.TOTAL_MEDIA_CONTRIBUTION_ORIGINAL_SCALE
 """Objective used when no ``response_variable`` is given: the media contribution

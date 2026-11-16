@@ -46,11 +46,9 @@ import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
-from pathlib import Path
 from typing import Self
 
 import numpy as np
-import pydantic
 import pytensor
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
@@ -72,7 +70,7 @@ from pymc_marketing.mmm.optimization_variables import (
     align_to_model_coords,
     reject_unknown_coords,
 )
-from pymc_marketing.mmm.spend_reach import _PKG_PREFIX
+from pymc_marketing.mmm.spend_reach import _VALIDATION_WARNING_SKIP
 from pymc_marketing.names.mmm import Dim
 
 __all__ = [
@@ -95,8 +93,6 @@ MIN_FLOOR_FRACTION = 1e-12
 KNOT_SNAP_ULPS = 64
 # More brackets than this on one cell looks like a price curve cut into steps (see TieredPriceResponse).
 MAX_BRACKETS_UNWARNED = 4
-# A warning raised while pydantic validates a declaration points at the line that declared it.
-_WARN_FROM_CALLER = (_PKG_PREFIX, str(Path(pydantic.__file__).resolve().parent))
 
 _Schedule = tuple[float, ...]
 
@@ -1685,7 +1681,7 @@ class TieredPriceResponse(PriceResponse):
                 "again double-counts them: that needs a model fitted on delivery units and a curved family such "
                 "as PowerPriceResponse.",
                 UserWarning,
-                skip_file_prefixes=_WARN_FROM_CALLER,
+                skip_file_prefixes=_VALIDATION_WARNING_SKIP,
             )
         return self
 
