@@ -2056,6 +2056,62 @@ class TestPriceResponseOptimality:
         assert marginal < p0
 
 
+class TestTieredPriceResponseGuards:
+    """The warnings that catch a schedule typed in the wrong units."""
+
+    @pytest.mark.parametrize(
+        "response",
+        [
+            TieredPriceResponse(rate_multipliers=[1.1]),
+            PowerPriceResponse(elasticity=0.0),
+        ],
+        ids=["schedule", "flat-power"],
+    )
+    def test_no_window_price_warns_for_any_response_on_a_priced_model(
+        self, simple_mmm_data, response
+    ):
+        """On a model fitted in money, multipliers and a power law's base price both
+        multiply cost_per_unit; without a window price that base is 1 and money reaches
+        the model as units, whether or not the response bends money."""
+        mmm = _fit_with_table(simple_mmm_data, "post_fit")
+        start, end = _window(mmm)
+        with pytest.warns(UserWarning, match="no cost_per_unit for the window"):
+            mmm.budget_optimizer(start, end, price_response=response)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            mmm.budget_optimizer(
+                start,
+                end,
+                price_response=response,
+                cost_per_unit=_window_cpu(mmm, dict.fromkeys(CHANNELS_3, 2.0)),
+            )
+
+    def test_a_breakpoint_far_above_the_fitted_level_warns(self, simple_fitted_mmm):
+        """A breakpoint typed as a window total is num_periods times too large; one at 13
+        times the level the model was fitted at is named, with the ratio. Twice the level
+        is a plausible commitment and passes."""
+        mmm = simple_fitted_mmm
+        start, end = _window(mmm)
+        data = mmm.idata.constant_data["channel_data"]
+        level = data.where(data > 0).mean("date")
+
+        def schedule(factor):
+            return TieredPriceResponse(
+                breakpoints=level * factor,
+                rate_multipliers=xr.DataArray([1.0, 1.6], dims="bracket"),
+            )
+
+        with pytest.warns(
+            UserWarning, match="times the level the model was fitted at"
+        ) as record:
+            mmm.budget_optimizer(start, end, price_response=schedule(13.0))
+        message = next(str(w.message) for w in record if "fitted at" in str(w.message))
+        assert "('channel_1',) (13 times)" in message
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            mmm.budget_optimizer(start, end, price_response=schedule(2.0))
+
+
 class TestTieredPriceResponseAllocation:
     """A bracket schedule on a fitted model: breakpoints at a fraction of the constant-price
     plan, with a different incremental rate per channel. At 0.9 of that plan and a total of

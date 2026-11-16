@@ -4068,6 +4068,16 @@ class TestExactPasses:
             scheduled.scipy_result.jac, plain.scipy_result.jac, rtol=1e-14
         )
 
+    def test_the_fit_warning_is_silent_without_fitted_data(self):
+        """An idata with no constant_data cannot say what level the model was fitted at:
+        no warning and no error, however far the breakpoint."""
+        far = TieredPriceResponse(
+            breakpoints={"a": [1e9]}, rate_multipliers={"a": [1.0, 2.0]}
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            _hand_optimizer(far)
+
     def test_breakpoints_above_the_bounds_warn_per_cell(self):
         schedule = TieredPriceResponse(
             breakpoints={"a": [50.0], "b": [5.0]},

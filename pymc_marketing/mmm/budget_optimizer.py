@@ -325,6 +325,9 @@ ACTIVE_RTOL = 1e-9
 LEAVING_TOLERANCE = 1e-4
 # HiGHS feasibility tolerances in the check, and the optimum below which it reports a gain.
 LP_TOLERANCE = 1e-10
+# A first breakpoint this many times the on-air level the model was fitted at, and above its peak, is warned
+# about: it is more likely a window total or a national figure on a per-geo cell than a per-period level.
+FITTED_LEVEL_FACTOR = 3.0
 
 
 def _leaving_breakpoints(
@@ -503,9 +506,13 @@ class BudgetOptimizationResult:
         so the window-average price is ``budgets * num_periods / implied_delivery.sum(date_dim)``.
     implied_marginal_price : xarray.DataArray or None
         Money the *next* delivered unit would cost, per period and cell; ``nan`` where
-        ``implied_price`` is. Above the floor it is ``implied_price / (1 - elasticity)``,
-        so their ratio is the whole content of a spend-dependent price: at elasticity
-        0.25 the increment costs 33% more than the average unit.
+        ``implied_price`` is. Its ratio to ``implied_price`` is the whole content of a
+        spend-dependent price. Under :class:`~pymc_marketing.mmm.price_response.PowerPriceResponse`
+        it is ``implied_price / (1 - elasticity)`` above the floor, so at elasticity 0.25
+        the increment costs 33% more than the average unit. Under
+        :class:`~pymc_marketing.mmm.price_response.TieredPriceResponse` it is the base price
+        times the multiplier of the bracket the next unit falls in; a cell on its breakpoint
+        reports the next bracket's.
     delivery_reports : dict[str, xarray.Dataset]
         One report per priced decision variable, keyed by name in decision-vector order:
         ``channel_data_var`` and every ``spend_vars`` name when a ``price_response`` was
@@ -519,8 +526,10 @@ class BudgetOptimizationResult:
         equals ``r.spend.sum(date_dim)``, which is the variable's allocation times
         ``num_periods``. Kept per variable rather than stacked because variables differ in
         dims. A spend variable takes no ``cost_per_unit`` and no
-        ``budget_distribution_over_period``: its base price is 1 at its ``reference_spend``
-        and its money is spread evenly over the window. The ``channel_data_var`` entry
+        ``budget_distribution_over_period``: its base price is 1 (at its ``reference_spend``
+        under a power law) and its money is spread evenly over the window. Reports at any
+        labelled plan, on the same maps, come from :meth:`BudgetOptimizer.delivery_reports`.
+        The ``channel_data_var`` entry
         holds the arrays of the three fields above.
     """
 
@@ -1740,8 +1749,8 @@ class BudgetOptimizer(BaseModel):
             "Must have dims (date, *budget_dims) where date has length "
             "num_periods. If None, budgets are assumed to already be in "
             "the model's native units (no conversion applied). With "
-            "price_response set this is the base price, applying at "
-            "reference_spend; the effective price then varies with the money spent."
+            "price_response set this is the base price: a power law's price at "
+            "reference_spend, or what a schedule's rate multipliers multiply."
         ),
     )
 
@@ -1758,13 +1767,14 @@ class BudgetOptimizer(BaseModel):
             "partial dict then raises, because a spend variable left at a constant price while media "
             "is not competes for the same pot on different terms, silently. A curved response needs "
             "assume_delivery_units=True on every node, because the fitted model cannot establish the "
-            "units of its data (see PowerPriceResponse for the precondition). The fitted model's "
+            "units of its data (see PowerPriceResponse for the precondition); a TieredPriceResponse "
+            "adds no curvature the fit already holds and needs none. The fitted model's "
             "historical cost_per_unit table anchors reference_spend on the channels it prices on "
             "MMM's channel_data node; a curved spend variable, custom channel_data_var or unpriced "
             "channel needs an explicit reference_spend. Results carry implied_delivery, "
             "implied_price and implied_marginal_price for the media variable, and delivery_reports "
             "holds the same arrays, with the per-period spend, for every priced variable, keyed "
-            "by name."
+            "by name; BudgetOptimizer.delivery_reports gives them at any labelled plan."
         ),
     )
 
@@ -2110,6 +2120,7 @@ class BudgetOptimizer(BaseModel):
         # of its clone (cloning the intervened model would copy the vector).
         self._frozen_model = freeze_dims_and_data(self.model, data=[])
         self._pymc_model = do(self._frozen_model, self._variables.substitutions())
+        self._warn_breakpoints_far_above_fit()
 
         # 8. Validate that the requested response variable actually exists in
         # the underlying PyMC model.
@@ -3043,6 +3054,22 @@ class BudgetOptimizer(BaseModel):
             date_dim=self.date_dim,
             label=f"{self.channel_data_var}: price_response",
         )
+        if (
+            self.channel_data_var == MMM_CHANNEL_DATA_VAR
+            and Dim.CHANNEL in self._budget_dims
+            and self.cost_per_unit is None
+            and self._priced_channels() is not None
+        ):
+            # Any response, curved or not: a schedule's multipliers and a power law's base
+            # price both multiply cost_per_unit, which is then 1 on a model fitted in money.
+            warnings.warn(
+                "price_response: the fitted model prices its channels (channel_spend is money) "
+                "but there is no cost_per_unit for the window, so the base price is 1 and the "
+                "optimizer's money reaches the model as units. Pass cost_per_unit for the "
+                "optimization window.",
+                UserWarning,
+                skip_file_prefixes=_VALIDATION_WARNING_SKIP,
+            )
         if not curved.any():
             return None
         name = self.channel_data_var
@@ -3146,15 +3173,6 @@ class BudgetOptimizer(BaseModel):
                 f"{missing}, so no reference spend can be derived for them. The fitted spend and this "
                 "optimization's model disagree on the cell layout; re-run mmm.set_cost_per_unit(...) on the "
                 "fitted model, or pass reference_spend explicitly (per-period money per cell)."
-            )
-        if self.cost_per_unit is None:
-            warnings.warn(
-                "price_response: the fitted model prices its channels (channel_spend is money) "
-                "but there is no cost_per_unit for the window, so the base price is 1 and the "
-                "optimizer's money reaches the model as units. Pass cost_per_unit for the "
-                "optimization window.",
-                UserWarning,
-                stacklevel=2,
             )
         reference = spend.where(spend > 0).mean(self.date_dim)
         priced_mask = DataArray(
@@ -3676,6 +3694,87 @@ class BudgetOptimizer(BaseModel):
                 UserWarning,
                 stacklevel=3,
             )
+
+    def _warn_breakpoints_far_above_fit(self) -> None:
+        """Name the cells whose first breakpoint is far above the level the model was fitted at.
+
+        A breakpoint is a per-period budget level. One that is more than ``FITTED_LEVEL_FACTOR`` times a
+        cell's on-air mean in the fitted data, and above its peak, is more likely a window total, or a
+        national commitment on a per-geo cell, than a level. Read off ``constant_data[name]``, converted to
+        money with the variable's scales and, for the media variable, the window's mean ``cost_per_unit``;
+        a node that cannot be read that way gives no warning.
+        """
+        try:
+            constant = _extract_dataset(self.idata, "constant_data")
+        except (KeyError, AttributeError, TypeError):
+            return
+        for variable in self._variables.variables:
+            if (
+                not isinstance(variable, MediaVariable)
+                or variable.price_response is None
+                or variable.name not in constant
+            ):
+                continue
+            node = constant[variable.name]
+            if set(node.dims) != {self.date_dim, *variable.dims}:
+                continue
+            try:
+                money = node * self._money_per_node_unit(variable)
+                level = money.where(money > 0).mean(self.date_dim)
+                peak = money.max(self.date_dim)
+                coords = {dim: variable.coords[dim] for dim in variable.dims}
+                level = level.reindex(coords).transpose(*variable.dims).values
+                peak = peak.reindex(coords).transpose(*variable.dims).values
+            except (KeyError, ValueError):
+                continue
+            on = variable._bool_mask
+            level, peak = level[on], peak[on]
+            valid = np.isfinite(level) & (level > 0.0)
+            safe = np.where(valid, level, 0.0)
+            first_low, first_above = variable.linear_piece(
+                safe, np.zeros_like(safe), np.full_like(safe, np.inf)
+            )
+            far = (
+                valid
+                & (first_low <= 0.0)
+                & np.isfinite(first_above)
+                & (first_above > FITTED_LEVEL_FACTOR * safe)
+                & (first_above > peak)
+            )
+            if not far.any():
+                continue
+            labels = self._flat_cell_labels(variable)
+            listed = [
+                f"{labels[i]} ({first_above[i] / safe[i]:.3g} times)"
+                for i in np.flatnonzero(far)[:5]
+            ]
+            more = ", ..." if int(far.sum()) > 5 else ""
+            warnings.warn(
+                f"{variable.name}: price_response: the first breakpoint of cells {', '.join(listed)}{more} "
+                "is that many times the level the model was fitted at (the on-air mean per period) and above "
+                "its peak. Breakpoints are per-period budget levels: a commitment over the window is its total "
+                f"divided by num_periods={self.num_periods}, and a schedule given as a sequence or keyed by "
+                "channel applies the same breakpoint to the channel in every geo, so a national commitment "
+                "typed that way is counted once per geo.",
+                UserWarning,
+                skip_file_prefixes=_VALIDATION_WARNING_SKIP,
+            )
+
+    def _money_per_node_unit(self, variable: MediaVariable) -> DataArray | float:
+        """Return what one unit of a node's fitted data cost: its scales, times the window base price for media."""
+        scales = np.asarray(variable.channel_scales, dtype="float64")
+        factor: DataArray | float = (
+            float(scales)
+            if scales.ndim == 0
+            else DataArray(
+                scales,
+                dims=variable.scales_dims,
+                coords={dim: variable.coords[dim] for dim in variable.scales_dims},
+            )
+        )
+        if variable is self._media_variable and self.cost_per_unit is not None:
+            factor = factor * self.cost_per_unit.mean(self.date_dim)
+        return factor
 
     def _entry_sizes(
         self, total_budget: float, low: np.ndarray, high: np.ndarray
