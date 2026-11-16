@@ -634,6 +634,29 @@ def test_build_mmm_loads_idata_from_path(tmp_path, _minimal_model_config, _sampl
     assert "posterior" in model.idata
 
 
+def test_build_mmm_lfs_pointer_idata_path_raises(
+    tmp_path, _minimal_model_config, _sample_data
+):
+    """An un-pulled Git LFS pointer at idata_path gives an error naming LFS."""
+    X, y = _sample_data
+
+    pointer = tmp_path / "idata.nc"
+    pointer.write_text(
+        "version https://git-lfs.github.com/spec/v1\n"
+        "oid sha256:" + "0" * 64 + "\n"
+        "size 95000000\n"
+    )
+
+    config = _minimal_model_config
+    config["idata_path"] = str(pointer)
+
+    config_path = tmp_path / "config.yml"
+    config_path.write_text(yaml.dump(config))
+
+    with pytest.raises(FileNotFoundError, match="git lfs pull"):
+        build_mmm_from_yaml(config_path, X=X, y=y)
+
+
 class TestValidateConfigStructure:
     """Tests for MMMYamlConfig detecting mis-indented/invalid YAML keys."""
 
