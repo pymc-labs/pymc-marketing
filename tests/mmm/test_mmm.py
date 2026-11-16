@@ -1102,6 +1102,27 @@ class TestFitWithXarrayInput:
         assert not np.isnan(got).any()
         np.testing.assert_allclose(got, mmm.model["promo"].eval())
 
+    def test_fit_data_keeps_mu_effect_data_on_non_date_labels(self, mock_pymc_sample):
+        """mu_effect data is stored when the ``date`` labels are not dates.
+
+        ``"W00"`` does not parse as a date, so the labels are matched as given
+        rather than all turned into ``NaT``, which made ``fit`` fail.
+        """
+        ds = self._dataset_with_promo(("date", "geo", "segment"))
+        ds = ds.assign_coords(date=[f"W{i:02d}" for i in range(ds.sizes["date"])])
+        mmm = self._mmm(("geo",), self.CONTROLS)
+        mmm.add_mu_effect(_SegmentEffect(data_vars=["promo"], prefix="promo"))
+        mmm.build_model(ds)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            mmm.fit(ds.drop_vars(["promo", "segment"]))
+
+        xr.testing.assert_allclose(
+            mmm.idata.fit_data.to_dataset()["promo"],
+            ds["promo"].transpose("date", "geo", "segment"),
+        )
+
     def test_fit_warns_when_mu_effect_data_labels_differ(self, mock_pymc_sample):
         """``fit_data`` skips mu_effect data whose labels differ from the fit data."""
         ds = self._dataset_with_promo(("date", "geo", "segment"))

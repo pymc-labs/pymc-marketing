@@ -388,6 +388,20 @@ def _label_indexer(labels: pd.Index, reference: pd.Index) -> np.ndarray | None:
     return None if (indexer < 0).any() else indexer
 
 
+def _dates_or_labels(labels: pd.Index) -> pd.Index:
+    """Return ``labels`` as dates when every label parses as one, else unchanged.
+
+    Dates let string dates match datetime dates. Labels that are not dates, such
+    as ``"W01"``, would all become ``NaT`` and match each other, so they are
+    kept as given.
+    """
+    with warnings.catch_warnings():
+        # pandas warns that it cannot infer a format for labels that are not dates.
+        warnings.simplefilter("ignore", UserWarning)
+        dates = pd.to_datetime(labels, errors="coerce")
+    return labels if dates.hasnans else dates
+
+
 def _calibrations_by_name(
     records: list[dict[str, Any]], key: str, spend: Mapping[Any, xr.DataArray]
 ) -> dict[str, tuple[dict[str, Any], xr.DataArray | None]]:
@@ -3289,8 +3303,8 @@ class MMM(RegressionModelBuilder):
             # Either side can hold the dates as strings: match them as dates
             # and keep the labels of fit_data.
             labels = fit_data.indexes[date]
-            as_dates = pd.to_datetime(labels, errors="coerce")
-            effect_dates = pd.to_datetime(effect_data.indexes[date], errors="coerce")
+            as_dates = _dates_or_labels(labels)
+            effect_dates = _dates_or_labels(effect_data.indexes[date])
             if set(as_dates) == set(effect_dates):
                 effect_data = (
                     effect_data.assign_coords({date: effect_dates})
@@ -3325,9 +3339,7 @@ class MMM(RegressionModelBuilder):
             if self.date_column != Dim.DATE and self.date_column in stored.dims:
                 stored = stored.rename({self.date_column: Dim.DATE})
             stored, ref = (
-                da.assign_coords(
-                    {Dim.DATE: pd.to_datetime(da.indexes[Dim.DATE], errors="coerce")}
-                )
+                da.assign_coords({Dim.DATE: _dates_or_labels(da.indexes[Dim.DATE])})
                 if Dim.DATE in da.dims
                 else da
                 for da in (stored, built[name])
