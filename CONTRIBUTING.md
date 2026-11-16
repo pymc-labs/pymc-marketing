@@ -49,6 +49,8 @@ The rule exists to keep maintainer time for work that was asked for, rather than
     git remote add upstream git@github.com:pymc-labs/pymc-marketing.git
     ```
 
+    Some example notebooks load a fitted model stored with [Git LFS](https://git-lfs.com). Install Git LFS and run `git lfs install` once before cloning, or run `git lfs pull` afterwards. Without it you get a small pointer file in place of `docs/source/notebooks/mmm/multidimensional_model.nc`, and the notebooks that load it fail.
+
 1. Create a feature branch (e.g. `my-feature`) to hold your development changes:
 
    ```bash
