@@ -17,7 +17,7 @@
 import contextlib
 import warnings
 from collections import Counter, OrderedDict
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from typing import Any, NamedTuple, cast, overload
 
 import arviz as az
@@ -39,7 +39,7 @@ from pytensor.graph.basic import Constant, Variable
 from pytensor.graph.fg import FunctionGraph
 from pytensor.graph.replace import clone_replace
 from pytensor.graph.rewriting import rewrite_graph
-from pytensor.graph.traversal import ancestors
+from pytensor.graph.traversal import ancestors, toposort
 from pytensor.tensor.random.op import RNGConsumerOp
 from pytensor.xtensor import xtensor_constant
 from pytensor.xtensor.type import XTensorVariable, as_xtensor
@@ -52,6 +52,7 @@ __all__ = [
     "VariableLayout",
     "align_posterior_dim",
     "aligned_posterior",
+    "blocked_between",
     "check_aligned_dims",
     "check_aligned_shape",
     "extract_response_distribution",
@@ -560,6 +561,62 @@ def needed_posterior_names(
         if rv in blockers and rv.name is not None:
             names.append(rv.name)
     return names
+
+
+def blocked_between(
+    pymc_model: Model,
+    source: Variable,
+    targets: Sequence[Variable],
+    frozen_deterministics: Sequence[str] = (),
+) -> list[Variable]:
+    """Return the variables conditioning on a posterior holds fixed between ``source`` and ``targets``.
+
+    An evaluation conditioned on a posterior substitutes posterior draws for the
+    free random variables and for the frozen deterministics, and it cannot
+    recompute an observed random variable from its parents.  None of them
+    responds to an intervention on ``source``, so a path from ``source`` to a
+    target that passes through one of them is cut: the target is evaluated as
+    if that path were not there, when it can be evaluated at all.
+
+    Parameters
+    ----------
+    pymc_model : pm.Model
+        The model ``source`` and ``targets`` belong to.
+    source : Variable
+        The variable an intervention would move.
+    targets : sequence of Variable
+        The variables the intervention is meant to reach.
+    frozen_deterministics : sequence of str, default ()
+        Deterministics held at their posterior values; a name the model does
+        not have is ignored.
+
+    Returns
+    -------
+    list of Variable
+        The random variables, free and observed, and the frozen deterministics
+        that have ``source`` among their ancestors and are an ancestor of a
+        target, or a target themselves.  Each is listed once: the random
+        variables in the model's order, then the frozen deterministics in the
+        order given.
+    """
+    held = dict.fromkeys(
+        [
+            *pymc_model.basic_RVs,
+            *(
+                pymc_model[name]
+                for name in frozen_deterministics
+                if name in pymc_model.named_vars
+            ),
+        ]
+    )
+    upstream = set(ancestors(targets))
+    # One pass over the graph in topological order marks every variable that
+    # depends on the source, instead of one walk to the roots per variable held.
+    downstream = {source}
+    for node in toposort(targets):
+        if not downstream.isdisjoint(node.inputs):
+            downstream.update(node.outputs)
+    return [var for var in held if var in upstream and var in downstream]
 
 
 def reorder_to_model_coords(
@@ -1087,6 +1144,31 @@ def _posterior_dataset(idata: xr.DataTree | xr.Dataset) -> xr.Dataset:
     )
 
 
+def _raise_for_missing_posterior_variables(
+    read_names: Iterable[str], posterior: xr.Dataset
+) -> None:
+    """Raise the one ``KeyError`` for a posterior missing a variable a graph reads.
+
+    Construction and rebinding go through this, so a missing variable is named
+    the same way when a graph is extracted and when it is rebound.
+
+    Parameters
+    ----------
+    read_names : iterable of str
+        The posterior variables the graphs read.
+    posterior : xr.Dataset
+        The posterior the graphs would read them from.
+
+    Raises
+    ------
+    KeyError
+        If ``posterior`` lacks one of ``read_names``.
+    """
+    missing = sorted(set(read_names) - set(posterior.data_vars))
+    if missing:
+        raise KeyError(f"Posterior is missing variables this graph reads: {missing}")
+
+
 def _apply_intervention(
     model: Model,
     intervention: Mapping[str, Variable | np.ndarray | float] | None,
@@ -1350,7 +1432,8 @@ class ConditionedModel:
         Raises
         ------
         KeyError
-            If the posterior lacks a variable a graph reads.
+            If the posterior lacks a variable a graph reads, named as
+            extraction names it.
         ValueError
             If a variable a graph reads differs from its construction layout in
             its non-sample dimensions, their lengths or their labels.
@@ -1362,6 +1445,9 @@ class ConditionedModel:
         """
         posterior = reorder_to_model_coords(
             _posterior_dataset(idata), self._model.coords
+        )
+        _raise_for_missing_posterior_variables(
+            self._shared_posterior.variables, posterior
         )
         previous = self._posterior
         self._posterior = posterior
@@ -1408,11 +1494,7 @@ class ConditionedModel:
         """
         if not read_names:
             return posterior
-        missing = sorted(set(read_names) - set(posterior.data_vars))
-        if missing:
-            raise KeyError(
-                f"Posterior is missing variables this graph reads: {missing}"
-            )
+        _raise_for_missing_posterior_variables(read_names, posterior)
         ordered = [name for name in self._layouts if name in read_names]
         ordered += [name for name in read_names if name not in self._layouts]
         selected: dict[str, xr.DataArray] = {}

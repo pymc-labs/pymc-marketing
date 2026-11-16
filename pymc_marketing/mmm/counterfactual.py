@@ -865,7 +865,9 @@ class CounterfactualEvaluator:
     ValueError
         If the intervention target does not exist, is a random variable, is
         frozen, is not of a floating dtype, or lacks a leading ``date``
-        dimension; if no response variable depends on the target; if a
+        dimension; if no response variable depends on the target; if a response
+        variable reads neither the target nor any other date-indexed input, so
+        that no scenario reaches it; if a
         discovered date-indexed input, data or frozen deterministic, does not
         span the fitted date axis; if a response variable has no name (an
         anonymous node such as a raw arithmetic expression, unless ``.name``
@@ -1123,6 +1125,26 @@ class CounterfactualEvaluator:
                     ),
                     source,
                 )
+            )
+
+        # A response that reads none of the inputs replaced above has no
+        # scenario axis: it has one value whatever a scenario sets or a window
+        # cuts, and vectorizing it fails on a batch dimension that is not
+        # there.  Say which response instead.
+        unreached = [
+            name
+            for name, graph in zip(self.response_vars, graphs, strict=True)
+            if replace.keys().isdisjoint(ancestors([graph]))
+        ]
+        if unreached:
+            raise ValueError(
+                f"The response variables {unreached} read neither the "
+                f"intervention target {self.intervention_target!r} nor any "
+                "other date-indexed input once the posterior is conditioned "
+                "on, so no counterfactual scenario reaches them.  Either they "
+                "do not depend on the target at all, or a random variable or "
+                "a frozen deterministic lies between the target and them and "
+                "is held at its posterior values."
             )
 
         # Canonical output layout, so that a caller adding two nodes together

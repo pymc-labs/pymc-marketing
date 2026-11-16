@@ -302,12 +302,12 @@ class MMMIdataSchema(BaseModel):
         )
 
         if has_controls:
-            constant_data_vars["control_data_"] = VariableSchema(
-                name="control_data_",
+            constant_data_vars[Var.CONTROL_DATA] = VariableSchema(
+                name=Var.CONTROL_DATA,
                 dims=("date", *custom_dims, "control"),
                 dtype=("float64", "float32", "int64", "int32"),
                 description="Control variable data",
-                required=False,
+                required=True,
             )
 
         if time_varying:
