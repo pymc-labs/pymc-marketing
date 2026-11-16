@@ -504,6 +504,18 @@ class TestRefuseBlockedSpendPaths:
         with pytest.raises(NotImplementedError, match=held):
             refuse_blocked_spend_paths(mmm, resolve_channel_dependent_effects(mmm))
 
+    def test_the_refusal_warns_that_a_potential_does_not_fix_the_path(
+        self, funnel_mmm_data
+    ):
+        """Moving the tie into a Potential silences the refusal, not the gap."""
+        mmm = build_with_effect(funnel_mmm_data, ObservedDemandEffect(prefix="m"))
+
+        with pytest.raises(NotImplementedError) as excinfo:
+            refuse_blocked_spend_paths(mmm, resolve_channel_dependent_effects(mmm))
+        assert "pm.Potential removes this error but not the problem" in str(
+            excinfo.value
+        )
+
     def test_a_likelihood_that_reads_spend_and_feeds_nothing_is_not_on_a_path(self):
         """A calibration likelihood is downstream of spend, and no path runs through it.
 
