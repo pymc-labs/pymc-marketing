@@ -2779,8 +2779,9 @@ class MMM(RegressionModelBuilder):
             ``idata.fit_data`` holds one variable per column of ``X`` (per channel
             and control for xarray input) plus the target under
             ``target_column``, on ``(date_column, *dims)``. The data that
-            mu_effects read is stored with its own dims, which can differ. See
-            :meth:`create_fit_data`.
+            mu_effects read is stored with its own dims, which can differ. A
+            variable on other dims makes ``fit_data.to_dataframe()`` repeat every
+            other variable along them. See :meth:`create_fit_data`.
         y : pd.Series or xr.DataArray or np.ndarray or None
             Target values. Required unless ``X`` carries the target.
         method : str
@@ -3329,7 +3330,9 @@ class MMM(RegressionModelBuilder):
         """Warn when X holds mu_effect data that differs from the built model's.
 
         ``fit`` does not write ``X`` into a model that is already built, so the
-        posterior is fit on the built data, while ``fit_data`` stores ``X``.
+        posterior is fit on the built data, while ``fit_data`` stores ``X``. Only
+        mu_effect data is compared here. Channels, controls and the target are
+        not.
         """
         differ = []
         for name in self._effect_data_vars():
@@ -3359,9 +3362,9 @@ class MMM(RegressionModelBuilder):
             warnings.warn(
                 f"mu_effect data {differ} passed to fit differs from the data the "
                 "model was built on. fit does not rebuild a built model, so the "
-                "posterior is fit on the built data, while fit_data stores the "
-                "data passed to fit. The model that MMM.load rebuilds can differ "
-                "from the fitted one.",
+                "posterior is fit on the built values of these variables, while "
+                "fit_data stores the values passed to fit. The model that "
+                "MMM.load rebuilds can differ from the fitted one.",
                 UserWarning,
                 skip_file_prefixes=(_PKG_PREFIX,),
             )
@@ -5569,6 +5572,10 @@ class MMM(RegressionModelBuilder):
         - DataFrame input is sorted by ``(self.date_column, *dims present in X)``
           prior to conversion to xarray. xarray input keeps its label order,
           which is also the order of the model built from it.
+        - A mu_effect variable on other dims, such as an extra dim, makes
+          ``fit_data.to_dataframe()`` repeat every other variable along those
+          dims. Select the variables on ``(self.date_column, *dims)`` before
+          converting, as :meth:`build_from_idata` does for ``X``.
         """
         if isinstance(X, xr.Dataset | xr.DataArray):
             ds = to_mmm_dataset(
