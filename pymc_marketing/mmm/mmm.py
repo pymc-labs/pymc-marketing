@@ -2780,8 +2780,9 @@ class MMM(RegressionModelBuilder):
             and control for xarray input) plus the target under
             ``target_column``, on ``(date_column, *dims)``. The data that
             mu_effects read is stored with its own dims, which can differ. A
-            variable on other dims makes ``fit_data.to_dataframe()`` repeat every
-            other variable along them. See :meth:`create_fit_data`.
+            variable on other dims makes
+            ``idata.fit_data.to_dataset().to_dataframe()`` repeat every other
+            variable along them. See :meth:`create_fit_data`.
         y : pd.Series or xr.DataArray or np.ndarray or None
             Target values. Required unless ``X`` carries the target.
         method : str
@@ -5711,9 +5712,9 @@ class MMM(RegressionModelBuilder):
             mu_effect data keeps its own dims, such as an extra dim. Dates are
             converted with ``pd.to_datetime`` for every variable. A subclass that
             overrides :meth:`build_model` receives that Dataset and no ``y``.
-        - ``X`` is then set to the long frame of the ``fit_data`` variables on
-            ``(date_column, *dims)``, without the target, whatever ``fit`` was
-            given. mu_effect data on other dims is left out of it.
+        - ``X`` is then set to the long frame of the ``fit_data`` variables on the
+            target's dims, ``(date_column, *dims)``, without the target, whatever
+            ``fit`` was given. mu_effect data on other dims is left out of it.
         - Restores lift-test calibration from ``idata.attrs`` and
             cost-per-target/ROAS calibration from ``idata.attrs`` plus the
             ``cost_per_target_spend`` group. Files written before these records
