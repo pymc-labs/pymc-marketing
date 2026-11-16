@@ -4412,8 +4412,9 @@ class MMM(RegressionModelBuilder):
         .. code-block:: python
 
             mmm.sensitivity.run_sweep(
-                var_names=["channel_1", "channel_2"],
+                var_input="channel_data",
                 sweep_values=np.linspace(0.5, 2.0, 10),
+                var_names="channel_contribution",
                 sweep_type="multiplicative",
             )
 

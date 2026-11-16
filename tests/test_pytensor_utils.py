@@ -2801,3 +2801,31 @@ def test_conditioned_model_takes_a_variable_missing_at_construction_as_given():
     # Once read, it is bound like any other variable and follows a rebind.
     conditioned.set_posterior(_channel_posterior([1.0, 2.0], gamma=[5.0, 6.0]))
     np.testing.assert_allclose(fn(), [[50.0, 120.0]])
+
+
+def test_conditioned_model_names_a_missing_variable_the_same_at_extraction_and_rebind():
+    """A posterior lacking a variable a graph reads raises one ``KeyError``.
+
+    The message is the same whether the variable is missing when the graph is
+    extracted or when a later posterior is bound, so a caller handles one error.
+    """
+    model, spend = _channel_conditioned_model()
+    message = "Posterior is missing variables this graph reads: ['gamma']"
+
+    thinned = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+    with pytest.raises(KeyError) as at_extraction:
+        thinned.extract("resp_g")
+
+    bound = ConditionedModel(
+        model,
+        _channel_posterior([1.0, 2.0], gamma=[3.0, 4.0]),
+        intervention={"spend": spend},
+    )
+    bound.extract("resp_g")
+    with pytest.raises(KeyError) as at_rebind:
+        bound.set_posterior(_channel_posterior([1.0, 2.0]))
+
+    assert at_extraction.value.args == (message,)
+    assert at_rebind.value.args == (message,)
