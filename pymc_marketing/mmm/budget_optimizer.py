@@ -284,7 +284,7 @@ from pymc_marketing.mmm.price_response import PriceResponse
 from pymc_marketing.mmm.price_schedule import (
     Bounds,
     BreakpointSettler,
-    gradient_scale,
+    objective_scale_from_gradient,
 )
 from pymc_marketing.mmm.spend_reach import _PKG_PREFIX
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
@@ -3597,7 +3597,7 @@ class BudgetOptimizer(BaseModel):
     @staticmethod
     def _breakpoint_above(variable: MediaVariable, level: np.ndarray) -> np.ndarray:
         """Each flat entry's first breakpoint where every breakpoint is above ``level``, ``nan`` elsewhere."""
-        first_low, first_above = variable.linear_piece(
+        first_low, first_above = variable.linear_piece_bounds(
             level, np.zeros_like(level), np.full_like(level, np.inf)
         )
         return np.where(
@@ -3759,7 +3759,7 @@ class BudgetOptimizer(BaseModel):
         result = (
             settler.settle(result)
             if settings.slsqp
-            else settler.skip(result, settings.kwargs.get("method"))
+            else settler.record_skipped_passes(result, settings.kwargs.get("method"))
         )
         # The returned solve may have seen a blended or a conditioned map; report the exact one.
         objective, grad = self._objective_and_grad(result.x)
@@ -3873,7 +3873,7 @@ class BudgetOptimizer(BaseModel):
         lower = [-np.inf if lo is None else lo for lo, _ in bounds]
         upper = [np.inf if hi is None else hi for _, hi in bounds]
         _, grad = self._objective_and_grad(np.clip(start, lower, upper))
-        scale = gradient_scale(grad)
+        scale = objective_scale_from_gradient(grad)
         result = self._minimize(start, bounds, scale, kwargs, callback)
         if scale == 1.0:
             return result
@@ -3919,7 +3919,7 @@ class BudgetOptimizer(BaseModel):
         counts cover both solves.
         """
         objective, grad = self._objective_and_grad(result.x)
-        solution_scale = gradient_scale(grad)
+        solution_scale = objective_scale_from_gradient(grad)
         if result.success and solution_scale * 10.0 < scale:
             polish = self._minimize(
                 result.x, bounds, solution_scale, minimize_kwargs, callback
@@ -4140,7 +4140,7 @@ class BudgetOptimizer(BaseModel):
                 else None,
             )
 
-        with self._variables.conditioned(low, high):
+        with self._variables.conditioned_on(low, high):
             result = solve(
                 self._variables.x0(total_budget) if x0 is None else x0, bounds, 0
             )

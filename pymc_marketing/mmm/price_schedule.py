@@ -25,10 +25,10 @@ schedule.
 such a kink badly. :meth:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget` therefore solves
 once with every breakpoint inside the bounds blended, and uses that solve only to find the linear piece of the map
 each entry is on. :class:`BreakpointSettler` then solves on those pieces, where no breakpoint is left to cross: an
-entry a pass leaves at a breakpoint end of its piece is pinned there, and :func:`leaving_breakpoints` decides
+entry a pass leaves at a breakpoint end of its piece is pinned there, and :func:`entries_leaving_breakpoints` decides
 whether a pinned entry would gain by leaving it. Each :meth:`BreakpointSettler.settle` call keeps its state in a
-:class:`SettleRun`, and a pass's plan is a :class:`PiecewisePlan`. :func:`gradient_scale` is the objective scale
-every solve of ``allocate_budget`` uses, here because the passes measure their progress on it.
+:class:`SettleRun`, and a pass's plan is a :class:`PiecewisePlan`. :func:`objective_scale_from_gradient` is the
+objective scale every solve of ``allocate_budget`` uses, here because the passes measure their progress on it.
 """
 
 from __future__ import annotations
@@ -55,8 +55,8 @@ __all__ = [
     "PiecewisePlan",
     "ScheduleRows",
     "SettleRun",
-    "gradient_scale",
-    "leaving_breakpoints",
+    "entries_leaving_breakpoints",
+    "objective_scale_from_gradient",
 ]
 
 Bounds = list[tuple[float | None, float | None]]
@@ -86,7 +86,7 @@ class ScheduleRows:
     name: Callable[[int], object]
     label: str
 
-    def refuse_invalid(
+    def refuse_invalid_schedule(
         self, rate_tolerance: float, reference_rate: float | None
     ) -> None:
         """Refuse what is not a schedule.
@@ -187,7 +187,7 @@ class ScheduleRows:
         )
 
 
-def gradient_scale(grad: np.ndarray) -> float:
+def objective_scale_from_gradient(grad: np.ndarray) -> float:
     """Return the largest absolute entry of ``grad``, or one if it is not larger than one.
 
     ``allocate_budget`` divides the objective by it, so that SLSQP's absolute ``ftol`` is relative to the steepest
@@ -197,7 +197,7 @@ def gradient_scale(grad: np.ndarray) -> float:
     return steepest if np.isfinite(steepest) and steepest > 1.0 else 1.0
 
 
-def leaving_breakpoints(
+def entries_leaving_breakpoints(
     *,
     right: np.ndarray,
     left: np.ndarray,
@@ -441,10 +441,11 @@ class BreakpointSettler:
     total_budget : float
         The size of a monetary entry, against which closeness to a bound is measured.
     ftol : float
-        The objective change below which letting entries go bought nothing, on the scale of :func:`gradient_scale`
+        The objective change below which letting entries go bought nothing, on the scale of
+        :func:`objective_scale_from_gradient`
         when ``rescale`` and in objective units otherwise, as SLSQP reads it.
     rescale : bool
-        Whether the solves divide the objective by :func:`gradient_scale`.
+        Whether the solves divide the objective by :func:`objective_scale_from_gradient`.
     max_passes : int
         Solves after the first, closing solves included; the progress rule's exit may add one closing solve.
         Default 20.
@@ -470,7 +471,9 @@ class BreakpointSettler:
         """Measure every entry's size once: closeness to a bound and constraint slack are relative to it."""
         self.size = self._entry_sizes()
 
-    def skip(self, first: OptimizeResult, method: object) -> OptimizeResult:
+    def record_skipped_passes(
+        self, first: OptimizeResult, method: object
+    ) -> OptimizeResult:
         """Return ``first`` recorded as ``"skipped"``, with a warning: the passes run under SLSQP only.
 
         The plan is the first solve's, on a map with its breakpoints blended, so a cell near a breakpoint may sit
@@ -496,7 +499,7 @@ class BreakpointSettler:
         """
         run = SettleRun(first, self.max_passes)
         plan = self._arrive(
-            first, *self.variables.linear_pieces(first.x, self.low, self.high)
+            first, *self.variables.linear_piece_bounds(first.x, self.low, self.high)
         )
         if plan.spans(self.low, self.high):
             # Nothing was blended and no entry is on a breakpoint: the first solve was on the exact map.
@@ -555,7 +558,7 @@ class BreakpointSettler:
         if plan.held.all():
             return self._held(plan)
         start = np.clip(plan.x, plan.piece_low, plan.piece_high)
-        with self.variables.conditioned(plan.piece_low, plan.piece_high):
+        with self.variables.conditioned_on(plan.piece_low, plan.piece_high):
             result = self.solve(start, plan.bounds(), index)
         run.solves.append(result)
         if not result.success:
@@ -647,13 +650,15 @@ class BreakpointSettler:
 
     def _progress_tolerance(self, grad: np.ndarray) -> float:
         """Return the objective change below which letting entries go bought nothing, at a plan's gradient."""
-        return self.ftol * (gradient_scale(grad) if self.rescale else 1.0)
+        return self.ftol * (
+            objective_scale_from_gradient(grad) if self.rescale else 1.0
+        )
 
     def _leaving(self, plan: PiecewisePlan) -> tuple[np.ndarray, np.ndarray] | None:
-        """Ask :func:`leaving_breakpoints` which held entries would gain by leaving their breakpoint."""
+        """Ask :func:`entries_leaving_breakpoints` which held entries would gain by leaving their breakpoint."""
         right, left = self._one_sided_gradients(plan.x)
         equalities, active = self._constraint_rows(plan.x)
-        return leaving_breakpoints(
+        return entries_leaving_breakpoints(
             right=right,
             left=left,
             x=plan.x,
@@ -670,7 +675,7 @@ class BreakpointSettler:
         self, plan: PiecewisePlan, up: np.ndarray, down: np.ndarray
     ) -> PiecewisePlan:
         """Give the entries the check lets go the piece on the side that gains."""
-        new_low, new_high = self.variables.linear_pieces(
+        new_low, new_high = self.variables.linear_piece_bounds(
             plan.x, self.low, self.high, from_below=down
         )
         moved = up | down
@@ -686,11 +691,13 @@ class BreakpointSettler:
         They differ only for an entry exactly on a breakpoint, whose slope changes there.
         """
         variables = self.variables
-        with variables.conditioned(*variables.linear_pieces(x, self.low, self.high)):
+        with variables.conditioned_on(
+            *variables.linear_piece_bounds(x, self.low, self.high)
+        ):
             right = np.asarray(self.objective_and_grad(x)[1], dtype="float64")
         below = np.ones(x.size, dtype=bool)
-        with variables.conditioned(
-            *variables.linear_pieces(x, self.low, self.high, from_below=below)
+        with variables.conditioned_on(
+            *variables.linear_piece_bounds(x, self.low, self.high, from_below=below)
         ):
             left = np.asarray(self.objective_and_grad(x)[1], dtype="float64")
         return right, left

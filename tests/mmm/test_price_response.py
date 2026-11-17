@@ -765,7 +765,7 @@ class TestPriceResponseContract:
             np.array([5.0, 15.0, 40.0])
         )
         low, high = np.array([0.0, 1.0, 2.0]), np.array([10.0, np.inf, 30.0])
-        piece_low, piece_high = resolved.linear_piece(
+        piece_low, piece_high = resolved.linear_piece_bounds(
             np.array([3.0, 4.0, 5.0]), low, high
         )
         np.testing.assert_array_equal(piece_low, low)
@@ -1376,7 +1376,7 @@ class TestTieredSolveHooks:
                 assert resolved._half_widths.get_value()[0, 0] == 0.0
                 assert resolved._knots.get_value()[0, 0] > bound
 
-    def test_linear_piece(self):
+    def test_linear_piece_bounds(self):
         resolved = TieredPriceResponse(
             breakpoints=[100.0, 400.0], rate_multipliers=[1.0, 1.2, 1.6]
         ).resolve(
@@ -1384,7 +1384,7 @@ class TestTieredSolveHooks:
         )
 
         def piece(budget, low=0.0, high=1000.0, from_below=None):
-            lo, hi = resolved.linear_piece(
+            lo, hi = resolved.linear_piece_bounds(
                 np.array([budget]),
                 np.array([low]),
                 np.array([high]),

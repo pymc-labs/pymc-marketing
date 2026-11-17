@@ -51,7 +51,10 @@ from pymc_marketing.mmm.price_response import (
     ResolvedPriceResponse,
     TieredPriceResponse,
 )
-from pymc_marketing.mmm.price_schedule import BreakpointSettler, leaving_breakpoints
+from pymc_marketing.mmm.price_schedule import (
+    BreakpointSettler,
+    entries_leaving_breakpoints,
+)
 from pymc_marketing.mmm.utility import (
     _check_samples_dimensionality,
     diversification_ratio,
@@ -3642,11 +3645,6 @@ def test_set_posterior_first_call_is_validated_like_later_calls(
     np.testing.assert_allclose(after.values, reference.values)
 
 
-# --------------------------------------------------------------------------------------------------------------
-# Breakpoints: the exact passes (#3067)
-# --------------------------------------------------------------------------------------------------------------
-
-
 def _check(
     right,
     left=None,
@@ -3660,7 +3658,7 @@ def _check(
     size=(10.0, 10.0, 10.0),
 ):
     right = np.asarray(right, dtype=float)
-    return leaving_breakpoints(
+    return entries_leaving_breakpoints(
         right=right,
         left=right if left is None else np.asarray(left, dtype=float),
         x=np.asarray(x, dtype=float),
@@ -3934,7 +3932,9 @@ class TestExactPasses:
         assert {entry["solve"] for entry in result.callback_info} == {0, 1}
 
     def test_a_cell_started_on_the_wrong_piece_is_let_go(self, monkeypatch):
-        """The check lets a pinned cell go to the piece on the side that gains."""
+        """The check lets a pinned cell go to the piece on the side that gains, once: the
+        pass after the release finds the optimum off the breakpoint, so no closing pass
+        follows."""
 
         def misplace(index, result):
             if index == 0:
@@ -3948,8 +3948,6 @@ class TestExactPasses:
         np.testing.assert_allclose(
             result.budgets.values, [OPTIMUM_AT_20, 20.0 - OPTIMUM_AT_20], atol=1e-4
         )
-        # Let go once: the pass after the release finds the optimum off the breakpoint,
-        # and nothing is pinned for a closing pass.
         assert {entry["solve"] for entry in result.callback_info} == {0, 1, 2}
 
     @pytest.mark.parametrize(
@@ -3975,14 +3973,16 @@ class TestExactPasses:
         exact = optimizer.evaluate_plan(result.budgets).objective
         assert result.scipy_result.fun == exact
         variables = optimizer.optimization_variables
-        with variables.conditioned(np.zeros(2), np.full(2, 9.0)):
+        with variables.conditioned_on(np.zeros(2), np.full(2, 9.0)):
             blended = optimizer.evaluate_plan(result.budgets).objective
         assert abs(blended - exact) > 1e-3
 
     def test_a_release_that_buys_nothing_stops(self, monkeypatch):
         """A check that keeps letting the same cell go is stopped by the progress rule:
         a settled plan, not a failure, held on its breakpoint by a closing solve."""
-        monkeypatch.setattr(price_schedule_module, "leaving_breakpoints", _always_up)
+        monkeypatch.setattr(
+            price_schedule_module, "entries_leaving_breakpoints", _always_up
+        )
         with warnings.catch_warnings():
             warnings.filterwarnings("error", message=".*not settled.*")
             result = _hand_optimizer(A_ON_FOUR).allocate_budget(
@@ -3998,7 +3998,9 @@ class TestExactPasses:
     ):
         """The progress rule may fire on the last pass the limit allows; the closing solve
         that holds the new arrivals still runs, so the plan is settled, not unsettled."""
-        monkeypatch.setattr(price_schedule_module, "leaving_breakpoints", _always_up)
+        monkeypatch.setattr(
+            price_schedule_module, "entries_leaving_breakpoints", _always_up
+        )
         monkeypatch.setattr(
             budget_optimizer_module,
             "BreakpointSettler",
@@ -4162,6 +4164,8 @@ class TestExactPasses:
         )
 
     def test_breakpoints_above_the_bounds_warn_per_cell(self):
+        """A breakpoint above a cell's upper bound is named; one on the bound is not, and
+        neither is a channel held at zero on purpose."""
         schedule = TieredPriceResponse(
             breakpoints={"a": [50.0], "b": [5.0]},
             rate_multipliers={"a": [1.0, 2.0], "b": [1.0, 2.0]},
@@ -4180,7 +4184,6 @@ class TestExactPasses:
             _hand_optimizer(A_ON_FOUR).allocate_budget(
                 total_budget=9.0, budget_bounds=on_the_bound
             )
-            # A channel held at zero on purpose is not a breakpoint typed too large.
             _hand_optimizer(schedule).allocate_budget(
                 total_budget=9.0,
                 budget_bounds=_hand_bounds([0.0, 0.0], [50.0, 0.0]),

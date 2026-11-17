@@ -1319,7 +1319,7 @@ def test_conditioning_reaches_only_the_optimized_cells():
     at_breakpoint = np.array([100.0, 200.0])
     exact = variable.delivery_report(at_breakpoint)["implied_delivery"].values
     low, high = np.zeros(2), np.full(2, 300.0)
-    with variables.conditioned(low, high):
+    with variables.conditioned_on(low, high):
         blended = variable.delivery_report(at_breakpoint)["implied_delivery"].values
         widths = variable.price_response._half_widths.get_value()
     assert np.all(blended[:, [0, 2]] < exact[:, [0, 2]])
@@ -1327,7 +1327,7 @@ def test_conditioning_reaches_only_the_optimized_cells():
     assert widths[0, 1] == 0.0 and np.all(widths[0, [0, 2]] > 0.0)
     after = variable.delivery_report(at_breakpoint)["implied_delivery"].values
     np.testing.assert_array_equal(after, exact)
-    piece_low, piece_high = variables.linear_pieces(np.full(2, 150.0), low, high)
+    piece_low, piece_high = variables.linear_piece_bounds(np.full(2, 150.0), low, high)
     np.testing.assert_array_equal(piece_low, [100.0, 0.0])
     np.testing.assert_array_equal(piece_high, [300.0, 200.0])
 
@@ -1341,11 +1341,13 @@ def test_linear_pieces_cut_scheduled_entries_and_leave_the_rest():
     x = np.array([50.0, 100.0, 250.0, 0.3, 0.2])
     low = np.array([0.0, 0.0, 0.0, -np.inf, -np.inf])
     high = np.array([300.0, 300.0, 300.0, np.inf, np.inf])
-    piece_low, piece_high = variables.linear_pieces(x, low, high)
+    piece_low, piece_high = variables.linear_piece_bounds(x, low, high)
     np.testing.assert_array_equal(piece_low, [0.0, 100.0, 100.0, -np.inf, -np.inf])
     np.testing.assert_array_equal(piece_high, [100.0, 300.0, 300.0, np.inf, np.inf])
     below = np.array([False, True, False, True, True])
-    piece_low, piece_high = variables.linear_pieces(x, low, high, from_below=below)
+    piece_low, piece_high = variables.linear_piece_bounds(
+        x, low, high, from_below=below
+    )
     assert (piece_low[1], piece_high[1]) == (0.0, 100.0)
     np.testing.assert_array_equal(
         variables.is_breakpoint(x), [False, True, False, False, False]

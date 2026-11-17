@@ -323,9 +323,7 @@ class OptimizationVariable(ABC):
         return None
 
     @contextmanager
-    def conditioned_for_solve(
-        self, low: np.ndarray, high: np.ndarray
-    ) -> Iterator[None]:
+    def conditioned_on(self, low: np.ndarray, high: np.ndarray) -> Iterator[None]:
         """Condition this variable's price map for one solve over its slice of the box ``[low, high]``.
 
         ``low`` and ``high`` are this variable's entries of the flat bounds, infinite where unbounded. The
@@ -333,7 +331,7 @@ class OptimizationVariable(ABC):
         """
         yield
 
-    def linear_piece(
+    def linear_piece_bounds(
         self,
         budgets: np.ndarray,
         low: np.ndarray,
@@ -343,7 +341,7 @@ class OptimizationVariable(ABC):
         """Per flat entry, the largest interval around ``budgets`` inside ``[low, high]`` the map is affine on.
 
         The default, for a variable with no breakpoints, is the box itself; see
-        :meth:`~pymc_marketing.mmm.price_response.ResolvedPriceResponse.linear_piece`.
+        :meth:`~pymc_marketing.mmm.price_response.ResolvedPriceResponse.linear_piece_bounds`.
         """
         return np.asarray(low, dtype="float64"), np.asarray(high, dtype="float64")
 
@@ -621,9 +619,7 @@ class MediaVariable(OptimizationVariable):
         return full
 
     @contextmanager
-    def conditioned_for_solve(
-        self, low: np.ndarray, high: np.ndarray
-    ) -> Iterator[None]:
+    def conditioned_on(self, low: np.ndarray, high: np.ndarray) -> Iterator[None]:
         """Condition the price map over this slice of the box; ``nan`` bounds outside the mask."""
         if self.price_response is None:
             yield
@@ -633,7 +629,7 @@ class MediaVariable(OptimizationVariable):
         ):
             yield
 
-    def linear_piece(
+    def linear_piece_bounds(
         self,
         budgets: np.ndarray,
         low: np.ndarray,
@@ -642,13 +638,13 @@ class MediaVariable(OptimizationVariable):
     ) -> tuple[np.ndarray, np.ndarray]:
         """Return the price map's linear piece per optimized cell, in flat-vector order."""
         if self.price_response is None:
-            return super().linear_piece(budgets, low, high, from_below)
+            return super().linear_piece_bounds(budgets, low, high, from_below)
         side = (
             None
             if from_below is None
             else self._cells(np.asarray(from_below, dtype="float64"), 0.0).astype(bool)
         )
-        piece_low, piece_high = self.price_response.linear_piece(
+        piece_low, piece_high = self.price_response.linear_piece_bounds(
             self._cells(budgets, 0.0),
             self._cells(low, 0.0),
             self._cells(high, 0.0),
@@ -1266,7 +1262,7 @@ class OptimizationVariables:
         return reports
 
     @contextmanager
-    def conditioned(self, low: np.ndarray, high: np.ndarray) -> Iterator[None]:
+    def conditioned_on(self, low: np.ndarray, high: np.ndarray) -> Iterator[None]:
         """Condition every variable's price map for one solve over the box ``[low, high]``, and restore it on exit.
 
         ``low`` and ``high`` are flat, infinite where unbounded.
@@ -1276,12 +1272,10 @@ class OptimizationVariables:
         with ExitStack() as stack:
             for variable in self.variables:
                 where = self.slices[variable.name]
-                stack.enter_context(
-                    variable.conditioned_for_solve(low[where], high[where])
-                )
+                stack.enter_context(variable.conditioned_on(low[where], high[where]))
             yield
 
-    def linear_pieces(
+    def linear_piece_bounds(
         self,
         x: np.ndarray,
         low: np.ndarray,
@@ -1298,7 +1292,7 @@ class OptimizationVariables:
         piece_high = np.array(high, dtype="float64")
         for variable in self.variables:
             where = self.slices[variable.name]
-            piece_low[where], piece_high[where] = variable.linear_piece(
+            piece_low[where], piece_high[where] = variable.linear_piece_bounds(
                 x[where],
                 piece_low[where],
                 piece_high[where],
@@ -1315,7 +1309,7 @@ class OptimizationVariables:
         values = np.asarray(values, dtype="float64")
         positive = np.isfinite(values) & (values > 0.0)
         safe = np.where(positive, values, 1.0)
-        start, _ = self.linear_pieces(
+        start, _ = self.linear_piece_bounds(
             safe, np.zeros(self.size), np.full(self.size, np.inf)
         )
         return positive & (start == safe)
@@ -1328,7 +1322,7 @@ class OptimizationVariables:
         """
         low = np.asarray(low, dtype="float64")
         high = np.asarray(high, dtype="float64")
-        _, piece_high = self.linear_pieces(low, low, high)
+        _, piece_high = self.linear_piece_bounds(low, low, high)
         if np.any(piece_high < high):
             return True
         return bool(np.any(self.is_breakpoint(low) | self.is_breakpoint(high)))

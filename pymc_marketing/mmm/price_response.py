@@ -114,7 +114,7 @@ class ResolvedPriceResponse(ABC):
     :meth:`implied_price` is reported only, never differentiated, and is ``nan`` where nothing is delivered.
 
     Three methods with defaults tell the optimizer about breakpoints, points where the slope of the map in
-    money changes: :meth:`bind_period_weights`, :meth:`conditioned_on` and :meth:`linear_piece`. A family
+    money changes: :meth:`bind_period_weights`, :meth:`conditioned_on` and :meth:`linear_piece_bounds`. A family
     without breakpoints keeps the defaults.
     """
 
@@ -171,7 +171,7 @@ class ResolvedPriceResponse(ABC):
         """
         yield
 
-    def linear_piece(
+    def linear_piece_bounds(
         self,
         budgets: np.ndarray,
         low: np.ndarray,
@@ -605,7 +605,7 @@ class ResolvedTieredPriceResponse(ResolvedPriceResponse):
         )
         return np.where(above, np.maximum(self._edge, high) * (1.0 + self.snap), knots)
 
-    def linear_piece(
+    def linear_piece_bounds(
         self,
         budgets: np.ndarray,
         low: np.ndarray,
@@ -1666,8 +1666,8 @@ class TieredPriceResponse(PriceResponse):
         else:
             own, joint = None, self._sequence_rows(label)
         if own is not None:
-            own.refuse_invalid(self.rate_tolerance, self.reference_rate)
-        joint.refuse_invalid(self.rate_tolerance, self.reference_rate)
+            own.refuse_invalid_schedule(self.rate_tolerance, self.reference_rate)
+        joint.refuse_invalid_schedule(self.rate_tolerance, self.reference_rate)
         self._warn_many_brackets(joint)
         return self
 
@@ -1850,7 +1850,7 @@ class TieredPriceResponse(PriceResponse):
                 np.asarray(np.unravel_index(i, template.shape)), template
             ),
             label=label,
-        ).refuse_invalid(self.rate_tolerance, self.reference_rate)
+        ).refuse_invalid_schedule(self.rate_tolerance, self.reference_rate)
         first_slope, edges, slope_drops = ResolvedTieredPriceResponse._coefficients(
             breakpoints.reshape(*template.shape, -1),
             multipliers.reshape(*template.shape, -1),

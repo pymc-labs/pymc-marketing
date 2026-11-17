@@ -2327,7 +2327,7 @@ class TestTieredPriceResponseAllocation:
         optimizer, breakpoints = self._scheduled(simple_fitted_mmm, 0.9)
         variables = optimizer.optimization_variables
         x = breakpoints.values * 1.003
-        with variables.conditioned(np.zeros(3), np.full(3, self.TOTAL)):
+        with variables.conditioned_on(np.zeros(3), np.full(3, self.TOTAL)):
             _, gradient = optimizer._objective_and_grad(x)
             finite_differences = approx_fprime(
                 x, lambda z: optimizer._objective_and_grad(z)[0], 1e-6
