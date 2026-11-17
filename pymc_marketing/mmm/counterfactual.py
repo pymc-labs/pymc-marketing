@@ -421,13 +421,19 @@ class EvaluationWindows:
         -------
         EvaluationWindows
             The windows, and the length they stack to.
+
+        Raises
+        ------
+        ValueError
+            If *mode* is not ``ConvMode.After`` and the periods are evaluated
+            on a window with carryover.
         """
         windows: list[PeriodWindow] = []
         for start, end in periods:
             if full_axis:
                 in_window = np.ones(len(dates), dtype=bool)
                 # Full-axis mode is selected when the probe cannot bound some
-                # node's reach. Summing to the applicable axis boundary costs
+                # node's reach, or the adstock is not ``After``. Summing to the applicable axis boundary costs
                 # nothing in correctness: outside the perturbation's reach the
                 # baseline and counterfactual are the same computation on the
                 # same inputs, so the extra summands are exactly zero. ``After``
@@ -450,16 +456,14 @@ class EvaluationWindows:
             elif mode == ConvMode.After:
                 eval_start = start
                 eval_end = end + l_max * freq_offset
-            elif mode == ConvMode.Before:
-                # Not reached by the public incrementality API, which sends every
-                # Before model to the full axis.  This window ends at the
-                # period's end, so it misses the forward carryover of an effect
-                # with its own adstock.
-                eval_start = start - l_max * freq_offset
-                eval_end = end
-            elif mode == ConvMode.Overlap:
-                eval_start = start - ((l_max - 1) // 2) * freq_offset
-                eval_end = end + (l_max // 2) * freq_offset
+            elif mode in (ConvMode.Before, ConvMode.Overlap):
+                raise ValueError(
+                    f"A windowed evaluation with carryover needs ConvMode.After, "
+                    f"got {mode}.  The window would end the sum at most "
+                    "l_max // 2 dates past the period and cut the forward "
+                    "carryover of an effect with its own adstock; pass "
+                    "full_axis=True."
+                )
             else:  # pragma: no cover
                 raise ValueError(
                     f"Wrong Mode: {mode}, expected one of {', '.join(ConvMode)}"
