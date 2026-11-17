@@ -280,7 +280,7 @@ from pymc_marketing.mmm.optimization_variables import (
     OptimizationVariables,
     align_to_model_coords,
 )
-from pymc_marketing.mmm.price_response import PriceResponse
+from pymc_marketing.mmm.price_response import PriceResponse, _cell_label_for_message
 from pymc_marketing.mmm.price_schedule import (
     Bounds,
     BreakpointSettler,
@@ -2663,7 +2663,7 @@ class BudgetOptimizer(BaseModel):
         if not pinned:
             return
         labels = self._media_variable.flat_labels()
-        cells = [self._cell_label_for_message(labels[i]) for i in pinned]
+        cells = [_cell_label_for_message(labels[i]) for i in pinned]
         warnings.warn(
             f"price_response: cells {cells} are held at zero by budget_bounds but carry a non-zero "
             "elasticity. The map is steepest at zero, so the solver is handed its largest gradient on "
@@ -2898,7 +2898,9 @@ class BudgetOptimizer(BaseModel):
         :meth:`_media_price_reference`.
         """
         if name == self.channel_data_var:
-            return self._media_price_reference(response)
+            reference = self._media_price_reference(response)
+            self._warn_without_window_price()
+            return reference
         if not response.adds_curvature:
             return None
         self._require_units_attestation(
@@ -2976,6 +2978,23 @@ class BudgetOptimizer(BaseModel):
         # "channel" is the axis itself, so a channel named "channel" stays priced.
         return columns - {"date"} - (set(self._budget_dims) - {Dim.CHANNEL}) or None
 
+    def _warn_without_window_price(self) -> None:
+        """Warn that money reaches a table-priced model as units when no window ``cost_per_unit`` is given.
+
+        Any response, curved or not: a schedule's multipliers and a power law's base price both multiply
+        ``cost_per_unit``, which is then 1 on a model fitted in money. Called once the media response has passed
+        its checks, so a response that is refused gets the error alone.
+        """
+        if self._priced_without_window_price():
+            warnings.warn(
+                "price_response: the fitted model prices its channels (channel_spend is money) "
+                "but there is no cost_per_unit for the window, so the base price is 1 and the "
+                "optimizer's money reaches the model as units. Pass cost_per_unit for the "
+                "optimization window.",
+                UserWarning,
+                skip_file_prefixes=_VALIDATION_WARNING_SKIP,
+            )
+
     def _media_price_reference(self, response: PriceResponse) -> DataArray | None:
         """Require attestation for a curved media response and derive its reference spend.
 
@@ -2999,17 +3018,6 @@ class BudgetOptimizer(BaseModel):
             date_dim=self.date_dim,
             label=f"{self.channel_data_var}: price_response",
         )
-        if self._priced_without_window_price():
-            # Any response, curved or not: a schedule's multipliers and a power law's base
-            # price both multiply cost_per_unit, which is then 1 on a model fitted in money.
-            warnings.warn(
-                "price_response: the fitted model prices its channels (channel_spend is money) "
-                "but there is no cost_per_unit for the window, so the base price is 1 and the "
-                "optimizer's money reaches the model as units. Pass cost_per_unit for the "
-                "optimization window.",
-                UserWarning,
-                skip_file_prefixes=_VALIDATION_WARNING_SKIP,
-            )
         if not curved.any():
             return None
         name = self.channel_data_var
@@ -3586,11 +3594,6 @@ class BudgetOptimizer(BaseModel):
             ftol=1e-6 if merged_ftol is None else float(merged_ftol),
         )
 
-    @staticmethod
-    def _cell_label_for_message(label: tuple) -> object:
-        """Return a cell's label for a message: the label itself on a one-dim layout, the tuple otherwise."""
-        return label[0] if len(label) == 1 else label
-
     def _priced_media_variables(self) -> Iterator[MediaVariable]:
         """Yield the media-path variables that carry a price map, in decision-vector order."""
         for variable in self._variables.variables:
@@ -3617,7 +3620,7 @@ class BudgetOptimizer(BaseModel):
         """Name the first five flat entries of ``notes`` by their labels, each with its note."""
         labels = variable.flat_labels()
         named = [
-            f"{BudgetOptimizer._cell_label_for_message(labels[i])} ({note})"
+            f"{_cell_label_for_message(labels[i])} ({note})"
             for i, note in list(notes.items())[:5]
         ]
         return ", ".join(named) + (", ..." if len(notes) > 5 else "")

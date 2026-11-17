@@ -1102,6 +1102,22 @@ class TestTieredPriceResponseDeclaration:
                 "one multiplier per bracket",
                 id="array-count-no-breakpoints",
             ),
+            pytest.param(
+                dict(
+                    breakpoints=xr.DataArray(
+                        [10.0, 20.0],
+                        dims="channel",
+                        coords={"channel": ["tv", "radio"]},
+                    ),
+                    rate_multipliers=xr.DataArray(
+                        [[1.0, 1.6]],
+                        dims=("channel", "bracket"),
+                        coords={"channel": ["tv"]},
+                    ),
+                ),
+                r"breakpoints names \['radio'\] along 'channel'.*describe one schedule",
+                id="array-labels",
+            ),
         ],
     )
     def test_refusals_when_declared(self, kwargs, match):
@@ -1421,7 +1437,7 @@ class TestTieredSolveHooks:
                 ) as info:
                     with resolved.conditioned_on(lows, highs):
                         pass
-                assert "('tv',)" in str(info.value), name
+                assert "['tv']" in str(info.value), name
             else:
                 with resolved.conditioned_on(lows, highs):
                     assert not resolved._half_widths.get_value().any(), name

@@ -1391,7 +1391,9 @@ class TestPriceResponseGate:
     def test_priced_model_without_a_window_price_warns(self, simple_fitted_mmm):
         """The table says channel_spend is money. With no window cost_per_unit the base
         price is 1 and money reaches the model as units; the deprecated wrapper already
-        warns about this for the constant-price path, the optimizer did not."""
+        warns about this for the constant-price path, the optimizer did not. A curved
+        response the optimizer refuses for want of assume_delivery_units gets the error
+        alone, not the warning first."""
         mmm = simple_fitted_mmm
         mmm.set_cost_per_unit(_full_table(mmm, dict.fromkeys(CHANNELS_3, 2.0)))
         start, end = _window(mmm)
@@ -1406,6 +1408,12 @@ class TestPriceResponseGate:
                 cost_per_unit=_window_cpu(mmm, dict.fromkeys(CHANNELS_3, 2.0)),
                 price_response=attested,
             )
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            with pytest.raises(ValueError, match="bends the price of"):
+                mmm.budget_optimizer(
+                    start, end, price_response=PowerPriceResponse(elasticity=0.3)
+                )
 
     def test_reference_spend_at_window_granularity_is_refused(self, simple_fitted_mmm):
         """A 52-week-window total is 52x the per-period rate; the generic 10x guard refuses

@@ -91,6 +91,11 @@ MIN_FLOOR_FRACTION = 1e-12
 _Schedule = tuple[float, ...]
 
 
+def _cell_label_for_message(label: tuple) -> object:
+    """Return a cell's label for a message: the label itself on a one-dim layout, the tuple otherwise."""
+    return label[0] if len(label) == 1 else label
+
+
 class ResolvedPriceResponse(ABC):
     """A price response bound to one decision variable's cell layout.
 
@@ -741,9 +746,11 @@ class ResolvedTieredPriceResponse(ResolvedPriceResponse):
     def _format_cell_labels(self, where: np.ndarray) -> str:
         """Labels of the first five cells where ``where`` holds, for messages."""
         cells = [
-            tuple(
-                self.coords[dim][int(i)]
-                for dim, i in zip(self.dims, index, strict=True)
+            _cell_label_for_message(
+                tuple(
+                    self.coords[dim][int(i)]
+                    for dim, i in zip(self.dims, index, strict=True)
+                )
             )
             for index in np.argwhere(np.asarray(where))[:5]
         ]
@@ -1613,8 +1620,10 @@ class TieredPriceResponse(PriceResponse):
         Where each bracket ends, in budget units, strictly ascending and non-negative, in the same form as
         ``rate_multipliers``. Default ``()``: no breakpoint on any cell, whatever form ``rate_multipliers``
         takes. A ``DataArray`` without the bracket dim is one breakpoint per cell, so a committed plan can be
-        passed as it is. A first breakpoint of exactly 0 is an empty first bracket, which is what such a plan
-        gives a channel with no commitment. Equal adjacent multipliers make a breakpoint with no kink.
+        passed as it is; it names no label that a ``rate_multipliers`` ``DataArray`` leaves out, along the dims
+        both have, since the cells of such a label would be unscheduled. A first breakpoint of exactly 0 is an
+        empty first bracket, which is what such a plan gives a channel with no commitment. Equal adjacent
+        multipliers make a breakpoint with no kink.
     reference_rate : float or None
         The absolute rate a multiplier of 1 stands for, positive and finite, recorded so the declaration says
         what its multipliers are relative to. It changes no number the map computes; it is shown in the repr and
@@ -1829,6 +1838,38 @@ class TieredPriceResponse(PriceResponse):
                 f"{label}: breakpoints names {sorted(b)} and rate_multipliers names {sorted(r)}. The two "
                 "describe one schedule, so both dicts name the same labels."
             )
+        if isinstance(b, DataArray) and isinstance(r, DataArray):
+            self._refuse_breakpoint_labels_without_multipliers(b, r, label)
+
+    @staticmethod
+    def _refuse_breakpoint_labels_without_multipliers(
+        breakpoints: DataArray, multipliers: DataArray, label: str
+    ) -> None:
+        """Refuse a label ``breakpoints`` names along a dim and ``rate_multipliers`` does not.
+
+        ``rate_multipliers`` leaves a cell it does not name unscheduled, which would drop that cell's breakpoints
+        without a word. A dim only one of the two has is broadcast over, so it names nothing to compare; a dim
+        without coordinates is refused by :meth:`resolve`.
+        """
+        for dim in breakpoints.dims:
+            if (
+                dim == Dim.BRACKET
+                or dim not in breakpoints.coords
+                or dim not in multipliers.coords
+            ):
+                continue
+            named = set(multipliers.coords[dim].values.tolist())
+            missing = [
+                lbl
+                for lbl in breakpoints.coords[dim].values.tolist()
+                if lbl not in named
+            ]
+            if missing:
+                raise ValueError(
+                    f"{label}: breakpoints names {missing[:5]} along {dim!r} and rate_multipliers does not. The "
+                    "two describe one schedule, so rate_multipliers names every label breakpoints does; nan "
+                    "multipliers leave a cell unscheduled."
+                )
 
     def _own_and_joint_schedule_rows(
         self, multipliers: DataArray, label: str
@@ -1918,9 +1959,13 @@ class TieredPriceResponse(PriceResponse):
         if not cell_dims:
             return rows, ["every cell"]
         names = [
-            tuple(
-                ordered.coords[dim].values.tolist()[i] if dim in ordered.coords else i
-                for dim, i in zip(cell_dims, index, strict=True)
+            _cell_label_for_message(
+                tuple(
+                    ordered.coords[dim].values.tolist()[i]
+                    if dim in ordered.coords
+                    else i
+                    for dim, i in zip(cell_dims, index, strict=True)
+                )
             )
             for index in np.ndindex(*shape)
         ]
@@ -2023,8 +2068,10 @@ class TieredPriceResponse(PriceResponse):
         ScheduleRows(
             breakpoints=breakpoints,
             multipliers=multipliers,
-            name=lambda i: self._cell_label(
-                np.asarray(np.unravel_index(i, template.shape)), template
+            name=lambda i: _cell_label_for_message(
+                self._cell_label(
+                    np.asarray(np.unravel_index(i, template.shape)), template
+                )
             ),
             label=label,
         ).refuse_invalid_schedule(self.rate_tolerance, self.reference_rate)
