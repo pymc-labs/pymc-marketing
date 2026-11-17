@@ -1639,9 +1639,11 @@ class Term(_Spec):
         The label of the parent. The term is then zero-sum inside each parent.
     map : dict, optional
         Child label to parent label. Required with ``within``, and must cover
-        exactly the labels of the child coord. Keys are matched as ``str`` (a
-        JSON round trip turns int keys into ``str``), and the values must be
-        all ``str`` or all non-``str``.
+        exactly the labels the child maps to: the labels of the child coord
+        for the bottom of a chain, or the labels its own child maps to for a
+        middle term. Keys are matched as ``str`` (a JSON round trip turns int
+        keys into ``str``), and the values must be all ``str`` or all
+        non-``str``.
     parent_effect : bool, default True
         False nests the child inside the parent without a parent effect. Only
         allowed when the parent is not a term.
@@ -1737,7 +1739,7 @@ class NestedZeroSumPrior:
     Every offset is zero-sum.
     A child term sums to zero inside each of its parents, and a parent or crossed term over its labels.
     An interaction sums to zero over each of its dims.
-    A parent, crossed term or interaction is a ``ZeroSumNormal``.
+    The top of a chain, a crossed term or an interaction is a ``ZeroSumNormal``.
     A child term is one ``Normal`` of free values, mapped to the children so that they sum to zero within each parent.
     This has the distribution of one ``ZeroSumNormal`` per parent, without one variable per parent.
     The zero-sum constraints remove the ridge between
@@ -1778,6 +1780,8 @@ class NestedZeroSumPrior:
           A parent can itself be ``within`` another term, so a chain such as region > tier > DMA can be any depth.
           Its ``map`` then maps its labels (the parents its child names) to its own parents, and must cover exactly
           those labels. Its offsets are zero-sum inside each of its parents, as for a child.
+          As the first bullet, a middle term creates the coord ``<name>_<term>_free``
+          and the free values ``<name>_<term>_raw`` (centered) or ``<name>_<term>_offset``.
           Only the bottom term of a chain is a model coord, and each level adds
           its own offset to the cells.
 
@@ -1902,6 +1906,52 @@ class NestedZeroSumPrior:
             channel_columns=["c0", "c1"],
             target_column="y",
             dims=("brand", "dma"),
+            adstock=GeometricAdstock(l_max=8),
+            saturation=LogisticSaturation(priors={"beta": beta}),
+        )
+
+    A chain of any depth, region > tier > DMA, on the same coefficient. Only
+    the bottom term is a model coord, and each level is zero-sum inside its
+    parent:
+
+    .. code-block:: python
+
+        beta = NestedZeroSumPrior(
+            mu=Prior("Normal", mu=0, sigma=0.5, dims="channel"),
+            terms={
+                "region": Term(),
+                "tier": Term(
+                    within="region",
+                    map={"t0": "west", "t1": "west", "t2": "east", "t3": "east"},
+                ),
+                "dma": Term(
+                    within="tier",
+                    map={
+                        "d0": "t0",
+                        "d1": "t0",
+                        "d2": "t1",
+                        "d3": "t1",
+                        "d4": "t2",
+                        "d5": "t2",
+                        "d6": "t3",
+                        "d7": "t3",
+                        "d8": "t3",
+                    },
+                ),
+            },
+            sigma=IndependentSigmas(
+                priors={
+                    "region": Prior("HalfNormal", sigma=0.3),
+                    "tier": Prior("HalfNormal", sigma=0.2),
+                    "dma": Prior("HalfNormal", sigma=0.1),
+                }
+            ),
+        )
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["c0", "c1"],
+            target_column="y",
+            dims=("dma",),
             adstock=GeometricAdstock(l_max=8),
             saturation=LogisticSaturation(priors={"beta": beta}),
         )
@@ -2061,15 +2111,15 @@ class NestedZeroSumPrior:
                     )
                 seen.append(p)
                 p = self.terms[p].within
-        child_of = {
-            t.within: c for c, t in self.terms.items() if t.within in self.terms
-        }
+        child_of = self._chain_child_of()
         # a middle term: its labels are the parents its child names
         for p, c in child_of.items():
             parent_map, child_map = self.terms[p].map, self.terms[c].map or {}
             if parent_map is None:
                 continue
-            named = sorted({str(v) for v in child_map.values()})
+            # the same canonical labels as `np.unique` gives at create time, so a map whose values mix
+            # number types (1 and 2.5) fails here with the message below, not with a KeyError later
+            named = sorted({str(v) for v in np.unique(list(child_map.values()))})
             if missing := [lab for lab in named if lab not in parent_map]:
                 raise ValueError(
                     f"term {p}: `map` has no {self.terms[p].within} for the {p} labels {missing} that {c} maps to"
@@ -2112,8 +2162,7 @@ class NestedZeroSumPrior:
         self._dims = None if dims is None else _as_dims(dims)
         if self._dims is None:
             return
-        parents = {t.within for t in self.terms.values()}
-        hierarchy = {k for k in self.terms if k not in parents}
+        hierarchy = {k for k in self.terms if k not in self._parent_labels()}
         hierarchy |= {d for t in self.interactions.values() for d in t.dims}
         base = [d for d in self._dims if d not in self.terms]
         if set(self._dims) - set(base) != hierarchy or len(base) > 1:
@@ -2131,6 +2180,14 @@ class NestedZeroSumPrior:
                 f"mu must have the base dims {tuple(base)}: a prior with those dims, a number, "
                 f"or one number per base label; got {self.mu!r}"
             )
+
+    def _chain_child_of(self) -> dict[str, str]:
+        """Map the terms that are `within` another term to their one child."""
+        return {t.within: c for c, t in self.terms.items() if t.within in self.terms}
+
+    def _parent_labels(self) -> set[str]:
+        """Return the labels that are the `within` parent of some term."""
+        return {p for p in (t.within for t in self.terms.values()) if p is not None}
 
     def create_variable(
         self, name: str, xdist: bool = False
@@ -2173,8 +2230,9 @@ class NestedZeroSumPrior:
                 raise ValueError(
                     f"term {c}: not a model coord {sorted(coords)} and no term is `within` it"
                 )
-            # A middle term of a chain is not a model coord: its `map` was checked against its child's (__init__)
-            if t.map is None or c not in coords:
+            # A middle term's `map` was checked against its child's (__init__); a coord of its labels
+            # that already exists, e.g. from another prior, is checked with the coords this prior adds, below
+            if t.map is None or any(u.within == c for u in terms.values()):
                 continue
             if missing := [lab for lab in coords[c] if str(lab) not in t.map]:
                 raise ValueError(
@@ -2186,8 +2244,8 @@ class NestedZeroSumPrior:
                 )
         # Per nested term: the parent labels, and the parent index of each child, from the bottom of each chain up.
         # The bottom term's children are its model coord; a middle term's children are its child's parents.
-        child_of = {t.within: c for c, t in terms.items() if t.within in terms}
-        groups: dict[str, Any] = {}
+        child_of = self._chain_child_of()
+        groups: dict[str, tuple[np.ndarray, np.ndarray]] = {}
         for bottom, t in terms.items():
             if t.map is None or bottom in child_of:
                 continue
@@ -2207,7 +2265,7 @@ class NestedZeroSumPrior:
             raise ValueError(
                 f"constant mu has shape {np.shape(mu)}; expected () or {n_base}, one value per {base} label"
             )
-        parents = {t.within for t in terms.values()}
+        parents = self._parent_labels()
         # The coords this prior adds: the levels, each parent term's labels, and the free values of each child term
         new_coords = [
             (level_dim, levels),
