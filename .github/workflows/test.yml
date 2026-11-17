@@ -71,7 +71,7 @@ jobs:
         uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }} # use token for more robust uploads
-          name: ${{ matrix.config.python-version }}-${{ matrix.config.oldest-pymc && 'oldest-pymc' || 'latest-pymc' }}
+          flags: py${{ matrix.config.python-version }}${{ matrix.config.oldest-pymc && '-oldest' || '-latest' }}
           fail_ci_if_error: false
 
   test_slow:
