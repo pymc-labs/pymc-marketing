@@ -1778,7 +1778,9 @@ class NestedZeroSumPrior:
           A parent can itself be ``within`` another term, so a chain such as region > tier > DMA can be any depth.
           Its ``map`` then maps its labels (the parents its child names) to its own parents, and must cover exactly
           those labels. Its offsets are zero-sum inside each of its parents, as for a child.
-          Only the bottom term of a chain is a model coord, and each level adds its own offset to the cells.
+          Only the bottom term of a chain is a model coord, and each level adds
+          its own offset to the cells.
+
         The labels of terms and interactions are part of variable names and dims,
         so they must be str and cannot contain ``/``.
         The parent labels, the values of a ``map``, can.
