@@ -18,6 +18,7 @@ import pymc.dims as pmd
 import pytensor.tensor as pt
 import pytest
 import xarray as xr
+from pydantic import ValidationError
 from pymc_extras.prior import Prior
 from pytensor.graph.traversal import ancestors
 
@@ -25,8 +26,10 @@ from pymc_marketing.mmm.additive_effect import (
     ControlMuEffect,
     DataVarMuEffect,
     FourierEffect,
+    IncrementalitySpec,
     LinearTrendEffect,
     MediaMuEffect,
+    MediatorSpec,
 )
 from pymc_marketing.mmm.components.adstock import GeometricAdstock
 from pymc_marketing.mmm.components.saturation import LogisticSaturation
@@ -308,6 +311,52 @@ def test_linear_trend_effect(
     pd.testing.assert_index_equal(effect_predictions.date.to_index(), new_dates)
 
 
+def test_linear_trend_effect_extrapolates_out_of_sample(
+    create_mock_mmm, dates, linear_trend_model
+) -> None:
+    """Out of sample, the trend continues from the changepoints fit in sample.
+
+    Regression test for #1569 and #3298: the prediction dates must not be
+    rescaled into the training period.
+    """
+    n_changepoints = 8
+    effect = LinearTrendEffect(
+        trend=LinearTrend(n_changepoints=n_changepoints, include_intercept=True),
+        prefix="trend",
+    )
+    mmm = create_mock_mmm(dims=(), model=linear_trend_model)
+    name = "trend_effect_contribution"
+
+    with mmm.model:
+        effect.create_data(mmm)
+        effect.create_effect(mmm)
+        prior = pm.sample_prior_predictive(draws=20, random_seed=1).prior
+
+    def expected_trend(new_dates: pd.DatetimeIndex) -> xr.DataArray:
+        span = (dates.max() - dates[0]).days
+        t = xr.DataArray(
+            ((new_dates - dates[0]).days / span).to_numpy(),
+            dims="date",
+            coords={"date": new_dates},
+        )
+        s = xr.DataArray(np.linspace(0, 1, n_changepoints), dims="changepoint")
+        slopes = ((t > s) * prior["delta"] * (t - s)).sum("changepoint")
+        return (prior["k"] + slopes).transpose("chain", "draw", "date")
+
+    xr.testing.assert_allclose(prior[name], expected_trend(dates))
+
+    # Start at the last training date, so the forecast overlaps the fitted trend.
+    future_dates = pd.date_range(dates.max(), periods=12, freq="W-MON", name="date")
+    with mmm.model:
+        set_new_model_dates(future_dates)
+        effect.set_data(mmm, mmm.model, None)
+        predictions = pm.sample_posterior_predictive(
+            prior, var_names=[name], random_seed=1
+        ).posterior_predictive[name]
+
+    xr.testing.assert_allclose(predictions, expected_trend(future_dates))
+
+
 class TestMuEffectRoundtrips:
     @pytest.mark.parametrize(
         "fourier_cls_name",
@@ -489,6 +538,8 @@ def test_additive_effect_type_registered(type_key):
 
 class TestDataVarMuEffect:
     """Tests for the DataVarMuEffect base class."""
+
+    GEOS = ["north", "east", "south"]  # not sorted
 
     def test_instantiation_error(self):
         """DataVarMuEffect is abstract and cannot be instantiated directly."""
@@ -680,6 +731,73 @@ class TestDataVarMuEffect:
                 new_ds["shared"].values,
             )
 
+    def _make_geo_setup(self, dates):
+        """Mock MMM and effect reading a ``(date, geo)`` column on unsorted geos."""
+        rng = np.random.default_rng(42)
+        ds = xr.Dataset(
+            {"feature": (("date", "geo"), rng.normal(size=(len(dates), 3)))},
+            coords={"date": dates, "geo": self.GEOS},
+        )
+        model = pm.Model(coords={"date": dates, "geo": self.GEOS})
+        mmm = self._make_mock_mmm(model, ds)
+
+        class Effect(DataVarMuEffect):
+            data_vars: list[str] = ["feature"]
+            prefix: str = "geo"
+
+            def create_effect(self, mmm):  # type: ignore
+                return pt.as_tensor(0.0)
+
+        effect = Effect()
+        with model:
+            effect.create_data(mmm)
+        return mmm, ds, model, effect
+
+    def test_set_data_aligns_labels_to_the_model(self, dates):
+        """Each label's values land in that label's slot, whatever the input order."""
+        mmm, ds, model, effect = self._make_geo_setup(dates)
+        new_ds = ds.sortby("geo") + 1.0
+
+        effect.set_data(mmm, model, new_ds)
+
+        np.testing.assert_allclose(
+            model["feature"].get_value(borrow=False),
+            new_ds["feature"].sel(geo=self.GEOS).values,
+        )
+
+    def test_set_data_keeps_a_variable_absent_from_X(self, dates):
+        """A variable ``X`` does not carry keeps its training values.
+
+        This pins the documented contract rather than endorsing it: freezing
+        effect data at training values without a warning is the sharp edge
+        discussed in issue #2938.
+        """
+        mmm, ds, model, effect = self._make_geo_setup(dates)
+        before = model["feature"].get_value(borrow=False)
+
+        effect.set_data(mmm, model, ds.drop_vars("feature") + 1.0)
+
+        np.testing.assert_array_equal(model["feature"].get_value(borrow=False), before)
+
+    @pytest.mark.parametrize(
+        "geos, pattern",
+        [
+            (["north", "east", "south", "west"], r"does not have.*west"),
+            (["north", "east", "west"], r"does not have.*west"),
+            (["east", "north"], r"missing.*south"),
+        ],
+        ids=["extra_label", "relabelled", "missing_label"],
+    )
+    def test_set_data_rejects_labels_that_do_not_match_the_model(
+        self, dates, geos, pattern
+    ):
+        """A label the model lacks, or a model label the data lacks, is an error."""
+        mmm, ds, model, effect = self._make_geo_setup(dates)
+        new_ds = ds.reindex(geo=geos, fill_value=0.0)
+
+        with pytest.raises(ValueError, match=pattern):
+            effect.set_data(mmm, model, new_ds)
+
     def test_create_data_raises_on_non_data_name_collision(self, dates):
         """A dataset column that matches a non-data variable must not be skipped."""
         mmm, _, _, _ = self._make_shared_var_setup(dates)
@@ -717,6 +835,87 @@ class TestDataVarMuEffect:
             pmd.Data("shared", np.ones((len(dates), 2)), dims=("date", "other"))
             with pytest.raises(ValueError, match=r"Cannot reuse pm\.Data"):
                 Effect().create_data(mmm)
+
+    @pytest.mark.parametrize(
+        "new_dims, n_products",
+        [
+            # Equal lengths: a positional write would not raise and would store
+            # the values transposed.
+            pytest.param(("date", "channel", "product"), 2, id="same_length_swap"),
+            pytest.param(("product", "date", "channel"), 3, id="date_not_first"),
+        ],
+    )
+    def test_set_data_matches_values_by_dimension_name(
+        self, dates, new_dims, n_products
+    ):
+        """Regression for #3224: the prediction dataset's layout does not matter."""
+        coords = {
+            "date": dates,
+            "product": [f"p{i}" for i in range(n_products)],
+            "channel": ["tv", "radio"],
+        }
+        shape = tuple(len(values) for values in coords.values())
+        rng = np.random.default_rng(0)
+        ds = xr.Dataset(
+            {"feature": (tuple(coords), rng.normal(size=shape))}, coords=coords
+        )
+        new_ds = xr.Dataset(
+            {"feature": (tuple(coords), rng.normal(size=shape))}, coords=coords
+        )
+        new_ds["feature"] = new_ds["feature"].transpose(*new_dims)
+        model = pm.Model(coords=coords)
+        mmm = self._make_mock_mmm(model, ds)
+
+        class Effect(DataVarMuEffect):
+            data_vars: list[str] = ["feature"]
+            prefix: str = "test"
+
+            def create_effect(self, mmm):  # type: ignore
+                return pt.as_tensor(0.0)
+
+        effect = Effect()
+        with model:
+            effect.create_data(mmm)
+        effect.set_data(mmm, model, new_ds)
+
+        model_dims = model.named_vars_to_dims["feature"]
+        np.testing.assert_array_equal(
+            model["feature"].get_value(),
+            new_ds["feature"].transpose(*model_dims).values,
+        )
+
+    def test_set_data_writes_node_registered_without_dims(self, dates):
+        """A subclass may register its ``pm.Data`` without dims and inherit ``set_data``."""
+        rng = np.random.default_rng(0)
+        ds = xr.Dataset(
+            {"feature": (("date",), rng.normal(size=len(dates)))},
+            coords={"date": dates},
+        )
+        new_ds = xr.Dataset(
+            {"feature": (("date",), rng.normal(size=len(dates)))},
+            coords={"date": dates},
+        )
+        model = pm.Model(coords={"date": dates})
+        mmm = self._make_mock_mmm(model, ds)
+
+        class Effect(DataVarMuEffect):
+            data_vars: list[str] = ["feature"]
+            prefix: str = "test"
+
+            def create_data(self, mmm):  # type: ignore
+                pm.Data("feature", mmm.xarray_dataset["feature"].values)
+
+            def create_effect(self, mmm):  # type: ignore
+                return pt.as_tensor(0.0)
+
+        effect = Effect()
+        with model:
+            effect.create_data(mmm)
+        effect.set_data(mmm, model, new_ds)
+
+        np.testing.assert_array_equal(
+            model["feature"].get_value(), new_ds["feature"].values
+        )
 
 
 class TestMediaMuEffect:
@@ -920,6 +1119,103 @@ class TestMediaMuEffect:
         assert restored.media_transformation.adstock_first is True
         assert restored == original
 
+    PARAMETERS = ("adstock_alpha", "saturation_lam", "saturation_beta")
+
+    @staticmethod
+    def _build(effect, dates, extra_coords) -> pm.Model:
+        """Register the effect's data and build it in a fresh model."""
+        channels = ["tv", "digital"]
+        coords = {"date": dates, **extra_coords, "channel": channels}
+        shape = [len(values) for values in coords.values()]
+        ds = xr.Dataset(
+            {"media_data": (tuple(coords), np.ones(shape))},
+            coords=coords,
+        )
+        model = pm.Model(coords=coords)
+        mmm = type(
+            "MockMMM",
+            (),
+            {"dims": tuple(extra_coords), "model": model, "xarray_dataset": ds},
+        )()
+        with model:
+            effect.create_data(mmm)
+            effect.create_effect(mmm)
+        return model
+
+    @classmethod
+    def _parameter_dims(cls, model: pm.Model) -> dict[str, tuple[str, ...]]:
+        """Dims of the transformation parameters; ``KeyError`` if one is missing."""
+        return {name: model.named_vars_to_dims[name] for name in cls.PARAMETERS}
+
+    @pytest.mark.parametrize(
+        "extra_coords",
+        [
+            pytest.param({}, id="no_dims"),
+            pytest.param({"product": ["A", "B"]}, id="single_dim"),
+        ],
+    )
+    def test_default_priors_take_media_transformation_dims(self, dates, extra_coords):
+        """Priors without dims get one parameter per ``media_transformation.dims`` cell."""
+        transformation_dims = (*extra_coords, "channel")
+        effect = MediaMuEffect(
+            data_vars=["media_data"],
+            media_transformation=MediaTransformation(
+                adstock=GeometricAdstock(l_max=4),
+                saturation=LogisticSaturation(),
+                adstock_first=True,
+                dims=transformation_dims,
+            ),
+            prefix="media",
+        )
+
+        model = self._build(effect, dates, extra_coords)
+
+        assert self._parameter_dims(model) == dict.fromkeys(
+            self.PARAMETERS, transformation_dims
+        )
+
+    def test_explicit_prior_dims_are_kept(self, dates):
+        """Only priors without dims take ``media_transformation.dims``."""
+        effect = MediaMuEffect(
+            data_vars=["media_data"],
+            media_transformation=MediaTransformation(
+                adstock=GeometricAdstock(
+                    l_max=4, priors={"alpha": Prior("Beta", alpha=1, beta=3, dims=())}
+                ),
+                saturation=LogisticSaturation(),
+                adstock_first=False,
+                dims=("channel",),
+            ),
+            prefix="media",
+        )
+
+        model = self._build(effect, dates, {})
+
+        assert self._parameter_dims(model) == {
+            "adstock_alpha": (),
+            "saturation_lam": ("channel",),
+            "saturation_beta": ("channel",),
+        }
+
+    def test_serialized_effect_builds_the_same_parameters(self, dates):
+        """An effect restored from its serialization builds the parameters it built."""
+        effect = MediaMuEffect(
+            data_vars=["media_data"],
+            media_transformation=MediaTransformation(
+                adstock=GeometricAdstock(l_max=4),
+                saturation=LogisticSaturation(),
+                adstock_first=True,
+                dims=("channel",),
+            ),
+            prefix="media",
+        )
+        model = self._build(effect, dates, {})
+        restored = serialization.deserialize(serialization.serialize(effect))
+
+        restored_model = self._build(restored, dates, {})
+
+        assert self._parameter_dims(restored_model) == self._parameter_dims(model)
+
 
 class TestControlMuEffect:
     """Tests for ControlMuEffect."""
@@ -1018,3 +1314,90 @@ class TestControlMuEffect:
         assert restored.data_vars == ["ctrl_national"]
         assert restored.prefix == "test_ctrl"
         assert restored == original
+
+
+class TestMediatorSpec:
+    """What a declared node may be called, and what its reporting fields need."""
+
+    @pytest.mark.parametrize("name", ["mediated", "complete", "date"])
+    def test_a_name_a_result_already_uses_is_refused(self, name):
+        """A mediator's name becomes a variable of a ``Dataset`` next to these."""
+        with pytest.raises(ValidationError, match="reserved"):
+            MediatorSpec(name=name, variable="funnel_hub")
+
+    @pytest.mark.parametrize("name", ["lf spend", "2nd_hub"])
+    def test_a_name_that_is_not_an_identifier_is_refused(self, name):
+        """The name is what a user types after ``result.``."""
+        with pytest.raises(ValidationError, match="name"):
+            MediatorSpec(name=name, variable="funnel_hub")
+
+    @pytest.mark.parametrize(
+        "fields",
+        [
+            pytest.param({"is_spend": True}, id="spend without a currency"),
+            pytest.param({"scale": 2.5}, id="rescaled without units"),
+        ],
+    )
+    def test_a_reported_quantity_names_its_units(self, fields):
+        """Money and a rescaled movement both say what they are counted in."""
+        with pytest.raises(ValidationError, match="units"):
+            MediatorSpec(name="lf_spend", variable="funnel_spend", **fields)
+
+    @pytest.mark.parametrize("scale", [0.0, float("inf"), True])
+    def test_a_scale_is_a_positive_finite_number(self, scale):
+        """A scale multiplies a movement, so zero, ``inf`` and a flag are mistakes."""
+        with pytest.raises(ValidationError, match="scale"):
+            MediatorSpec(
+                name="lf_spend", variable="funnel_spend", units="USD", scale=scale
+            )
+
+
+class TestRoleAndMediators:
+    """The two fields a path request reads off an ``IncrementalitySpec``."""
+
+    def test_a_mediator_role_names_at_least_one_node(self):
+        """The claim is that spend reaches the term only through declared nodes."""
+        with pytest.raises(ValidationError, match="at least one"):
+            IncrementalitySpec(role="mediator")
+
+    @pytest.mark.parametrize(
+        "second, complaint",
+        [
+            pytest.param(
+                {"name": "hub", "variable": "funnel_spend"},
+                "distinct names",
+                id="one name for two variables",
+            ),
+            pytest.param(
+                {"name": "spend", "variable": "funnel_hub"},
+                "distinct variables",
+                id="one variable under two names",
+            ),
+            pytest.param(
+                {"name": "funnel_hub", "variable": "funnel_spend"},
+                "another mediator's variable",
+                id="a name that is another node's variable",
+            ),
+        ],
+    )
+    def test_names_and_variables_do_not_collide(self, second, complaint):
+        """A result is keyed by name and the graph by variable; neither may repeat."""
+        first = MediatorSpec(name="hub", variable="funnel_hub")
+
+        with pytest.raises(ValidationError, match=complaint):
+            IncrementalitySpec(
+                role="mediator", mediators=(first, MediatorSpec(**second))
+            )
+
+    def test_the_order_of_declaration_carries_no_meaning(self):
+        """Two specs that declare the same nodes are equal, whatever their order."""
+        hub = MediatorSpec(name="hub", variable="funnel_hub")
+        spend = MediatorSpec(
+            name="lf_spend", variable="funnel_spend", units="USD", is_spend=True
+        )
+
+        forward = IncrementalitySpec(role="mediator", mediators=(hub, spend))
+        backward = IncrementalitySpec(role="mediator", mediators=(spend, hub))
+
+        assert forward == backward
+        assert [mediator.name for mediator in backward.mediators] == ["hub", "lf_spend"]

@@ -24,16 +24,12 @@ import pandas as pd
 import xarray as xr
 
 from pymc_marketing.data.idata import MMMIDataWrapper
-from pymc_marketing.data.idata.utils import (
-    get_posterior_predictive,
-    get_prior,
-    get_prior_predictive,
-)
 from pymc_marketing.mmm.xarray_utils import (
     _apply_aggregation,
     _ensure_chain_draw_dims,
     _select_dims,
 )
+from pymc_marketing.names.mmm import Dim
 
 OutputFormat = Literal["pandas", "polars"]
 DataFrameType = pd.DataFrame  # Union[pd.DataFrame, pl.DataFrame] at runtime
@@ -49,13 +45,15 @@ __all__ = [
     "convert_output",
     "dataframe_to_json_records",
     "get_channel_x_data",
-    "get_prior_for_plot",
     "prepare_sensitivity_data",
 ]
 
 
 def compute_residuals(data: MMMIDataWrapper) -> xr.DataArray:
-    """Compute residuals as target minus posterior predictions.
+    """Compute residuals as target minus posterior predictions, in original units.
+
+    The predictions are ``y * target_scale`` from ``posterior_predictive``
+    (:meth:`MMMIDataWrapper.get_predictive_target`), under every link.
 
     Parameters
     ----------
@@ -65,45 +63,19 @@ def compute_residuals(data: MMMIDataWrapper) -> xr.DataArray:
     Returns
     -------
     xr.DataArray
-        Residuals named ``residuals`` with same dims as ``y_original_scale``.
+        Residuals named ``residuals`` with the dims of the predictive draws.
 
     Raises
     ------
     ValueError
-        If ``y_original_scale`` is missing from posterior_predictive.
+        If ``posterior_predictive`` or its ``y`` draws, ``target_data`` or
+        ``target_scale`` are missing.
     """
-    pp_var = "y_original_scale"
-    pp_ds = get_posterior_predictive(data.idata)
-    if pp_var not in pp_ds:
-        raise ValueError(
-            f"Variable '{pp_var}' not found in posterior_predictive. "
-            f"Available: {list(pp_ds.data_vars)}"
-        )
-    predictions = pp_ds[pp_var]
+    predictions = data.get_predictive_target("posterior", original_scale=True)
     target = data.get_target(original_scale=True)
     residuals = target - predictions
     residuals.name = "residuals"
     return residuals
-
-
-def get_prior_for_plot(data: MMMIDataWrapper, original_scale: bool) -> xr.Dataset:
-    """Return the correct idata group for prior predictive plotting.
-
-    Parameters
-    ----------
-    data : MMMIDataWrapper
-        Wrapper holding the model's DataTree.
-    original_scale : bool
-        If True, return ``idata.prior`` (contains ``y_original_scale``).
-        If False, return ``idata.prior_predictive`` (contains ``y``).
-
-    Returns
-    -------
-    xr.Dataset
-    """
-    if original_scale:
-        return get_prior(data.idata)
-    return get_prior_predictive(data.idata)
 
 
 def compute_waterfall_components(
@@ -135,14 +107,14 @@ def compute_waterfall_components(
 
     for ds_key, coord_dim in [
         ("baseline", None),
-        ("channels", "channel"),
-        ("controls", "control"),
+        ("channels", Dim.CHANNEL),
+        ("controls", Dim.CONTROL),
         ("seasonality", None),
     ]:
         if ds_key not in contributions_ds:
             continue
         da = _select_dims(contributions_ds[ds_key], dims, allow_missing=True)
-        mean_dims = [d for d in ("date",) if d in da.dims]
+        mean_dims = [d for d in (Dim.DATE,) if d in da.dims]
         if coord_dim is not None:
             for val in da.coords[coord_dim].values:
                 component_da = da.sel({coord_dim: val}, drop=True)
@@ -173,8 +145,8 @@ def compute_channel_shares(channel_contributions: xr.DataArray) -> xr.DataArray:
     xr.DataArray
         Channel shares with ``date`` summed out.
     """
-    summed = channel_contributions.sum(dim="date")
-    total = summed.sum(dim="channel")
+    summed = channel_contributions.sum(dim=Dim.DATE)
+    total = summed.sum(dim=Dim.CHANNEL)
     shares = summed / total
     shares.name = "channel_share"
     return shares
@@ -223,17 +195,17 @@ def prepare_sensitivity_data(
     sa_da = _select_dims(sa_da, dims)
     sa_da = _ensure_chain_draw_dims(sa_da)
 
-    sweep_coords = sa_da.coords["sweep"]
+    sweep_coords = sa_da.coords[Dim.SWEEP]
     if x_sweep_axis == "relative":
         sweep_x = sweep_coords
     else:
         if apply_cost_per_unit:
-            channel_scale = data.get_channel_spend().sum("date")
+            channel_scale = data.get_channel_spend().sum(Dim.DATE)
         else:
-            channel_scale = data.get_channel_data().sum("date")
+            channel_scale = data.get_channel_data().sum(Dim.DATE)
 
-        if "channel" in channel_scale.dims and "channel" not in sa_da.dims:
-            channel_scale = channel_scale.sum("channel")
+        if Dim.CHANNEL in channel_scale.dims and Dim.CHANNEL not in sa_da.dims:
+            channel_scale = channel_scale.sum(Dim.CHANNEL)
 
         sweep_x = sweep_coords * channel_scale
 

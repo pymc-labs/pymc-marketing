@@ -12,11 +12,6 @@ permissions:
 jobs:
   generate-durations:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        linker: [cvm]  # Only generate once, cvm is faster
-    env:
-      PYTENSOR_FLAGS: linker=${{ matrix.linker }}
     steps:
       - uses: actions/checkout@v7
       - name: Install uv

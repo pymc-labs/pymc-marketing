@@ -13,19 +13,38 @@
 #   limitations under the License.
 """Tests for the spend-reach probe: window length and increment completeness."""
 
-import numpy as np
-import pytest
+import dataclasses
+import gc
+import weakref
 
+import numpy as np
+import pandas as pd
+import pymc as pm
+import pytest
+from pytensor.graph.traversal import ancestors
+
+from pymc_marketing.mmm import MMM, GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.additive_effect import IncrementalitySpec
 from pymc_marketing.mmm.counterfactual import CounterfactualEvaluator
+from pymc_marketing.mmm.incrementality import kernel_trailing_lags
 from pymc_marketing.mmm.spend_reach import (
     CHANNEL_CONTRIBUTION,
     LINEAR_PREDICTOR,
     ChannelDependentEffect,
+    ProbeStatistics,
     SpendProbe,
+    SpendReach,
     TemporalReach,
     linear_predictor,
+    refuse_blocked_spend_paths,
     resolve_channel_dependent_effects,
+)
+from tests.mmm.conftest import (
+    FrozenLevelEffect,
+    ObservedDemandEffect,
+    PotentialTiedDemandEffect,
+    RandomContributionEffect,
+    SpendScaledPriorEffect,
 )
 
 
@@ -41,6 +60,8 @@ class FakeEvaluator:
     """
 
     channel_dtype = "float64"
+    non_date_dims = {CHANNEL_CONTRIBUTION: ("channel",), LINEAR_PREDICTOR: ()}
+    """The dimensions after ``sample`` and ``date`` of the usual analytic nodes."""
 
     def __init__(self, **nodes):
         self.nodes = nodes
@@ -132,6 +153,15 @@ def date_normalized(spend):
 def constant_node(spend):
     """A node a change in spend does not move at all."""
     return np.ones((1, len(spend)))
+
+
+def ramp(week, first, last):
+    """Spend rising by one per date from *first* to *last*, zero elsewhere.
+
+    A flight that builds up toward its last week puts its largest spend at its
+    end, which is what makes a late flight hard to probe.
+    """
+    return np.where((week >= first) & (week <= last), week - first + 1.0, 0.0)
 
 
 def float32_cancellation_values(
@@ -296,7 +326,11 @@ def build_spend_probe(mmm, counterfactual_spend_factor=0.0):
 def measure_spend_reach(mmm, counterfactual_spend_factor=0.0):
     """Return the :class:`SpendReach` the module's probe arrives at for *mmm*."""
     probe, _, effects = build_spend_probe(mmm, counterfactual_spend_factor)
-    return probe.measure(effects=effects, l_max=mmm.adstock.l_max)
+    return probe.measure(
+        effects=effects,
+        l_max=mmm.adstock.l_max,
+        trailing_lags=kernel_trailing_lags(mmm.adstock.l_max, mmm.adstock.mode),
+    )
 
 
 def measures_channel_mixing(mmm, counterfactual_spend_factor=0.0):
@@ -399,6 +433,184 @@ class TestResolveChannelDependentEffects:
         assert any(effect.contribution_var == contribution_var for effect in resolved)
 
 
+def build_with_effect(data, effect):
+    """An identity-link MMM on the funnel frame carrying *effect*, built and not fitted.
+
+    The guard on blocked spend paths reads the graph alone, so there is no
+    posterior to make up.
+    """
+    mmm = MMM(
+        channel_columns=["channel_1", "channel_2"],
+        date_column="date",
+        target_column="y",
+        adstock=GeometricAdstock(l_max=3),
+        saturation=LogisticSaturation(),
+    )
+    mmm.add_mu_effect(effect)
+    mmm.build_model(data["X_df"], data["y_series"])
+    return mmm
+
+
+class TestRefuseBlockedSpendPaths:
+    """What a posterior-conditioned evaluation holds fixed on a path from spend.
+
+    A random variable keeps its draws and a frozen deterministic its posterior
+    values whatever spend is, so a path from ``channel_data`` to the linear
+    predictor through one of them is cut.  The evaluations cannot show it: the
+    predictor and the accounted nodes fail to move through it together.  The
+    refusal is therefore read off the graph, and names the variable.
+
+    The four ways of writing a latent mediator are tested through the public
+    methods in ``test_incrementality.py``.  The shapes here are the other things
+    the posterior holds fixed.
+    """
+
+    @pytest.mark.parametrize(
+        "effect, held",
+        [
+            pytest.param(
+                ObservedDemandEffect(prefix="measured"),
+                "measured_demand",
+                id="an observed variable",
+            ),
+            pytest.param(
+                RandomContributionEffect(prefix="noisy"),
+                "noisy_effect_contribution",
+                id="a contribution that is a random variable",
+            ),
+            pytest.param(
+                FrozenLevelEffect(prefix="scaled"),
+                "scaled_level",
+                id="a frozen deterministic",
+            ),
+            pytest.param(
+                SpendScaledPriorEffect(prefix="empirical"),
+                "empirical_beta",
+                id="a prior scaled by spend",
+            ),
+        ],
+    )
+    def test_a_held_variable_on_a_spend_path_is_refused_by_name(
+        self, funnel_mmm_data, effect, held
+    ):
+        """Each kind of held variable is refused, and the refusal says which one.
+
+        The last case is not a structural equation: ``beta`` is a parameter, and
+        today's number for that model is right.  The graph cannot tell it from a
+        latent mediator, so it is refused with the others.
+        """
+        mmm = build_with_effect(funnel_mmm_data, effect)
+
+        with pytest.raises(NotImplementedError, match=held):
+            refuse_blocked_spend_paths(mmm, resolve_channel_dependent_effects(mmm))
+
+    def test_the_refusal_warns_that_a_potential_does_not_fix_the_path(
+        self, funnel_mmm_data
+    ):
+        """Moving the tie into a Potential silences the refusal, not the gap."""
+        mmm = build_with_effect(funnel_mmm_data, ObservedDemandEffect(prefix="m"))
+
+        with pytest.raises(NotImplementedError) as excinfo:
+            refuse_blocked_spend_paths(mmm, resolve_channel_dependent_effects(mmm))
+        assert "pm.Potential removes this error but not the problem" in str(
+            excinfo.value
+        )
+
+    def test_a_likelihood_that_reads_spend_and_feeds_nothing_is_not_on_a_path(self):
+        """A calibration likelihood is downstream of spend, and no path runs through it.
+
+        ``roas_calibration`` is the one random variable besides the target that
+        the library itself puts downstream of ``channel_data``.  It is a leaf,
+        as the likelihood on a mediator's indicator is, so the model is answered.
+        """
+        rng = np.random.default_rng(3128)
+        dates = pd.date_range("2025-01-05", periods=12, freq="W")
+        X = pd.concat(
+            [
+                pd.DataFrame(
+                    {
+                        "date": dates,
+                        "geo": geo,
+                        "C1": rng.uniform(50, 150, len(dates)),
+                        "C2": rng.uniform(20, 80, len(dates)),
+                    }
+                )
+                for geo in ("a", "b")
+            ],
+            ignore_index=True,
+        )
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["C1", "C2"],
+            dims=("geo",),
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            link="log",
+        )
+        mmm.build_model(X, pd.Series(rng.uniform(500, 900, len(X)), name="y"))
+        mmm.add_cost_per_target_calibration(
+            data=X,
+            calibration_data=pd.DataFrame(
+                {"channel": ["C1"], "geo": ["a"], "roas": [2.0], "sigma": [0.5]}
+            ),
+            name_prefix="roas_calibration",
+            target_column="roas",
+            target_per_cost=True,
+        )
+        model = mmm.model
+        calibration = model["roas_calibration"]
+        assert model["channel_data"] in set(ancestors([calibration]))
+
+        assert refuse_blocked_spend_paths(mmm, effects=()) is None
+
+    def test_a_variable_tied_to_spend_only_by_a_potential_is_not_refused(
+        self, funnel_mmm_data
+    ):
+        """A Potential reads spend, but makes nothing downstream of it.
+
+        ``demand`` is upstream of the predictor and the Potential reads both it
+        and spend, yet ``demand`` is not a function of spend.  It keeps its draws
+        in the counterfactual, as the ``incrementality_spec`` docstring says.
+        """
+        mmm = build_with_effect(
+            funnel_mmm_data, PotentialTiedDemandEffect(prefix="tied")
+        )
+        model = mmm.model
+        tie_reads = set(ancestors([model["tied_tie"]]))
+        assert {model["channel_data"], model["tied_demand"]} <= tie_reads
+        assert model["channel_data"] not in set(ancestors([model["tied_demand"]]))
+
+        assert (
+            refuse_blocked_spend_paths(mmm, resolve_channel_dependent_effects(mmm))
+            is None
+        )
+
+    def test_a_roas_prior_written_as_a_potential_is_not_refused(self, funnel_mmm_data):
+        """A soft calibration prior on the saturation parameters is not a spend path.
+
+        The Potential reads the contribution and spend, and so the saturation
+        parameters, which keep their draws as their author means them to.
+        """
+        mmm = MMM(
+            channel_columns=["channel_1", "channel_2"],
+            date_column="date",
+            target_column="y",
+            adstock=GeometricAdstock(l_max=3),
+            saturation=LogisticSaturation(),
+        )
+        mmm.build_model(funnel_mmm_data["X_df"], funnel_mmm_data["y_series"])
+        model = mmm.model
+        with model:
+            roas = (
+                model["channel_contribution"].values.sum()
+                / model["channel_data"].values.sum()
+            )
+            pm.Potential("roas_prior", pm.logp(pm.Normal.dist(2.0, 0.5), roas))
+        assert model["saturation_beta"] in set(ancestors([model["roas_prior"]]))
+
+        assert refuse_blocked_spend_paths(mmm, effects=()) is None
+
+
 class TestSpendProbe:
     """What the probe establishes, and what happens when it cannot.
 
@@ -441,7 +653,9 @@ class TestSpendProbe:
             self._spend(), **{CHANNEL_CONTRIBUTION: causal_filter(self.l_max + 3)}
         )
 
-        reach = probe.measure(effects=(), l_max=self.l_max)
+        reach = probe.measure(
+            effects=(), l_max=self.l_max, trailing_lags=self.l_max - 1
+        )
 
         assert not reach.requires_full_axis
         # Reaching l_max + 3 dates is l_max + 2 lags, of which l_max is covered.
@@ -453,7 +667,93 @@ class TestSpendProbe:
             self._spend(), **{CHANNEL_CONTRIBUTION: causal_filter(self.l_max)}
         )
 
-        assert probe.measure(effects=(), l_max=self.l_max).effective_l_max == self.l_max
+        reach = probe.measure(
+            effects=(), l_max=self.l_max, trailing_lags=self.l_max - 1
+        )
+
+        assert reach.effective_l_max == self.l_max
+
+    @pytest.mark.parametrize(
+        "length, max_lag, effective_l_max",
+        [
+            # A plain kernel: lags 0..l_max-1, in a window one date longer.
+            (3, 2, 3),
+            # A kernel whose last weights fall below the probe's tolerance still
+            # counts at its full length, so the horizon does not depend on draws.
+            (2, 2, 3),
+            # A tail ending exactly at lag l_max fits the same window, but its
+            # last lag is l_max, not l_max - 1.
+            (4, 3, 3),
+            # A tail past l_max sizes the window to exactly its last lag.
+            (6, 5, 5),
+        ],
+    )
+    def test_the_longest_lag_is_measured_not_derived_from_the_window(
+        self, length, max_lag, effective_l_max
+    ):
+        """``max_lag`` is the last lag that moved, not ``effective_l_max - 1``.
+
+        The two differ by one for a plain adstock and agree for a tail past
+        ``l_max``, so neither can be computed from the other.  The kernel's own
+        length is the floor.
+        """
+        probe = self._probe(
+            self._spend(), **{CHANNEL_CONTRIBUTION: causal_filter(length)}
+        )
+
+        reach = probe.measure(
+            effects=(), l_max=self.l_max, trailing_lags=self.l_max - 1
+        )
+
+        assert reach.max_lag == max_lag
+        assert reach.effective_l_max == effective_l_max
+
+    @pytest.mark.parametrize("trailing_lags", [0, 1], ids=["Before", "Overlap"])
+    def test_the_longest_lag_is_floored_at_the_given_trailing_lags(self, trailing_lags):
+        """The floor under ``max_lag`` is the one passed in, not ``l_max - 1``.
+
+        A node that moves only its own date is what a ``Before`` kernel looks
+        like when the probe cannot see its leading weights.  A floor fixed at
+        ``l_max - 1`` (2 here) would report carryover that does not exist, so
+        the horizon is the trailing lags the caller passes: ``0`` for
+        ``Before`` and ``3 // 2 = 1`` for ``Overlap``.  A floor at ``l_max - 1``
+        and a reach past the floor are covered above.
+        """
+        probe = self._probe(self._spend(), **{CHANNEL_CONTRIBUTION: causal_filter(1)})
+
+        reach = probe.measure(effects=(), l_max=self.l_max, trailing_lags=trailing_lags)
+
+        assert not reach.requires_full_axis
+        assert reach.max_lag == trailing_lags
+
+    def test_a_wider_declaration_widens_the_window_not_the_longest_lag(self):
+        """A declaration the probe could not confirm sizes the window only.
+
+        The documented recipe declares the mediator's own ``l_max``, which
+        overstates a chained reach, so counting it as carryover would flag fully
+        observed cohorts as truncated.
+        """
+        effect = ChannelDependentEffect(
+            contribution_var="mediator",
+            label="Mediator",
+            declared_carryover_lags=4,
+            declared_evaluation_mode="auto",
+        )
+        probe = self._probe(
+            self._spend(),
+            **{
+                CHANNEL_CONTRIBUTION: causal_filter(self.l_max),
+                "mediator": causal_filter(2),
+            },
+        )
+
+        reach = probe.measure(
+            effects=(effect,), l_max=self.l_max, trailing_lags=self.l_max - 1
+        )
+
+        assert not reach.requires_full_axis
+        assert reach.effective_l_max == self.l_max + 4
+        assert reach.max_lag == self.l_max - 1
 
     def test_a_reduction_over_date_cannot_be_windowed(self):
         """A direct path that is not causal in ``date`` selects the full axis.
@@ -466,10 +766,14 @@ class TestSpendProbe:
         """
         probe = self._probe(self._spend(), **{CHANNEL_CONTRIBUTION: date_normalized})
 
-        reach = probe.measure(effects=(), l_max=self.l_max)
+        reach = probe.measure(
+            effects=(), l_max=self.l_max, trailing_lags=self.l_max - 1
+        )
 
         assert reach.measured[CHANNEL_CONTRIBUTION].requires_full_axis
         assert reach.requires_full_axis
+        # No window bounds the reach, so there is no longest lag either.
+        assert reach.max_lag is None
 
     def test_a_full_axis_reach_still_carries_the_lags_it_demonstrated(self):
         """A tail that runs off the axis is unbounded, not unmeasured.
@@ -489,7 +793,9 @@ class TestSpendProbe:
         )
         assert probe.probe_indices == [1]
 
-        reach = probe.measure(effects=(), l_max=self.l_max)
+        reach = probe.measure(
+            effects=(), l_max=self.l_max, trailing_lags=self.l_max - 1
+        )
         measured = reach.measured[CHANNEL_CONTRIBUTION]
 
         assert measured.requires_full_axis
@@ -526,10 +832,16 @@ class TestSpendProbe:
                 "mediator": single_channel_filter(self.n_dates, channel=0),
             },
         )
-        assert probe.measure(effects=(), l_max=self.l_max).effective_l_max == self.l_max
+        reach = probe.measure(
+            effects=(), l_max=self.l_max, trailing_lags=self.l_max - 1
+        )
+
+        assert reach.effective_l_max == self.l_max
 
         with pytest.raises(ValueError, match="at least 19 periods further") as excinfo:
-            probe.measure(effects=(effect,), l_max=self.l_max)
+            probe.measure(
+                effects=(effect,), l_max=self.l_max, trailing_lags=self.l_max - 1
+            )
 
         message = str(excinfo.value)
         assert "nothing is cut" in message
@@ -551,9 +863,10 @@ class TestSpendProbe:
         # Every channel spends past the dark run, so one probe covers them all.
         assert len(probe.probe_indices) == 1
         assert spend[probe.probe_indices[0]].all()
-        assert probe.measure(effects=(), l_max=self.l_max).effective_l_max == (
-            self.l_max + 2
+        reach = probe.measure(
+            effects=(), l_max=self.l_max, trailing_lags=self.l_max - 1
         )
+        assert reach.effective_l_max == self.l_max + 2
 
     def test_the_probe_avoids_the_last_date_too(self):
         """Flighted spend peaking on the final date must not park the probe there.
@@ -573,7 +886,7 @@ class TestSpendProbe:
 
         assert probe.probe_indices != []
         assert probe.probe_indices[0] != self.n_dates - 1
-        reach = probe.measure(effects=(), l_max=0)
+        reach = probe.measure(effects=(), l_max=0, trailing_lags=0)
         assert not reach.requires_full_axis
 
     def test_perturbing_a_dark_date_moves_nothing_at_all(self):
@@ -619,7 +932,9 @@ class TestSpendProbe:
 
         assert probe.probe_indices == []
         with pytest.warns(UserWarning, match="could not be measured"):
-            reach = probe.measure(effects=(), l_max=self.l_max)
+            reach = probe.measure(
+                effects=(), l_max=self.l_max, trailing_lags=self.l_max - 1
+            )
 
         assert reach.requires_full_axis
         assert reach.effective_l_max == self.l_max
@@ -652,7 +967,7 @@ class TestSpendProbe:
         )
 
         with pytest.warns(UserWarning, match="completeness .* goes unverified"):
-            probe.measure(effects=(), l_max=self.l_max)
+            probe.measure(effects=(), l_max=self.l_max, trailing_lags=self.l_max - 1)
 
     def test_a_mediator_reading_a_dark_channel_gets_its_own_probe(self):
         """Channels with no common spend date are probed one by one.
@@ -685,7 +1000,9 @@ class TestSpendProbe:
         assert len(probe.probe_indices) == 2
         assert spend[probe.probe_indices].any(axis=0).all()
 
-        reach = probe.measure(effects=(effect,), l_max=self.l_max)
+        reach = probe.measure(
+            effects=(effect,), l_max=self.l_max, trailing_lags=self.l_max - 1
+        )
 
         assert reach.measured["mediator"] != TemporalReach.none()
         assert not reach.requires_full_axis
@@ -707,6 +1024,87 @@ class TestSpendProbe:
         assert len(indices) == 1
         assert spend[indices[0]].all()
 
+    def test_a_covering_peak_at_the_end_of_the_axis_is_not_the_probe(self):
+        """Among late covering dates, the probe leaves room for the tail.
+
+        A channel that runs in flights is dark over the head, so the covering
+        probe comes from further along the axis.  Picking the largest covering
+        week there used to land on a peak right before the axis end, whose tail
+        the axis cannot show, and the measurement then demanded full-axis
+        evaluation for a plain causal filter.
+        """
+        spend = self._spend(dark=self.dark)
+        spend[-2] = 50.0  # the largest covering week is the last interior date
+        probe = self._probe(spend, **{CHANNEL_CONTRIBUTION: causal_filter(self.l_max)})
+
+        assert probe.probe_indices[0] < self.n_dates - 1 - self.l_max
+
+        reach = probe.measure(
+            effects=(), l_max=self.l_max, trailing_lags=self.l_max - 1
+        )
+
+        assert not reach.requires_full_axis
+        assert reach.effective_l_max == self.l_max
+
+    @pytest.mark.parametrize(
+        "n_dates, flight",
+        [
+            pytest.param(
+                104,
+                lambda week: np.where(week >= 20, 0.5 + week / 100, 0.0),
+                id="dark-head-then-ramp",
+            ),
+            pytest.param(52, lambda week: ramp(week, 40, 50), id="q4-ramp"),
+            pytest.param(
+                52,
+                lambda week: np.where(
+                    (week >= 40) & (week <= 50), 6.0 - np.abs(week - 45.0), 0.0
+                ),
+                id="q4-mid-flight-peak",
+            ),
+            pytest.param(
+                104,
+                lambda week: 0.1 * (week == 50) + ramp(week, 95, 102),
+                id="small-early-date-and-late-ramp",
+            ),
+            pytest.param(
+                104,
+                lambda week: sum(
+                    scale * ramp(week, first, first + 9)
+                    for scale, first in enumerate((20, 45, 70, 92), start=1)
+                ),
+                id="four-ramping-flights-biggest-last",
+            ),
+            pytest.param(
+                104, lambda week: ramp(week, 90, 102), id="late-ramp-in-last-13-dates"
+            ),
+        ],
+    )
+    def test_a_late_flight_is_probed_where_its_tail_fits(self, n_dates, flight):
+        """A channel that only spends late in the axis still gets a bounded reach.
+
+        With a dark head the probe comes from further along the axis, and a
+        flight that ramps up puts its largest spend close to the axis end.  The
+        probe has to land on a date that leaves room for the tail whenever some
+        spending date does, which every shape here has.
+        """
+        l_max = 8
+        week = np.arange(n_dates)
+        # (date, channel): the flighted channel next to an always-on one, so a
+        # covering date exists wherever the flight spends.
+        spend = np.column_stack([flight(week), np.ones(n_dates)])
+        probe = self._probe(spend, **{CHANNEL_CONTRIBUTION: causal_filter(l_max)})
+
+        assert len(probe.probe_indices) == 1
+        # The filter moves l_max dates from the probe on, and the last of them
+        # has to come before the last date of the axis.
+        assert probe.probe_indices[0] + l_max - 1 < n_dates - 1
+
+        reach = probe.measure(effects=(), l_max=l_max, trailing_lags=l_max - 1)
+
+        assert not reach.requires_full_axis
+        assert reach.effective_l_max == l_max
+
     def test_an_all_zero_channel_does_not_force_extra_probes(self):
         """A channel that never spends cannot be moved, so it needs no probe."""
         spend = self._spend()
@@ -727,7 +1125,10 @@ class TestSpendProbe:
 
         assert probe.probe_indices == []
         with pytest.warns(UserWarning, match="could not be measured"):
-            assert probe.measure(effects=(), l_max=self.l_max).requires_full_axis
+            reach = probe.measure(
+                effects=(), l_max=self.l_max, trailing_lags=self.l_max - 1
+            )
+        assert reach.requires_full_axis
 
     def test_a_channel_spending_only_on_the_last_date_disables_the_probe(self):
         """The last-date counterpart of the first-date-only case.
@@ -800,6 +1201,24 @@ class TestSpendProbe:
 
         assert probe.mixes_channels(non_date_dims=self.channel_dims)
 
+    def test_a_late_flight_s_mixing_probe_keeps_its_largest_spend(self):
+        """A mixing probe needs no room for a tail, so it keeps the largest spend.
+
+        The reach rule puts a late flight's probe at the front of the flight,
+        which for channel 0 here is week 40.  The other channel is dark at that
+        week, so a mixing probe there would see the shared denominator move no
+        column but its own, and would read a mixing transform as separable.
+        """
+        week = np.arange(52)
+        # (date, channel): a ramp over weeks 40 to 50, and a channel that
+        # spends at week 2 and over the last weeks of that ramp.
+        other = np.where((week == 2) | ((week >= 45) & (week <= 50)), 1.0, 0.0)
+        spend = np.column_stack([ramp(week, 40, 50), other])
+        probe = self._probe(spend, **{CHANNEL_CONTRIBUTION: shared_denominator_columns})
+
+        assert SpendProbe._select_channel_probe_indices(spend) == {0: 50, 1: 2}
+        assert probe.mixes_channels(non_date_dims=self.channel_dims)
+
     def test_an_unprobeable_channel_is_treated_as_mixing(self):
         """No measurement means the conservative answer, not the cheap one.
 
@@ -833,14 +1252,42 @@ class TestSpendProbe:
         """
         combined = TemporalReach.widest(
             [
-                TemporalReach(additional_carryover_lags=2, requires_full_axis=False),
-                TemporalReach.full_axis(),
+                TemporalReach(
+                    additional_carryover_lags=2, requires_full_axis=False, max_lag=5
+                ),
+                TemporalReach.full_axis(max_lag=1),
             ]
         )
 
         assert combined.additional_carryover_lags == 2
         assert combined.requires_full_axis
+        assert combined.max_lag == 5
         assert TemporalReach.widest([]) == TemporalReach.none()
+
+    @pytest.mark.parametrize(
+        "requires_full_axis, max_lag, valid",
+        [
+            (False, 3, True),
+            (True, None, True),
+            # A window without a horizon would read as nothing past the axis.
+            (False, None, False),
+            (True, 3, False),
+        ],
+    )
+    def test_a_reach_has_a_horizon_exactly_when_windowed(
+        self, requires_full_axis, max_lag, valid
+    ):
+        """``max_lag`` is ``None`` for full-axis evaluation and for nothing else."""
+        kwargs = {
+            "effective_l_max": 4,
+            "requires_full_axis": requires_full_axis,
+            "max_lag": max_lag,
+        }
+        if valid:
+            assert SpendReach(**kwargs).max_lag == max_lag
+        else:
+            with pytest.raises(ValueError, match="max_lag must be None exactly"):
+                SpendReach(**kwargs)
 
     def test_the_predictor_is_recoverable_under_an_identity_link(
         self, simple_fitted_mmm
@@ -917,10 +1364,13 @@ class TestSpendProbe:
         )
 
         with pytest.warns(UserWarning, match="could not be measured"):
-            reach = probe.measure(effects=(effect,), l_max=self.l_max)
+            reach = probe.measure(
+                effects=(effect,), l_max=self.l_max, trailing_lags=self.l_max - 1
+            )
 
         assert reach.requires_full_axis
         assert reach.effective_l_max == self.l_max + 4
+        assert reach.max_lag is None
 
     def test_a_plain_mmm_has_its_direct_path_measured(self, simple_fitted_mmm):
         """The probe runs on a model with no ``mu_effects`` in sight.
@@ -934,6 +1384,7 @@ class TestSpendProbe:
         assert set(reach.measured) == {CHANNEL_CONTRIBUTION}
         assert not reach.requires_full_axis
         assert reach.effective_l_max == simple_fitted_mmm.adstock.l_max
+        assert reach.max_lag == simple_fitted_mmm.adstock.l_max - 1
 
     # ---------- non-finite predictions ----------
 
@@ -1141,3 +1592,474 @@ class TestSpendProbe:
                     LINEAR_PREDICTOR: (),
                 },
             )
+
+
+EFFECT = "effect_contribution"
+
+
+def assert_identical_statistics(left, right):
+    """Assert two :class:`ProbeStatistics` hold bitwise-equal values in every field."""
+    for statistic in dataclasses.fields(ProbeStatistics):
+        left_value = getattr(left, statistic.name)
+        right_value = getattr(right, statistic.name)
+        if statistic.name == "per_date_move":
+            assert left_value.keys() == right_value.keys()
+            for name, per_date in left_value.items():
+                assert per_date.dtype == right_value[name].dtype
+                np.testing.assert_array_equal(per_date, right_value[name])
+        else:
+            assert left_value == right_value, statistic.name
+
+
+class TestProbeStatistics:
+    """The probe keeps statistics folded over slices of samples, never evaluations."""
+
+    non_date_dims = {
+        CHANNEL_CONTRIBUTION: ("geo", "channel"),
+        EFFECT: ("geo",),
+        LINEAR_PREDICTOR: ("geo",),
+    }
+    accounted = (CHANNEL_CONTRIBUTION, EFFECT)
+
+    @staticmethod
+    def _evaluations(rng, dtype, n_samples=7, n_dates=11):
+        """Random baseline and probe evaluations of a channel node, an effect and mu."""
+        shapes = {
+            CHANNEL_CONTRIBUTION: (n_samples, n_dates, 3, 4),
+            EFFECT: (n_samples, n_dates, 3),
+            LINEAR_PREDICTOR: (n_samples, n_dates, 3),
+        }
+        baseline = {
+            name: (rng.normal(size=shape) * 1e3).astype(dtype)
+            for name, shape in shapes.items()
+        }
+        probed = {
+            name: (values + rng.normal(size=values.shape)).astype(dtype)
+            for name, values in baseline.items()
+        }
+        return probed, baseline
+
+    @pytest.mark.parametrize("dtype", ["float64", "float32"])
+    @pytest.mark.parametrize("seed", range(5))
+    def test_any_slicing_gives_bitwise_equal_statistics(self, dtype, seed, monkeypatch):
+        """Every statistic is a maximum, so slicing and order cannot change it."""
+        rng = np.random.default_rng(seed)
+        probed, baseline = self._evaluations(rng, dtype)
+        whole = ProbeStatistics.fold(
+            probed,
+            baseline,
+            accounted=self.accounted,
+            non_date_dims=self.non_date_dims,
+        )
+
+        n_samples = baseline[LINEAR_PREDICTOR].shape[0]
+        n_cuts = int(rng.integers(1, n_samples))
+        cuts = np.sort(rng.choice(np.arange(1, n_samples), size=n_cuts, replace=False))
+        shuffled = ProbeStatistics(accounted=self.accounted)
+        for samples in np.split(rng.permutation(n_samples), cuts):
+            shuffled.update(
+                {name: values[samples] for name, values in probed.items()},
+                {name: values[samples] for name, values in baseline.items()},
+                non_date_dims=self.non_date_dims,
+            )
+        monkeypatch.setattr(ProbeStatistics, "FOLD_ELEMENTS", 1)
+        one_at_a_time = ProbeStatistics.fold(
+            probed,
+            baseline,
+            accounted=self.accounted,
+            non_date_dims=self.non_date_dims,
+        )
+
+        assert_identical_statistics(whole, shuffled)
+        assert_identical_statistics(whole, one_at_a_time)
+
+    def test_statistics_compare_by_identity(self):
+        """A generated ``__eq__`` would compare dicts of arrays and raise."""
+        left = ProbeStatistics(per_date_move={CHANNEL_CONTRIBUTION: np.zeros(3)})
+        right = ProbeStatistics(per_date_move={CHANNEL_CONTRIBUTION: np.zeros(3)})
+
+        assert left == left
+        assert left != right
+
+    def test_a_nan_move_survives_any_slicing(self, monkeypatch):
+        """A NaN move is in the largest move, whether its sample is folded alone or not.
+
+        Sample 0's float32 channel moves overflow and sum to ``inf - inf``;
+        sample 1 moves by 2.  A NaN-skipping maximum would drop the NaN over
+        the whole evaluation but keep it when sample 0 is a slice of its own.
+        """
+        n_dates = 6
+        channel_base = np.zeros((2, n_dates, 2), dtype="float32")
+        channel_base[0, :, 0], channel_base[0, :, 1] = -3e38, 3e38
+        channel_probed = -channel_base
+        channel_probed[1] = 1.0
+        predictor_base = np.zeros((2, n_dates), dtype="float32")
+        probed = {
+            CHANNEL_CONTRIBUTION: channel_probed,
+            LINEAR_PREDICTOR: predictor_base + 2,
+        }
+        baseline = {
+            CHANNEL_CONTRIBUTION: channel_base,
+            LINEAR_PREDICTOR: predictor_base,
+        }
+        non_date_dims = FakeEvaluator.non_date_dims
+
+        with np.errstate(over="ignore", invalid="ignore"):
+            whole = ProbeStatistics.fold(
+                probed,
+                baseline,
+                accounted=(CHANNEL_CONTRIBUTION,),
+                non_date_dims=non_date_dims,
+            )
+            monkeypatch.setattr(ProbeStatistics, "FOLD_ELEMENTS", 1)
+            one_at_a_time = ProbeStatistics.fold(
+                probed,
+                baseline,
+                accounted=(CHANNEL_CONTRIBUTION,),
+                non_date_dims=non_date_dims,
+            )
+
+        for stats in (whole, one_at_a_time):
+            assert stats.max_expected == 2.0
+            assert np.isnan(stats.max_accounted)
+            assert np.isnan(stats.max_residual)
+
+    def test_a_residual_at_the_rounding_of_atol_is_decided_as_allclose(self):
+        """A float32 residual within an ulp of ``atol`` gets numpy.allclose's answer.
+
+        ``allclose`` compares in the arrays' dtype, so an ``atol`` a quarter ulp
+        below the residual rounds up to it and passes.  Comparing the folded
+        residual in float64 would refuse it.
+        """
+        residual = np.float32(0.1)
+        n_dates = 3
+        baseline = {
+            CHANNEL_CONTRIBUTION: np.zeros((1, n_dates, 1), dtype="float32"),
+            LINEAR_PREDICTOR: np.zeros((1, n_dates), dtype="float32"),
+        }
+        probed = {name: values.copy() for name, values in baseline.items()}
+        probed[CHANNEL_CONTRIBUTION][0, 1, 0] = residual
+        stats = ProbeStatistics.fold(
+            probed,
+            baseline,
+            accounted=(CHANNEL_CONTRIBUTION,),
+            non_date_dims=FakeEvaluator.non_date_dims,
+        )
+        accounted = (probed[CHANNEL_CONTRIBUTION] - baseline[CHANNEL_CONTRIBUTION]).sum(
+            axis=-1
+        )
+        expected = probed[LINEAR_PREDICTOR] - baseline[LINEAR_PREDICTOR]
+
+        ulp = float(np.spacing(residual))
+        candidates = [float(residual) + k * ulp / 4 for k in range(-6, 7)]
+        reference = [
+            np.allclose(accounted, expected, rtol=0.0, atol=atol) for atol in candidates
+        ]
+
+        assert [stats.residual_within(atol) for atol in candidates] == reference
+        assert any(
+            passes and atol < float(residual)
+            for atol, passes in zip(candidates, reference, strict=True)
+        )
+
+    @pytest.mark.parametrize("with_predictor", [True, False])
+    def test_one_probe_evaluation_alive_at_a_time(self, with_predictor):
+        """No array of an earlier probe is alive while the next one is evaluated.
+
+        Two flighted channels never spend on the same date, so each gets its
+        own probe date.
+        """
+        returned = []
+        alive_at_each_call = []
+
+        class RecordingEvaluator(FakeEvaluator):
+            def evaluate_baseline(self, channel_data):
+                gc.collect()
+                alive_at_each_call.append(sum(ref() is not None for ref in returned))
+                out = super().evaluate_baseline(channel_data)
+                returned.extend(weakref.ref(array) for array in out.values())
+                return out
+
+        node = causal_filter(3)
+        nodes = {CHANNEL_CONTRIBUTION: node}
+        if with_predictor:
+            nodes[LINEAR_PREDICTOR] = lambda spend: node(spend).sum(axis=-1)
+        evaluator = RecordingEvaluator(**nodes)
+        spend = np.zeros((24, 2))
+        spend[1::2, 0] = 2.0
+        spend[2::2, 1] = 2.0
+        baseline = evaluator.evaluate_baseline(spend)
+        returned.clear()
+        alive_at_each_call.clear()
+
+        probe = SpendProbe(
+            evaluator=evaluator,
+            baseline=baseline,
+            baseline_array=spend,
+            counterfactual_spend_factor=0.0,
+        )
+
+        assert len(probe.probe_indices) == 2
+        assert alive_at_each_call == [0, 0]
+
+    def test_the_probe_keeps_no_evaluation(self):
+        """Once folded, no array the evaluator returned for a probe is alive."""
+        returned = []
+
+        class RecordingEvaluator(FakeEvaluator):
+            def evaluate_baseline(self, channel_data):
+                out = super().evaluate_baseline(channel_data)
+                returned.extend(weakref.ref(array) for array in out.values())
+                return out
+
+        node = causal_filter(3)
+        evaluator = RecordingEvaluator(
+            **{
+                CHANNEL_CONTRIBUTION: node,
+                LINEAR_PREDICTOR: lambda spend: node(spend).sum(axis=-1),
+            }
+        )
+        spend = TestSpendProbe._spend()
+        baseline = evaluator.evaluate_baseline(spend)
+        n_baseline = len(returned)
+
+        probe = SpendProbe(
+            evaluator=evaluator,
+            baseline=baseline,
+            baseline_array=spend,
+            counterfactual_spend_factor=0.0,
+        )
+        probe.assert_increment_is_complete(
+            effects=(), non_date_dims=evaluator.non_date_dims
+        )
+        probe.measure(effects=(), l_max=3, trailing_lags=2)
+        probe.mixes_channels(non_date_dims=evaluator.non_date_dims)
+        gc.collect()
+
+        probe_arrays = returned[n_baseline:]
+        assert probe.probe_indices
+        assert probe_arrays
+        assert all(ref() is None for ref in probe_arrays)
+
+    def test_a_nan_residual_is_refused(self):
+        """A NaN residual is not within atol, as numpy.allclose decides it.
+
+        Finite float32 nodes can still move by more than float32 holds: the
+        channel moves overflow and their sum is ``inf - inf``.  A fold that
+        dropped the NaN would pass the check.
+        """
+        n_dates = 6
+        spend = np.full((n_dates, 2), 2.0)
+        channel_base = np.zeros((1, n_dates, 2), dtype="float32")
+        channel_base[0, :, 0], channel_base[0, :, 1] = -3e38, 3e38
+        channel_probed = -channel_base
+        predictor_base = np.zeros((1, n_dates), dtype="float32")
+        predictor_probed = predictor_base + 1
+
+        with np.errstate(over="ignore", invalid="ignore"):
+            probe = dtype_probe(
+                spend=spend,
+                channel_dtype="float32",
+                **{
+                    CHANNEL_CONTRIBUTION: (channel_base, channel_probed),
+                    LINEAR_PREDICTOR: (predictor_base, predictor_probed),
+                },
+            )
+            with pytest.raises(NotImplementedError, match="Some path from spend"):
+                probe.assert_increment_is_complete(
+                    effects=(), non_date_dims=FakeEvaluator.non_date_dims
+                )
+
+    @pytest.mark.parametrize(
+        "accounted_move, complete",
+        [(3e38, True), (0.5, False)],
+        ids=["matched", "unattributed"],
+    )
+    def test_an_infinite_predictor_move_is_decided_as_allclose(
+        self, accounted_move, complete
+    ):
+        """Where mu moves by inf, numpy.allclose asks for the same inf, not |x - y| <= atol.
+
+        The accounted sum that moves by the same inf is complete.  One that
+        moves by 1 leaves a path unattributed, even though the tolerance,
+        scaled by the inf move, is inf too.
+        """
+        n_dates = 6
+        spend = np.full((n_dates, 1), 2.0)
+        channel_base = np.full((1, n_dates, 1), -accounted_move, dtype="float32")
+        predictor_probed = np.full((1, n_dates), 3e38, dtype="float32")
+
+        with np.errstate(over="ignore", invalid="ignore"):
+            probe = dtype_probe(
+                spend=spend,
+                channel_dtype="float32",
+                **{
+                    CHANNEL_CONTRIBUTION: (channel_base, -channel_base),
+                    LINEAR_PREDICTOR: (-predictor_probed, predictor_probed),
+                },
+            )
+            if complete:
+                probe.assert_increment_is_complete(
+                    effects=(), non_date_dims=FakeEvaluator.non_date_dims
+                )
+            else:
+                with pytest.raises(NotImplementedError, match="Some path from spend"):
+                    probe.assert_increment_is_complete(
+                        effects=(), non_date_dims=FakeEvaluator.non_date_dims
+                    )
+
+    def test_the_completeness_check_refuses_effects_it_was_not_folded_for(self):
+        """The fold sums every baseline node but mu; asking about others is an error."""
+        node = causal_filter(3)
+        evaluator = FakeEvaluator(
+            **{
+                CHANNEL_CONTRIBUTION: node,
+                EFFECT: lambda spend: 0.5 * node(spend).sum(axis=-1),
+                LINEAR_PREDICTOR: lambda spend: 1.5 * node(spend).sum(axis=-1),
+            }
+        )
+        evaluator.non_date_dims = {
+            **FakeEvaluator.non_date_dims,
+            EFFECT: (),
+        }
+        spend = TestSpendProbe._spend()
+        probe = SpendProbe(
+            evaluator=evaluator,
+            baseline=evaluator.evaluate_baseline(spend),
+            baseline_array=spend,
+            counterfactual_spend_factor=0.0,
+        )
+        effect = ChannelDependentEffect(
+            contribution_var=EFFECT,
+            label="effect",
+            declared_carryover_lags=None,
+            declared_evaluation_mode="auto",
+        )
+
+        probe.assert_increment_is_complete(
+            effects=(effect,), non_date_dims=evaluator.non_date_dims
+        )
+        with pytest.raises(ValueError, match="was folded for"):
+            probe.assert_increment_is_complete(
+                effects=(), non_date_dims=evaluator.non_date_dims
+            )
+
+
+HUB = "funnel_hub"
+
+
+def predictor_of(*nodes):
+    """A linear predictor that is the sum of *nodes*, each summed over its channels."""
+
+    def node(spend):
+        total = 0.0
+        for term in nodes:
+            value = term(spend)
+            total = total + (value.sum(axis=-1) if value.ndim == 3 else value)
+        return total
+
+    return node
+
+
+class TestMediatorNodes:
+    """Nodes the probe is asked to measure without counting them in the predictor.
+
+    A request that reports a mediator evaluates it next to the accounted terms.
+    The mediator is not a term of the linear predictor, so it stays out of the
+    completeness check, and its reach sizes the window like any other node's.
+    """
+
+    l_max = 3
+
+    def _probe(self, *, mediators=(HUB,)):
+        """A probe over a causal contribution, its predictor and a slower hub."""
+        contribution = causal_filter(self.l_max)
+        nodes = {
+            CHANNEL_CONTRIBUTION: contribution,
+            LINEAR_PREDICTOR: predictor_of(contribution),
+            HUB: single_channel_filter(self.l_max + 3, channel=0),
+        }
+        evaluator = FakeEvaluator(**nodes)
+        evaluator.non_date_dims = {**FakeEvaluator.non_date_dims, HUB: ()}
+        spend = TestSpendProbe._spend()
+        baseline = evaluator.evaluate_baseline(spend)
+        probe = SpendProbe(
+            evaluator=evaluator,
+            baseline=baseline,
+            baseline_array=spend,
+            counterfactual_spend_factor=0.0,
+            mediators=mediators,
+        )
+        return probe, evaluator
+
+    def test_a_mediator_stays_out_of_the_accounting(self):
+        """Summed into the accounted move, the hub would read as an unattributed path."""
+        probe, evaluator = self._probe()
+
+        compared = probe.assert_increment_is_complete(
+            effects=(), non_date_dims=evaluator.non_date_dims
+        )
+
+        assert compared
+
+    def test_a_node_that_is_not_named_as_a_mediator_is_accounted(self):
+        """The same graph without the declaration fails, which is what the check is for."""
+        probe, evaluator = self._probe(mediators=())
+        hub_as_effect = ChannelDependentEffect(
+            contribution_var=HUB,
+            label="hub",
+            declared_carryover_lags=None,
+            declared_evaluation_mode="auto",
+        )
+
+        with pytest.raises(NotImplementedError, match="Some path from spend"):
+            probe.assert_increment_is_complete(
+                effects=(hub_as_effect,), non_date_dims=evaluator.non_date_dims
+            )
+
+    def test_a_mediator_that_outlives_the_contribution_widens_the_window(self):
+        """Its movement is summed on the same window, so the window has to hold it."""
+        probe, _ = self._probe()
+
+        reach = probe.measure(
+            effects=(), l_max=self.l_max, trailing_lags=self.l_max - 1
+        )
+
+        # Six dates are five lags, three of which the model's own window carries.
+        assert reach.measured[HUB].max_lag == self.l_max + 2
+        assert reach.max_lag == self.l_max + 2
+        assert reach.effective_l_max == self.l_max + 2
+        assert reach.measured[CHANNEL_CONTRIBUTION].max_lag == self.l_max - 1
+
+
+class TestCompletenessReport:
+    """The tolerance the completeness check shares with the requests' own rows."""
+
+    @pytest.mark.parametrize(
+        "predictor_move, gap",
+        [
+            pytest.param(2.0, None, id="the terms account for the whole move"),
+            pytest.param(3.0, 1.0 / 3.0, id="a third of the move is unaccounted"),
+            pytest.param(0.0, 1.0, id="the terms move and the predictor does not"),
+        ],
+    )
+    def test_the_gap_is_a_share_of_the_larger_move(self, predictor_move, gap):
+        """One tolerance, for the probe and for a request's own rows."""
+        stats = ProbeStatistics(accounted=(CHANNEL_CONTRIBUTION,))
+        stats.update(
+            {
+                CHANNEL_CONTRIBUTION: np.ones((2, 4, 2)),
+                LINEAR_PREDICTOR: np.full((2, 4), predictor_move),
+            },
+            {
+                CHANNEL_CONTRIBUTION: np.zeros((2, 4, 2)),
+                LINEAR_PREDICTOR: np.zeros((2, 4)),
+            },
+            non_date_dims={CHANNEL_CONTRIBUTION: ("channel",), LINEAR_PREDICTOR: ()},
+        )
+
+        assert stats.accounting_gap() == (None if gap is None else pytest.approx(gap))
+
+    def test_statistics_with_nothing_folded_report_no_gap(self):
+        """Nothing was compared, so nothing can be missing."""
+        assert ProbeStatistics().accounting_gap() is None

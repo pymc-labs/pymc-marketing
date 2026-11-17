@@ -20,6 +20,7 @@ benefits/model_deployment
 mmm/mmm_learning_path
 mmm/mmm_intro
 mmm/data_export
+mmm/experimental_optimizer
 mmm/resources
 :::
 

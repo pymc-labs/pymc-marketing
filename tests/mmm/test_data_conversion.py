@@ -86,14 +86,44 @@ class TestToMmmDatasetXInputTypes:
                 "channel": ["tv"],
             },
         )
+        ds_out = to_mmm_dataset(ds_in, date_column="date", channel_columns=["tv"])
+        assert "_control" in ds_out.data_vars
+        assert "control" not in ds_out.data_vars
+
+    def test_x_as_dataset_reordered_to_user_order(self):
+        # Regression for #3139: the model's coordinate order is the fit data's,
+        # and prediction writes data positionally in channel_columns /
+        # control_columns order, so the two must agree. Undeclared labels are
+        # dropped, as undeclared DataFrame columns are.
+        dates = pd.date_range("2023-01-01", periods=2, freq="W")
+        ds_in = xr.Dataset(
+            {
+                "_channel": (
+                    ("date", "channel"),
+                    [[3.0, 1.0, 9.0], [4.0, 2.0, 9.0]],
+                ),
+                "_control": (("date", "control"), [[20.0, 10.0], [21.0, 11.0]]),
+            },
+            coords={
+                "date": dates,
+                "channel": ["x2", "x1", "x3"],
+                "control": ["b", "a"],
+            },
+        )
         ds_out = to_mmm_dataset(
             ds_in,
             date_column="date",
-            channel_columns=["tv"],
-            control_columns=["price"],
+            channel_columns=["x1", "x2"],
+            control_columns=["a", "b"],
         )
-        assert "_control" in ds_out.data_vars
-        assert "control" not in ds_out.data_vars
+        assert list(ds_out.coords["channel"].values) == ["x1", "x2"]
+        assert list(ds_out.coords["control"].values) == ["a", "b"]
+        np.testing.assert_array_equal(
+            ds_out["_channel"].values, [[1.0, 3.0], [2.0, 4.0]]
+        )
+        np.testing.assert_array_equal(
+            ds_out["_control"].values, [[10.0, 20.0], [11.0, 21.0]]
+        )
 
 
 class TestToMmmDatasetYInputTypes:
@@ -426,6 +456,65 @@ class TestToMmmDatasetValidation:
                 control_columns=["price"],
             )
 
+    @pytest.mark.parametrize(
+        "control",
+        [
+            xr.DataArray([1.0], dims=("date",)),
+            xr.DataArray([[1.0]], dims=("date", "control")),
+        ],
+        ids=["no_control_dim", "unlabelled_control_dim"],
+    )
+    def test_dataset_control_without_control_coord_raises(self, control):
+        ds = xr.Dataset(
+            {
+                "_channel": xr.DataArray([[1]], dims=("date", "channel")),
+                "_control": control,
+            },
+            coords={
+                "date": pd.date_range("2023-01-01", periods=1, freq="W"),
+                "channel": ["tv"],
+            },
+        )
+        with pytest.raises(ValueError, match="coordinate 'control'"):
+            to_mmm_dataset(
+                ds,
+                date_column="date",
+                channel_columns=["tv"],
+                control_columns=["price"],
+            )
+
+    @pytest.mark.parametrize(
+        "channel_columns, control_columns, missing",
+        [
+            (["tv", "radio"], ["price"], "radio"),
+            (["tv"], ["price", "promo"], "promo"),
+        ],
+        ids=["channel", "control"],
+    )
+    def test_dataset_missing_declared_label_raises(
+        self, channel_columns, control_columns, missing
+    ):
+        # Reindexing to the declared order would otherwise fill the absent
+        # label with NaN, which build_model then zero-fills silently.
+        ds = xr.Dataset(
+            {
+                "_channel": xr.DataArray([[1.0]], dims=("date", "channel")),
+                "_control": xr.DataArray([[1.0]], dims=("date", "control")),
+            },
+            coords={
+                "date": pd.date_range("2023-01-01", periods=1, freq="W"),
+                "channel": ["tv"],
+                "control": ["price"],
+            },
+        )
+        with pytest.raises(KeyError, match=missing):
+            to_mmm_dataset(
+                ds,
+                date_column="date",
+                channel_columns=channel_columns,
+                control_columns=control_columns,
+            )
+
     def test_dataframe_missing_date_column_raises(self):
         X = pd.DataFrame({"channel_1": [1.0, 2.0, 3.0]})
         with pytest.raises(ValueError, match="date_column"):
@@ -574,3 +663,140 @@ class TestToMmmDatasetExtraVars:
                 channel_columns=["tv", "digital"],
                 extra_vars=["lower_spend"],
             )
+
+
+class TestToMmmDatasetLayout:
+    """Regression tests for #3224.
+
+    The model registers the media, controls and target with the layout they
+    have in the returned dataset, and prediction writes new data into it in
+    ``("date", *dims, <coordinate>)`` order, so the returned variables take that
+    layout whatever order the input's dims are in.
+    """
+
+    @staticmethod
+    def _dataset() -> xr.Dataset:
+        rng = np.random.default_rng(0)
+        coords = {
+            "date": pd.date_range("2023-01-01", periods=4, freq="W"),
+            "geo": ["a", "b", "c"],
+        }
+        return xr.Dataset(
+            {
+                "media": xr.DataArray(
+                    rng.uniform(size=(4, 3, 2)),
+                    dims=("date", "geo", "channel"),
+                    coords={**coords, "channel": ["tv", "radio"]},
+                ),
+                "_control": xr.DataArray(
+                    rng.uniform(size=(4, 3, 2)),
+                    dims=("date", "geo", "control"),
+                    coords={**coords, "control": ["price", "promo"]},
+                ),
+                "target": xr.DataArray(
+                    rng.uniform(size=(4, 3)), dims=("date", "geo"), coords=coords
+                ),
+            }
+        )
+
+    @pytest.mark.parametrize(
+        "layouts",
+        [
+            pytest.param(
+                {
+                    "media": ("geo", "date", "channel"),
+                    "_control": ("control", "geo", "date"),
+                    "target": ("geo", "date"),
+                },
+                id="date_not_first",
+            ),
+            pytest.param(
+                {
+                    "media": ("date", "channel", "geo"),
+                    "_control": ("date", "control", "geo"),
+                },
+                id="coordinate_before_geo",
+            ),
+        ],
+    )
+    def test_dataset_variables_take_canonical_layout(self, layouts):
+        expected = self._dataset()
+        X = expected.copy()
+        for name, dims in layouts.items():
+            X[name] = X[name].transpose(*dims)
+
+        ds = to_mmm_dataset(
+            X,
+            date_column="date",
+            dims=("geo",),
+            channel_columns=["tv", "radio"],
+            control_columns=["price", "promo"],
+        )
+
+        for name, source, canonical in [
+            ("_channel", "media", ("date", "geo", "channel")),
+            ("_control", "_control", ("date", "geo", "control")),
+            ("_target", "target", ("date", "geo")),
+        ]:
+            assert ds[name].dims == canonical, name
+            np.testing.assert_array_equal(
+                ds[name].values, expected[source].values, err_msg=name
+            )
+
+    @pytest.mark.parametrize(
+        "name, transform, expected_dims",
+        [
+            pytest.param(
+                "_control",
+                lambda da: da.isel(geo=0, drop=True).transpose("control", "date"),
+                ("date", "control"),
+                id="missing_panel_dim",
+            ),
+            pytest.param(
+                "media",
+                lambda da: da.expand_dims(product=["p1", "p2"]).transpose(
+                    "product", "date", "geo", "channel"
+                ),
+                ("date", "geo", "product", "channel"),
+                id="extra_dim",
+            ),
+        ],
+    )
+    def test_layout_only_reorders_dims(self, name, transform, expected_dims):
+        X = self._dataset()
+        X[name] = transform(X[name])
+
+        ds = to_mmm_dataset(
+            X,
+            date_column="date",
+            dims=("geo",),
+            channel_columns=["tv", "radio"],
+            control_columns=["price", "promo"],
+        )
+
+        internal = {"media": "_channel"}.get(name, name)
+        assert ds[internal].dims == expected_dims
+
+    def test_multiindex_y_with_dim_level_first_takes_canonical_layout(self):
+        dates = pd.date_range("2023-01-01", periods=2, freq="W")
+        X = pd.DataFrame(
+            {
+                "date": list(dates) * 3,
+                "country": ["US"] * 2 + ["UK"] * 2 + ["DE"] * 2,
+                "channel_1": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+            }
+        )
+        y = X.set_index(["country", "date"])["channel_1"].mul(10).rename("sales")
+
+        ds = to_mmm_dataset(
+            X,
+            y,
+            date_column="date",
+            dims=("country",),
+            channel_columns=["channel_1"],
+        )
+
+        assert ds["_target"].dims == ("date", "country")
+        xr.testing.assert_equal(
+            ds["_target"], ds["_channel"].sel(channel="channel_1", drop=True) * 10
+        )

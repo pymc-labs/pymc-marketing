@@ -14,6 +14,8 @@
 from contextlib import nullcontext as does_not_raise
 
 import numpy as np
+import pymc
+import pymc.dims as pmd
 import pytensor
 import pytensor.xtensor as ptx
 import pytest
@@ -389,6 +391,61 @@ class TestsAdstockTransformers:
         ).eval()
 
         np.testing.assert_array_equal(y, impulse)
+
+    def test_weibull_cdf_adstock_tail_weights_are_exact(self):
+        """CDF tail weights that ``1 - F`` rounds to zero are exact (#3331)."""
+        l_max, lam, k = 8, 1.0, 6.0
+        impulse = np.zeros(l_max)
+        impulse[0] = 1.0
+
+        y = weibull_adstock(
+            x=as_xtensor(impulse, dims=("t",)),
+            lam=lam,
+            k=k,
+            l_max=l_max,
+            type=WeibullType.CDF,
+            dim="t",
+        ).eval()
+
+        log_survival = sp.stats.weibull_min.logsf(np.arange(1, l_max), c=k, scale=lam)
+        expected = np.exp(np.cumsum(np.concatenate([[0.0], log_survival])))
+        np.testing.assert_allclose(y, expected, rtol=1e-12, atol=0)
+
+    @pytest.mark.parametrize(
+        "type, lam, k",
+        [
+            (WeibullType.CDF, 0.5, 2.0),
+            (WeibullType.CDF, 1e-3, 100.0),
+            (WeibullType.PDF, 0.2, 5.0),
+            (WeibullType.PDF, 1.0, 400.0),
+        ],
+        ids=[
+            "cdf-survival-rounds-to-zero",
+            "cdf-hazard-overflows",
+            "pdf-every-density-rounds-to-zero",
+            "pdf-hazard-overflows-at-some-lags",
+        ],
+    )
+    def test_weibull_adstock_dlogp_is_finite(self, type, lam, k):
+        """dlogp stays finite where weights underflow or the hazard overflows (#3331)."""
+        impulse = np.zeros(8)
+        impulse[0] = 1.0
+        with pymc.Model() as model:
+            y = weibull_adstock(
+                as_xtensor(impulse, dims=("t",)),
+                lam=pymc.Flat("lam"),
+                k=pymc.Flat("k"),
+                l_max=8,
+                type=type,
+                dim="t",
+            )
+            pymc.Normal("obs", mu=y.values, sigma=1.0, observed=np.full(8, 0.5))
+
+        dlogp = model.compile_dlogp(jacobian=False)(
+            {"lam": np.array(lam), "k": np.array(k)}
+        )
+
+        assert np.isfinite(dlogp).all(), f"dlogp is not finite at {lam=}, {k=}: {dlogp}"
 
     @pytest.mark.parametrize(
         "type",
@@ -808,6 +865,76 @@ class TestSaturationTransformers:
             decimal=5,
             err_msg="The function does not approach sigma as x approaches infinity.",
         )
+
+    @pytest.mark.parametrize(
+        argnames=["slope", "kappa"],
+        argvalues=[
+            (np.float64(60.0), np.float64(1e6)),
+            (np.float64(100.0), np.float64(1e8)),
+        ],
+        ids=["raw dollars: slope=60, kappa=1e6", "raw dollars: slope=100, kappa=1e8"],
+    )
+    def test_hill_ec50_value_finite_for_raw_spend(self, slope, kappa):
+        """Float-overflow robustness at raw-spend parameters.
+
+        At x = kappa the response is exactly 1/2 for any (slope, kappa):
+        the EC50 anchor. Large but ordinary raw-dollars parameters must
+        not overflow the evaluation into NaN.
+        """
+        y = hill_function(kappa, slope, kappa).eval()
+        assert np.isfinite(y), f"hill response is NaN at ({slope=}, {kappa=})"
+        np.testing.assert_allclose(y, 0.5, rtol=1e-12)
+
+    @pytest.fixture(scope="class")
+    def raw_spend_dlogp(self):
+        """dlogp evaluator for a one-row intercept-free hill model.
+
+        The observed value contributes a constant to logp; passing x via
+        pm.Data lets each test probe the gradient at its own spend row.
+        """
+        with pymc.Model(coords={"obs": np.arange(1)}) as m:
+            x = pymc.Data("x_data", [1.0])
+            slope = pmd.Flat("slope", dims=())
+            kappa = pmd.Flat("kappa", dims=())
+            mu = hill_function(pmd.as_xtensor(x, dims=("obs",)), slope, kappa)
+            pmd.Normal(
+                "resid",
+                mu=mu,
+                sigma=pmd.as_xtensor(0.1, dims=()),
+                observed=pmd.as_xtensor([0.0], dims=("obs",)),
+                dims=("obs",),
+            )
+            grad = m.compile_dlogp(jacobian=False)
+
+        def evaluate(x, slope, kappa):
+            with m:
+                pymc.set_data({"x_data": [x]})
+            return np.asarray(grad({"slope": slope, "kappa": kappa}))
+
+        return evaluate
+
+    @pytest.mark.parametrize(
+        argnames=["slope", "kappa"],
+        argvalues=[
+            (np.float64(30.0), np.float64(1e6)),
+            (np.float64(80.0), np.float64(1e8)),
+        ],
+        ids=["raw dollars: slope=30, kappa=1e6", "raw dollars: slope=80, kappa=1e8"],
+    )
+    def test_hill_dlogp_finite_for_raw_spend(self, raw_spend_dlogp, slope, kappa):
+        """dlogp stays finite in the half-threshold band.
+
+        The ratio form's logp gradient contains (kappa**slope + x**slope) ** 2,
+        which overflows float64 at s*ln(kappa) = 354 -- half the slope at
+        which the *response itself* overflows (709). In that band the
+        response is finite but dlogp is NaN for ordinary raw-spend
+        parameters.
+        """
+        # x = kappa: the EC50 anchor; the slope component of dlogp is
+        # (y - mu) * dmu/dslope, and dmu/dslope = 0 exactly at x = kappa.
+        grads = raw_spend_dlogp(kappa, slope, kappa)
+        assert np.isfinite(grads).all(), f"dlogp is NaN at ({slope=}, {kappa=})"
+        np.testing.assert_allclose(grads[0], 0.0, atol=1e-9)
 
     @pytest.mark.parametrize(
         "x_dims",

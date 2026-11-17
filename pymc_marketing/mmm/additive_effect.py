@@ -138,6 +138,7 @@ Example: multi-granularity media and controls
     from pymc_marketing.mmm.media_transformation import MediaTransformation
 
     # X is an xr.Dataset with:
+    #   media:              (date, product, geo, channel)
     #   media_product:      (date, product, product-channel)
     #   media_geo:          (date, geo, geo-channel)
     #   control_national:   (date,)
@@ -209,7 +210,8 @@ coefficients.
 """
 
 from abc import ABC, abstractmethod
-from typing import Annotated, Any, Literal, Protocol
+from collections.abc import Iterable
+from typing import Annotated, Any, Literal, Protocol, Self, get_args
 
 import numpy as np
 import numpy.typing as npt
@@ -224,16 +226,27 @@ from pydantic import (
     ConfigDict,
     Field,
     InstanceOf,
+    StrictBool,
     StrictInt,
+    StringConstraints,
+    field_validator,
+    model_validator,
 )
 from pymc_extras.prior import Prior, VariableFactory
 from pytensor.xtensor.type import XTensorVariable
 
+from pymc_marketing.mmm.estimand_label import PathEffect
 from pymc_marketing.mmm.events import EventEffect, days_from_reference
 from pymc_marketing.mmm.fourier import FourierBase
 from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.media_transformation import MediaTransformation
+from pymc_marketing.mmm.optimization_variables import (
+    reject_missing_coords,
+    reject_unknown_coords,
+)
 from pymc_marketing.mmm.validating import _validate_non_numeric_dtype
+from pymc_marketing.names import Key
+from pymc_marketing.names.mmm import Dim, IncrementalityResult, effect_contribution_name
 from pymc_marketing.serialization import SerializableBaseModel, serialization
 
 
@@ -320,7 +333,7 @@ def _get_datetime_coords(
         The converted datetime index
     """
     # Skip validation for non-date coordinates (e.g., numeric "time" indices)
-    validate = coord_name == "date"
+    validate = coord_name == Dim.DATE
     return safe_to_datetime(coords, coord_name, validate_non_numeric=validate)
 
 
@@ -364,6 +377,127 @@ CarryoverLags = Annotated[
 ]
 """A non-negative window length, tolerant of NumPy integers but not of ``bool``."""
 
+RESERVED_MEDIATOR_NAMES = frozenset(
+    {
+        *get_args(PathEffect),
+        IncrementalityResult.SPEND_CHANGE,
+        IncrementalityResult.INDUCED_SPEND,
+        IncrementalityResult.COMPLETE,
+        "chain",
+        "draw",
+        Dim.DATE,
+        Dim.CHANNEL,
+    }
+)
+"""Names an incrementality result already uses for a variable, a dimension or a coordinate.
+
+The paths of an increment name the variables of a decomposition, next to the
+names in :class:`~pymc_marketing.names.mmm.IncrementalityResult`.
+"""
+
+
+class MediatorSpec(BaseModel):
+    r"""A node of an effect that a spend counterfactual moves, and how to report it.
+
+    Declared in :attr:`IncrementalitySpec.mediators`.  A node is a registered
+    ``Deterministic`` that sits between spend and the term the effect adds to
+    the linear predictor: latent demand in a funnel, or the lower-funnel spend
+    that demand induces.  Declaring it does two things.
+    :class:`~pymc_marketing.mmm.incrementality.Incrementality` can report how far
+    a counterfactual moves it, and for an effect whose ``role`` is
+    ``"mediator"`` the nodes mark where every route from spend into the
+    effect's term is cut.
+
+    The effect has to read the registered variable and not the expression it
+    was registered from: write ``hub = pmd.Deterministic(...)`` and build the
+    next line on ``hub``.
+
+    .. note::
+
+        Provisional.  The fields may change once structural effects
+        (issue #2901) settle their node vocabulary.  Building the
+        declaration in :meth:`MuEffect.incrementality_spec` from fields the
+        effect already saves keeps a saved model independent of this class.
+
+    Parameters
+    ----------
+    name : str
+        What users pass and what results are labelled with.  A Python
+        identifier, since it becomes a variable of a result ``Dataset``, and
+        none of the names a result already uses.  It names one variable in the
+        whole model, so an effect that can be added more than once puts its
+        prefix in the name.
+    variable : str
+        Name of the registered ``Deterministic`` in the model.  For its
+        movement to be reported it has to be registered through ``pymc.dims``
+        and be numeric.
+    units : str, optional
+        What a movement is reported in.  Required when ``scale`` is not one or
+        ``is_spend`` is set.
+    scale : float, default 1.0
+        Reported units per model unit.  A movement is multiplied by it before
+        it is summed.  One number: a node scaled differently per geo has to be
+        modelled in its reported units.
+    is_spend : bool, default False
+        Whether the reported movement is money in the currency of channel
+        spend, which is what admits it to the denominator of a ratio.  The
+        author's claim: nothing in the model can verify it.
+
+    Examples
+    --------
+    A spend node tied to observed lower-funnel spend by a likelihood with a
+    unit coefficient:
+
+    .. code-block:: python
+
+        MediatorSpec(
+            name="lf_spend",
+            variable=f"{self.prefix}_spend",
+            units="USD",
+            is_spend=True,
+        )
+
+    A mediator in normalized units, reported in impressions:
+
+    .. code-block:: python
+
+        MediatorSpec(
+            name="sem",
+            variable=f"{self.prefix}_mediator",
+            units="impressions",
+            scale=self.impressions_scale,
+        )
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid", validate_assignment=True)
+
+    name: Annotated[str, StringConstraints(pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")]
+    variable: Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
+    units: (
+        Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)] | None
+    ) = None
+    scale: Annotated[float, Field(strict=True, gt=0, allow_inf_nan=False)] = 1.0
+    is_spend: StrictBool = False
+
+    @model_validator(mode="after")
+    def _reported_quantities_have_units(self) -> Self:
+        if self.name in RESERVED_MEDIATOR_NAMES:
+            raise ValueError(
+                f"The mediator name {self.name!r} is reserved: a result already "
+                f"uses {sorted(RESERVED_MEDIATOR_NAMES)}."
+            )
+        if self.is_spend and self.units is None:
+            raise ValueError(
+                f"The mediator {self.name!r} is declared as spend, so 'units' "
+                "has to name its currency."
+            )
+        if self.scale != 1.0 and self.units is None:
+            raise ValueError(
+                f"The mediator {self.name!r} is rescaled, so 'units' has to "
+                "name what it is reported in."
+            )
+        return self
+
 
 class IncrementalitySpec(BaseModel):
     r"""Declaration that an effect may take part in incrementality analysis.
@@ -393,7 +527,13 @@ class IncrementalitySpec(BaseModel):
         Left at ``None`` it is measured.  A declared value is allowed to be
         *larger* than the measured reach (a wider window only costs compute) but
         a smaller one is rejected, since it would silently truncate the mediated
-        tail and understate the increment.
+        tail and understate the increment.  It also speaks for the nodes in
+        ``mediators``, also when the effect's own term does not read spend:
+        where no probe can be placed, a node is taken to move for the model's
+        kernel plus the widest value the effects that declare it declare, or
+        plus the widest value any effect that reads spend declares, if that is
+        wider.  A node none of its effects declares one for has no period
+        marked ``complete``.
     evaluation_mode : {"auto", "window", "full"}, default="auto"
         How much of the date axis the effect needs to see to be evaluated
         correctly.  ``"window"`` is the cheap case: the effect propagates spend
@@ -403,6 +543,27 @@ class IncrementalitySpec(BaseModel):
         over ``date``, such as a normalisation by ``x.mean("date")`` -- because
         such an effect takes a different value on a truncated axis.  ``"auto"``
         measures which of the two applies.
+    role : {"mediator", "direct"}, optional
+        What the term this effect adds to the linear predictor is, for a
+        request that separates the direct path from the mediated one
+        (``paths="direct"`` or ``"mediated"``).
+
+        - ``"mediator"``: spend reaches the term only through the nodes
+          declared in ``mediators``.  The term is then held at its factual
+          value in a direct effect.  At least one node has to be declared.
+        - ``"direct"``: the term is one more direct function of spend, such as
+          a synergy between channels or a normalization.  It is never held.
+        - ``None``: nothing is claimed.  Totals work, and a request for a
+          path is refused with the effect's name.
+
+        The role is the author's causal claim.  The graph cannot prove it, but
+        it can contradict it, and a path request checks that it does not: a
+        ``"mediator"`` term that spend also reaches past its nodes, or a
+        ``"direct"`` term that reads a declared node, is refused.
+    mediators : tuple of MediatorSpec, default ()
+        Nodes of the effect to report, and for a ``"mediator"`` the nodes its
+        term is built from.  Their order carries no meaning: they are kept
+        sorted by name.
 
     Examples
     --------
@@ -424,12 +585,69 @@ class IncrementalitySpec(BaseModel):
                 return IncrementalitySpec(
                     additional_carryover_lags=self.demand_transform.adstock.l_max
                 )
+
+    Declare the funnel as a mediator, with the demand hub and the lower-funnel
+    spend it induces, so that direct and mediated increments can be asked for
+    and the induced spend can enter a ROAS denominator:
+
+    .. code-block:: python
+
+        class FunnelEffect(DataVarMuEffect):
+            def incrementality_spec(self) -> IncrementalitySpec:
+                return IncrementalitySpec(
+                    role="mediator",
+                    mediators=(
+                        MediatorSpec(name="demand", variable=f"{self.prefix}_hub"),
+                        MediatorSpec(
+                            name="lf_spend",
+                            variable=f"{self.prefix}_spend",
+                            units="USD",
+                            is_spend=True,
+                        ),
+                    ),
+                )
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid", validate_assignment=True)
 
     additional_carryover_lags: CarryoverLags | None = None
     evaluation_mode: Literal["auto", "window", "full"] = "auto"
+    role: Literal["mediator", "direct"] | None = None
+    mediators: tuple[MediatorSpec, ...] = ()
+
+    @field_validator("mediators")
+    @classmethod
+    def _canonical_mediators(
+        cls, mediators: tuple[MediatorSpec, ...]
+    ) -> tuple[MediatorSpec, ...]:
+        names = [mediator.name for mediator in mediators]
+        variables = [mediator.variable for mediator in mediators]
+        for label, values in (("names", names), ("variables", variables)):
+            repeated = sorted({value for value in values if values.count(value) > 1})
+            if repeated:
+                raise ValueError(
+                    f"Mediators need distinct {label}; repeated: {repeated}."
+                )
+        crossed = sorted(
+            mediator.name
+            for mediator in mediators
+            if mediator.name in variables and mediator.name != mediator.variable
+        )
+        if crossed:
+            raise ValueError(
+                f"The mediator names {crossed} are another mediator's variable."
+            )
+        return tuple(sorted(mediators, key=lambda mediator: mediator.name))
+
+    @model_validator(mode="after")
+    def _a_mediator_names_its_nodes(self) -> Self:
+        if self.role == "mediator" and not self.mediators:
+            raise ValueError(
+                "role='mediator' says spend reaches the effect's term only "
+                "through nodes the effect declares, so 'mediators' needs at "
+                "least one of them."
+            )
+        return self
 
 
 class MuEffect(SerializableBaseModel, ABC):
@@ -437,7 +655,25 @@ class MuEffect(SerializableBaseModel, ABC):
 
     All mu_effects must inherit from this Pydantic BaseModel to ensure proper
     serialization and deserialization when saving/loading MMM models.
+    A subclass is saved under its fully-qualified class path by default;
+    register a stable key with
+    ``serialization.register("my_package.MyEffect", MyEffect)`` so that saved
+    models still load after the module defining it moves.
     """
+
+    @property
+    def supports_new_dates(self) -> bool:
+        """Whether the effect can be evaluated on dates other than the fitted ones.
+
+        ``True`` by default. An effect whose contribution exists only on the dates
+        the MMM was fitted on overrides this property to return ``False``. Each of
+        these then raises a ``NotImplementedError`` naming the effect:
+        :meth:`MMM.sample_posterior_predictive` and :meth:`MMM.predict` on any other
+        set of dates, and time-slice cross-validation, before it fits the first
+        fold. The budget optimizer refuses an objective that reaches a frozen path
+        over ``date`` instead, see :attr:`frozen_deterministics`.
+        """
+        return True
 
     @abstractmethod
     def create_data(self, mmm: Model) -> None:
@@ -473,7 +709,7 @@ class MuEffect(SerializableBaseModel, ABC):
             raise NotImplementedError(
                 f"{type(self).__name__} must define 'contribution_var_name'."
             )
-        return f"{prefix}_effect_contribution"
+        return effect_contribution_name(prefix)
 
     def incrementality_spec(self) -> IncrementalitySpec | None:
         """Opt this effect in to spend-counterfactual incrementality analysis.
@@ -486,14 +722,40 @@ class MuEffect(SerializableBaseModel, ABC):
 
         The default returns ``None``, which is correct for every effect whose
         contribution does not depend on ``channel_data``: such an effect belongs
-        to the baseline, is unaffected by the counterfactual, and is skipped
-        without ever consulting this method.  An effect that *does* depend on
-        ``channel_data`` and returns ``None`` raises ``NotImplementedError``
+        to the baseline and is unaffected by the counterfactual, and a total
+        skips it without consulting this method.  An effect that *does* depend
+        on ``channel_data`` and returns ``None`` raises ``NotImplementedError``
         rather than being silently dropped from the increment.
+
+        A request that reads roles or mediator nodes -- ``paths="direct"`` or
+        ``"mediated"``, ``compute_incremental_mediator``, ``induced_spend`` and
+        :attr:`~pymc_marketing.mmm.incrementality.Incrementality.mediators` --
+        calls this method on every ``mu_effect``, also on one whose term does
+        not read spend, since such an effect may declare a node spend drives.
+        An exception raised here then propagates from the request, and a value
+        that is not a valid :class:`IncrementalitySpec` is refused with a
+        ``ValueError``.
 
         Opting in costs one line -- ``return IncrementalitySpec()`` -- because
         the spec's fields are overrides for quantities that are otherwise
         measured from the graph.
+
+        Opting in does not make a path propagate.  The counterfactual is
+        evaluated conditioned on the posterior, where a random variable keeps
+        its draws whatever spend is, so a mediator written as
+        ``Normal(f(spend), sigma)`` cuts the path that runs through it, and
+        incrementality refuses the model by naming the variable.  Write such a
+        mediator as a deterministic function of spend plus a noise term that
+        does not depend on spend, and list a date-indexed noise term in
+        :attr:`frozen_deterministics`.
+
+        A ``pm.Potential`` is not a spend path.  It adds a term to the
+        log-probability but does not make a variable a function of spend, so
+        a variable tied to spend only through a Potential keeps its draws in
+        the counterfactual and is not refused on that account.  This is right
+        for a soft constraint, such as a ROAS calibration prior on a
+        saturation parameter.  For a mediator, use the deterministic form
+        above.
 
         Returns
         -------
@@ -505,6 +767,61 @@ class MuEffect(SerializableBaseModel, ABC):
         IncrementalitySpec : What has to be declared, and why.
         """
         return None
+
+    @property
+    def frozen_deterministics(self) -> list[str]:
+        """Names of deterministics to take from the posterior rather than recompute.
+
+        :attr:`MMM.frozen_deterministics` collects them from every effect. Posterior
+        predictive sampling, incrementality, sensitivity sweeps and budget
+        optimization then substitute the posterior draws of these deterministics
+        instead of recomputing them from the graph.
+
+        The default is empty, which is right for an effect whose contribution is a
+        function of its parameters and data. Override the property for a
+        contribution that is a latent path over the fitted dates, such as a random
+        walk or a Gaussian process, which should be taken from the posterior as the
+        MMM's HSGP terms are. A frozen deterministic no longer responds to the
+        channel data, so never freeze one that depends on them: incrementality
+        refuses a model in which one stands between spend and the linear predictor.
+
+        A frozen deterministic with a ``date`` dimension is a path over the fitted
+        dates. Posterior predictive sampling and sensitivity sweeps handle it on
+        those dates, and incrementality on any window, because the counterfactual
+        evaluation cuts it to each period's window as it cuts the data. The budget
+        optimizer refuses any objective that reaches a frozen path over ``date``; an
+        effect that freezes one should also override ``supports_new_dates`` to
+        return ``False``, so that prediction on other dates is refused.
+        """
+        return []
+
+    def check_scenario_use(self, mmm: Model) -> None:
+        """Warn if this effect misreads the placeholder spend of budget scenarios.
+
+        Called before the budget optimizer sets scenario data on the model.
+        The default does nothing; override it in effects whose configuration
+        suits evaluation but not scenarios.
+
+        Parameters
+        ----------
+        mmm : MMM
+            The MMM model instance.
+        """
+
+    def check_lift_tests(self, mmm: Model, df_lift_test: pd.DataFrame) -> None:
+        """Warn if lift tests added to the MMM overlap data this effect uses.
+
+        Called by :meth:`MMM.add_lift_test_measurements` before the lift
+        likelihood is added. The default does nothing; override it in effects
+        that already use the same experiments, so they are not counted twice.
+
+        Parameters
+        ----------
+        mmm : MMM
+            The MMM model instance.
+        df_lift_test : pd.DataFrame
+            The lift tests being added.
+        """
 
     def idata_groups(self) -> dict[str, xr.Dataset]:
         """Return supplementary data groups to store in DataTree.
@@ -522,6 +839,52 @@ class MuEffect(SerializableBaseModel, ABC):
             Group name to xarray Dataset mapping.
         """
         return {}
+
+    def __eq__(self, other: object) -> bool:
+        """Compare two effects by their serialized form and ``idata_groups``.
+
+        Pydantic's default ``__eq__`` compares ``model_dump()`` dicts, which
+        raises for array-like fields such as a ``pd.DataFrame`` because their
+        ``==`` is elementwise. The serialized form is JSON-safe, and data an
+        effect persists outside it is compared through ``idata_groups()``.
+        """
+        if not isinstance(other, MuEffect):
+            return NotImplemented
+        if self.__class__ is not other.__class__:
+            return False
+        if serialization.serialize(self) != serialization.serialize(other):
+            return False
+        self_groups, other_groups = self.idata_groups(), other.idata_groups()
+        return self_groups.keys() == other_groups.keys() and all(
+            self_groups[name].equals(other_groups[name]) for name in self_groups
+        )
+
+
+def fitted_dates_only_effects(effects: Iterable[Any]) -> list[tuple[str, Any]]:
+    """Return the effects that take only the dates the MMM was fitted on, with names.
+
+    Such an effect sets ``supports_new_dates`` to ``False``. A duck-typed effect that
+    does not declare it takes any dates.
+
+    Parameters
+    ----------
+    effects : iterable
+        The MMM's mu effects.
+
+    Returns
+    -------
+    list of tuple of (str, object)
+        A name and the effect, for each such effect in ``effects``. The name is the
+        effect's class, followed by its ``prefix`` when it has one.
+    """
+    named = []
+    for effect in effects:
+        if getattr(effect, "supports_new_dates", True):
+            continue
+        name = type(effect).__name__
+        prefix = getattr(effect, "prefix", None)
+        named.append((name if prefix is None else f"{name} {prefix!r}", effect))
+    return named
 
 
 class DataVarMuEffect(MuEffect, ABC):
@@ -594,6 +957,14 @@ class DataVarMuEffect(MuEffect, ABC):
     def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
         """Update ``pm.Data`` variables from a new prediction dataset.
 
+        Each variable of ``data_vars`` present in ``X`` is written in the dim
+        order of its ``pm.Data`` node, so the layout of the variable in *X* does
+        not matter; a node registered without ``dims`` is written as *X* lays it
+        out. On every dim other than ``date`` that carries labels in both ``X``
+        and the model, the values are matched to the model's coordinates by
+        label, so those labels may run in any order. Other dims are written by
+        position. Variables absent from ``X`` keep their current values.
+
         Parameters
         ----------
         mmm : Model
@@ -602,10 +973,29 @@ class DataVarMuEffect(MuEffect, ABC):
             The PyMC model.
         X : xr.Dataset
             The new prediction dataset.
+
+        Raises
+        ------
+        ValueError
+            If a variable in ``X`` has dim labels the model does not have, or
+            lacks labels the model has.
         """
         for var_name in self.data_vars:
-            if var_name in X.data_vars:
-                pm.set_data({var_name: X[var_name].values}, model=model)
+            if var_name not in X.data_vars:
+                continue
+            da = X[var_name]
+            if dims := model.named_vars_to_dims.get(var_name):
+                da = da.transpose(*dims)
+            coords = {
+                dim: np.asarray(model.coords[dim]).tolist()
+                for dim in da.dims
+                if dim != Dim.DATE
+                and dim in da.indexes
+                and model.coords.get(dim) is not None
+            }
+            reject_unknown_coords(da, coords, label=repr(var_name))
+            reject_missing_coords(da, coords, label=repr(var_name))
+            pm.set_data({var_name: da.reindex(coords).values}, model=model)
 
 
 class MediaMuEffect(DataVarMuEffect):
@@ -619,7 +1009,8 @@ class MediaMuEffect(DataVarMuEffect):
     media_transformation : MediaTransformation
         Transformation combining adstock and saturation with configurable order.
         Its ``dims`` must include the channel dimension plus any extra dims
-        (e.g. ``("product", "channel")``).
+        (e.g. ``("product", "channel")``). Adstock and saturation priors
+        without explicit ``dims`` get these dims, i.e. one parameter per cell.
     channel_dim : str, optional
         Name of the channel dimension to aggregate over.
         Default is ``"channel"``.
@@ -669,9 +1060,9 @@ class MediaMuEffect(DataVarMuEffect):
         """
         var_name = self.data_vars[0]
         data = mmm.model[var_name]
-        effect = self.media_transformation(data, dim="date")
+        effect = self.media_transformation(data, dim=Dim.DATE)
         return pmd.Deterministic(
-            f"{self.prefix}_effect_contribution",
+            effect_contribution_name(self.prefix),
             effect.sum(dim=self.channel_dim),
         )
 
@@ -687,7 +1078,7 @@ class MediaMuEffect(DataVarMuEffect):
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "MediaMuEffect":
         """Reconstruct from a dict."""
-        work = {k: v for k, v in data.items() if k != "__type__"}
+        work = {k: v for k, v in data.items() if k != Key.TYPE}
         return cls(
             data_vars=work["data_vars"],
             channel_dim=work.get("channel_dim", "channel"),
@@ -740,11 +1131,11 @@ class ControlMuEffect(DataVarMuEffect):
             contributions.append(data * coef)
         total = sum(contributions)
         # Sum over any dims not in {"date", *mmm.dims} (e.g. "control")
-        extra_dims = [d for d in set(total.dims) if d not in {"date", *mmm.dims}]
+        extra_dims = [d for d in set(total.dims) if d not in {Dim.DATE, *mmm.dims}]
         if extra_dims:
             total = total.sum(dim=extra_dims)
         return pmd.Deterministic(
-            f"{self.prefix}_effect_contribution",
+            effect_contribution_name(self.prefix),
             total,
         )
 
@@ -761,9 +1152,9 @@ class ControlMuEffect(DataVarMuEffect):
         """Reconstruct from a dict."""
         from pymc_extras.deserialize import deserialize
 
-        work = {k: v for k, v in data.items() if k != "__type__"}
+        work = {k: v for k, v in data.items() if k != Key.TYPE}
         prior_data = work["prior"]
-        if "__type__" in prior_data:
+        if Key.TYPE in prior_data:
             prior = serialization.deserialize(prior_data)
         else:
             prior = deserialize(prior_data)
@@ -797,9 +1188,9 @@ class FourierEffect(MuEffect):
         """Reconstruct from a dict, using registry for nested Fourier type."""
         from pymc_marketing.serialization import serialization
 
-        work = {k: v for k, v in data.items() if k != "__type__"}
+        work = {k: v for k, v in data.items() if k != Key.TYPE}
         fourier_data = work["fourier"]
-        if "__type__" in fourier_data:
+        if Key.TYPE in fourier_data:
             fourier = serialization.deserialize(fourier_data)
         else:
             from pymc_extras.deserialize import deserialize
@@ -995,6 +1386,7 @@ class LinearTrendEffect(MuEffect):
     prefix: str
     date_dim_name: str = Field("date")
     linear_trend_first_date: Any = Field(default=None, exclude=True)
+    linear_trend_last_date: Any = Field(default=None, exclude=True)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a dict. ``__type__`` is injected by the registry wrapper."""
@@ -1009,9 +1401,9 @@ class LinearTrendEffect(MuEffect):
         """Reconstruct from a dict, using registry for nested LinearTrend."""
         from pymc_marketing.serialization import serialization
 
-        work = {k: v for k, v in data.items() if k != "__type__"}
+        work = {k: v for k, v in data.items() if k != Key.TYPE}
         trend_data = work["trend"]
-        if "__type__" in trend_data:
+        if Key.TYPE in trend_data:
             trend = serialization.deserialize(trend_data)
         else:
             from pymc_extras.deserialize import deserialize
@@ -1043,6 +1435,7 @@ class LinearTrendEffect(MuEffect):
             model.coords[self.date_dim_name], self.date_dim_name
         )
         self.linear_trend_first_date = dates[0]
+        self.linear_trend_last_date = dates.max()
         t = (dates - self.linear_trend_first_date).days.astype(float)
 
         pmd.Data(f"{self.prefix}_t", t, dims=self.date_dim_name)
@@ -1066,12 +1459,16 @@ class LinearTrendEffect(MuEffect):
         t_name = f"{self.prefix}_t"
         t = model[t_name]
 
-        t_max = t.max()
-        t = t / ptx.math.switch(t_max > 0, t_max, 1)
-        trend_effect = self.trend.apply(t)
+        # Scale by the training span, fixed when the model is built. The
+        # maximum of the data would follow ``set_data`` to the prediction
+        # dates, which must instead map past 1 so that the trend continues
+        # from the last changepoint (#1569, #3298).
+        t_max = float((self.linear_trend_last_date - self.linear_trend_first_date).days)
+        scale = t_max if t_max > 0 else 1.0
+        trend_effect = self.trend.apply(t / scale, t_max=t_max / scale)
 
         return pmd.Deterministic(
-            f"{self.prefix}_effect_contribution",
+            effect_contribution_name(self.prefix),
             trend_effect,
         )
 
@@ -1276,7 +1673,7 @@ def _deserialize_event_additive_effect(
         ) from e
 
     effect_data = data["effect"]
-    if "__type__" in effect_data:
+    if Key.TYPE in effect_data:
         effect = serialization.deserialize(effect_data)
     else:
         effect = EventEffect.from_dict(effect_data.get("data", effect_data))

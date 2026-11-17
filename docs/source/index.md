@@ -11,18 +11,6 @@ og:description: "PyMC-Marketing is an open-source Python library for Bayesian Ma
 
 :::::{div} pm-home-intro
 
-:::{image} _static/marketing-logo-dark.jpg
-:align: center
-:class: only-dark
-:width: 160px
-:::
-
-:::{image} _static/marketing-logo-light.jpg
-:align: center
-:class: only-light
-:width: 160px
-:::
-
 PyMC-Marketing is an open-source Python library for Bayesian marketing analytics, built and maintained by [PyMC Labs](https://www.pymc-labs.com). It provides production-ready implementations of Marketing Mix Modeling (MMM) and Customer Lifetime Value (CLV) models, enabling data scientists to measure media effectiveness, optimize marketing spend, and forecast customer value — all with full Bayesian uncertainty quantification. Whether you call it marketing mix modeling or media mix modeling, PyMC-Marketing is the most comprehensive open-source MMM solution available in Python.
 
 :::::
@@ -34,17 +22,25 @@ Work with **PyMC Labs, the team behind PyMC-Marketing**, on marketing mix modeli
 
 ::::{div} pm-project-actions
 
-:::{div} pm-project-guidance
-[Speak to one of our team](https://calendly.com/niall-oulton) · {ref}`What should I include in a brief? <prepare-your-brief>`
-
-An existing RFP or a few sentences about your business question is enough to start.
-:::
-
 :::{button-ref} project-brief
 :color: primary
-:class: pm-rfp-button
+:class: pm-cta-button
 
 Submit an RFP
+:::
+
+:::{button-link} https://calendly.com/niall-oulton
+:color: primary
+:class: pm-cta-button
+
+Book a call
+:::
+
+:::{button-link} https://www.pymc-labs.com/contact
+:color: primary
+:class: pm-cta-button
+
+Contact PyMC Labs
 :::
 ::::
 :::::
@@ -287,24 +283,29 @@ For more videos, webinars and resources, check out the [PyMC Labs YouTube channe
 
 #### Marketing Mix Models
 
-- [Unobserved Confounders, ROAS and Lift Tests in Media Mix Models](https://www.pymc-labs.com/blog-posts/mmm_roas_lift/)
+- [Marketing Mix Modeling: A Complete Guide](https://www.pymc-labs.com/blog-posts/marketing-mix-modeling-a-complete-guide)
+- [Unobserved Confounders, ROAS and Lift Tests in Media Mix Models](https://www.pymc-labs.com/blog-posts/mmm_roas_lift)
 - [MMM Explainer App: Dynamic and Interactive Visualization of Key MMM Concepts](https://pymc-marketing-app.streamlit.app/)
+
+#### Agentic Data Science
+
+- [Trustworthy Agentic Data Science](https://www.pymc-labs.com/services/agentic-data-science)
 
 #### Customer Lifetime Value
 
-- [Hierarchical Customer Lifetime Value Models](https://www.pymc-labs.com/blog-posts/hierarchical_clv/)
-- [Customer Lifetime Value in the non-contractual continuous case: The Bayesian Pareto NBD Model](https://www.pymc-labs.com/blog-posts/pareto-nbd/)
-- [Cohort Revenue & Retention Analysis](https://www.pymc-labs.com/blog-posts/cohort-revenue-retention/)
+- [Hierarchical Customer Lifetime Value Models](https://www.pymc-labs.com/blog-posts/hierarchical_clv)
+- [Customer Lifetime Value in the non-contractual continuous case: The Bayesian Pareto NBD Model](https://www.pymc-labs.com/blog-posts/pareto-nbd)
+- [Cohort Revenue & Retention Analysis](https://www.pymc-labs.com/blog-posts/cohort-revenue-retention)
 
 ### Case Studies
 
-- [Building an in-house marketing analytics solution](https://www.pymc-labs.com/blog-posts/2023-07-18-niall-In-house-marketing/)
-- [Bayesian Media Mix Models: Modelling changes in marketing effectiveness over time](https://www.pymc-labs.com/blog-posts/modelling-changes-marketing-effectiveness-over-time/)
-- [Improving the Speed and Accuracy of Bayesian Media Mix Models](https://www.pymc-labs.com/blog-posts/reducing-customer-acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget/)
-- [Bayesian Media Mix Modeling for Marketing Optimization](https://www.pymc-labs.com/blog-posts/bayesian-media-mix-modeling-for-marketing-optimization/)
-- [Bayesian inference at scale: Running A/B tests with millions of observations](https://www.pymc-labs.com/blog-posts/bayesian-inference-at-scale-running-ab-tests-with-millions-of-observations/)
+- [Building an in-house marketing analytics solution](https://www.pymc-labs.com/blog-posts/2023-07-18-niall-In-house-marketing)
+- [Bayesian Media Mix Models: Modelling changes in marketing effectiveness over time](https://www.pymc-labs.com/blog-posts/modelling-changes-marketing-effectiveness-over-time)
+- [Improving the Speed and Accuracy of Bayesian Media Mix Models](https://www.pymc-labs.com/blog-posts/reducing-customer-acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget)
+- [Bayesian Media Mix Modeling for Marketing Optimization](https://www.pymc-labs.com/blog-posts/bayesian-media-mix-modeling-for-marketing-optimization)
+- [Bayesian inference at scale: Running A/B tests with millions of observations](https://www.pymc-labs.com/blog-posts/bayesian-inference-at-scale-running-ab-tests-with-millions-of-observations)
 
-For more blogposts and resources, check out the [PyMC Labs Blog](https://www.pymc-labs.com/blog-posts/).
+For more blogposts and resources, check out the [PyMC Labs Blog](https://www.pymc-labs.com/blog-posts).
 
 
 ## Frequently Asked Questions
@@ -347,7 +348,31 @@ Yes. PyMC-Marketing includes built-in [budget optimization](https://www.pymc-mar
 
 ## Need help with PyMC-Marketing?
 
-[Submit an RFP or project brief](project-brief.md), or [speak to one of our team](https://calendly.com/niall-oulton).
+Talk to the team behind PyMC-Marketing about marketing mix modeling, customer lifetime value, model review, training or implementation support.
+
+::::{div} pm-project-actions pm-closing-cta
+
+:::{button-ref} project-brief
+:color: primary
+:class: pm-cta-button
+
+Submit an RFP
+:::
+
+:::{button-link} https://calendly.com/niall-oulton
+:color: primary
+:class: pm-cta-button
+
+Book a call
+:::
+
+:::{button-link} https://www.pymc-labs.com/contact
+:color: primary
+:class: pm-cta-button
+
+Contact PyMC Labs
+:::
+::::
 
 :::{toctree}
 :hidden:
