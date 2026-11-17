@@ -1163,9 +1163,7 @@ class TestPeriodEdgeCases:
         [
             (ConvMode.After, False, slice(5, 10)),
             (ConvMode.After, True, slice(5, None)),
-            (ConvMode.Before, False, slice(1, 6)),
-            (ConvMode.Before, True, slice(None, 6)),
-            (ConvMode.Overlap, False, slice(4, 8)),
+            (ConvMode.Before, True, slice(None)),
             (ConvMode.Overlap, True, slice(None)),
         ],
     )
@@ -1201,6 +1199,19 @@ class TestPeriodEdgeCases:
         ).eval()
 
         assert contribution[window.in_eval].sum() == pytest.approx(weights.sum())
+
+    @pytest.mark.parametrize("mode", [ConvMode.Before, ConvMode.Overlap], ids=str)
+    def test_a_window_with_carryover_needs_a_forward_kernel(self, mode):
+        """A windowed sum under a non-``After`` mode would cut forward carryover."""
+        dates = pd.date_range("2023-01-02", freq="W-MON", periods=11)
+        with pytest.raises(ValueError, match=r"needs ConvMode\.After"):
+            EvaluationWindows.build(
+                periods=[(dates[5], dates[5])],
+                dates=dates,
+                l_max=4,
+                freq_offset=pd.tseries.frequencies.to_offset("W-MON"),
+                mode=mode,
+            )
 
     def test_carryover_is_dropped_from_the_mask_but_not_from_the_window(self):
         """``include_carryover=False`` narrows the mask and leaves the window.
