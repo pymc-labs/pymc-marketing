@@ -89,11 +89,26 @@ class ScheduleRows:
     def refuse_invalid_schedule(
         self, rate_tolerance: float, reference_rate: float | None
     ) -> None:
-        """Refuse what is not a schedule.
+        """Raise if the rows are not a schedule.
 
         Run at construction and again on the resolved cells: ``frozen`` stops a field being reassigned, but the
         declaration holds the caller's dict or ``DataArray``, which can still be mutated in place. Counts are
         checked where both arrays are given, on the rows that have multipliers.
+
+        Parameters
+        ----------
+        rate_tolerance : float
+            How far from 1 a multiplier may be, as a factor either way, and still read as a ratio of two rates.
+        reference_rate : float or None
+            The rate the base price stands for, quoted in the message about a far multiplier; ``None`` when the
+            declaration has none.
+
+        Raises
+        ------
+        ValueError
+            If a row has ``nan`` before a value, a multiplier that is not positive and finite, breakpoints that are
+            not non-negative, finite and strictly ascending, a multiplier count that is not its breakpoint count
+            plus one, or a multiplier further from 1 than ``rate_tolerance``.
         """
         self._refuse_inner_nan()
         self._refuse_bad_multipliers()
@@ -102,16 +117,24 @@ class ScheduleRows:
         self._refuse_far_multipliers(rate_tolerance, reference_rate)
 
     def bracket_counts(self) -> np.ndarray:
-        """Return the number of brackets per row."""
+        """Return the number of brackets per row.
+
+        Returns
+        -------
+        np.ndarray
+            Shape ``(rows,)``: the count of non-``nan`` multipliers in each row.
+        """
         return (~np.isnan(self.multipliers)).sum(axis=1)
 
-    def _cells(self, bad: np.ndarray) -> str:
+    def _format_row_names(self, bad: np.ndarray) -> str:
+        """Return the names of the first five flagged rows for a message, with ``...`` when there are more."""
         rows = np.flatnonzero(bad)
         return (
             f"{[self.name(int(i)) for i in rows[:5]]}{', ...' if rows.size > 5 else ''}"
         )
 
     def _refuse_inner_nan(self) -> None:
+        """Raise if a row of either array has ``nan`` before a value."""
         for what, values in (
             ("breakpoints", self.breakpoints),
             ("rate_multipliers", self.multipliers),
@@ -122,20 +145,22 @@ class ScheduleRows:
             gap = (~present[:, :-1] & present[:, 1:]).any(axis=1)
             if gap.any():
                 raise ValueError(
-                    f"{self.label}: {what} on {self._cells(gap)} has nan before a value along {Dim.BRACKET!r}. "
-                    "nan pads a cell with fewer brackets, so nan may only trail."
+                    f"{self.label}: {what} on {self._format_row_names(gap)} has nan before a value along "
+                    f"{Dim.BRACKET!r}. nan pads a cell with fewer brackets, so nan may only trail."
                 )
 
     def _refuse_bad_multipliers(self) -> None:
+        """Raise if a multiplier is not positive and finite."""
         r = self.multipliers
         bad = (~np.isnan(r) & ~(np.isfinite(r) & (r > 0.0))).any(axis=1)
         if bad.any():
             raise ValueError(
-                f"{self.label}: rate_multipliers on {self._cells(bad)} must be positive and finite: each is the "
-                "price of a unit in its bracket relative to the base price."
+                f"{self.label}: rate_multipliers on {self._format_row_names(bad)} must be positive and finite: "
+                "each is the price of a unit in its bracket relative to the base price."
             )
 
     def _refuse_bad_breakpoints(self) -> None:
+        """Raise if breakpoints are not non-negative, finite and strictly ascending."""
         b = self.breakpoints
         if b is None:
             return
@@ -144,11 +169,12 @@ class ScheduleRows:
         bad |= (present[:, 1:] & ~(b[:, 1:] > b[:, :-1])).any(axis=1)
         if bad.any():
             raise ValueError(
-                f"{self.label}: breakpoints on {self._cells(bad)} must be non-negative, finite and strictly "
-                "ascending: each is where a bracket ends, in budget units."
+                f"{self.label}: breakpoints on {self._format_row_names(bad)} must be non-negative, finite and "
+                "strictly ascending: each is where a bracket ends, in budget units."
             )
 
     def _refuse_mismatched_counts(self) -> None:
+        """Raise if a row with multipliers does not have one more multiplier than breakpoints."""
         if self.breakpoints is None:
             return
         n_breakpoints = (~np.isnan(self.breakpoints)).sum(axis=1)
@@ -157,7 +183,7 @@ class ScheduleRows:
         if wrong.any():
             first = int(np.flatnonzero(wrong)[0])
             raise ValueError(
-                f"{self.label}: one multiplier per bracket: {self._cells(wrong)} have breakpoints and "
+                f"{self.label}: one multiplier per bracket: {self._format_row_names(wrong)} have breakpoints and "
                 f"multipliers that do not match ({n_breakpoints[first]} breakpoints and {n_multipliers[first]} "
                 "multipliers on the first). len(rate_multipliers) must be len(breakpoints) + 1."
             )
@@ -165,6 +191,7 @@ class ScheduleRows:
     def _refuse_far_multipliers(
         self, rate_tolerance: float, reference_rate: float | None
     ) -> None:
+        """Raise if a multiplier is further from 1 than ``rate_tolerance`` allows a ratio of two rates to be."""
         r = self.multipliers
         far = ~np.isnan(r) & ((r > rate_tolerance) | (r < 1.0 / rate_tolerance))
         rows = far.any(axis=1)
@@ -180,9 +207,9 @@ class ScheduleRows:
             f"{worst / reference_rate:g}."
         )
         raise ValueError(
-            f"{self.label}: rate_multipliers on {self._cells(rows)} include {worst:g}, which is too far from 1 "
-            f"to be a ratio of two rates (rate_tolerance={rate_tolerance:g}). Multipliers are ratios to the base "
-            "price, cost_per_unit: an absolute rate goes in cost_per_unit, or is divided by the rate the base "
+            f"{self.label}: rate_multipliers on {self._format_row_names(rows)} include {worst:g}, which is too far "
+            f"from 1 to be a ratio of two rates (rate_tolerance={rate_tolerance:g}). Multipliers are ratios to the "
+            "base price, cost_per_unit: an absolute rate goes in cost_per_unit, or is divided by the rate the base "
             f"stands for.{division} Raise rate_tolerance if the ratio is meant."
         )
 
@@ -192,6 +219,16 @@ def objective_scale_from_gradient(grad: np.ndarray) -> float:
 
     ``allocate_budget`` divides the objective by it, so that SLSQP's absolute ``ftol`` is relative to the steepest
     marginal response; the passes measure their progress against the same scale.
+
+    Parameters
+    ----------
+    grad : np.ndarray
+        The objective's gradient at the start of the solve.
+
+    Returns
+    -------
+    float
+        The largest absolute entry of ``grad`` when it is finite and above one, else 1.0.
     """
     steepest = float(np.max(np.abs(grad), initial=0.0))
     return steepest if np.isfinite(steepest) and steepest > 1.0 else 1.0
@@ -227,7 +264,37 @@ def entries_leaving_breakpoints(
     - costs are divided by the largest absolute cost among the open directions that improve, so a steep entry
       held on its bound does not shrink the others' costs below HiGHS's tolerances.
 
-    Returns ``None`` when HiGHS reports anything but an optimum.
+    Parameters
+    ----------
+    right : np.ndarray
+        Shape ``(n,)``: the objective's gradient with every entry on the piece above it, the slope of moving up.
+    left : np.ndarray
+        Shape ``(n,)``: the objective's gradient with every entry on the piece below it, the slope of moving down.
+    x : np.ndarray
+        Shape ``(n,)``: the flat plan the directions start from.
+    low : np.ndarray
+        Shape ``(n,)``: each entry's lower bound, ``-inf`` where open.
+    high : np.ndarray
+        Shape ``(n,)``: each entry's upper bound, ``inf`` where open.
+    pinned : np.ndarray
+        Shape ``(n,)``, bool: the entries held on a breakpoint, the only ones the answer can name.
+    equalities : sequence of np.ndarray
+        The Jacobian row of every equality constraint at ``x``; a direction keeps each at zero.
+    active_inequalities : sequence of np.ndarray
+        The Jacobian row of every inequality constraint active at ``x``; a direction may only grow each.
+    size : np.ndarray
+        Shape ``(n,)``: each entry's size, against which closeness to a bound is measured.
+    rtol : float, default 1e-9
+        How close, relative to ``size``, an entry is to a bound it cannot move past.
+    tolerance : float, default 1e-4
+        The share of its own slope each direction is charged, so only a relative gain above about twice it counts.
+
+    Returns
+    -------
+    tuple of (np.ndarray, np.ndarray) or None
+        Two bool arrays of shape ``(n,)``: the pinned entries that would leave their breakpoint upwards, and those
+        that would leave it downwards; both all ``False`` when no direction improves. ``None`` when HiGHS reports
+        anything but an optimum.
     """
     n = x.size
     # HiGHS's feasibility tolerances, and the optimum below which the program reports a gain.
@@ -310,36 +377,70 @@ def _direction_constraints(
 class PiecewisePlan:
     """A solve's plan, with the linear piece of the price map each entry is on.
 
-    ``x`` is the plan with every pinned entry on its knot; a pinned entry's piece is that knot at both ends.
-    ``newly`` marks the entries this solve left at a knot without holding them there, which a closing solve holds
-    with both bounds. ``value`` and ``grad`` are the objective's on the exact map; a failed solve has ``inf``
-    and a zero gradient, and is never compared.
+    A failed solve has ``value`` ``inf`` and a zero ``grad``, and is never compared.
+
+    Attributes
+    ----------
+    result : OptimizeResult
+        The solve the plan comes from.
+    x : np.ndarray
+        The flat plan, with every pinned entry on its knot.
+    piece_low : np.ndarray
+        The low end of each entry's piece; a pinned entry's piece is its knot at both ends.
+    piece_high : np.ndarray
+        The high end of each entry's piece.
+    new_arrivals : np.ndarray
+        Bool: the entries this solve left at a knot without holding them there, which a closing solve holds with
+        both bounds.
+    value : float
+        The objective at ``x`` on the exact map.
+    grad : np.ndarray
+        The objective's gradient at ``x`` on the exact map.
     """
 
     result: OptimizeResult
     x: np.ndarray
     piece_low: np.ndarray
     piece_high: np.ndarray
-    newly: np.ndarray
+    new_arrivals: np.ndarray
     value: float
     grad: np.ndarray
 
     @property
-    def closed(self) -> bool:
+    def all_arrivals_held(self) -> bool:
         """Whether every entry the solve left at a knot was held there by its bounds."""
-        return not self.newly.any()
+        return not self.new_arrivals.any()
 
     @property
-    def held(self) -> np.ndarray:
+    def held_on_knot(self) -> np.ndarray:
         """Which entries are held on a knot: their piece is a single point."""
         return self.piece_low == self.piece_high
 
-    def spans(self, low: np.ndarray, high: np.ndarray) -> bool:
-        """Whether every piece is the whole box, so no breakpoint is in any entry's way."""
+    def spans_whole_box(self, low: np.ndarray, high: np.ndarray) -> bool:
+        """Return whether every piece is the whole box, so no breakpoint is in any entry's way.
+
+        Parameters
+        ----------
+        low : np.ndarray
+            Each entry's lower bound, ``-inf`` where open.
+        high : np.ndarray
+            Each entry's upper bound, ``inf`` where open.
+
+        Returns
+        -------
+        bool
+            ``True`` when every piece reaches both of its entry's bounds.
+        """
         return not np.any((self.piece_low > low) | (self.piece_high < high))
 
-    def bounds(self) -> Bounds:
-        """Return the pieces as SciPy bounds, ``None`` where open."""
+    def piece_bounds(self) -> Bounds:
+        """Return the pieces as SciPy bounds.
+
+        Returns
+        -------
+        Bounds
+            One ``(low, high)`` pair per entry, ``None`` where the piece is open.
+        """
         return [
             (
                 float(lo) if np.isfinite(lo) else None,
@@ -353,8 +454,21 @@ class PiecewisePlan:
 class SettleRun:
     """The state of one :meth:`BreakpointSettler.settle` call.
 
-    ``solves`` holds every solve, the first one first, for the summed counts; ``best`` the successful pass with the
-    lowest objective on the exact map; ``previous`` the objective the progress rule last compared with.
+    Parameters
+    ----------
+    first : OptimizeResult
+        The solve with breakpoints blended that the run settles.
+    max_passes : int
+        The settler's ``max_passes``, quoted in the warning of an unsettled run.
+
+    Attributes
+    ----------
+    solves : list of OptimizeResult
+        Every solve, the first one first, for the summed counts.
+    best : PiecewisePlan or None
+        The successful pass with the lowest objective on the exact map, ``None`` before the first.
+    previous : float
+        The objective the progress rule last compared with, ``inf`` before the first comparison.
     """
 
     first: OptimizeResult
@@ -367,29 +481,66 @@ class SettleRun:
         """Start the list of solves with the first one."""
         self.solves = [self.first]
 
-    def track(self, plan: PiecewisePlan) -> PiecewisePlan:
+    def keep_if_best(self, plan: PiecewisePlan) -> PiecewisePlan:
         """Keep a pass if its objective is the lowest so far, and return the best pass.
 
-        Only successful passes get here: :meth:`BreakpointSettler._next` and ``_held`` return ``None`` for a failed
-        solve, whose ``value`` is ``inf``.
+        Only successful passes get here: :meth:`BreakpointSettler._solve_on_pieces` and ``_snap_held_plan_to_knots``
+        return ``None`` for a failed solve, whose ``value`` is ``inf``.
+
+        Parameters
+        ----------
+        plan : PiecewisePlan
+            A successful pass.
+
+        Returns
+        -------
+        PiecewisePlan
+            The pass with the lowest objective so far, ``plan`` included.
         """
         best = self.best
         if best is None or plan.value < best.value:
             self.best = best = plan
         return best
 
-    def stalled(self, plan: PiecewisePlan, tolerance: float) -> bool:
-        """Apply the progress rule: whether letting entries go since the last check bought less than ``tolerance``."""
+    def progress_stalled(self, plan: PiecewisePlan, tolerance: float) -> bool:
+        """Return whether letting entries go since the last check bought less than ``tolerance``.
+
+        This is the progress rule; it records ``plan``'s objective as the one the next check compares with.
+
+        Parameters
+        ----------
+        plan : PiecewisePlan
+            The pass just checked.
+        tolerance : float
+            The objective decrease below which the passes made no progress.
+
+        Returns
+        -------
+        bool
+            ``True`` when ``plan``'s objective is above the previous one less ``tolerance``.
+        """
         stalled = plan.value > self.previous - tolerance
         self.previous = plan.value
         return stalled
 
-    def finish(
+    def finish_run(
         self, status: BreakpointStatus, plan: PiecewisePlan | None = None
     ) -> OptimizeResult:
         """Return the plan's result, else the best pass's, else the first solve's, recorded with ``status``.
 
         Without a plan the run did not settle, and a successful result says so with a warning.
+
+        Parameters
+        ----------
+        status : BreakpointStatus
+            How the passes ended.
+        plan : PiecewisePlan, optional
+            The settled plan; ``None`` when the run did not settle.
+
+        Returns
+        -------
+        OptimizeResult
+            The chosen result, as :meth:`with_run_record` records it.
         """
         chosen = plan or self.best
         result = self.first if chosen is None else chosen.result
@@ -401,15 +552,28 @@ class SettleRun:
                 UserWarning,
                 skip_file_prefixes=(_PKG_PREFIX,),
             )
-        return self.recorded(result, status)
+        return self.with_run_record(result, status)
 
-    def recorded(
+    def with_run_record(
         self, result: OptimizeResult, status: BreakpointStatus
     ) -> OptimizeResult:
         """Return a copy of ``result`` with the counts summed over every solve and its ``breakpoint_status``.
 
         Every result the passes return goes through here, so this is the one place the status is written. The
         solves themselves are left as they were.
+
+        Parameters
+        ----------
+        result : OptimizeResult
+            The result to return.
+        status : BreakpointStatus
+            How the passes ended, written as ``breakpoint_status``.
+
+        Returns
+        -------
+        OptimizeResult
+            A copy of ``result`` whose ``nit``, ``nfev`` and ``njev`` are summed over every solve when there was
+            more than one.
         """
         record = OptimizeResult(dict(result))
         if len(self.solves) > 1:
@@ -452,6 +616,12 @@ class BreakpointSettler:
     rtol : float
         How close, relative, an entry is to the bound or breakpoint that holds it, and a constraint value to
         zero, when SLSQP leaves them; it leaves about ``8e-10``. Default ``1e-9``.
+
+    Attributes
+    ----------
+    size : np.ndarray
+        Each flat entry's size, computed at construction: ``total_budget`` for money, and for a lever the largest
+        absolute value among its finite bounds, at least 1.
     """
 
     variables: OptimizationVariables
@@ -478,6 +648,18 @@ class BreakpointSettler:
 
         The plan is the first solve's, on a map with its breakpoints blended, so a cell near a breakpoint may sit
         off it.
+
+        Parameters
+        ----------
+        first : OptimizeResult
+            The solve with breakpoints blended.
+        method : object
+            The ``method`` the caller's ``minimize_kwargs`` ask for, quoted in the warning.
+
+        Returns
+        -------
+        OptimizeResult
+            A copy of ``first`` with ``breakpoint_status`` ``"skipped"``.
         """
         warnings.warn(
             "allocate_budget: the plan was not settled on its breakpoints. The exact passes that return a cell on "
@@ -486,7 +668,7 @@ class BreakpointSettler:
             UserWarning,
             skip_file_prefixes=(_PKG_PREFIX,),
         )
-        return SettleRun(first, self.max_passes).recorded(first, "skipped")
+        return SettleRun(first, self.max_passes).with_run_record(first, "skipped")
 
     def settle(self, first: OptimizeResult) -> OptimizeResult:
         """Settle ``first``, the solve with breakpoints blended, and return the plan with its status.
@@ -496,22 +678,32 @@ class BreakpointSettler:
         pass failed, the check could not be solved, the passes ran out, a plan held on every knot breaks a constraint
         there, or no solve succeeded. An unsettled plan is the best successful pass, else ``first``, with a warning
         when it succeeded. ``nit``, ``nfev`` and ``njev`` are summed over every solve.
+
+        Parameters
+        ----------
+        first : OptimizeResult
+            The solve with every breakpoint inside the bounds blended.
+
+        Returns
+        -------
+        OptimizeResult
+            The settled plan's result, or the best one found, with ``breakpoint_status`` and the summed counts.
         """
         run = SettleRun(first, self.max_passes)
-        plan = self._arrive(
+        plan = self._plan_from_solve(
             first, *self.variables.linear_piece_bounds(first.x, self.low, self.high)
         )
-        if plan.spans(self.low, self.high):
+        if plan.spans_whole_box(self.low, self.high):
             # Nothing was blended and no entry is on a breakpoint: the first solve was on the exact map.
-            return run.finish("certified" if first.success else "unsettled", plan)
+            return run.finish_run("certified" if first.success else "unsettled", plan)
         for index in range(1, self.max_passes + 1):
-            step = self._step(run, plan, index)
+            step = self._run_pass_and_check(run, plan, index)
             if isinstance(step, OptimizeResult):
                 return step
             plan = step
-        return run.finish("unsettled")
+        return run.finish_run("unsettled")
 
-    def _step(
+    def _run_pass_and_check(
         self, run: SettleRun, plan: PiecewisePlan, index: int
     ) -> PiecewisePlan | OptimizeResult:
         """Run one pass and its check: return the plan the next pass solves, or the finished result.
@@ -519,106 +711,108 @@ class BreakpointSettler:
         When nothing would leave but the pass left new arrivals, the next pass holds them with both bounds and
         checks again; on the last pass that hold runs here instead, one solve past ``max_passes``.
         """
-        solved = self._next(run, plan, index)
+        solved = self._solve_on_pieces(run, plan, index)
         if solved is None:
-            return run.finish("unsettled")
-        best = run.track(solved)
-        leaving = self._leaving(solved)
+            return run.finish_run("unsettled")
+        best = run.keep_if_best(solved)
+        leaving = self._entries_that_would_leave(solved)
         if leaving is None:
-            return run.finish("unsettled")
+            return run.finish_run("unsettled")
         up, down = leaving
         if not (up | down).any():
-            if solved.closed:
-                return run.finish("certified", solved)
+            if solved.all_arrivals_held:
+                return run.finish_run("certified", solved)
             if index < self.max_passes:
                 return solved
-            return self._hold_last_arrivals(run, solved, index + 1)
-        if run.stalled(solved, self._progress_tolerance(solved.grad)):
-            closed = self._close(run, best, index + 1)
-            return run.finish("settled", closed) if closed else run.finish("unsettled")
-        return self._released(solved, up, down)
+            return self._certify_held_last_pass(run, solved, index + 1)
+        if run.progress_stalled(solved, self._progress_tolerance(solved.grad)):
+            held = self._solve_until_arrivals_held(run, best, index + 1)
+            return (
+                run.finish_run("settled", held) if held else run.finish_run("unsettled")
+            )
+        return self._release_entries(solved, up, down)
 
-    def _hold_last_arrivals(
+    def _certify_held_last_pass(
         self, run: SettleRun, plan: PiecewisePlan, index: int
     ) -> OptimizeResult:
         """Hold the new arrivals of the last pass and certify the held plan if nothing would leave it."""
-        held = self._close(run, plan, index)
+        held = self._solve_until_arrivals_held(run, plan, index)
         if held is None:
-            return run.finish("unsettled")
-        run.track(held)
-        leaving = self._leaving(held)
+            return run.finish_run("unsettled")
+        run.keep_if_best(held)
+        leaving = self._entries_that_would_leave(held)
         if leaving is None or (leaving[0] | leaving[1]).any():
-            return run.finish("unsettled")
-        return run.finish("certified", held)
+            return run.finish_run("unsettled")
+        return run.finish_run("certified", held)
 
-    def _next(
+    def _solve_on_pieces(
         self, run: SettleRun, plan: PiecewisePlan, index: int
     ) -> PiecewisePlan | None:
         """Solve on the plan's pieces, or put every entry on its knot when all are held; ``None`` on failure."""
-        if plan.held.all():
-            return self._held(plan)
+        if plan.held_on_knot.all():
+            return self._snap_held_plan_to_knots(plan)
         start = np.clip(plan.x, plan.piece_low, plan.piece_high)
         with self.variables.conditioned_on(plan.piece_low, plan.piece_high):
-            result = self.solve(start, plan.bounds(), index)
+            result = self.solve(start, plan.piece_bounds(), index)
         run.solves.append(result)
         if not result.success:
             return None
-        return self._arrive(result, plan.piece_low, plan.piece_high)
+        return self._plan_from_solve(result, plan.piece_low, plan.piece_high)
 
-    def _held(self, plan: PiecewisePlan) -> PiecewisePlan | None:
-        """Every entry is held, so no solve is left: return the plan on its knots, or ``None`` if they are infeasible.
+    def _snap_held_plan_to_knots(self, plan: PiecewisePlan) -> PiecewisePlan | None:
+        """Return the plan on its knots when every entry is held, or ``None`` if the knots are infeasible.
 
-        SciPy answers bounds that fix every variable without running SLSQP, and accepts them only if every
-        constraint holds to the last bit, so the knots are checked here within ``rtol``. When they fail, the run
-        ends unsettled: a check on the knots would certify a point the result does not hold. The result keeps the
-        last solve's ``multipliers`` and counts.
+        Every entry is held, so no solve is left. SciPy answers bounds that fix every variable without running
+        SLSQP, and accepts them only if every constraint holds to the last bit, so the knots are checked here within
+        ``rtol``. When they fail, the run ends unsettled: a check on the knots would certify a point the result does
+        not hold. The result keeps the last solve's ``multipliers`` and counts.
         """
         knots = plan.piece_low.copy()
-        if not plan.result.success or not self._feasible(knots):
+        if not plan.result.success or not self._constraints_hold_at(knots):
             return None
         result = OptimizeResult({**plan.result, "x": knots})
-        value, grad = self._evaluated(result)
+        value, grad = self._exact_objective_and_gradient(result)
         return replace(
             plan,
             result=result,
             x=knots,
-            newly=np.zeros(knots.size, dtype=bool),
+            new_arrivals=np.zeros(knots.size, dtype=bool),
             value=value,
             grad=grad,
         )
 
-    def _close(
+    def _solve_until_arrivals_held(
         self, run: SettleRun, plan: PiecewisePlan, index: int
     ) -> PiecewisePlan | None:
         """Hold the entries a plan's solve left at a knot, solving again until none is left.
 
         It may use one solve past ``max_passes``, so a run whose progress rule fires on the last pass still closes.
         """
-        while not plan.closed and index <= self.max_passes + 1:
-            following = self._next(run, plan, index)
+        while not plan.all_arrivals_held and index <= self.max_passes + 1:
+            following = self._solve_on_pieces(run, plan, index)
             if following is None:
                 return None
             plan, index = following, index + 1
-        return plan if plan.closed else None
+        return plan if plan.all_arrivals_held else None
 
-    def _arrive(
+    def _plan_from_solve(
         self, result: OptimizeResult, piece_low: np.ndarray, piece_high: np.ndarray
     ) -> PiecewisePlan:
         """Build the plan of a solve on the given pieces, pinning the entries it left at a breakpoint end."""
         x = np.asarray(result.x, dtype="float64")
-        pin, knot = self._pins(x, piece_low, piece_high)
-        value, grad = self._evaluated(result)
+        pin, knot = self._entries_at_breakpoint_ends(x, piece_low, piece_high)
+        value, grad = self._exact_objective_and_gradient(result)
         return PiecewisePlan(
             result=result,
             x=np.where(pin, knot, x),
             piece_low=np.where(pin, knot, piece_low),
             piece_high=np.where(pin, knot, piece_high),
-            newly=pin,
+            new_arrivals=pin,
             value=value,
             grad=grad,
         )
 
-    def _pins(
+    def _entries_at_breakpoint_ends(
         self, x: np.ndarray, piece_low: np.ndarray, piece_high: np.ndarray
     ) -> tuple[np.ndarray, np.ndarray]:
         """Return which entries sit at an end of their piece that is a breakpoint, and that end.
@@ -641,7 +835,9 @@ class BreakpointSettler:
         )
         return top | bottom, np.where(top, piece_high, piece_low)
 
-    def _evaluated(self, result: OptimizeResult) -> tuple[float, np.ndarray]:
+    def _exact_objective_and_gradient(
+        self, result: OptimizeResult
+    ) -> tuple[float, np.ndarray]:
         """Return the objective and gradient at a result's plan on the exact map; ``inf`` for a failed solve."""
         if not result.success:
             return np.inf, np.zeros(np.size(result.x))
@@ -654,24 +850,26 @@ class BreakpointSettler:
             objective_scale_from_gradient(grad) if self.rescale else 1.0
         )
 
-    def _leaving(self, plan: PiecewisePlan) -> tuple[np.ndarray, np.ndarray] | None:
+    def _entries_that_would_leave(
+        self, plan: PiecewisePlan
+    ) -> tuple[np.ndarray, np.ndarray] | None:
         """Ask :func:`entries_leaving_breakpoints` which held entries would gain by leaving their breakpoint."""
         right, left = self._one_sided_gradients(plan.x)
-        equalities, active = self._constraint_rows(plan.x)
+        equalities, active = self._equality_and_active_jacobians(plan.x)
         return entries_leaving_breakpoints(
             right=right,
             left=left,
             x=plan.x,
             low=self.low,
             high=self.high,
-            pinned=plan.held & (self.low < self.high),
+            pinned=plan.held_on_knot & (self.low < self.high),
             equalities=equalities,
             active_inequalities=active,
             size=self.size,
             rtol=self.rtol,
         )
 
-    def _released(
+    def _release_entries(
         self, plan: PiecewisePlan, up: np.ndarray, down: np.ndarray
     ) -> PiecewisePlan:
         """Give the entries the check lets go the piece on the side that gains."""
@@ -702,10 +900,10 @@ class BreakpointSettler:
             left = np.asarray(self.objective_and_grad(x)[1], dtype="float64")
         return right, left
 
-    def _constraint_rows(
+    def _equality_and_active_jacobians(
         self, x: np.ndarray
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
-        """Jacobians of every equality, and of every inequality active at ``x``.
+        """Return the Jacobians of every equality, and of every inequality active at ``x``.
 
         An inequality is active when its value is below ``rtol`` of what moving every entry across its size would
         move it by. A ``Constraint`` compiles to a scalar, so each is one row.
@@ -715,16 +913,16 @@ class BreakpointSettler:
             jacobian = np.asarray(constraint["jac"](x), dtype="float64").reshape(-1)
             if constraint["type"] == "eq":
                 equalities.append(jacobian)
-            elif float(constraint["fun"](x)) <= self._slack(jacobian):
+            elif float(constraint["fun"](x)) <= self._constraint_tolerance(jacobian):
                 active.append(jacobian)
         return equalities, active
 
-    def _feasible(self, x: np.ndarray) -> bool:
-        """Whether every constraint holds at ``x`` to within :meth:`_slack`."""
+    def _constraints_hold_at(self, x: np.ndarray) -> bool:
+        """Return whether every constraint holds at ``x`` to within :meth:`_constraint_tolerance`."""
         for constraint in self.constraints:
             jacobian = np.asarray(constraint["jac"](x), dtype="float64").reshape(-1)
             value = np.asarray(constraint["fun"](x), dtype="float64")
-            slack = self._slack(jacobian)
+            slack = self._constraint_tolerance(jacobian)
             violated = (
                 np.abs(value) > slack if constraint["type"] == "eq" else value < -slack
             )
@@ -732,12 +930,12 @@ class BreakpointSettler:
                 return False
         return True
 
-    def _slack(self, jacobian: np.ndarray) -> float:
+    def _constraint_tolerance(self, jacobian: np.ndarray) -> float:
         """Return ``rtol`` of what moving every entry across its size would move a constraint by."""
         return self.rtol * float(np.abs(jacobian) @ self.size)
 
     def _entry_sizes(self) -> np.ndarray:
-        """Each flat entry's size: ``total_budget`` for money, and for a lever its largest finite bound.
+        """Return each flat entry's size: ``total_budget`` for money, and for a lever its largest finite bound.
 
         A lever's bounds are in its own units, so the budget is no measure of how far it can move; its size is the
         largest absolute value among its finite bounds, at least 1, and 1 when it has none.
