@@ -4010,6 +4010,21 @@ class TestExactPasses:
         assert result.scipy_result["breakpoint_status"] == "settled"
         assert result.budgets.sel(channel="a").item() == 4.0
 
+    def test_arrivals_on_the_last_pass_are_still_held(self, monkeypatch):
+        """A pass that leaves a cell at its breakpoint, with nothing that would gain by
+        leaving, needs one more solve to hold it there. On the last pass the limit allows
+        that solve still runs, so the plan is certified with the cell on its breakpoint."""
+        monkeypatch.setattr(
+            budget_optimizer_module,
+            "BreakpointSettler",
+            partial(BreakpointSettler, max_passes=1),
+        )
+        with warnings.catch_warnings():
+            warnings.filterwarnings("error", message=".*not settled.*")
+            result = _hand_optimizer(A_ON_FOUR).allocate_budget(total_budget=9.0)
+        assert result.scipy_result["breakpoint_status"] == "certified"
+        assert result.budgets.sel(channel="a").item() == 4.0
+
     def test_knots_that_break_a_constraint_leave_the_plan_unsettled(self):
         """Every entry is held, but a constraint fails at the knots: they are neither
         returned nor certified, and the run ends unsettled on the last solve's plan."""

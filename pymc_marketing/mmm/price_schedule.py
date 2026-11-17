@@ -511,7 +511,11 @@ class BreakpointSettler:
     def _step(
         self, run: SettleRun, plan: PiecewisePlan, index: int
     ) -> PiecewisePlan | OptimizeResult:
-        """Run one pass and its check: return the plan the next pass solves, or the finished result."""
+        """Run one pass and its check: return the plan the next pass solves, or the finished result.
+
+        When nothing would leave but the pass left new arrivals, the next pass holds them with both bounds and
+        checks again; on the last pass that hold runs here instead, one solve past ``max_passes``.
+        """
         solved = self._next(run, plan, index)
         if solved is None:
             return run.finish("unsettled")
@@ -521,12 +525,28 @@ class BreakpointSettler:
             return run.finish("unsettled")
         up, down = leaving
         if not (up | down).any():
-            # An open plan goes round once more, so a closing pass holds its new arrivals with both bounds.
-            return run.finish("certified", solved) if solved.closed else solved
+            if solved.closed:
+                return run.finish("certified", solved)
+            if index < self.max_passes:
+                return solved
+            return self._hold_last_arrivals(run, solved, index + 1)
         if run.stalled(solved, self._progress_tolerance(solved.grad)):
             closed = self._close(run, best, index + 1)
             return run.finish("settled", closed) if closed else run.finish("unsettled")
         return self._released(solved, up, down)
+
+    def _hold_last_arrivals(
+        self, run: SettleRun, plan: PiecewisePlan, index: int
+    ) -> OptimizeResult:
+        """Hold the new arrivals of the last pass and certify the held plan if nothing would leave it."""
+        held = self._close(run, plan, index)
+        if held is None:
+            return run.finish("unsettled")
+        run.track(held)
+        leaving = self._leaving(held)
+        if leaving is None or (leaving[0] | leaving[1]).any():
+            return run.finish("unsettled")
+        return run.finish("certified", held)
 
     def _next(
         self, run: SettleRun, plan: PiecewisePlan, index: int
