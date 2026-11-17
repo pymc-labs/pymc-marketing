@@ -121,7 +121,7 @@ class MediaTransform(GraphTerm):
         parameters = self._parameters(
             context, tuple(dim for dim in dims if dim != Dim.DATE)
         )
-        result = self.transformation.function(value, dim="date", **parameters)
+        result = self.transformation.function(value, dim=Dim.DATE, **parameters)
         return result.transpose(*dims, ...)
 
     def _parameters(
@@ -181,7 +181,7 @@ class FourierTerm(GraphTerm):
             raise ValueError(
                 "Fourier seasonality requires a date dimension in the dataset."
             )
-        context._ensure_dims(("date",))
+        context._ensure_dims((Dim.DATE,))
         fourier = self.fourier.model_copy(
             update={"prior": context._recipe(self.fourier.prior)}
         )
@@ -191,8 +191,8 @@ class FourierTerm(GraphTerm):
         )
         data_name = f"_{fourier.prefix}_dayofperiod"
         context._claim_name(data_name, self)
-        dates = _dates(context.ds.coords["date"].values)
+        dates = _dates(context.ds.coords[Dim.DATE].values)
         days = pmd.Data(
-            data_name, fourier._get_days_in_period(dates).to_numpy(), dims="date"
+            data_name, fourier._get_days_in_period(dates).to_numpy(), dims=Dim.DATE
         )
         return fourier.apply(days)

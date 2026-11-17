@@ -477,8 +477,8 @@ class SCM:
             raise ValueError(
                 "Temporal history requires a date dimension in training and prediction data."
             )
-        old_dates = pd.DatetimeIndex(training["date"].values)
-        new_dates = pd.DatetimeIndex(data["date"].values)
+        old_dates = pd.DatetimeIndex(training[Dim.DATE].values)
+        new_dates = pd.DatetimeIndex(data[Dim.DATE].values)
         if len(old_dates) < 2:
             raise ValueError(
                 "At least two training dates are needed to infer a prediction cadence."
@@ -511,7 +511,7 @@ class SCM:
         )
         combined = xr.concat(
             [history, data],
-            dim="date",
+            dim=Dim.DATE,
             data_vars="minimal",
             coords="minimal",
             compat="override",
@@ -602,8 +602,8 @@ class SCM:
             )
         for name in keep:
             if Dim.DATE in posterior[name].dims:
-                dates = data.get_index("date")
-                fitted_dates = posterior.get_index("date")
+                dates = data.get_index(Dim.DATE)
+                fitted_dates = posterior.get_index(Dim.DATE)
                 if not dates.isin(fitted_dates).all():
                     raise ValueError(
                         f"Parameter {name!r} needs an Equation to predict new dates."

@@ -209,7 +209,7 @@ class DecompositionPlots:
 
         if "channels" in contributions_ds:
             ch_da = contributions_ds["channels"]
-            for ch in ch_da.coords["channel"].values:
+            for ch in ch_da.coords[Dim.CHANNEL].values:
                 entries_ds[f"channel={ch}"] = _select_dims(
                     ch_da.sel(channel=ch), dims, allow_missing=True
                 )
@@ -223,7 +223,7 @@ class DecompositionPlots:
             ctrl_da = contributions_ds["controls"]
             # sum over the control dim → single time-series
             entries_ds["controls"] = _select_dims(
-                ctrl_da.sum(dim="control"), dims, allow_missing=True
+                ctrl_da.sum(dim=Dim.CONTROL), dims, allow_missing=True
             )
 
         if "seasonality" in contributions_ds:
@@ -304,8 +304,8 @@ class DecompositionPlots:
 
         for ds_key, coord_dim in [
             ("baseline", None),
-            ("channels", "channel"),
-            ("controls", "control"),
+            ("channels", Dim.CHANNEL),
+            ("controls", Dim.CONTROL),
             ("seasonality", None),
         ]:
             if ds_key not in contributions_ds:

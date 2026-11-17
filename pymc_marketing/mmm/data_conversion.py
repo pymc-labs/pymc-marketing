@@ -272,9 +272,9 @@ def _(X, /, **params) -> xr.Dataset:
     # so the two have to agree (#3139). The DataFrame branch does the same.
     channel_columns = params["channel_columns"]
     control_columns = params.get("control_columns") or None
-    _validate_coord_labels(X, "channel", channel_columns)
+    _validate_coord_labels(X, Dim.CHANNEL, channel_columns)
     if control_columns is not None:
-        _validate_coord_labels(X, "control", control_columns)
+        _validate_coord_labels(X, Dim.CONTROL, control_columns)
     return _reindex_to_user_order(X, channel_columns, control_columns)
 
 
@@ -293,13 +293,13 @@ def _(X, /, **params) -> xr.Dataset:
 
     datasets = []
     channel_ds = _pandas_to_xarray_dataarray(
-        X, date_column, dims, channel_columns, "channel"
+        X, date_column, dims, channel_columns, Dim.CHANNEL
     )
     datasets.append(channel_ds)
 
     if control_columns:
         control_ds = _pandas_to_xarray_dataarray(
-            X, date_column, dims, control_columns, "control"
+            X, date_column, dims, control_columns, Dim.CONTROL
         )
         datasets.append(control_ds)
 
@@ -340,12 +340,12 @@ def _(y, /) -> xr.DataArray:
 def _(y, /) -> xr.DataArray:
     if isinstance(y.index, pd.MultiIndex):
         return y.to_xarray()
-    return xr.DataArray(y.values, dims=("date",))
+    return xr.DataArray(y.values, dims=(Dim.DATE,))
 
 
 @_to_mmm_target.register(np.ndarray)
 def _(y, /) -> xr.DataArray:
-    return xr.DataArray(y, dims=("date",))
+    return xr.DataArray(y, dims=(Dim.DATE,))
 
 
 def _reshape_flat_target(
@@ -372,8 +372,8 @@ def _reshape_flat_target(
     y_df = pd.DataFrame(
         {DatasetVar.TARGET: y_da.values, **{col: X[col].values for col in idx_cols}}
     )
-    y_df = y_df.rename(columns={date_column: "date"})
-    index_cols = ["date", *dim_cols]
+    y_df = y_df.rename(columns={date_column: Dim.DATE})
+    index_cols = [Dim.DATE, *dim_cols]
     y_df = y_df.drop_duplicates(subset=index_cols, keep="first")
     return y_df.set_index(index_cols).sort_index().to_xarray()[DatasetVar.TARGET]
 
@@ -470,13 +470,13 @@ def _process_dataframe(
     df_long = df_long.drop_duplicates(
         subset=[date_column, *valid_dims, metric_coordinate_name]
     )
-    df_long = df_long.rename(columns={date_column: "date"})
+    df_long = df_long.rename(columns={date_column: Dim.DATE})
     if valid_dims:
         ds = df_long.set_index(
-            ["date", *valid_dims, metric_coordinate_name]
+            [Dim.DATE, *valid_dims, metric_coordinate_name]
         ).to_xarray()
     else:
-        ds = df_long.set_index(["date", metric_coordinate_name]).to_xarray()
+        ds = df_long.set_index([Dim.DATE, metric_coordinate_name]).to_xarray()
     return ds.reindex({metric_coordinate_name: valid_metrics})
 
 
@@ -535,12 +535,12 @@ def _pandas_columns_to_dataarrays(
         )
 
     dim_cols = [dim for dim in dims if dim in data.columns]
-    index_cols = ["date", *dim_cols]
+    index_cols = [Dim.DATE, *dim_cols]
     result: dict[str, xr.DataArray] = {}
     for name in column_names:
         pivot = data[[date_column, *dim_cols, name]].drop_duplicates(
             subset=[date_column, *dim_cols], keep="first"
         )
-        pivot = pivot.rename(columns={date_column: "date"})
+        pivot = pivot.rename(columns={date_column: Dim.DATE})
         result[name] = pivot.set_index(index_cols).sort_index()[name].to_xarray()
     return result
