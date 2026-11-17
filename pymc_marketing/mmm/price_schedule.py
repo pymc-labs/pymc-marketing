@@ -59,7 +59,7 @@ __all__ = [
     "objective_scale_from_gradient",
 ]
 
-Bounds = list[tuple[float | None, float | None]]
+type Bounds = list[tuple[float | None, float | None]]
 """SciPy bounds of every flat entry, ``None`` where open."""
 BreakpointStatus = Literal["certified", "settled", "unsettled", "skipped"]
 """How the passes of :class:`BreakpointSettler` ended, recorded as ``scipy_result["breakpoint_status"]``."""
