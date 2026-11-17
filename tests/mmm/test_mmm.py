@@ -49,6 +49,7 @@ from pymc_marketing.mmm.additive_effect import (
     ControlMuEffect,
     DataVarMuEffect,
     EventAdditiveEffect,
+    IncrementalitySpec,
     LinearTrendEffect,
     MediaMuEffect,
     MuEffect,
@@ -3432,6 +3433,60 @@ def test_monthly_incrementality_does_not_blame_a_variable_for_another_failure(
         mmm.incrementality.compute_incremental_contribution(frequency="monthly")
 
     assert "level_draws" not in str(raised.value)
+
+
+class _ScaledByDateLevelEffect(_ZeroEffect):
+    """A free random variable over the dates that scales the channel contribution."""
+
+    prefix: str = "scaled"
+    freeze: bool = False
+
+    def incrementality_spec(self) -> IncrementalitySpec:
+        """Opt in: the effect reads the channel contribution."""
+        return IncrementalitySpec()
+
+    @property
+    def frozen_deterministics(self) -> list[str]:
+        """The free random variable itself, when asked to freeze it."""
+        return [f"{self.prefix}_level"] if self.freeze else []
+
+    def create_effect(self, mmm):
+        """The channel contribution, times one free value per date."""
+        level = pmd.Normal(f"{self.prefix}_level", mu=1.0, sigma=0.5, dims="date")
+        contribution = mmm.model["channel_contribution"].sum("channel")
+        return pmd.Deterministic(self.contribution_var_name, level * contribution)
+
+
+@pytest.mark.parametrize("freeze", [False, True], ids=["unfrozen", "frozen"])
+def test_yearly_incrementality_on_a_variable_that_scales_spend(
+    mock_pymc_sample, freeze
+):
+    """The first year's window spans every fitted date, so no shape fails.
+
+    Unfrozen, the second year would read the variable from the first fitted date
+    instead of its own, so the request is refused.  Frozen, it is cut to each
+    window and evaluates.
+    """
+    from tests.mmm.conftest import _make_mmm_data
+
+    data = _make_mmm_data(periods=18, freq="MS", n_channels=3, seed=99)
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        adstock=GeometricAdstock(l_max=6),
+        saturation=LogisticSaturation(),
+    ).add_mu_effect(_ScaledByDateLevelEffect(freeze=freeze))
+    mmm.fit(data["X"], data["y"], draws=50, chains=1, random_seed=42)
+
+    if freeze:
+        incremental = mmm.incrementality.compute_incremental_contribution(
+            frequency="yearly"
+        )
+        assert np.isfinite(incremental).all()
+    else:
+        with pytest.raises(ValueError, match=r"in the graph: 'scaled_level'\."):
+            mmm.incrementality.compute_incremental_contribution(frequency="yearly")
 
 
 def test_sample_posterior_predictive_same_data_with_include_last_observations(
