@@ -683,9 +683,10 @@ def kernel_trailing_lags(l_max: int, mode: ConvMode) -> int:
     places the kernel's ``l_max`` weights on lags ``0 .. l_max - 1``, ``Overlap``
     centres them so ``l_max // 2`` fall after the spend date, and ``Before``
     places them all on or before it.
-    :meth:`~pymc_marketing.mmm.counterfactual.EvaluationWindows.build` ends the
-    ``Overlap`` and ``Before`` evaluation ranges the same way; its windowed
-    ``After`` range keeps one date of slack past the last lag.
+    :meth:`~pymc_marketing.mmm.counterfactual.EvaluationWindows.build` builds a
+    window with carryover only for ``After``, whose range keeps one date of
+    slack past the last lag; ``Overlap`` and ``Before`` are evaluated on the
+    full axis, where the range ends at the last fitted date.
 
     The one definition of how far a plain kernel carries.  :class:`Incrementality`
     passes it to :meth:`~pymc_marketing.mmm.spend_reach.SpendProbe.measure` as
@@ -2659,9 +2660,10 @@ class Incrementality:
             Entries outside a period's evaluated dates are ``0``.  With a
             windowed evaluation (the usual case) the probe measured every date
             the period's spend moves, so these are zero by construction.  When
-            the probe could not bound the reach, every period is evaluated on
-            the full date axis (``assumptions["evaluation"] == "full_axis"``),
-            and two things change.
+            the probe could not bound the reach, or ``adstock.mode`` is not
+            ``ConvMode.After``, every period is evaluated on the full date axis
+            (``assumptions["evaluation"] == "full_axis"``), and two things
+            change.
 
             First, which dates a row covers follows ``adstock.mode``.  Under
             ``ConvMode.After`` a row runs from the period's start to the end of
@@ -2672,8 +2674,9 @@ class Incrementality:
             ``ConvMode.Before`` and ``ConvMode.Overlap`` a row runs from the
             start of the axis to its end.
 
-            Second, no horizon was measured, so the unobserved tail runs to the
-            period's last spend date plus the kernel's own trailing lags
+            Second, when the probe could not bound the reach, no horizon was
+            measured, so the unobserved tail runs to the period's last spend
+            date plus the kernel's own trailing lags
             (``l_max - 1`` under ``After``, ``l_max // 2`` under ``Overlap``,
             none under ``Before``).  ``observed=False`` is then a lower bound
             on what the data cannot show, because a node that reduces over
@@ -5959,8 +5962,8 @@ class Incrementality:
         """
         probed = prepared.probed
         # How far past a period's last spend date its carryover is known to
-        # land: the measured reach, or under full-axis evaluation the kernel's
-        # own trailing lags, which bound it from below.
+        # land: the measured reach, or, where the probe could not bound it, the
+        # kernel's own trailing lags, which bound it from below.
         tail_lags = (
             probed.reach.max_lag
             if probed.reach.max_lag is not None
@@ -7551,20 +7554,19 @@ class Incrementality:
         period's last fitted spend date plus *tail_lags*.  Not to the window's
         own bound, which sits one date past a plain adstock's kernel, and not to
         the period's calendar end, which for a last period the data ends
-        partway through lies past any spend there is.  With a windowed
-        evaluation *tail_lags* is the reach the probe measured.  Under full-axis
-        evaluation no horizon was measured, and *tail_lags* is the kernel's own
-        trailing lags, so the appended dates are a lower bound on what the data
-        cannot show: a node that reduces over ``date``, or a mediated path, can
-        reach further.
+        partway through lies past any spend there is.  When the probe bounded
+        the reach, *tail_lags* is the reach it measured, on a window or on the
+        full axis.  When it could not, no horizon was measured, and *tail_lags*
+        is the kernel's own trailing lags, so the appended dates are a lower
+        bound on what the data cannot show: a node that reduces over ``date``,
+        or a mediated path, can reach further.
 
         Only the trailing side is extended.  A kernel with leading mass also
         loses the mass that falls before the first fitted date, which no date
-        on the axis can label, so ``observed`` does not mark it.  Such a kernel
-        moves dates before the probed one, which sends the model to full-axis
-        evaluation; one whose leading weights the probe cannot see stays
-        windowed, and :meth:`split_incremental_contribution_current_future`
-        refuses every mode other than ``ConvMode.After`` regardless.
+        on the axis can label, so ``observed`` does not mark it.  Every mode
+        other than ``ConvMode.After`` is evaluated on the full axis, and
+        :meth:`split_incremental_contribution_current_future` refuses those
+        modes.
 
         Parameters
         ----------
