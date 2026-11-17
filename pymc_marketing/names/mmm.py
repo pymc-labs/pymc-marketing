@@ -138,6 +138,21 @@ class Group(names.Group):
     CV_METADATA: Final = "cv_metadata"
 
 
+class IncrementalityResult:
+    """Names an incrementality result writes besides the model's own.
+
+    ``SPEND_CHANGE`` and ``INDUCED_SPEND`` are variables of the dataset that
+    ``Incrementality.decompose_incremental_contribution`` returns, and the
+    quantities their labels name.  ``COMPLETE`` is the boolean coordinate on
+    ``date`` of a result that reads a mediator.  A declared mediator cannot take
+    any of them as its name.
+    """
+
+    SPEND_CHANGE: Final = "spend_change"
+    INDUCED_SPEND: Final = "induced_spend"
+    COMPLETE: Final = "complete"
+
+
 ORIGINAL_SCALE_SUFFIX: Final = "_original_scale"
 """Suffix of the original-scale copy of a variable, see :func:`original_scale_name`."""
 

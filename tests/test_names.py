@@ -124,6 +124,11 @@ EXPECTED = {
         "SENSITIVITY_ANALYSIS": "sensitivity_analysis",
         "CV_METADATA": "cv_metadata",
     },
+    (mmm, "IncrementalityResult"): {
+        "SPEND_CHANGE": "spend_change",
+        "INDUCED_SPEND": "induced_spend",
+        "COMPLETE": "complete",
+    },
     (clv, "Col"): {
         "CUSTOMER_ID": "customer_id",
         "FREQUENCY": "frequency",

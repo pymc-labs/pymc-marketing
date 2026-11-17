@@ -63,7 +63,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Generator, Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from itertools import pairwise
 from typing import Literal, NamedTuple
 
@@ -540,6 +540,7 @@ class EvaluationWindows:
         channel_axis: int | None,
         n_channels: int,
         estimand: Estimand,
+        factual_rows: bool = False,
     ) -> CounterfactualScenarios:
         """Build the perturbed spend arrays that have to be evaluated.
 
@@ -577,6 +578,13 @@ class EvaluationWindows:
             Which scenarios are going to be read.  Only those get built: the
             difference is a factor of ``n_channels`` in every downstream cost for
             a mediated model asked for the joint number.
+        factual_rows : bool, default=False
+            Also build, per period, one row holding actual spend on the
+            period's window.  For a request that compares each perturbed row
+            with the unperturbed evaluation of the same window, which the
+            full-axis baseline is not: a term with memory of its own takes
+            another value on a window.  The rows go after the perturbed ones,
+            whose positions and keys do not change.
 
         Returns
         -------
@@ -623,10 +631,18 @@ class EvaluationWindows:
                 for channel in range(n_channels):
                     rows[(period_idx, channel)] = joint_row
 
+        factual: dict[int, int] = {}
+        if factual_rows:
+            for period_idx in range(len(self.windows)):
+                factual[period_idx] = len(spend)
+                spend.append(windowed[period_idx])
+                period_index.append(period_idx)
+
         return CounterfactualScenarios(
             spend=np.stack(spend, axis=0),
             period_index=np.asarray(period_index, dtype=int),
             rows=rows,
+            factual_rows=factual,
         )
 
 
@@ -705,6 +721,10 @@ class CounterfactualScenarios:
         the scenario axis.
     rows : dict
         Maps a ``_ScenarioKey`` to a row of :attr:`spend`.
+    factual_rows : mapping, optional
+        Maps a period to the row of :attr:`spend` that holds actual spend on
+        the period's window.  Empty unless
+        :meth:`EvaluationWindows.build_scenarios` was asked for them.
 
     See Also
     --------
@@ -714,6 +734,7 @@ class CounterfactualScenarios:
     spend: np.ndarray
     period_index: np.ndarray
     rows: dict[_ScenarioKey, int]
+    factual_rows: Mapping[int, int] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
