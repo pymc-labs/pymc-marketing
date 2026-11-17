@@ -1051,6 +1051,27 @@ class SpendScaledPriorEffect(SpendPathEffect):
         return self._contribution(beta * spend)
 
 
+class PotentialTiedDemandEffect(SpendPathEffect):
+    """A variable tied to spend only through a ``pm.Potential``.
+
+    The Potential reads spend and ``demand``, but adds a term to the
+    log-probability: ``demand`` is not a function of spend, so no path from spend
+    to the target runs through it.
+    """
+
+    def create_effect(self, mmm):
+        """Add ``beta * demand``, with ``demand`` pulled towards spend."""
+        demand = pmd.Normal(f"{self.prefix}_demand", sigma=1.0, dims=("date",))
+        pm.Potential(
+            f"{self.prefix}_tie",
+            pm.logp(
+                pm.Normal.dist(mu=self._spend(mmm).values, sigma=0.1), demand.values
+            ).sum(),
+        )
+        beta = pmd.HalfNormal(f"{self.prefix}_beta", sigma=1.0)
+        return self._contribution(beta * demand)
+
+
 class MeasuredHubEffect(SpendPathEffect):
     """A deterministic hub with a likelihood on an observed series.
 
