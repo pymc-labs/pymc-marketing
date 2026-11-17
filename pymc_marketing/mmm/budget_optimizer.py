@@ -268,11 +268,6 @@ from pytensor.xtensor.type import XTensorVariable
 from scipy.optimize import OptimizeResult, minimize
 from xarray import DataArray, DataTree
 
-from pymc_marketing.mmm._breakpoints import (
-    Bounds,
-    BreakpointSettler,
-    gradient_scale,
-)
 from pymc_marketing.mmm.constraints import (
     Constraint,
     build_default_sum_constraint,
@@ -286,6 +281,11 @@ from pymc_marketing.mmm.optimization_variables import (
     align_to_model_coords,
 )
 from pymc_marketing.mmm.price_response import PriceResponse
+from pymc_marketing.mmm.price_schedule import (
+    Bounds,
+    BreakpointSettler,
+    gradient_scale,
+)
 from pymc_marketing.mmm.spend_reach import _PKG_PREFIX
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
 from pymc_marketing.names.mmm import Attr, Dim, Var

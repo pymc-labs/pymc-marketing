@@ -31,10 +31,9 @@ from pytensor.graph.traversal import ancestors
 from scipy.optimize import OptimizeResult
 from xarray import DataArray
 
-import pymc_marketing.mmm._breakpoints as breakpoints_module
 import pymc_marketing.mmm.budget_optimizer as budget_optimizer_module
+import pymc_marketing.mmm.price_schedule as price_schedule_module
 from pymc_marketing.mmm import MMM
-from pymc_marketing.mmm._breakpoints import BreakpointSettler, leaving_breakpoints
 from pymc_marketing.mmm.additive_effect import MuEffect
 from pymc_marketing.mmm.budget_optimizer import (
     BudgetOptimizationResult,
@@ -52,6 +51,7 @@ from pymc_marketing.mmm.price_response import (
     ResolvedPriceResponse,
     TieredPriceResponse,
 )
+from pymc_marketing.mmm.price_schedule import BreakpointSettler, leaving_breakpoints
 from pymc_marketing.mmm.utility import (
     _check_samples_dimensionality,
     diversification_ratio,
@@ -3982,7 +3982,7 @@ class TestExactPasses:
     def test_a_release_that_buys_nothing_stops(self, monkeypatch):
         """A check that keeps letting the same cell go is stopped by the progress rule:
         a settled plan, not a failure, held on its breakpoint by a closing solve."""
-        monkeypatch.setattr(breakpoints_module, "leaving_breakpoints", _always_up)
+        monkeypatch.setattr(price_schedule_module, "leaving_breakpoints", _always_up)
         with warnings.catch_warnings():
             warnings.filterwarnings("error", message=".*not settled.*")
             result = _hand_optimizer(A_ON_FOUR).allocate_budget(
@@ -3998,7 +3998,7 @@ class TestExactPasses:
     ):
         """The progress rule may fire on the last pass the limit allows; the closing solve
         that holds the new arrivals still runs, so the plan is settled, not unsettled."""
-        monkeypatch.setattr(breakpoints_module, "leaving_breakpoints", _always_up)
+        monkeypatch.setattr(price_schedule_module, "leaving_breakpoints", _always_up)
         monkeypatch.setattr(
             budget_optimizer_module,
             "BreakpointSettler",

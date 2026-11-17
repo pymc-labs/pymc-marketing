@@ -66,11 +66,11 @@ from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 from xarray import DataArray
 
-from pymc_marketing.mmm._schedule_rows import ScheduleRows
 from pymc_marketing.mmm.optimization_variables import (
     align_to_model_coords,
     reject_unknown_coords,
 )
+from pymc_marketing.mmm.price_schedule import ScheduleRows
 from pymc_marketing.names.mmm import Dim
 
 __all__ = [
