@@ -699,6 +699,59 @@ class TestDateIndexedInputs:
         )
 
     @pytest.mark.parametrize(
+        "product_on_tensors",
+        [
+            # Back on xtensors without date, the reduction is seen.
+            pytest.param(False, id="reduced-then-xtensor"),
+            # Plain tensors carry no dims, so the walk cannot see the reduction
+            # and takes date to survive it: refused on the safe side.
+            pytest.param(True, id="reduced-and-multiplied-on-tensors"),
+        ],
+    )
+    def test_an_uncut_variable_reduced_on_plain_tensors(self, product_on_tensors):
+        """A reduction on plain tensors is seen only once it is back on xtensors."""
+        n_dates = len(self.dates)
+        with pm.Model(coords={"date": range(n_dates), "channel": ["c"]}) as model:
+            channel_data = pmd.Data(
+                "channel_data", np.ones((n_dates, 1)), dims=("date", "channel")
+            )
+            level = pmd.Normal("level", dims="date")
+            if product_on_tensors:
+                product = ptx.as_xtensor(
+                    channel_data.values * level.values.mean(),
+                    dims=("date", "channel"),
+                )
+            else:
+                product = channel_data * ptx.as_xtensor(level.values.mean(), dims=())
+            pmd.Deterministic("channel_contribution", product)
+        posterior = xr.Dataset(
+            {"level": (("chain", "draw", "date"), np.ones((1, 1, n_dates)))},
+            coords={"chain": [0], "draw": [0]},
+        )
+        evaluator = CounterfactualEvaluator(
+            pymc_model=model,
+            posterior=posterior,
+            response_vars=["channel_contribution"],
+            frozen_deterministics=[],
+            dates=self.dates,
+        )
+        windows = self._windows(
+            slice(0, n_dates), slice(2, n_dates), max_window=n_dates
+        )
+        scenarios = CounterfactualScenarios(
+            spend=np.ones((2, n_dates, 1)),
+            period_index=np.array([0, 1]),
+            rows={(0, None): 0, (1, None): 1},
+        )
+
+        if product_on_tensors:
+            with pytest.raises(ValueError, match=r"in the graph: 'level'\."):
+                evaluator.evaluate_counterfactual(scenarios, windows=windows)
+        else:
+            cut = evaluator.evaluate_counterfactual(scenarios, windows=windows)
+            np.testing.assert_allclose(cut["channel_contribution"], 1.0)
+
+    @pytest.mark.parametrize(
         "max_elements",
         [
             pytest.param(100, id="runs-of-whole-chains"),

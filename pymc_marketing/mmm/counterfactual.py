@@ -1741,7 +1741,9 @@ class CounterfactualEvaluator:
         A variable carries a path's ``date`` axis from the path down to the
         first node that drops ``date`` from its dims, such as a reduction over
         it.  A plain tensor node does not show its dims, so it is taken to keep
-        ``date``.  A path collides where an
+        ``date``: a reduction on plain tensors is seen only once its result is
+        an xtensor without ``date``, and one that meets a windowed input while
+        still a plain tensor collides.  A path collides where an
         operation reads it together with a variable carrying a windowed
         ``date`` axis.  A path reduced over ``date`` first never collides, and
         it evaluates on any window.
