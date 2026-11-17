@@ -2412,11 +2412,11 @@ class Incrementality:
         ``complete`` is read off the last lag at which the spend probe measured
         each node of the request to move, also for a model evaluated on the
         full date axis.  A period is complete when that lag after its last
-        spend date is a date it sums.  The dates a period sums end at the last
-        fitted date, and under an adstock whose ``mode`` is not ``After`` they
-        can end sooner, as early as the period's own end, so a node with
-        carryover of its own is then marked incomplete.  For a model no probe
-        can be placed on, the declarations stand in for the measurement: the
+        spend date is a date it sums.  Under every adstock ``mode`` the dates
+        a period sums reach that lag unless the data ends first, so a period
+        is marked incomplete only when its carryover runs past the last fitted
+        date.  For a model no probe can be placed on, the declarations stand
+        in for the measurement: the
         adstock's own kernel plus the widest carryover the channel-dependent
         effects declare, or the carryover the effects that declare a node
         declare for it, if that is wider.  A node none of its effects declares
@@ -7518,9 +7518,9 @@ class Incrementality:
     ) -> bool:
         """Whether a period's carryover lands past the last date its result sums.
 
-        That date is the last fitted date at most.  Under an adstock whose mode
-        is not ``After`` it can be earlier, down to the period's own end, while
-        a mediator with an adstock of its own still carries forward.
+        That date is the last fitted date at most.  On the full date axis,
+        which every adstock ``mode`` other than ``After`` uses, it is the last
+        fitted date; on an ``After`` window it is the window's own bound.
 
         Parameters
         ----------
