@@ -301,9 +301,9 @@ class SensitivityPlots:
         else:
             # In absolute mode, baseline is at total spend/data (multiplier=1.0)
             if apply_cost_per_unit:
-                channel_scale = data.get_channel_spend().sum("date")
+                channel_scale = data.get_channel_spend().sum(Dim.DATE)
             else:
-                channel_scale = data.get_channel_data().sum("date")
+                channel_scale = data.get_channel_data().sum(Dim.DATE)
 
             # If channel dimension was aggregated away, aggregate channel_scale too
             if aggregation:
@@ -315,7 +315,7 @@ class SensitivityPlots:
                     Dim.CHANNEL in channel_scale.dims
                     and Dim.CHANNEL not in sa_da_for_check.dims
                 ):
-                    channel_scale = channel_scale.sum("channel")
+                    channel_scale = channel_scale.sum(Dim.CHANNEL)
 
             # A scalar DataArray carries a name that azp.add_lines would try to
             # match against the dataset's data_vars.  Convert to a plain float
@@ -456,18 +456,18 @@ class SensitivityPlots:
         ]
 
         # Step 5: Compute sweep x-values
-        sweep_coords = sa_da.coords["sweep"]
+        sweep_coords = sa_da.coords[Dim.SWEEP]
         if x_sweep_axis == "relative":
             sweep_x = sweep_coords
         else:
             if apply_cost_per_unit:
-                channel_scale = data.get_channel_spend().sum("date")
+                channel_scale = data.get_channel_spend().sum(Dim.DATE)
             else:
-                channel_scale = data.get_channel_data().sum("date")
+                channel_scale = data.get_channel_data().sum(Dim.DATE)
 
             # If channel dimension was aggregated away, aggregate channel_scale too
             if Dim.CHANNEL in channel_scale.dims and Dim.CHANNEL not in sa_da.dims:
-                channel_scale = channel_scale.sum("channel")
+                channel_scale = channel_scale.sum(Dim.CHANNEL)
 
             sweep_x = sweep_coords * channel_scale
 

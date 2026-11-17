@@ -6150,6 +6150,55 @@ class TestClosedFormCurrentFuture:
 
         _assert_same_split(closed, pipeline)
 
+    def test_a_period_without_fitted_dates_is_zero_whatever_the_rounding(
+        self, monthly_mmm_data, monkeypatch
+    ):
+        """A weekly period between two monthly dates scales no spend: its current and
+        future are exactly zero and its future share NaN, as in the closed form.
+
+        The pipeline subtracts a baseline evaluated on the full date axis from one
+        evaluated on the period's window.  The two agree to rounding, not always to
+        the bit, which a baseline one ulp off stands in for.  Current is zero either
+        way, since such a period's window holds no date of its own; it is future
+        that would be a residue, and its share 1.0.
+        """
+        evaluate = CounterfactualEvaluator.evaluate_baseline
+        nudged = []
+
+        def one_ulp_up(self, *args, **kwargs):
+            nudged.append(True)
+            return {
+                name: np.nextafter(values, np.inf)
+                for name, values in evaluate(self, *args, **kwargs).items()
+            }
+
+        monkeypatch.setattr(CounterfactualEvaluator, "evaluate_baseline", one_ulp_up)
+        mmm = _fit_custom_mmm(
+            monthly_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
+        )
+
+        closed, pipeline = self._both(mmm, frequency="weekly")
+
+        assert nudged
+
+        fitted = pd.DatetimeIndex(monthly_mmm_data["X"]["date"])
+        empty = np.array(
+            [
+                not ((fitted >= start) & (fitted <= end)).any()
+                for start, end in zip(
+                    pipeline.period_start.values,
+                    pipeline.spend_date.values,
+                    strict=True,
+                )
+            ]
+        )
+        assert empty.sum() > empty.size / 2
+        quiet = pipeline.isel(spend_date=empty)
+        assert (quiet.current == 0.0).all()
+        assert (quiet.future == 0.0).all()
+        assert quiet.future_share.isnull().all()
+        _assert_same_split(closed, pipeline)
+
     @pytest.mark.parametrize("frequency", ["original", "monthly"])
     def test_a_panel_with_hierarchical_priors(
         self, panel_adstock_last_fitted_mmm, frequency

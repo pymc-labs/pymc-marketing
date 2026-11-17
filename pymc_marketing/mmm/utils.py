@@ -394,7 +394,7 @@ def create_zero_dataset(
     dim_cols = list(model.dims)
 
     # ---- 1. Infer date frequency from training data ---------------------------
-    training_dates = pd.DatetimeIndex(xa.coords["date"].values)
+    training_dates = pd.DatetimeIndex(xa.coords[Dim.DATE].values)
     inferred_freq = infer_frequency(training_dates)
     if inferred_freq is None:
         warnings.warn(
@@ -477,12 +477,12 @@ def create_zero_dataset(
 
     # ---- 4. Build _channel variable -------------------------------------------
     chan_shape = [n_dates]
-    chan_coords: dict = {"date": new_dates}
+    chan_coords: dict = {Dim.DATE: new_dates}
     for dim in dim_cols:
         chan_shape.append(len(dim_coords[dim]))
         chan_coords[dim] = dim_coords[dim]
     chan_shape.append(len(channel_cols))
-    chan_coords["channel"] = channel_cols
+    chan_coords[Dim.CHANNEL] = channel_cols
 
     channel_data = np.zeros(chan_shape, dtype=float)
 
@@ -546,18 +546,18 @@ def create_zero_dataset(
     # ---- 5. Build _control variable -------------------------------------------
     data_vars: dict = {
         DatasetVar.CHANNEL: xr.DataArray(
-            channel_data, dims=("date", *dim_cols, "channel"), coords=chan_coords
+            channel_data, dims=(Dim.DATE, *dim_cols, Dim.CHANNEL), coords=chan_coords
         ),
     }
 
     if control_cols:
         ctrl_shape = [n_dates]
-        ctrl_coords: dict = {"date": new_dates}
+        ctrl_coords: dict = {Dim.DATE: new_dates}
         for dim in dim_cols:
             ctrl_shape.append(len(dim_coords[dim]))
             ctrl_coords[dim] = dim_coords[dim]
         ctrl_shape.append(len(control_cols))
-        ctrl_coords["control"] = control_cols
+        ctrl_coords[Dim.CONTROL] = control_cols
 
         if preserve_observed and DatasetVar.CONTROL in xa:
             data_vars[DatasetVar.CONTROL] = xa[DatasetVar.CONTROL].reindex(
@@ -566,7 +566,7 @@ def create_zero_dataset(
         else:
             data_vars[DatasetVar.CONTROL] = xr.DataArray(
                 np.zeros(ctrl_shape, dtype=float),
-                dims=("date", *dim_cols, "control"),
+                dims=(Dim.DATE, *dim_cols, Dim.CONTROL),
                 coords=ctrl_coords,
             )
 
@@ -672,7 +672,7 @@ def _planned_controls_from_frame(
     planned = (
         frame.set_index(index_cols)[control_columns]
         .to_xarray()
-        .to_dataarray(dim="control")
+        .to_dataarray(dim=Dim.CONTROL)
     )
     if date_column != Dim.DATE:
         planned = planned.rename({date_column: Dim.DATE})
@@ -684,7 +684,7 @@ def _planned_controls_from_array(
     dims: list[str],
     control_columns: list[str],
 ) -> xr.DataArray:
-    all_dims = ["date", *dims, "control"]
+    all_dims = [Dim.DATE, *dims, Dim.CONTROL]
     if set(control_data.dims) != set(all_dims):
         raise ValueError(
             f"control_data must have dims {sorted(all_dims)}, "
@@ -699,7 +699,7 @@ def _planned_controls_from_array(
     if duplicated:
         raise ValueError(f"control_data has duplicate labels along {duplicated}.")
 
-    labels = list(control_data.indexes["control"])
+    labels = list(control_data.indexes[Dim.CONTROL])
     unknown = [str(c) for c in labels if c not in control_columns]
     if unknown:
         raise ValueError(
@@ -709,7 +709,9 @@ def _planned_controls_from_array(
     if missing:
         raise ValueError(_MISSING_CONTROLS.format(missing))
 
-    return control_data.assign_coords(date=pd.to_datetime(control_data.indexes["date"]))
+    return control_data.assign_coords(
+        date=pd.to_datetime(control_data.indexes[Dim.DATE])
+    )
 
 
 def planned_controls_to_dataarray(

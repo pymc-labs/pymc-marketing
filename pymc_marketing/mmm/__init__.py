@@ -86,7 +86,11 @@ from pymc_marketing.mmm.preprocessing import (
     preprocessing_method_X,
     preprocessing_method_y,
 )
-from pymc_marketing.mmm.price_response import PowerPriceResponse, PriceResponse
+from pymc_marketing.mmm.price_response import (
+    PowerPriceResponse,
+    PriceResponse,
+    TieredPriceResponse,
+)
 from pymc_marketing.mmm.scaling import (
     DataDerivedScaling,
     FixedScaling,
@@ -153,6 +157,7 @@ __all__ = [
     "SoftPlusHSGP",
     "TanhSaturation",
     "TanhSaturationBaselined",
+    "TieredPriceResponse",
     "TimeSliceCrossValidationResult",
     "TimeSliceCrossValidator",
     "VARBaselineEffect",

@@ -334,6 +334,15 @@ class PeriodWindow:
         selected = (self.actual_dates >= first) & (self.actual_dates <= last)
         return np.where(selected)[0]
 
+    @property
+    def target_offsets(self) -> np.ndarray:
+        """Positions inside the window of the period's own fitted dates, the ones its counterfactual intervenes on.
+
+        Empty for a period that holds no fitted date, such as a weekly period between two monthly dates: every
+        scenario of that period is the factual intervention target.
+        """
+        return self.offsets_within(self.start, self.end)
+
 
 @dataclass(frozen=True)
 class EvaluationWindows:
@@ -617,7 +626,7 @@ class EvaluationWindows:
         rows: dict[_ScenarioKey, int] = {}
 
         for period_idx, window in enumerate(self.windows):
-            target_offsets = window.offsets_within(window.start, window.end)
+            target_offsets = window.target_offsets
 
             perturbed: list[int | None] = (
                 [None] if separable or estimand == "joint" else list(range(n_channels))
@@ -1085,7 +1094,7 @@ class CounterfactualEvaluator:
         ):
             values = np.asarray(data.eval())
             dims = tuple(do_model.named_vars_to_dims[data.name])
-            date_axis = dims.index("date")
+            date_axis = dims.index(Dim.DATE)
             if values.shape[date_axis] != len(self._dates):
                 raise ValueError(
                     f"Date-indexed data variable {data.name!r} has "
@@ -1124,7 +1133,7 @@ class CounterfactualEvaluator:
         )
         for name, (frozen, source) in frozen_paths.items():
             dims = tuple(frozen.type.dims)
-            date_axis = dims.index("date")
+            date_axis = dims.index(Dim.DATE)
             values = source.get_value(borrow=True)
             if values.shape[date_axis] != len(self._dates):
                 raise ValueError(
@@ -1182,7 +1191,7 @@ class CounterfactualEvaluator:
         # carry.  Transposing inside the graph rather than on the results keeps
         # it a view where the backend can make it one.
         outputs = [
-            out.transpose(self.BATCH_DIM, "sample", "date", *self.non_date_dims[name])
+            out.transpose(self.BATCH_DIM, "sample", Dim.DATE, *self.non_date_dims[name])
             for name, out in zip(
                 self.response_vars,
                 vectorize_graph(graphs, replace=replace),

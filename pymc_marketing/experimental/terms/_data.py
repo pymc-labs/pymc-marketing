@@ -105,7 +105,7 @@ def validate_dataset(data: xr.Dataset) -> xr.Dataset:
         if not index.is_unique or pd.isna(index).any():
             raise ValueError(f"Coordinate {dim!r} must have unique, nonmissing labels.")
     if Dim.DATE in data.dims:
-        dates = _dates(data.get_index("date")).as_unit("us")
+        dates = _dates(data.get_index(Dim.DATE)).as_unit("us")
         if not dates.is_unique or not dates.is_monotonic_increasing:
             raise ValueError("Dates must be unique and in increasing order.")
         data = data.assign_coords(date=dates)

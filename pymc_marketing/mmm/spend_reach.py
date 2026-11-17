@@ -396,7 +396,10 @@ def refuse_blocked_spend_paths(
         "Normal(f(spend), sigma), write the node as a Deterministic of spend "
         "plus a noise term that does not depend on spend, and list a "
         "date-indexed noise term in the effect's 'frozen_deterministics' so "
-        "that it is cut to each evaluation window.  For a quantity meant to "
+        "that it is cut to each evaluation window.  Moving the tie into a "
+        "pm.Potential removes this error but not the problem: a Potential is "
+        "not a spend path, so the increment would still leave the mediated "
+        "effect out.  For a quantity meant to "
         "stay fixed while spend moves, such as a prior scale or a normalizer "
         "computed from the channel data, compute it outside the graph and "
         "pass the value in."
@@ -864,12 +867,12 @@ class ProbeStatistics:
 
         def as_array(name: str) -> xr.DataArray:
             return xr.DataArray(
-                moved[name], dims=("sample", "date", *non_date_dims[name])
+                moved[name], dims=("sample", Dim.DATE, *non_date_dims[name])
             )
 
         # channel_contribution carries a channel dimension the predictor does
         # not: it enters mu summed over channels.
-        accounted = as_array(Var.CHANNEL_CONTRIBUTION).sum("channel")
+        accounted = as_array(Var.CHANNEL_CONTRIBUTION).sum(Dim.CHANNEL)
         for name in self.accounted[1:]:
             accounted = accounted + as_array(name)
         expected = as_array(Var.MU)
@@ -1784,7 +1787,7 @@ class SpendProbe:
             return True
 
         # `+ 2` for the sample and date axes the evaluations carry in front.
-        channel_axis = non_date_dims[Var.CHANNEL_CONTRIBUTION].index("channel") + 2
+        channel_axis = non_date_dims[Var.CHANNEL_CONTRIBUTION].index(Dim.CHANNEL) + 2
         baseline = self.baseline[Var.CHANNEL_CONTRIBUTION]
         for channel, probe_index in placements.items():
             probed = self._evaluator.evaluate_baseline(
