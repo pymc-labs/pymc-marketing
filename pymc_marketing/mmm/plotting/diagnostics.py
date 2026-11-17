@@ -106,7 +106,7 @@ from pymc_marketing.mmm.plotting._helpers import (
     _select_dims,
 )
 from pymc_marketing.mmm.summary.helpers import compute_residuals
-from pymc_marketing.names.mmm import Var
+from pymc_marketing.names.mmm import Dim, Var
 
 
 class DiagnosticsPlots:
@@ -197,7 +197,7 @@ class DiagnosticsPlots:
             **{"col_wrap": 1, **(pc_kwargs or {})},
         )
 
-        dates = var_da.coords["date"].values
+        dates = var_da.coords[Dim.DATE].values
 
         pc.map(
             azp.visuals.line_xy,
@@ -503,7 +503,7 @@ class DiagnosticsPlots:
             **{"col_wrap": 1, **(pc_kwargs or {})},
         )
 
-        dates = residuals_da.coords["date"].values
+        dates = residuals_da.coords[Dim.DATE].values
 
         pc.map(
             azp.visuals.fill_between_y,
@@ -629,7 +629,7 @@ class DiagnosticsPlots:
                         f"Available: {list(residuals_da.dims)}"
                     )
 
-        sample_dims = ["chain", "draw", "date"] + (aggregation or [])
+        sample_dims = ["chain", "draw", Dim.DATE] + (aggregation or [])
 
         ds = residuals_da.to_dataset(name="residuals")
         ref_ds = residuals_da.quantile(quantiles, dim=sample_dims)

@@ -3071,9 +3071,9 @@ class BudgetOptimizer(BaseModel):
 
     def _curved_channels(self, curved: np.ndarray) -> list[str]:
         """Channels holding a curved cell: the per-cell array projected onto the ``channel`` dim."""
-        axis = self._budget_dims.index("channel")
+        axis = self._budget_dims.index(Dim.CHANNEL)
         flags = curved.any(axis=tuple(i for i in range(curved.ndim) if i != axis))
-        channels = self._budget_coords["channel"]
+        channels = self._budget_coords[Dim.CHANNEL]
         return [
             str(channel) for channel, flag in zip(channels, flags, strict=True) if flag
         ]
@@ -3124,9 +3124,12 @@ class BudgetOptimizer(BaseModel):
             )
         reference = spend.where(spend > 0).mean(self.date_dim)
         priced_mask = DataArray(
-            [str(channel) in priced for channel in reference.coords["channel"].values],
-            dims=("channel",),
-            coords={"channel": reference.coords["channel"].values},
+            [
+                str(channel) in priced
+                for channel in reference.coords[Dim.CHANNEL].values
+            ],
+            dims=(Dim.CHANNEL,),
+            coords={Dim.CHANNEL: reference.coords[Dim.CHANNEL].values},
         )
         return (
             reference.where(priced_mask)
@@ -4353,8 +4356,8 @@ class CustomModelWrapper(BaseModel):
         """
         total_periods = num_periods + self.adstock_periods
         coords = {
-            "date": np.arange(total_periods),
-            "channel": self.channel_columns,
+            Dim.DATE: np.arange(total_periods),
+            Dim.CHANNEL: self.channel_columns,
         }
         model_clone = clone_model(self.base_model)
         pm.set_data(
