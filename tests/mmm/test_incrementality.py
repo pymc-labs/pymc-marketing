@@ -8990,6 +8990,41 @@ class TestIncrementalMediator:
         notes = json.loads(matrix.attrs["warnings"])
         assert not any("could not bound" in note for note in notes)
 
+    def test_a_full_axis_split_keeps_the_lags_the_probe_bounded(self, funnel_mmm_data):
+        """Where the probe cannot bound the reach, the tail keeps the lags it did bound.
+
+        ``Before`` with ``l_max=3`` moves dates before the spend, so
+        ``channel_contribution`` is full-axis and no horizon is reported.  It
+        still stops moving at the spend date, and the funnel effect stops 4 lags
+        after it.  The tail past the data is those 4 lags, not the kernel's 0
+        trailing lags under ``Before``.
+        """
+        mmm = _build_funnel_mmm(
+            funnel_mmm_data, link="identity", l_max=3, adstock_mode=ConvMode.Before
+        )
+        reach = measure_reach(mmm)
+        assert reach["channel_contribution"].requires_full_axis
+        assert not reach["channel_contribution"].reaches_axis_end
+        assert not any(node.reaches_axis_end for node in reach.values())
+        tail = max(node.max_lag for node in reach.values())
+        assert tail == 4
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            matrix = mmm.incrementality.split_incremental_contribution_over_time(
+                frequency="monthly"
+            )
+
+        dates = mmm.incrementality.data.dates
+        assert json.loads(matrix.attrs["assumptions"])["evaluation"] == "full_axis"
+        assert "effective_horizon" not in matrix.attrs
+        observed = matrix.coords["observed"]
+        # June's last spend is the last fitted date, so all 4 lags are past it.
+        assert int((~observed.isel(spend_date=-1)).sum()) == tail
+        last = pd.Timestamp(matrix.realization_date.values[-1])
+        assert last == dates[-1] + pd.Timedelta(weeks=tail)
+        assert bool(matrix.where(~observed).isnull().all())
+
     def test_where_no_probe_can_be_placed_the_declarations_mark(
         self, no_probe_funnel_mmm
     ):

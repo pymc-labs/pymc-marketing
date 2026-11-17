@@ -799,6 +799,8 @@ class TestSpendProbe:
         measured = reach.measured[CHANNEL_CONTRIBUTION]
 
         assert measured.requires_full_axis
+        # Still moving at the last date, so its lag bounds nothing forward.
+        assert measured.reaches_axis_end
         # Moving from date 1 to date 23 is 22 lags, of which l_max is covered.
         assert measured.additional_carryover_lags == (
             self.n_dates - 1 - probe.probe_indices[0] - self.l_max
@@ -1255,13 +1257,14 @@ class TestSpendProbe:
                 TemporalReach(
                     additional_carryover_lags=2, requires_full_axis=False, max_lag=5
                 ),
-                TemporalReach.full_axis(max_lag=1),
+                TemporalReach.full_axis(max_lag=1, reaches_axis_end=True),
             ]
         )
 
         assert combined.additional_carryover_lags == 2
         assert combined.requires_full_axis
         assert combined.max_lag == 5
+        assert combined.reaches_axis_end
         assert TemporalReach.widest([]) == TemporalReach.none()
 
     @pytest.mark.parametrize(

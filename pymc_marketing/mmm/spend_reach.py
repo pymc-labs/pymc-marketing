@@ -495,11 +495,17 @@ class TemporalReach:
         node still moved.  ``adstock.l_max - 1`` for a plain ``ConvMode.After``
         adstock, whose kernel covers lags ``0 .. l_max - 1``.  A lower bound
         alongside ``requires_full_axis``, like ``additional_carryover_lags``.
+    reaches_axis_end : bool, default=False
+        Whether the node still moved at the last fitted date, so that
+        ``max_lag`` is only a lower bound on its forward reach.  A node that is
+        full-axis only because it moved dates *before* the perturbed one leaves
+        this unset, and its ``max_lag`` is the last lag it moved at.
     """
 
     additional_carryover_lags: int
     requires_full_axis: bool
     max_lag: int = 0
+    reaches_axis_end: bool = False
 
     @classmethod
     def none(cls) -> TemporalReach:
@@ -508,7 +514,10 @@ class TemporalReach:
 
     @classmethod
     def full_axis(
-        cls, additional_carryover_lags: int = 0, max_lag: int = 0
+        cls,
+        additional_carryover_lags: int = 0,
+        max_lag: int = 0,
+        reaches_axis_end: bool = False,
     ) -> TemporalReach:
         """Return the reach of a node no window can reproduce.
 
@@ -522,6 +531,8 @@ class TemporalReach:
         max_lag : int, default=0
             The same lower bound, counted from the perturbed date rather than
             from ``adstock.l_max``.
+        reaches_axis_end : bool, default=False
+            Whether the node still moved at the last fitted date.
 
         Returns
         -------
@@ -532,6 +543,7 @@ class TemporalReach:
             additional_carryover_lags=additional_carryover_lags,
             requires_full_axis=True,
             max_lag=max_lag,
+            reaches_axis_end=reaches_axis_end,
         )
 
     @classmethod
@@ -546,7 +558,8 @@ class TemporalReach:
         Returns
         -------
         TemporalReach
-            Long enough for the longest, and full-axis if any one of them is.
+            Long enough for the longest, full-axis if any one of them is, and
+            reaching the axis end if any one of them does.
         """
         reaches = list(reaches)
         return cls(
@@ -555,6 +568,7 @@ class TemporalReach:
             ),
             requires_full_axis=any(reach.requires_full_axis for reach in reaches),
             max_lag=max((reach.max_lag for reach in reaches), default=0),
+            reaches_axis_end=any(reach.reaches_axis_end for reach in reaches),
         )
 
 
@@ -1590,13 +1604,16 @@ class SpendProbe:
         last_moved = int(np.flatnonzero(moved)[-1])
         max_lag = last_moved - probe_index
         lags = max(max_lag - l_max, 0)
-        if moved[:probe_index].any() or last_moved == n_dates - 1:
+        reaches_axis_end = last_moved == n_dates - 1
+        if moved[:probe_index].any() or reaches_axis_end:
             # The axis could not bound the tail, but it did establish that the
             # node still moved that far, and a declaration claiming less than
             # that is still falsified.  Carrying the bound is what keeps
             # _reconcile_declarations able to say so.
             return TemporalReach.full_axis(
-                additional_carryover_lags=lags, max_lag=max_lag
+                additional_carryover_lags=lags,
+                max_lag=max_lag,
+                reaches_axis_end=reaches_axis_end,
             )
         return TemporalReach(
             additional_carryover_lags=lags,
