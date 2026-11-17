@@ -6820,8 +6820,17 @@ class Incrementality:
             }
             cf_mask = window.eval_mask(windows.max_window)
             rows = [scenarios.rows[(period_idx, key)] for key, _ in row_slices]
-            # A period with no fitted date has nothing evaluated to compare.
+            # A period with no fitted date in its window has nothing evaluated to
+            # compare.  Wider than ``moves_spend`` on purpose: a period that moves
+            # no spend still has its rows checked, which is what tells rounding
+            # apart from a term that takes another value on the window.
             evaluated = bool(cf_mask.any())
+            # A period with no fitted date of its own scales no spend, so every
+            # scenario of it is the factual spend and every result is zero.  The
+            # difference below is zero only to rounding, since the window and the
+            # full-axis baseline are evaluated at different shapes: future would
+            # be a residue and its share 1.0 where the closed form has NaN.
+            moves_spend = window.target_offsets.size > 0
 
             if reduction.check_rows and evaluated:
                 self._check_rows(
@@ -6845,13 +6854,14 @@ class Incrementality:
                     reduction=reduction,
                 )
                 for path, increment in increments.items():
+                    unflattened = self._unflatten_samples(
+                        increment,
+                        reduction.out_dims,
+                        labels,
+                        window.eval_dates if reduction.keep_date_axis else None,
+                    )
                     results[path].append(
-                        self._unflatten_samples(
-                            increment,
-                            reduction.out_dims,
-                            labels,
-                            window.eval_dates if reduction.keep_date_axis else None,
-                        )
+                        unflattened if moves_spend else xr.zeros_like(unflattened)
                     )
 
             if reduction.mediators and evaluated:
@@ -6864,16 +6874,17 @@ class Incrementality:
                     counterfactual=counterfactual,
                 )
             for mediator in reduction.mediators:
+                movement = self._mediator_movement(
+                    mediator,
+                    rows=rows,
+                    cf_mask=cf_mask,
+                    baseline=period_baseline,
+                    counterfactual=counterfactual,
+                    labels=labels,
+                    reduction=reduction,
+                )
                 results[mediator.name].append(
-                    self._mediator_movement(
-                        mediator,
-                        rows=rows,
-                        cf_mask=cf_mask,
-                        baseline=period_baseline,
-                        counterfactual=counterfactual,
-                        labels=labels,
-                        reduction=reduction,
-                    )
+                    movement if moves_spend else xr.zeros_like(movement)
                 )
         return results
 
