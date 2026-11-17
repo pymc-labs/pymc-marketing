@@ -1546,8 +1546,8 @@ class SpendProbe:
             ]
         )
         # The longest lag spend was measured to move anything at, floored at the
-        # kernel's own trailing lags, the same lags full-axis evaluation uses as
-        # its lower bound.  Read off the measurements, not the window: the
+        # kernel's own trailing lags, the same floor full-axis evaluation puts
+        # under its lower bound.  Read off the measurements, not the window: the
         # window keeps one date of slack past a plain kernel and honours wider
         # declarations, neither of which is carryover that lands.
         requires_full_axis = combined.requires_full_axis or mediators_need_full_axis

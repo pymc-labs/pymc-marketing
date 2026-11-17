@@ -5532,7 +5532,7 @@ class Incrementality:
             # copy without it would leave the probe holding the predictor.
             baseline.pop(Var.MU, None)
             # The adstock kernel's own trailing lags: the floor under the measured
-            # horizon, and the lower bound on the unobserved tail when the probe
+            # horizon, and the floor under the unobserved tail when the probe
             # sends every period to the full date axis.
             trailing_lags = kernel_trailing_lags(
                 self.model.adstock.l_max, self.model.adstock.mode

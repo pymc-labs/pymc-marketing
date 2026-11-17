@@ -96,6 +96,7 @@ from pymc_marketing.serialization import serialization
 from tests.mmm.conftest import (
     FUNNEL_L_MAX,
     FunnelEffect,
+    GlobalNormalizationEffect,
     NegativeEffect,
     _build_funnel_mmm,
     _build_simple_effect_mmm,
@@ -9024,6 +9025,37 @@ class TestIncrementalMediator:
         last = pd.Timestamp(matrix.realization_date.values[-1])
         assert last == dates[-1] + pd.Timedelta(weeks=tail)
         assert bool(matrix.where(~observed).isnull().all())
+        notes = json.loads(matrix.attrs["warnings"])
+        assert any("runs past the end" in note for note in notes)
+
+    def test_a_node_moving_at_the_last_date_does_not_set_the_tail(
+        self, funnel_mmm_data
+    ):
+        """A node still moving at the last date is left out of the full-axis tail.
+
+        The global effect normalizes over the whole axis, so its lag only says
+        the axis ended first.  The funnel effect stops 4 lags after the spend,
+        past the kernel's 2 trailing lags, and those 4 lags set the tail.
+        """
+        mmm = _build_funnel_mmm(
+            funnel_mmm_data,
+            link="identity",
+            effects=[_funnel_effect(), GlobalNormalizationEffect(prefix="global")],
+        )
+        reach = measure_reach(mmm)
+        assert reach["global_effect_contribution"].reaches_axis_end
+        assert not reach["funnel_effect_contribution"].reaches_axis_end
+        assert reach["funnel_effect_contribution"].max_lag == 4
+        assert mmm.adstock.l_max - 1 == 2
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            matrix = mmm.incrementality.split_incremental_contribution_over_time(
+                frequency="original"
+            )
+
+        observed = matrix.coords["observed"]
+        assert int((~observed.isel(spend_date=-1)).sum()) == 4
 
     def test_where_no_probe_can_be_placed_the_declarations_mark(
         self, no_probe_funnel_mmm
