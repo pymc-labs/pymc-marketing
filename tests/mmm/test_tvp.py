@@ -21,6 +21,7 @@ from pydantic import ValidationError
 from pytensor.xtensor.type import XTensorVariable
 from xarray import DataArray
 
+from pymc_marketing.constants import DAYS_IN_YEAR
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm.hsgp import CovFunc, SoftPlusHSGP
 from pymc_marketing.mmm.tvp import (
@@ -440,3 +441,46 @@ class TestCreateHsgpFromConfig:
         np.testing.assert_array_equal(hsgp.X.eval(), time_index)
         assert hsgp.dims == ("date", "channel")
         assert hsgp.X_mid == 26.0
+
+
+def test_hsgp_kwargs_default_L_covers_the_data() -> None:
+    # The default L is twice the largest distance of the index from X_mid, so it
+    # does not depend on where the index starts.
+    X = np.arange(156.0) + 1000.0
+    hsgp = create_hsgp_from_config(
+        X=DataArray(X, dims=("date",)), dims="date", config=HSGPKwargs()
+    )
+    assert hsgp.L == pytest.approx(155.0)
+
+
+def test_time_varying_gp_multiplier_default_L_does_not_depend_on_where_the_index_starts() -> (
+    None
+):
+    index = np.arange(5) + 10
+    hsgp_kwargs = HSGPKwargs()
+    with pm.Model(coords={"date": range(5)}):
+        time_index = pmd.Data("X", index, dims="date")
+        create_time_varying_gp_multiplier(
+            name="intercept",
+            dims="date",
+            time_index=time_index,
+            time_index_mid=12,
+            time_resolution=7,
+            hsgp_kwargs=hsgp_kwargs,
+        )
+    # 2 is the largest distance of the index from time_index_mid.
+    assert hsgp_kwargs.L == pytest.approx(2 + DAYS_IN_YEAR / 7)
+
+
+def test_time_varying_gp_multiplier_default_L_accepts_a_data_array() -> None:
+    hsgp_kwargs = HSGPKwargs()
+    with pm.Model(coords={"date": range(365)}):
+        create_time_varying_gp_multiplier(
+            name="intercept",
+            dims="date",
+            time_index=DataArray(np.arange(365), dims=("date",)),
+            time_index_mid=182,
+            time_resolution=5,
+            hsgp_kwargs=hsgp_kwargs,
+        )
+    assert hsgp_kwargs.L == pytest.approx(182 + DAYS_IN_YEAR / 5)
