@@ -322,7 +322,7 @@ import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from contextlib import closing, contextmanager
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from functools import cached_property, partial
 from itertools import groupby
 from typing import TYPE_CHECKING, Any, Literal, cast, get_args
@@ -5007,6 +5007,27 @@ class Incrementality:
 
         return result.transpose(*dim_order)
 
+    def _evaluates_on_full_axis(self, reach: SpendReach) -> bool:
+        """Whether every period is evaluated on the full date axis.
+
+        The probe asks for it when it cannot bound the reach.  A model whose
+        adstock is not ``ConvMode.After`` always gets it: its windowed sum ends
+        at most ``l_max // 2`` dates past the period, which cuts the forward
+        carryover of an effect with its own adstock, even when the probe
+        measured that carryover.
+
+        Parameters
+        ----------
+        reach : SpendReach
+            What the probe measured.
+
+        Returns
+        -------
+        bool
+            True for full-axis evaluation.
+        """
+        return reach.requires_full_axis or self.model.adstock.mode != ConvMode.After
+
     def _carryover_attrs(
         self,
         reach: SpendReach,
@@ -5078,7 +5099,9 @@ class Incrementality:
             "time_varying_media": bool(self.model.time_varying_media),
             "frequency": frequency,
             "counterfactual_spend_factor": float(counterfactual_spend_factor),
-            "evaluation": "full_axis" if reach.requires_full_axis else "window",
+            "evaluation": (
+                "full_axis" if self._evaluates_on_full_axis(reach) else "window"
+            ),
             **(extra_assumptions or {}),
         }
         attrs: dict = {"estimand": estimand, "method": method}
@@ -5267,7 +5290,7 @@ class Incrementality:
                 dates=self.data.dates,
                 l_max=probed.reach.effective_l_max,
                 freq_offset=freq_offset,
-                full_axis=probed.reach.requires_full_axis,
+                full_axis=self._evaluates_on_full_axis(probed.reach),
                 include_carryover=include_carryover,
                 mode=self.model.adstock.mode,
             )
@@ -5517,15 +5540,6 @@ class Incrementality:
                 ),
                 mediators_need_full_axis=mediators_need_full_axis,
             )
-            if (
-                self.model.adstock.mode == ConvMode.Before
-                and not reach.requires_full_axis
-            ):
-                # A Before kernel with l_max=1 moves nothing before the probe
-                # date, so the probe allows a window.  The windowed Before sum
-                # ends at the period's end and would cut the forward carryover
-                # of an effect with its own adstock.
-                reach = replace(reach, requires_full_axis=True, max_lag=None)
             if validate_reach is not None:
                 validate_reach(reach)
         except BaseException:
