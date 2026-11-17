@@ -611,7 +611,8 @@ class BreakpointSettler:
     rescale : bool
         Whether the solves divide the objective by :func:`objective_scale_from_gradient`.
     max_passes : int
-        Solves after the first, closing solves included; the progress rule's exit may add one closing solve.
+        Solves after the first, closing solves included; a run still closing on the last pass, after the progress
+        rule fires or with new arrivals, may add one closing solve.
         Default 20.
     rtol : float
         How close, relative, an entry is to the bound or breakpoint that holds it, and a constraint value to
@@ -786,7 +787,8 @@ class BreakpointSettler:
     ) -> PiecewisePlan | None:
         """Hold the entries a plan's solve left at a knot, solving again until none is left.
 
-        It may use one solve past ``max_passes``, so a run whose progress rule fires on the last pass still closes.
+        It may use one solve past ``max_passes``, so a run whose progress rule fires on the last pass, or whose last
+        pass leaves new arrivals, still closes.
         """
         while not plan.all_arrivals_held and index <= self.max_passes + 1:
             following = self._solve_on_pieces(run, plan, index)

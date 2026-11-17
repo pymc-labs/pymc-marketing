@@ -4118,7 +4118,8 @@ class BudgetOptimizer(BaseModel):
           solve saw: blended for solve 0, conditioned on the linear pieces for a pass.
         - Each solve has its own ``maxiter`` and polish, and there are at most 22: the
           first, 20 passes with their closing passes, and one more closing pass when
-          letting cells go stops buying anything on the last pass.
+          the last pass leaves new cells on a breakpoint or letting cells go stops
+          buying anything there.
         - A cell whose every breakpoint is above its upper bound is warned about: all
           its money is priced in the first bracket.
         - The price maps hold the state of the solve in progress, so one optimizer must
