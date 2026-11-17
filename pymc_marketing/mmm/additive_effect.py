@@ -1060,7 +1060,7 @@ class MediaMuEffect(DataVarMuEffect):
         """
         var_name = self.data_vars[0]
         data = mmm.model[var_name]
-        effect = self.media_transformation(data, dim="date")
+        effect = self.media_transformation(data, dim=Dim.DATE)
         return pmd.Deterministic(
             effect_contribution_name(self.prefix),
             effect.sum(dim=self.channel_dim),

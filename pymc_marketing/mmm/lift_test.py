@@ -1388,8 +1388,8 @@ def _gather_cost_per_target_means(
     """
     indices_xr = {k: as_xtensor(v, dims=(dim,)) for k, v in indices.items()}
     return (
-        cost_value.mean(dim="date").isel(indices_xr, missing_dims="raise"),
-        target_value.mean(dim="date").isel(indices_xr, missing_dims="raise"),
+        cost_value.mean(dim=Dim.DATE).isel(indices_xr, missing_dims="raise"),
+        target_value.mean(dim=Dim.DATE).isel(indices_xr, missing_dims="raise"),
     )
 
 
@@ -1417,8 +1417,8 @@ def _add_cost_per_target_likelihood(
     indices_xr = {k: as_xtensor(v, dims=(dim,)) for k, v in indices.items()}
     targets = as_xtensor(target_values, dims=(dim,))
     sigmas = as_xtensor(sigma_values, dims=(dim,))
-    cost_mean = cost_value.mean(dim="date")
-    target_mean = target_value.mean(dim="date")
+    cost_mean = cost_value.mean(dim=Dim.DATE)
+    target_mean = target_value.mean(dim=Dim.DATE)
     numerator, denominator = (
         (target_mean, cost_mean) if target_per_cost else (cost_mean, target_mean)
     )

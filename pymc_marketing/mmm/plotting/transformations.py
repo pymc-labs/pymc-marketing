@@ -106,6 +106,7 @@ from pymc_marketing.mmm.plotting._helpers import (
     _select_dims,
 )
 from pymc_marketing.mmm.summary.helpers import get_channel_x_data
+from pymc_marketing.names.mmm import Dim
 
 _SCALED_SPACE_MAX_THRESHOLD = 10.0
 
@@ -205,8 +206,8 @@ class TransformationPlots:
             scatter_ds[["y"]],
             cols=data.custom_dims,
             backend=backend,
-            rows=["channel"],
-            aes={"color": ["channel"]},
+            rows=[Dim.CHANNEL],
+            aes={"color": [Dim.CHANNEL]},
             **pc_kwargs,
         )
 

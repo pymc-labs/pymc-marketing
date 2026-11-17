@@ -70,6 +70,7 @@ EXPECTED = {
         "TIME_SINCE_EXPOSURE": "time since exposure",
         "CV": "cv",
         "SWEEP": "sweep",
+        "BRACKET": "bracket",
     },
     (mmm, "Var"): {
         "CHANNEL_DATA": "channel_data",

@@ -206,7 +206,7 @@ class BudgetPlots:
         pc = _plot_timeseries_channel(
             ds=ds,
             sample_dims=["chain", "draw"],
-            color_dim="channel",
+            color_dim=Dim.CHANNEL,
             extra_dims=extra_dims,
             hdi_prob=hdi_prob,
             backend=backend,
