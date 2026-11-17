@@ -334,6 +334,15 @@ class PeriodWindow:
         selected = (self.actual_dates >= first) & (self.actual_dates <= last)
         return np.where(selected)[0]
 
+    @property
+    def target_offsets(self) -> np.ndarray:
+        """Positions inside the window of the period's own fitted dates, the ones its counterfactual intervenes on.
+
+        Empty for a period that holds no fitted date, such as a weekly period between two monthly dates: every
+        scenario of that period is the factual intervention target.
+        """
+        return self.offsets_within(self.start, self.end)
+
 
 @dataclass(frozen=True)
 class EvaluationWindows:
@@ -608,7 +617,7 @@ class EvaluationWindows:
         rows: dict[_ScenarioKey, int] = {}
 
         for period_idx, window in enumerate(self.windows):
-            target_offsets = window.offsets_within(window.start, window.end)
+            target_offsets = window.target_offsets
 
             perturbed: list[int | None] = (
                 [None] if separable or estimand == "joint" else list(range(n_channels))
