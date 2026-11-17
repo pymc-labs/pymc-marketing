@@ -8,6 +8,7 @@
   :toctree: generated/
 
   bass
+  bundle
   causal_utils
   clv
   customer_choice
