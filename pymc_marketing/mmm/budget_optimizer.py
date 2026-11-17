@@ -3741,31 +3741,26 @@ class BudgetOptimizer(BaseModel):
     ) -> OptimizeResult:
         """Run the exact passes of the breakpoint settler on the first solve.
 
-        They run under SLSQP only; with another method the first solve's plan comes back with a warning and the
-        status ``"skipped"``. Either way ``fun`` and ``jac`` are taken from the exact map at the returned plan.
+        They run under SLSQP only; with another method the settler hands the first solve's plan back with a warning
+        and the status ``"skipped"``. Either way ``fun`` and ``jac`` are taken from the exact map at the returned
+        plan.
         """
-        if settings.slsqp:
-            result = BreakpointSettler(
-                variables=self._variables,
-                objective_and_grad=self._objective_and_grad,
-                constraints=self._compiled_constraints,
-                solve=solve,
-                low=low,
-                high=high,
-                total_budget=total_budget,
-                ftol=settings.ftol,
-                rescale=settings.rescale,
-            ).settle(result)
-        else:
-            warnings.warn(
-                "allocate_budget: the plan was not settled on its breakpoints. The exact passes that return a "
-                "cell on its breakpoint run under SLSQP only, and minimize_kwargs asks for "
-                f"method={settings.kwargs.get('method')!r}: the plan is the first solve's, on a map with its "
-                "breakpoints blended, and a cell near a breakpoint may sit off it.",
-                UserWarning,
-                skip_file_prefixes=(_PKG_PREFIX,),
-            )
-            result["breakpoint_status"] = "skipped"
+        settler = BreakpointSettler(
+            variables=self._variables,
+            objective_and_grad=self._objective_and_grad,
+            constraints=self._compiled_constraints,
+            solve=solve,
+            low=low,
+            high=high,
+            total_budget=total_budget,
+            ftol=settings.ftol,
+            rescale=settings.rescale,
+        )
+        result = (
+            settler.settle(result)
+            if settings.slsqp
+            else settler.skip(result, settings.kwargs.get("method"))
+        )
         # The returned solve may have seen a blended or a conditioned map; report the exact one.
         objective, grad = self._objective_and_grad(result.x)
         result.fun = float(objective)

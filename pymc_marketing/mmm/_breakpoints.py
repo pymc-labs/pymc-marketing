@@ -243,13 +243,12 @@ class SettleRun:
     def finish(
         self, status: BreakpointStatus, plan: PiecewisePlan | None = None
     ) -> OptimizeResult:
-        """Return a copy of the plan's result, else the best pass's, else the first solve's, with the run's record.
+        """Return the plan's result, else the best pass's, else the first solve's, recorded with ``status``.
 
-        Without a plan the run did not settle, and a successful result says so with a warning. The copy gets the
-        counts summed over every solve and ``breakpoint_status``; the solves themselves are left as they were.
+        Without a plan the run did not settle, and a successful result says so with a warning.
         """
         chosen = plan or self.best
-        result = OptimizeResult(dict(self.first if chosen is None else chosen.result))
+        result = self.first if chosen is None else chosen.result
         if plan is None and result.success:
             warnings.warn(
                 "allocate_budget: the plan was not settled on its breakpoints: a pass failed, the check could "
@@ -258,11 +257,22 @@ class SettleRun:
                 UserWarning,
                 skip_file_prefixes=(_PKG_PREFIX,),
             )
+        return self.recorded(result, status)
+
+    def recorded(
+        self, result: OptimizeResult, status: BreakpointStatus
+    ) -> OptimizeResult:
+        """Return a copy of ``result`` with the counts summed over every solve and its ``breakpoint_status``.
+
+        Every result the passes return goes through here, so this is the one place the status is written. The
+        solves themselves are left as they were.
+        """
+        record = OptimizeResult(dict(result))
         if len(self.solves) > 1:
             for key in ("nit", "nfev", "njev"):
-                result[key] = sum(int(solve.get(key, 0)) for solve in self.solves)
-        result["breakpoint_status"] = status
-        return result
+                record[key] = sum(int(solve.get(key, 0)) for solve in self.solves)
+        record["breakpoint_status"] = status
+        return record
 
 
 @dataclass
@@ -315,6 +325,21 @@ class BreakpointSettler:
     def __post_init__(self) -> None:
         """Measure every entry's size once: closeness to a bound and constraint slack are relative to it."""
         self.size = self._entry_sizes()
+
+    def skip(self, first: OptimizeResult, method: object) -> OptimizeResult:
+        """Return ``first`` recorded as ``"skipped"``, with a warning: the passes run under SLSQP only.
+
+        The plan is the first solve's, on a map with its breakpoints blended, so a cell near a breakpoint may sit
+        off it.
+        """
+        warnings.warn(
+            "allocate_budget: the plan was not settled on its breakpoints. The exact passes that return a cell on "
+            f"its breakpoint run under SLSQP only, and minimize_kwargs asks for method={method!r}: the plan is the "
+            "first solve's, on a map with its breakpoints blended, and a cell near a breakpoint may sit off it.",
+            UserWarning,
+            skip_file_prefixes=(_PKG_PREFIX,),
+        )
+        return SettleRun(first, self.max_passes).recorded(first, "skipped")
 
     def settle(self, first: OptimizeResult) -> OptimizeResult:
         """Settle ``first``, the solve with breakpoints blended, and return the plan with its status.
