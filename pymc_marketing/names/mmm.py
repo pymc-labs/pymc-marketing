@@ -30,12 +30,15 @@ from pymc_marketing import names
 
 
 class Dim:
-    """Dimension names of the MMM and of the results it stores.
+    """Dimension names of the MMM, of the results it stores and of the inputs its optimizer reads.
 
     ``DATE``, ``CHANNEL``, ``CONTROL`` and ``FOURIER_MODE`` are the dims of the
     model (see :data:`RESERVED_DIMS`). ``TIME_SINCE_EXPOSURE`` is the lag dim of a
     sampled adstock curve, ``CV`` the fold dim of the cross-validation results and
-    ``SWEEP`` the dim of a sensitivity sweep.
+    ``SWEEP`` the dim of a sensitivity sweep. ``BRACKET`` is the dim a
+    :class:`~pymc_marketing.mmm.price_response.TieredPriceResponse` schedule runs
+    along when given as a ``DataArray``, one entry per bracket. It is not reserved:
+    a model may have a dim of that name, and only a schedule resolved on it refuses.
     """
 
     DATE: Final = "date"
@@ -45,6 +48,7 @@ class Dim:
     TIME_SINCE_EXPOSURE: Final = "time since exposure"
     CV: Final = "cv"
     SWEEP: Final = "sweep"
+    BRACKET: Final = "bracket"
 
 
 RESERVED_DIMS: Final = frozenset({Dim.DATE, Dim.CHANNEL, Dim.CONTROL, Dim.FOURIER_MODE})
