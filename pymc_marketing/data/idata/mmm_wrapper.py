@@ -112,7 +112,7 @@ def _broadcast_per_period_contributions(idata: xr.DataTree) -> xr.DataTree:
             result = idata.copy()
         result[path].dataset = node.to_dataset(inherit=False).assign(
             {
-                name: broadcast_over_date(dataset[name], dataset["date"])
+                name: broadcast_over_date(dataset[name], dataset[Dim.DATE])
                 for name in to_broadcast
             }
         )
@@ -611,8 +611,8 @@ class MMMIDataWrapper:
         if self.cost_per_unit is None:
             return xr.ones_like(self.get_channel_scale())
 
-        total_spend = self.get_channel_spend().sum(dim="date")
-        total_data = self.get_channel_data().sum(dim="date")
+        total_spend = self.get_channel_spend().sum(dim=Dim.DATE)
+        total_data = self.get_channel_data().sum(dim=Dim.DATE)
         total_data_safe = xr.where(total_data == 0, np.nan, total_data)
         return total_spend / total_data_safe
 
@@ -956,7 +956,7 @@ class MMMIDataWrapper:
 
         mu_total = posterior[Var.MU]
         channel_contrib = posterior[Var.CHANNEL_CONTRIBUTION]
-        media_total_log = channel_contrib.sum(dim="channel")
+        media_total_log = channel_contrib.sum(dim=Dim.CHANNEL)
 
         y_hat = original_scale_prediction_from_mu(mu_total, target_scale)
         y_hat_no_media = original_scale_prediction_from_mu(
@@ -1473,9 +1473,9 @@ class MMMIDataWrapper:
     def dates(self) -> pd.DatetimeIndex:
         """Get date coordinate."""
         if hasattr(self.idata, "constant_data"):
-            return pd.DatetimeIndex(self.idata.constant_data.coords["date"].values)
+            return pd.DatetimeIndex(self.idata.constant_data.coords[Dim.DATE].values)
         elif hasattr(self.idata, "posterior"):
-            return pd.DatetimeIndex(self.idata.posterior.coords["date"].values)
+            return pd.DatetimeIndex(self.idata.posterior.coords[Dim.DATE].values)
         else:
             raise ValueError("Could not find date coordinate in DataTree")
 
@@ -1483,9 +1483,9 @@ class MMMIDataWrapper:
     def channels(self) -> list[str]:
         """Get channel coordinate."""
         if hasattr(self.idata, "constant_data"):
-            return self.idata.constant_data.coords["channel"].values.tolist()
+            return self.idata.constant_data.coords[Dim.CHANNEL].values.tolist()
         elif hasattr(self.idata, "posterior"):
-            return self.idata.posterior.coords["channel"].values.tolist()
+            return self.idata.posterior.coords[Dim.CHANNEL].values.tolist()
         else:
             raise ValueError("Could not find channel coordinate in DataTree")
 

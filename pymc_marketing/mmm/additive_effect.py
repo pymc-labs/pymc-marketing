@@ -749,6 +749,14 @@ class MuEffect(SerializableBaseModel, ABC):
         does not depend on spend, and list a date-indexed noise term in
         :attr:`frozen_deterministics`.
 
+        A ``pm.Potential`` is not a spend path.  It adds a term to the
+        log-probability but does not make a variable a function of spend, so
+        a variable tied to spend only through a Potential keeps its draws in
+        the counterfactual and is not refused on that account.  This is right
+        for a soft constraint, such as a ROAS calibration prior on a
+        saturation parameter.  For a mediator, use the deterministic form
+        above.
+
         Returns
         -------
         IncrementalitySpec or None
@@ -1052,7 +1060,7 @@ class MediaMuEffect(DataVarMuEffect):
         """
         var_name = self.data_vars[0]
         data = mmm.model[var_name]
-        effect = self.media_transformation(data, dim="date")
+        effect = self.media_transformation(data, dim=Dim.DATE)
         return pmd.Deterministic(
             effect_contribution_name(self.prefix),
             effect.sum(dim=self.channel_dim),

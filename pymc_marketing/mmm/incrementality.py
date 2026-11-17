@@ -541,8 +541,8 @@ class IncrementalReducer(ABC):
             dimension is dropped; every other dimension is preserved.
         """
         if base is None:
-            return self.per_date_increment(delta).sum(dim="date")
-        return self.per_date_increment(delta, base=base).sum(dim="date")
+            return self.per_date_increment(delta).sum(dim=Dim.DATE)
+        return self.per_date_increment(delta, base=base).sum(dim=Dim.DATE)
 
     @abstractmethod
     def for_samples(self, samples: slice) -> IncrementalReducer:
@@ -663,7 +663,7 @@ class LogLinkReducer(IncrementalReducer):
         this way, and not as the total less the direct part, which loses
         digits when the two are close.
         """
-        baseline = self.baseline_response.sel(date=delta.coords["date"])
+        baseline = self.baseline_response.sel(date=delta.coords[Dim.DATE])
         if base is not None:
             baseline = baseline * np.exp(base)
         return baseline * np.expm1(delta)
@@ -683,9 +683,10 @@ def kernel_trailing_lags(l_max: int, mode: ConvMode) -> int:
     places the kernel's ``l_max`` weights on lags ``0 .. l_max - 1``, ``Overlap``
     centres them so ``l_max // 2`` fall after the spend date, and ``Before``
     places them all on or before it.
-    :meth:`~pymc_marketing.mmm.counterfactual.EvaluationWindows.build` ends the
-    ``Overlap`` and ``Before`` evaluation ranges the same way; its windowed
-    ``After`` range keeps one date of slack past the last lag.
+    :meth:`~pymc_marketing.mmm.counterfactual.EvaluationWindows.build` builds a
+    window with carryover only for ``After``, whose range keeps one date of
+    slack past the last lag; ``Overlap`` and ``Before`` are evaluated on the
+    full axis, where the range ends at the last fitted date.
 
     The one definition of how far a plain kernel carries.  :class:`Incrementality`
     passes it to :meth:`~pymc_marketing.mmm.spend_reach.SpendProbe.measure` as
@@ -1340,7 +1341,7 @@ class PeriodReduction:
     @property
     def channels(self) -> list:
         """The channel labels, in the order the evaluator computed them."""
-        return self.model_coords["channel"].tolist()
+        return self.model_coords[Dim.CHANNEL].tolist()
 
     @property
     def out_dims(self) -> list[str]:
@@ -1772,7 +1773,9 @@ class Incrementality:
             observations before the period to capture historical effects
             carrying into the evaluation period. The dates summed outside the
             period follow ``adstock.mode``: after the period for ``After``,
-            before it for ``Before``, and on both sides for ``Overlap``.
+            and on both sides for ``Before`` and ``Overlap``.  Under
+            ``Before`` the dates after the period hold the movement of an
+            effect whose own adstock carries forward.
         num_samples : int or None, optional
             Number of posterior samples to use. If None, all samples are used.
             Otherwise the same randomly chosen draws are kept in every chain,
@@ -2409,11 +2412,11 @@ class Incrementality:
         ``complete`` is read off the last lag at which the spend probe measured
         each node of the request to move, also for a model evaluated on the
         full date axis.  A period is complete when that lag after its last
-        spend date is a date it sums.  The dates a period sums end at the last
-        fitted date, and under an adstock whose ``mode`` is not ``After`` they
-        can end sooner, as early as the period's own end, so a node with
-        carryover of its own is then marked incomplete.  For a model no probe
-        can be placed on, the declarations stand in for the measurement: the
+        spend date is a date it sums.  Under every adstock ``mode`` the dates
+        a period sums reach that lag unless the data ends first, so a period
+        is marked incomplete only when its carryover runs past the last fitted
+        date.  For a model no probe can be placed on, the declarations stand
+        in for the measurement: the
         adstock's own kernel plus the widest carryover the channel-dependent
         effects declare, or the carryover the effects that declare a node
         declare for it, if that is wider.  A node none of its effects declares
@@ -2657,21 +2660,23 @@ class Incrementality:
             Entries outside a period's evaluated dates are ``0``.  With a
             windowed evaluation (the usual case) the probe measured every date
             the period's spend moves, so these are zero by construction.  When
-            the probe could not bound the reach, every period is evaluated on
-            the full date axis (``assumptions["evaluation"] == "full_axis"``),
-            and two things change.
+            the probe could not bound the reach, or ``adstock.mode`` is not
+            ``ConvMode.After``, every period is evaluated on the full date axis
+            (``assumptions["evaluation"] == "full_axis"``), and two things
+            change.
 
             First, which dates a row covers follows ``adstock.mode``.  Under
             ``ConvMode.After`` a row runs from the period's start to the end of
             the axis, and the dates before the period are left out by
             convention: a node that reduces over ``date`` can move them, and
             keeping them would make rows overlap.  A leading kernel places real
-            mass before the period, so those dates are kept: from the start of
-            the axis to its end under ``ConvMode.Overlap``, and to the period's
-            end under ``ConvMode.Before``.
+            mass before the period, so those dates are kept: under
+            ``ConvMode.Before`` and ``ConvMode.Overlap`` a row runs from the
+            start of the axis to its end.
 
-            Second, no horizon was measured, so the unobserved tail runs to the
-            period's last spend date plus the kernel's own trailing lags
+            Second, when the probe could not bound the reach, no horizon was
+            measured, so the unobserved tail runs to the period's last spend
+            date plus the kernel's own trailing lags
             (``l_max - 1`` under ``After``, ``l_max // 2`` under ``Overlap``,
             none under ``Before``).  ``observed=False`` is then a lower bound
             on what the data cannot show, because a node that reduces over
@@ -3030,7 +3035,7 @@ class Incrementality:
                 )
             notes.append(note + ".")
 
-        dim_order = ["chain", "draw", "spend_date", "realization_date", "channel"]
+        dim_order = ["chain", "draw", "spend_date", "realization_date", Dim.CHANNEL]
         if frequency == "all_time":
             dim_order.remove("spend_date")
 
@@ -3246,7 +3251,7 @@ class Incrementality:
                 "value."
             )
 
-        dim_order = ["chain", "draw", "spend_date", "realization_date", "channel"]
+        dim_order = ["chain", "draw", "spend_date", "realization_date", Dim.CHANNEL]
 
         if frequency == "all_time":
             dim_order.remove("spend_date")
@@ -3568,7 +3573,7 @@ class Incrementality:
                 np.stack([spend.values, counterfactual_spend_factor * spend.values]),
                 dims=("spend_level", *map(str, spend.dims)),
                 coords=coords,
-                core_dim="date",
+                core_dim=Dim.DATE,
                 progressbar=False,
             )
 
@@ -3654,7 +3659,7 @@ class Incrementality:
         for lag, term in enumerate(_adstock_terms(weights, saturated)):
             _scatter_by_cohort(
                 values,
-                term.transpose("chain", "draw", "date", *out_dims).values,
+                term.transpose("chain", "draw", Dim.DATE, *out_dims).values,
                 row_of=row_of,
                 lag=lag,
                 columns=columns,
@@ -4076,9 +4081,9 @@ class Incrementality:
         total = (
             contribution.isel(realization_date=contribution["observed"].values)
             .drop_vars("observed")
-            .rename(realization_date="date")
+            .rename(realization_date=Dim.DATE)
         )
-        dates = pd.DatetimeIndex(total["date"].values)
+        dates = pd.DatetimeIndex(total[Dim.DATE].values)
         # The kernel and the spend go into the contribution's label order, the
         # one its values and the matrix's coordinates are laid out in: a labeled
         # product keeps its first operand's order, and the masks below pair
@@ -4120,7 +4125,7 @@ class Incrementality:
             landed = per_unit * term
             _scatter_by_cohort(
                 values,
-                landed.transpose("chain", "draw", "date", *out_dims).values,
+                landed.transpose("chain", "draw", Dim.DATE, *out_dims).values,
                 row_of=row_of,
                 lag=lag,
             )
@@ -4546,11 +4551,11 @@ class Incrementality:
 
         cohorts = saturated.isel(date=spent)
         within = cumulative.isel(
-            {Dim.TIME_SINCE_EXPOSURE: xr.DataArray(counted, dims="date")}
+            {Dim.TIME_SINCE_EXPOSURE: xr.DataArray(counted, dims=Dim.DATE)}
         )
-        within = within.assign_coords(date=cohorts["date"].values)
+        within = within.assign_coords(date=cohorts[Dim.DATE].values)
         whole = cumulative.isel({Dim.TIME_SINCE_EXPOSURE: -1}, drop=True)
-        order = ("chain", "draw", "date", *out_dims)
+        order = ("chain", "draw", Dim.DATE, *out_dims)
         rows = row_of[spent]
 
         current = self._sum_by_period(
@@ -4998,12 +5003,33 @@ class Incrementality:
             complete=("spend_date", list(complete)),
         )
 
-        dim_order = ["chain", "draw", "spend_date", "channel", *custom_dims]
+        dim_order = ["chain", "draw", "spend_date", Dim.CHANNEL, *custom_dims]
         if frequency == "all_time":
             result = result.squeeze("spend_date", drop=False)
             dim_order.remove("spend_date")
 
         return result.transpose(*dim_order)
+
+    def _evaluates_on_full_axis(self, reach: SpendReach) -> bool:
+        """Whether every period is evaluated on the full date axis.
+
+        The probe asks for it when it cannot bound the reach.  A model whose
+        adstock is not ``ConvMode.After`` always gets it: its windowed sum ends
+        at most ``l_max // 2`` dates past the period, which cuts the forward
+        carryover of an effect with its own adstock, even when the probe
+        measured that carryover.
+
+        Parameters
+        ----------
+        reach : SpendReach
+            What the probe measured.
+
+        Returns
+        -------
+        bool
+            True for full-axis evaluation.
+        """
+        return reach.requires_full_axis or self.model.adstock.mode != ConvMode.After
 
     def _carryover_attrs(
         self,
@@ -5076,7 +5102,9 @@ class Incrementality:
             "time_varying_media": bool(self.model.time_varying_media),
             "frequency": frequency,
             "counterfactual_spend_factor": float(counterfactual_spend_factor),
-            "evaluation": "full_axis" if reach.requires_full_axis else "window",
+            "evaluation": (
+                "full_axis" if self._evaluates_on_full_axis(reach) else "window"
+            ),
             **(extra_assumptions or {}),
         }
         attrs: dict = {"estimand": estimand, "method": method}
@@ -5265,7 +5293,7 @@ class Incrementality:
                 dates=self.data.dates,
                 l_max=probed.reach.effective_l_max,
                 freq_offset=freq_offset,
-                full_axis=probed.reach.requires_full_axis,
+                full_axis=self._evaluates_on_full_axis(probed.reach),
                 include_carryover=include_carryover,
                 mode=self.model.adstock.mode,
             )
@@ -5934,8 +5962,8 @@ class Incrementality:
         """
         probed = prepared.probed
         # How far past a period's last spend date its carryover is known to
-        # land: the measured reach, or under full-axis evaluation the kernel's
-        # own trailing lags, which bound it from below.
+        # land: the measured reach, or, where the probe could not bound it, the
+        # kernel's own trailing lags, which bound it from below.
         tail_lags = (
             probed.reach.max_lag
             if probed.reach.max_lag is not None
@@ -6341,7 +6369,7 @@ class Incrementality:
         """
         spend = self._aggregate_spend(frequency, start_date, end_date)
         if scope == "joint":
-            spend = spend.sum("channel")
+            spend = spend.sum(Dim.CHANNEL)
         # A period that holds no fitted date is missing from the aggregate, and
         # no spend is moved in it.
         if Dim.DATE in spend.dims:
@@ -6440,7 +6468,7 @@ class Incrementality:
                 {IncrementalityResult.COMPLETE: bool(complete[0])}
             )
         return result.assign_coords(
-            {IncrementalityResult.COMPLETE: ("date", list(complete))}
+            {IncrementalityResult.COMPLETE: (Dim.DATE, list(complete))}
         )
 
     def _induced_movement(
@@ -6534,9 +6562,9 @@ class Incrementality:
         """
         if frequency == "all_time":
             # Single period, no date dimension
-            result = periods[0].squeeze("date", drop=True)
+            result = periods[0].squeeze(Dim.DATE, drop=True)
         else:
-            result = xr.concat(periods, dim="date")
+            result = xr.concat(periods, dim=Dim.DATE)
         # Already on the original (response) scale: the reducer applied the
         # link's inverse transform and target_scale per draw, before summing.
         return result.transpose("chain", "draw", ...)
@@ -6687,16 +6715,16 @@ class Incrementality:
             dims = non_date_dims[name]
             return xr.DataArray(
                 counterfactual[name][row][:, cf_mask] - baseline[name],
-                dims=("sample", "date", *dims),
+                dims=("sample", Dim.DATE, *dims),
                 coords={
-                    "date": window_dates,
+                    Dim.DATE: window_dates,
                     **{dim: coords[dim] for dim in dims if dim in coords},
                 },
             )
 
         channel_delta = delta(Var.CHANNEL_CONTRIBUTION)
         kept = (
-            channel_delta.sum(dim="channel")
+            channel_delta.sum(dim=Dim.CHANNEL)
             if channel is None
             else channel_delta.isel(channel=channel, drop=True)
         )
@@ -6820,8 +6848,17 @@ class Incrementality:
             }
             cf_mask = window.eval_mask(windows.max_window)
             rows = [scenarios.rows[(period_idx, key)] for key, _ in row_slices]
-            # A period with no fitted date has nothing evaluated to compare.
+            # A period with no fitted date in its window has nothing evaluated to
+            # compare.  Wider than ``moves_spend`` on purpose: a period that moves
+            # no spend still has its rows checked, which is what tells rounding
+            # apart from a term that takes another value on the window.
             evaluated = bool(cf_mask.any())
+            # A period with no fitted date of its own scales no spend, so every
+            # scenario of it is the factual spend and every result is zero.  The
+            # difference below is zero only to rounding, since the window and the
+            # full-axis baseline are evaluated at different shapes: future would
+            # be a residue and its share 1.0 where the closed form has NaN.
+            moves_spend = window.target_offsets.size > 0
 
             if reduction.check_rows and evaluated:
                 self._check_rows(
@@ -6845,13 +6882,14 @@ class Incrementality:
                     reduction=reduction,
                 )
                 for path, increment in increments.items():
+                    unflattened = self._unflatten_samples(
+                        increment,
+                        reduction.out_dims,
+                        labels,
+                        window.eval_dates if reduction.keep_date_axis else None,
+                    )
                     results[path].append(
-                        self._unflatten_samples(
-                            increment,
-                            reduction.out_dims,
-                            labels,
-                            window.eval_dates if reduction.keep_date_axis else None,
-                        )
+                        unflattened if moves_spend else xr.zeros_like(unflattened)
                     )
 
             if reduction.mediators and evaluated:
@@ -6864,16 +6902,17 @@ class Incrementality:
                     counterfactual=counterfactual,
                 )
             for mediator in reduction.mediators:
+                movement = self._mediator_movement(
+                    mediator,
+                    rows=rows,
+                    cf_mask=cf_mask,
+                    baseline=period_baseline,
+                    counterfactual=counterfactual,
+                    labels=labels,
+                    reduction=reduction,
+                )
                 results[mediator.name].append(
-                    self._mediator_movement(
-                        mediator,
-                        rows=rows,
-                        cf_mask=cf_mask,
-                        baseline=period_baseline,
-                        counterfactual=counterfactual,
-                        labels=labels,
-                        reduction=reduction,
-                    )
+                    movement if moves_spend else xr.zeros_like(movement)
                 )
         return results
 
@@ -6974,7 +7013,7 @@ class Incrementality:
         passed = {} if base is None else {"base": base}
         if reduction.keep_date_axis:
             increment = reducer.per_date_increment(delta, **passed).transpose(
-                "sample", "date", *reduction.out_dims
+                "sample", Dim.DATE, *reduction.out_dims
             )
         else:
             increment = reducer.counterfactual_minus_baseline(
@@ -7142,9 +7181,9 @@ class Incrementality:
                 xr.DataArray(
                     counterfactual[mediator.variable][row][:, cf_mask]
                     - baseline[mediator.variable],
-                    dims=("sample", "date", *dims),
+                    dims=("sample", Dim.DATE, *dims),
                     coords=coords,
-                ).sum("date")
+                ).sum(Dim.DATE)
                 for row in rows
             ],
             reduction,
@@ -7426,7 +7465,7 @@ class Incrementality:
                 freq_offset=freq_offset,
             )
         else:
-            result = result.assign_coords(date=window.end).expand_dims("date")
+            result = result.assign_coords(date=window.end).expand_dims(Dim.DATE)
         # A mediator may carry fewer dimensions than the model.
         return result.sel(
             {dim: order for dim, order in reported_order.items() if dim in result.dims}
@@ -7479,9 +7518,9 @@ class Incrementality:
     ) -> bool:
         """Whether a period's carryover lands past the last date its result sums.
 
-        That date is the last fitted date at most.  Under an adstock whose mode
-        is not ``After`` it can be earlier, down to the period's own end, while
-        a mediator with an adstock of its own still carries forward.
+        That date is the last fitted date at most.  On the full date axis,
+        which every adstock ``mode`` other than ``After`` uses, it is the last
+        fitted date; on an ``After`` window it is the window's own bound.
 
         Parameters
         ----------
@@ -7526,20 +7565,19 @@ class Incrementality:
         period's last fitted spend date plus *tail_lags*.  Not to the window's
         own bound, which sits one date past a plain adstock's kernel, and not to
         the period's calendar end, which for a last period the data ends
-        partway through lies past any spend there is.  With a windowed
-        evaluation *tail_lags* is the reach the probe measured.  Under full-axis
-        evaluation no horizon was measured, and *tail_lags* is the kernel's own
-        trailing lags, so the appended dates are a lower bound on what the data
-        cannot show: a node that reduces over ``date``, or a mediated path, can
-        reach further.
+        partway through lies past any spend there is.  When the probe bounded
+        the reach, *tail_lags* is the reach it measured, on a window or on the
+        full axis.  When it could not, no horizon was measured, and *tail_lags*
+        is the kernel's own trailing lags, so the appended dates are a lower
+        bound on what the data cannot show: a node that reduces over ``date``,
+        or a mediated path, can reach further.
 
         Only the trailing side is extended.  A kernel with leading mass also
         loses the mass that falls before the first fitted date, which no date
-        on the axis can label, so ``observed`` does not mark it.  Such a kernel
-        moves dates before the probed one, which sends the model to full-axis
-        evaluation; one whose leading weights the probe cannot see stays
-        windowed, and :meth:`split_incremental_contribution_current_future`
-        refuses every mode other than ``ConvMode.After`` regardless.
+        on the axis can label, so ``observed`` does not mark it.  Every mode
+        other than ``ConvMode.After`` is evaluated on the full axis, and
+        :meth:`split_incremental_contribution_current_future` refuses those
+        modes.
 
         Parameters
         ----------
@@ -7594,9 +7632,9 @@ class Incrementality:
           period are excluded by convention, not measured: a node that reduces
           over ``date`` can move them, and keeping them would make rows
           overlap.  A leading kernel keeps the dates before the period, where
-          it places real mass: the band starts at the axis start and ends at
-          the axis end under ``ConvMode.Overlap``, at the period's end under
-          ``ConvMode.Before``.
+          it places real mass: under ``ConvMode.Before`` and
+          ``ConvMode.Overlap`` the band starts at the axis start and ends at
+          the axis end.
 
         A sum over ``realization_date`` with xarray's default ``skipna`` therefore
         reproduces :meth:`compute_incremental_contribution` exactly.

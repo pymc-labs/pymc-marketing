@@ -350,7 +350,7 @@ class Equation(GraphTerm):
             context._finite(history, binding.observed)
             prefix = pmd.as_xtensor(history)
             future = value.isel(date=slice(context.history_length, None))
-            return pmd.concat([prefix, future], dim="date")
+            return pmd.concat([prefix, future], dim=Dim.DATE)
         return value
 
 
@@ -551,7 +551,7 @@ class BuildContext:
         ):
             raise ValueError("history_length must be a nonnegative integer.")
         if history_length and (
-            Dim.DATE not in ds.dims or history_length >= ds.sizes["date"]
+            Dim.DATE not in ds.dims or history_length >= ds.sizes[Dim.DATE]
         ):
             raise ValueError("Prediction history must leave at least one future date.")
         if isinstance(condition_on, str) or any(
@@ -775,12 +775,12 @@ class BuildContext:
             raise ValueError(
                 "Date-indexed deterministic constants require labeled scenario dates."
             )
-        if Dim.DATE not in value.coords or value.coords["date"].dims != (Dim.DATE,):
+        if Dim.DATE not in value.coords or value.coords[Dim.DATE].dims != (Dim.DATE,):
             raise ValueError(
                 "Date-indexed deterministic constants require labeled scenario and constant dates."
             )
-        labels = _dates(self.ds.get_index("date")).as_unit("us")
-        given = _dates(value.get_index("date")).as_unit("us")
+        labels = _dates(self.ds.get_index(Dim.DATE)).as_unit("us")
+        given = _dates(value.get_index(Dim.DATE)).as_unit("us")
         if not given.is_unique or not labels.isin(given).all():
             raise ValueError(
                 "A deterministic constant does not cover the requested 'date' labels."

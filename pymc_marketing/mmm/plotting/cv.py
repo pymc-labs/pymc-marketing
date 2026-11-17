@@ -188,7 +188,7 @@ class MMMCVPlotSuite:
         )
 
         hdi_ds = split_ds.azstats.hdi(prob=hdi_prob)
-        date_da = split_ds["train"].coords["date"]
+        date_da = split_ds["train"].coords[Dim.DATE]
 
         pc.map(
             azp.visuals.fill_between_y,
@@ -208,10 +208,10 @@ class MMMCVPlotSuite:
             "alpha": 0.9,
         }
         _plot_da = pc.viz["plot"]
-        _cv_pos = _plot_da.dims.index("cv")
+        _cv_pos = _plot_da.dims.index(Dim.CV)
         for _idx in np.ndindex(*_plot_da.shape):
             _ax = _plot_da.values[_idx]
-            _cv_lbl = str(_plot_da.coords["cv"].values[_idx[_cv_pos]])
+            _cv_lbl = str(_plot_da.coords[Dim.CV].values[_idx[_cv_pos]])
             _ax.axvline(x=float(train_end_da.sel(cv=_cv_lbl).item()), **_vline_kw)
 
         pc.add_legend("__variable__")
@@ -303,10 +303,10 @@ class MMMCVPlotSuite:
         pc = azp.plot_forest(
             idata_for_plot,
             var_names=var_names,
-            aes={"color": ["cv"]},
+            aes={"color": [Dim.CV]},
             figure_kwargs=fig_kw,
             combined=True,
-            shade_label="channel",
+            shade_label=Dim.CHANNEL,
             backend=backend,
             **pc_kwargs,
         )
@@ -412,10 +412,10 @@ class MMMCVPlotSuite:
         coords: dict[str, Any] = {
             "split": ["train", "test"],
             **combo_coords,
-            "cv": cv_labels,
+            Dim.CV: cv_labels,
         }
         crps_da = xr.DataArray(
-            data_arr, dims=["split", *extra_dims, "cv"], coords=coords
+            data_arr, dims=["split", *extra_dims, Dim.CV], coords=coords
         )
         crps_ds = crps_da.to_dataset(name="crps")
 
@@ -430,7 +430,7 @@ class MMMCVPlotSuite:
         )
 
         cv_x = xr.DataArray(
-            np.arange(len(cv_labels)), dims=["cv"], coords={"cv": cv_labels}
+            np.arange(len(cv_labels)), dims=[Dim.CV], coords={Dim.CV: cv_labels}
         )
         pc.map(
             azp.visuals.line_xy,

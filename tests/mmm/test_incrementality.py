@@ -4430,16 +4430,16 @@ class TestSplitIncrementalContribution:
         assert not any("excluded by convention" in note for note in notes)
         assert any("runs past the end" in note for note in notes) == bool(tail)
 
-    def test_windowed_leading_kernel_has_no_horizon_past_its_spend_date(
+    def test_leading_kernel_the_probe_can_bound_still_uses_the_full_axis(
         self, simple_mmm_data
     ):
-        """A ``Before`` kernel the probe can bound reports no unobserved tail.
+        """A ``Before`` kernel the probe can bound keeps its horizon on the full axis.
 
         With ``adstock_alpha`` near zero the leading weights fall below the
-        probe's tolerance, so the model stays windowed and only lag 0 moves.
-        The horizon floor follows the convolution mode, as the full-axis tail
-        does, so it is ``0`` rather than ``l_max - 1``, and no date past the
-        data is reported unobserved.
+        probe's tolerance, so the probe bounds the reach and only lag 0 moves.
+        Every non-``After`` model is still evaluated on the full axis, and the
+        measured horizon is still reported.  It is ``0`` rather than
+        ``l_max - 1``, so no date past the data is reported unobserved.
         """
         from tests.mmm.conftest import mock_fit
 
@@ -4461,7 +4461,7 @@ class TestSplitIncrementalContribution:
             matrix = incr.split_incremental_contribution_over_time(frequency="original")
         expected = incr.compute_incremental_contribution(frequency="original")
 
-        assert json.loads(matrix.attrs["assumptions"])["evaluation"] == "window"
+        assert json.loads(matrix.attrs["assumptions"])["evaluation"] == "full_axis"
         assert matrix.attrs["effective_horizon"] == 0
         assert bool(matrix.coords["observed"].all())
         assert not bool(matrix.isnull().any())
@@ -6148,6 +6148,55 @@ class TestClosedFormCurrentFuture:
 
         closed, pipeline = self._both(mmm, frequency=frequency)
 
+        _assert_same_split(closed, pipeline)
+
+    def test_a_period_without_fitted_dates_is_zero_whatever_the_rounding(
+        self, monthly_mmm_data, monkeypatch
+    ):
+        """A weekly period between two monthly dates scales no spend: its current and
+        future are exactly zero and its future share NaN, as in the closed form.
+
+        The pipeline subtracts a baseline evaluated on the full date axis from one
+        evaluated on the period's window.  The two agree to rounding, not always to
+        the bit, which a baseline one ulp off stands in for.  Current is zero either
+        way, since such a period's window holds no date of its own; it is future
+        that would be a residue, and its share 1.0.
+        """
+        evaluate = CounterfactualEvaluator.evaluate_baseline
+        nudged = []
+
+        def one_ulp_up(self, *args, **kwargs):
+            nudged.append(True)
+            return {
+                name: np.nextafter(values, np.inf)
+                for name, values in evaluate(self, *args, **kwargs).items()
+            }
+
+        monkeypatch.setattr(CounterfactualEvaluator, "evaluate_baseline", one_ulp_up)
+        mmm = _fit_custom_mmm(
+            monthly_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
+        )
+
+        closed, pipeline = self._both(mmm, frequency="weekly")
+
+        assert nudged
+
+        fitted = pd.DatetimeIndex(monthly_mmm_data["X"]["date"])
+        empty = np.array(
+            [
+                not ((fitted >= start) & (fitted <= end)).any()
+                for start, end in zip(
+                    pipeline.period_start.values,
+                    pipeline.spend_date.values,
+                    strict=True,
+                )
+            ]
+        )
+        assert empty.sum() > empty.size / 2
+        quiet = pipeline.isel(spend_date=empty)
+        assert (quiet.current == 0.0).all()
+        assert (quiet.future == 0.0).all()
+        assert quiet.future_share.isnull().all()
         _assert_same_split(closed, pipeline)
 
     @pytest.mark.parametrize("frequency", ["original", "monthly"])
@@ -8856,24 +8905,90 @@ class TestIncrementalMediator:
         assert without[LF_SPEND]["complete"].all()
         assert all_time[LF_SPEND]["complete"].item() is False
 
-    def test_a_period_its_adstock_mode_does_not_sum_past_is_marked(
-        self, funnel_mmm_data
+    @pytest.mark.parametrize(
+        ("mode", "l_max"),
+        [
+            (ConvMode.Before, FUNNEL_L_MAX),
+            (ConvMode.Before, 1),
+            (ConvMode.Overlap, 1),
+            (ConvMode.Overlap, 2),
+        ],
+        ids=str,
+    )
+    @pytest.mark.parametrize("link", ["identity", "log"])
+    def test_a_non_after_period_sums_the_forward_carryover_of_an_effect(
+        self, funnel_mmm_data, link, mode, l_max
     ):
-        """Under a ``Before`` adstock a period sums no date past its own end.
+        """Under a non-``After`` adstock a period sums every date after its end.
 
-        Lower-funnel spend still carries forward through the funnel's own
-        adstock, so no period holds its whole movement, although the fitted
-        dates hold most of it.
+        The model's own kernel moves at most ``l_max // 2`` dates after the
+        spend, but the funnel's second adstock carries lower-funnel spend
+        further.  The total, both paths and the movement match the brute-force
+        difference over every fitted date, and only the periods the data cuts
+        short are marked.  With ``Before`` and ``l_max=1``, or ``Overlap`` and
+        ``l_max`` up to 2, the kernel moves no date before the spend, which the
+        probe alone would evaluate on a window.
         """
         mmm = _build_funnel_mmm(
-            funnel_mmm_data, link="log", adstock_mode=ConvMode.Before
+            funnel_mmm_data, link=link, l_max=l_max, adstock_mode=mode
         )
+        incr = mmm.incrementality
 
-        moved = mmm.incrementality.compute_incremental_mediator(
+        total = incr.compute_incremental_contribution(frequency="monthly")
+        parts = incr.decompose_incremental_contribution(frequency="monthly")
+        moved = incr.compute_incremental_mediator(
             frequency="monthly", mediators=[LF_SPEND]
         )
 
-        assert not moved[LF_SPEND]["complete"].any()
+        expected = oracle(mmm, frequency="monthly", held=FUNNEL_NODES)
+        assert_matches(total, expected["total"])
+        for name in ("total", "direct", "mediated"):
+            assert_matches(parts[name], expected[name])
+        assert_matches(
+            moved[LF_SPEND], movement_oracle(mmm, LF_SPEND, frequency="monthly")
+        )
+        assert moved[LF_SPEND]["complete"].values.tolist() == expected_complete(
+            mmm, "monthly", FUNNEL_L_MAX - 1
+        )
+
+    @pytest.mark.parametrize(
+        ("mode", "l_max"), [(ConvMode.Before, 1), (ConvMode.Overlap, 2)], ids=str
+    )
+    def test_a_full_axis_split_keeps_the_horizon_the_probe_measured(
+        self, funnel_mmm_data, mode, l_max
+    ):
+        """Full-axis evaluation of a non-``After`` model keeps the measured horizon.
+
+        The kernel moves no date before the spend and the probe bounds the
+        funnel's carryover, so the split reports the horizon and the unobserved
+        tail of the ``After`` model with ``l_max=1``, which stays on a window.
+        """
+
+        def split(adstock_mode, adstock_l_max):
+            mmm = _build_funnel_mmm(
+                funnel_mmm_data,
+                link="identity",
+                l_max=adstock_l_max,
+                adstock_mode=adstock_mode,
+            )
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", UserWarning)
+                return mmm.incrementality.split_incremental_contribution_over_time(
+                    frequency="monthly"
+                )
+
+        matrix = split(mode, l_max)
+        reference = split(ConvMode.After, 1)
+
+        assert json.loads(matrix.attrs["assumptions"])["evaluation"] == "full_axis"
+        assert json.loads(reference.attrs["assumptions"])["evaluation"] == "window"
+        assert matrix.attrs["effective_horizon"] == reference.attrs["effective_horizon"]
+        np.testing.assert_array_equal(
+            matrix.coords["observed"].values, reference.coords["observed"].values
+        )
+        assert not bool(matrix.coords["observed"].all())
+        notes = json.loads(matrix.attrs["warnings"])
+        assert not any("could not bound" in note for note in notes)
 
     def test_where_no_probe_can_be_placed_the_declarations_mark(
         self, no_probe_funnel_mmm
