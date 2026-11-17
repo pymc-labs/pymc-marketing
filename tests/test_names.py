@@ -70,6 +70,7 @@ EXPECTED = {
         "TIME_SINCE_EXPOSURE": "time since exposure",
         "CV": "cv",
         "SWEEP": "sweep",
+        "BRACKET": "bracket",
     },
     (mmm, "Var"): {
         "CHANNEL_DATA": "channel_data",
@@ -123,6 +124,11 @@ EXPECTED = {
         **SHARED_GROUP,
         "SENSITIVITY_ANALYSIS": "sensitivity_analysis",
         "CV_METADATA": "cv_metadata",
+    },
+    (mmm, "IncrementalityResult"): {
+        "SPEND_CHANGE": "spend_change",
+        "INDUCED_SPEND": "induced_spend",
+        "COMPLETE": "complete",
     },
     (clv, "Col"): {
         "CUSTOMER_ID": "customer_id",

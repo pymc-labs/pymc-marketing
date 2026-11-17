@@ -8,6 +8,10 @@ directory in two modes:
 | **Smoke-test** | Fast CI check for runtime errors | `papermill` + mocked PyMC sampling |
 | **Real execution** | Full run-through with actual sampling | `jupyter execute` |
 
+The `.nc` files under `docs/source/notebooks/` are stored with Git LFS. Run
+`git lfs pull` before running the MMM notebooks, otherwise the notebooks that
+load `mmm/multidimensional_model.nc` fail on the LFS pointer file.
+
 ---
 
 ## Smoke-test (fast, mock mode)

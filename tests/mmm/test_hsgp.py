@@ -36,6 +36,7 @@ from pymc_marketing.mmm.hsgp import (
     SoftPlusHSGP,
     approx_hsgp_hyperparams,
     create_complexity_penalizing_prior,
+    create_m_and_L_recommendations,
 )
 from pymc_marketing.model_graph import deterministics_to_flat
 from pymc_marketing.serialization import DeferredFactory, serialization
@@ -126,6 +127,46 @@ def test_unsupported_cov_func_raises() -> None:
             lengthscale_range=(1, 2),
             cov_func="unsupported",
         )
+
+
+FRONT_LOADED = np.r_[np.arange(100.0), np.arange(100.0, 400.0, 10.0)]
+
+
+@pytest.mark.parametrize("start", [0.0, 1000.0], ids=["zero_start", "offset"])
+def test_m_and_L_recommendations_regular_index(start) -> None:
+    # np.arange(n_dates) is the MMM time index. A dict TVP config recomputes m on
+    # every build, so these values fix the shape of the HSGP coefficients.
+    X = np.arange(156.0) + start
+    m, L = create_m_and_L_recommendations(X, X.mean(), ls_lower=2.0)
+    assert m == 434
+    assert L == pytest.approx(496.0)
+
+
+@pytest.mark.parametrize(
+    "X, X_mid",
+    [
+        (FRONT_LOADED, None),
+        (FRONT_LOADED.max() - FRONT_LOADED, None),
+        (np.arange(156.0), 0.0),
+    ],
+    ids=["front_loaded", "back_loaded", "off_center_X_mid"],
+)
+def test_m_and_L_recommendations_boundary_covers_data(X, X_mid) -> None:
+    X_mid = X.mean() if X_mid is None else X_mid
+    _, L = create_m_and_L_recommendations(X, X_mid, ls_lower=2.0, ls_upper=50.0)
+    assert L > np.max(np.abs(X - X_mid))
+
+
+def test_m_and_L_recommendations_default_ls_upper_is_the_data_range() -> None:
+    X = FRONT_LOADED
+    assert create_m_and_L_recommendations(X, X.mean(), ls_lower=2.0) == (
+        create_m_and_L_recommendations(X, X.mean(), ls_lower=2.0, ls_upper=np.ptp(X))
+    )
+
+
+def test_m_and_L_recommendations_constant_X_raises() -> None:
+    with pytest.raises(ValueError, match=r"at least two distinct values"):
+        create_m_and_L_recommendations(np.ones(5), 1.0)
 
 
 def test_X_at_init_stores_as_tensor_variable() -> None:

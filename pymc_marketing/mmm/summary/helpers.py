@@ -107,8 +107,8 @@ def compute_waterfall_components(
 
     for ds_key, coord_dim in [
         ("baseline", None),
-        ("channels", "channel"),
-        ("controls", "control"),
+        ("channels", Dim.CHANNEL),
+        ("controls", Dim.CONTROL),
         ("seasonality", None),
     ]:
         if ds_key not in contributions_ds:
@@ -145,8 +145,8 @@ def compute_channel_shares(channel_contributions: xr.DataArray) -> xr.DataArray:
     xr.DataArray
         Channel shares with ``date`` summed out.
     """
-    summed = channel_contributions.sum(dim="date")
-    total = summed.sum(dim="channel")
+    summed = channel_contributions.sum(dim=Dim.DATE)
+    total = summed.sum(dim=Dim.CHANNEL)
     shares = summed / total
     shares.name = "channel_share"
     return shares
@@ -195,17 +195,17 @@ def prepare_sensitivity_data(
     sa_da = _select_dims(sa_da, dims)
     sa_da = _ensure_chain_draw_dims(sa_da)
 
-    sweep_coords = sa_da.coords["sweep"]
+    sweep_coords = sa_da.coords[Dim.SWEEP]
     if x_sweep_axis == "relative":
         sweep_x = sweep_coords
     else:
         if apply_cost_per_unit:
-            channel_scale = data.get_channel_spend().sum("date")
+            channel_scale = data.get_channel_spend().sum(Dim.DATE)
         else:
-            channel_scale = data.get_channel_data().sum("date")
+            channel_scale = data.get_channel_data().sum(Dim.DATE)
 
         if Dim.CHANNEL in channel_scale.dims and Dim.CHANNEL not in sa_da.dims:
-            channel_scale = channel_scale.sum("channel")
+            channel_scale = channel_scale.sum(Dim.CHANNEL)
 
         sweep_x = sweep_coords * channel_scale
 

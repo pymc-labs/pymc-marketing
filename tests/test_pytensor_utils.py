@@ -728,6 +728,35 @@ def test_extract_response_distribution_accepts_several_variables():
         extract_response_distribution(model, idata, [])
 
 
+def test_extract_response_distribution_keeps_a_variable_no_parameter_reaches():
+    """A variable computed from data alone extracts next to one that reads a parameter.
+
+    It has no posterior draws to vectorize over, so it comes back without a
+    ``sample`` dimension, as it does when it is asked for on its own.  An
+    index built from spend with no coefficient is such a variable.
+    """
+    data_values = np.array([1.0, 2.0, 3.0])
+    with pm.Model(coords={"d": [0, 1, 2]}) as model:
+        data = pmd.Data("data", data_values, dims="d")
+        slope = pmd.Normal("slope", mu=0.0, sigma=1.0)
+        pmd.Deterministic("scaled", data * slope)
+        pmd.Deterministic("index", pmd.math.tanh(data))
+
+    with model:
+        prior = pm.sample_prior_predictive(draws=4, random_seed=42)
+    idata = xr.DataTree.from_dict({"/posterior": prior["/prior"].to_dataset()})
+
+    alone = extract_response_distribution(model, idata, "index")
+    scaled, index = extract_response_distribution(model, idata, ["scaled", "index"])
+
+    assert index.type.dims == alone.type.dims == ("d",)
+    assert scaled.type.dims == ("sample", "d")
+    scaled_values, index_values = function([], [scaled, index])()
+    np.testing.assert_allclose(index_values, np.tanh(data_values))
+    drawn = prior["/prior"].to_dataset()["slope"].values.reshape(-1)
+    np.testing.assert_allclose(scaled_values, np.outer(drawn, data_values))
+
+
 def _channel_layout(dims=("channel",), *, shape=(2,), coords=None):
     return VariableLayout(
         dims=dims,
