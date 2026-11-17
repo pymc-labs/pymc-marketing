@@ -783,11 +783,6 @@ class TestPriceResponseContract:
         np.testing.assert_array_equal(after, before)
 
 
-# --------------------------------------------------------------------------------------------------------------
-# TieredPriceResponse
-# --------------------------------------------------------------------------------------------------------------
-
-
 def tiered_closed_form(z, breakpoints, multipliers):
     """The issue's formula in budget units: sum_i (min(z, B_{i+1}) - min(z, B_i)) / r_i."""
     edges = np.concatenate([[0.0], np.asarray(breakpoints, float), [np.inf]])
@@ -864,7 +859,8 @@ class TestResolvedTieredPriceResponse:
 
     def test_the_issue_table(self):
         """Reproduces the two-bracket truth of #3067 that PowerPriceResponse misses by 16% to
-        51% in marginal price: a baseline rate of 5, an incremental rate of 8 above 1e6."""
+        51% in marginal price: a baseline rate of 5, an incremental rate of 8 above 1e6. The
+        committed tranche keeps its rate, so at +100% the average price is 6.15, not 6.48."""
         spends = 1e6 * np.array([1.0, 1.1, 1.25, 1.5, 2.0, 3.0])
         _, _, u, p, m = tiered_maps(
             TieredPriceResponse(breakpoints=[1e6], rate_multipliers=[1.0, 1.6]),
@@ -877,7 +873,6 @@ class TestResolvedTieredPriceResponse:
             rtol=1e-10,
         )
         np.testing.assert_allclose(m(spends), 8.0, rtol=1e-12)
-        # the committed tranche keeps its rate: at +100% the average price is 6.15, not 6.48
         np.testing.assert_allclose(p(spends)[4], 2e6 / 325_000, rtol=1e-10)
 
     def test_zero_and_negative_money(self):
@@ -965,8 +960,10 @@ class TestResolvedTieredPriceResponse:
     def test_the_blend(self):
         """Inside a solve's box the knot is a C2 quartic: exact outside the window, short by
         3/16 of drop * w at the knot, concave and increasing; after the solve the knot is
-        hard again. A JAX function compiled before the solve, as the optimizer's is, reads
-        the blend inside it, with a finite gradient, and the hard knot after it."""
+        hard again. C2 means the curvature is zero at both edges of the window (grid points
+        100 and 300), where a C1 blend would jump by about half the peak curvature. A JAX
+        function compiled before the solve, as the optimizer's is, reads the blend inside it,
+        with a finite gradient, and the hard knot after it."""
         b, w, p0 = 1e6, 1e3, 5.0
         drop = 1.0 - 1.0 / 1.6
         grid = np.linspace(b - 2 * w, b + 2 * w, 401)
@@ -1007,8 +1004,6 @@ class TestResolvedTieredPriceResponse:
         first, second = np.diff(blended), np.diff(blended, 2)
         assert np.all(first > 0.0)
         assert np.all(second <= 1e-6 * np.abs(second).max())
-        # C2: the curvature is zero at both edges of the window (grid points 100 and 300); a C1
-        # blend would show a jump of about half the peak curvature there.
         peak = np.abs(second).max()
         assert abs(second[99]) < 1e-2 * peak
         assert abs(second[299]) < 1e-2 * peak

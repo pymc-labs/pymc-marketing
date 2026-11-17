@@ -157,6 +157,12 @@ class ResolvedPriceResponse(ABC):
         times the ``budget_distribution_over_period`` factor of each period, zero outside the mask; ``None``
         under the uniform spread, where it is 1. A family whose breakpoints are in budget units uses it to place
         the breakpoint of each period at ``breakpoint * weight``. The default ignores it.
+
+        Parameters
+        ----------
+        weights : XTensorVariable or None
+            Money each period gets per unit of budget, over ``(date_dim, *dims)``; ``None`` under the uniform
+            spread.
         """
         return None
 
@@ -168,6 +174,18 @@ class ResolvedPriceResponse(ABC):
         outside the mask. Inside the block the map may differ from the declared one in ways a solver needs, for
         example a breakpoint blended where the bounds let the solver cross it. A family whose map has a convex
         part raises here when the bounds contain it. The default changes nothing.
+
+        Parameters
+        ----------
+        low : np.ndarray
+            Lower bound of each cell over ``dims``, in budget units.
+        high : np.ndarray
+            Upper bound of each cell over ``dims``, in budget units.
+
+        Raises
+        ------
+        ValueError
+            In a family whose map is convex somewhere inside the bounds; never in the default.
         """
         yield
 
@@ -183,6 +201,22 @@ class ResolvedPriceResponse(ABC):
         The map is affine in the budget on that interval. A cell on a breakpoint gets the interval above it, or
         the one below where ``from_below`` is set. All arrays are per cell over ``dims``, in budget units. The
         default, for a map with no breakpoints, is ``(low, high)``.
+
+        Parameters
+        ----------
+        budgets : np.ndarray
+            Budget of each cell over ``dims``.
+        low : np.ndarray
+            Lower bound of each cell over ``dims``.
+        high : np.ndarray
+            Upper bound of each cell over ``dims``, infinite where unbounded.
+        from_below : np.ndarray or None
+            Boolean per cell: where set, a cell on a breakpoint gets the piece below it. ``None`` sets it nowhere.
+
+        Returns
+        -------
+        tuple[np.ndarray, np.ndarray]
+            Lower and upper end of the piece of each cell, within ``[low, high]``.
         """
         return low, high
 
@@ -372,6 +406,28 @@ class ResolvedTieredPriceResponse(ResolvedPriceResponse):
     the knot. :meth:`conditioned_on` moves knots off a solve's box and blends the ones strictly inside it with a
     C2 quartic of half-width ``knot_width * B``, for that solve only.
 
+    Parameters
+    ----------
+    first_slope : np.ndarray
+        :math:`1 / r_0` per cell over ``dims``, 1 where the cell is unscheduled.
+    edges : np.ndarray
+        Shape ``(K, *cells)``: the breakpoint of each kink in budget units, ``nan`` where there is no kink.
+    slope_drops : np.ndarray
+        Shape ``(K, *cells)``: the fall in slope at each kink, 0 where there is no kink.
+    dims : tuple[str, ...]
+        The variable's budget dims, in the order of the cell axes.
+    coords : Mapping[str, list]
+        Coordinate labels of each dim in ``dims``, used to name cells in messages.
+    knot_width : float
+        Blend half-width relative to the breakpoint, used only inside :meth:`conditioned_on`.
+    label : str
+        Prefix for error messages, naming the variable.
+
+    Raises
+    ------
+    ValueError
+        If ``edges`` or ``slope_drops`` is not shaped ``(K, *cells)``.
+
     Attributes
     ----------
     first_slope : np.ndarray
@@ -400,8 +456,8 @@ class ResolvedTieredPriceResponse(ResolvedPriceResponse):
         self.dims = tuple(dims)
         self.coords = {dim: list(coords[dim]) for dim in self.dims}
         self.label = label
-        self.first_slope, self.edges, self.slope_drops = self._checked_coefficients(
-            first_slope, edges, slope_drops, label
+        self.first_slope, self.edges, self.slope_drops = (
+            self._validated_coefficient_arrays(first_slope, edges, slope_drops, label)
         )
         self.knot_width = float(knot_width)
         # The decision vector is created in floatX, so a knot snapped for floatX is on the right side of any
@@ -416,12 +472,12 @@ class ResolvedTieredPriceResponse(ResolvedPriceResponse):
             np.all(self.first_slope == 1.0) and not self._kink.any()
         )
         self.curved = np.zeros(self.first_slope.shape, dtype=bool)
-        self.money_scale = self._money_scale(self.edges, self._kink)
-        self._create_knot_state()
+        self.money_scale = self._money_scale_from_kinks(self.edges, self._kink)
+        self._create_knot_variables()
         self._weights: XTensorVariable | None = None
 
     @staticmethod
-    def _checked_coefficients(
+    def _validated_coefficient_arrays(
         first_slope: np.ndarray, edges: np.ndarray, slope_drops: np.ndarray, label: str
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Read the three arrays as float64 and refuse ``edges`` or ``slope_drops`` not shaped ``(K, *cells)``."""
@@ -437,7 +493,7 @@ class ResolvedTieredPriceResponse(ResolvedPriceResponse):
         return first_slope, edges, slope_drops
 
     @staticmethod
-    def _money_scale(edges: np.ndarray, kink: np.ndarray) -> np.ndarray:
+    def _money_scale_from_kinks(edges: np.ndarray, kink: np.ndarray) -> np.ndarray:
         """Per cell, its smallest kink, else the smallest kink of the schedule, else 1."""
         smallest = np.where(kink, edges, np.inf).min(axis=0, initial=np.inf)
         overall = float(np.min(smallest, initial=np.inf))
@@ -445,25 +501,26 @@ class ResolvedTieredPriceResponse(ResolvedPriceResponse):
             np.isfinite(smallest), smallest, overall if np.isfinite(overall) else 1.0
         )
 
-    def _create_knot_state(self) -> None:
+    def _create_knot_variables(self) -> None:
         """Create the hard knots and the shared knots and half-widths that :meth:`conditioned_on` moves."""
         # Where there is no kink the knot is a finite sentinel: its drop is 0, and a nan would poison the value
         # and the gradient.
         self._default_knots = np.where(self._kink, self.edges * (1.0 - self.snap), 1.0)
         self._knots = pytensor.shared(
-            self._fresh(self._default_knots), name="tiered_knots"
+            self._c_contiguous_float64(self._default_knots), name="tiered_knots"
         )
         self._half_widths = pytensor.shared(
-            self._fresh(np.zeros(self.edges.shape)), name="tiered_half_widths"
+            self._c_contiguous_float64(np.zeros(self.edges.shape)),
+            name="tiered_half_widths",
         )
 
     @staticmethod
-    def _fresh(values: np.ndarray) -> np.ndarray:
+    def _c_contiguous_float64(values: np.ndarray) -> np.ndarray:
         """Copy into a C-ordered float64 array: a value in another layout makes Numba compile every reader again."""
         return np.array(values, dtype="float64", order="C")
 
     @classmethod
-    def _coefficients(
+    def _slopes_and_kinks_from_schedule(
         cls, breakpoints: np.ndarray, multipliers: np.ndarray
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """``(first_slope, edges, slope_drops)`` from ``(*cells, K)`` breakpoints and ``(*cells, K + 1)`` multipliers.
@@ -484,7 +541,9 @@ class ResolvedTieredPriceResponse(ResolvedPriceResponse):
         first_slope, drops = cls._fold_empty_first_bracket(
             b, present, inverse, first_slope, drops
         )
-        edges, slope_drops = cls._used_kinks(b, present & (drops != 0.0), drops)
+        edges, slope_drops = cls._drop_unused_kink_slots(
+            b, present & (drops != 0.0), drops
+        )
         return first_slope, edges, slope_drops
 
     @staticmethod
@@ -524,7 +583,7 @@ class ResolvedTieredPriceResponse(ResolvedPriceResponse):
         )
 
     @staticmethod
-    def _used_kinks(
+    def _drop_unused_kink_slots(
         b: np.ndarray, kink: np.ndarray, drops: np.ndarray
     ) -> tuple[np.ndarray, np.ndarray]:
         """``(edges, slope_drops)`` as ``(K', *cells)``, without the bracket slots no cell has a kink in."""
@@ -534,7 +593,14 @@ class ResolvedTieredPriceResponse(ResolvedPriceResponse):
         return np.moveaxis(edges, -1, 0), np.moveaxis(slope_drops, -1, 0)
 
     def bind_period_weights(self, weights: XTensorVariable | None) -> None:
-        """Place the knot of each period at ``breakpoint * weight``; see the base class."""
+        """Place the knot of each period at ``breakpoint * weight``.
+
+        Parameters
+        ----------
+        weights : XTensorVariable or None
+            Money each period gets per unit of budget, over ``(date_dim, *dims)``, zero outside the mask;
+            ``None`` under the uniform spread, where every weight is 1.
+        """
         self._weights = weights
 
     @contextmanager
@@ -549,6 +615,14 @@ class ResolvedTieredPriceResponse(ResolvedPriceResponse):
         is convex across it, and no local solver can be trusted to find the better side. On exit the knots are
         the ones in place on entry, so a conditioning nested in another gives back the outer one's knots.
 
+        Parameters
+        ----------
+        low : np.ndarray
+            Lower bound of each cell over ``dims``, in budget units, ``nan`` outside the mask.
+        high : np.ndarray
+            Upper bound of each cell over ``dims``, in budget units, infinite where unbounded and ``nan`` outside
+            the mask.
+
         Raises
         ------
         ValueError
@@ -557,15 +631,17 @@ class ResolvedTieredPriceResponse(ResolvedPriceResponse):
         shape = self.first_slope.shape
         low = np.broadcast_to(np.asarray(low, dtype="float64"), shape)
         high = np.broadcast_to(np.asarray(high, dtype="float64"), shape)
-        below, above, inside = self._regions(low, high)
-        self._refuse_falling(inside)
-        knots = self._fresh(self._knots.get_value())
-        half_widths = self._fresh(self._half_widths.get_value())
+        below, above, inside = self._classify_kinks_against_box(low, high)
+        self._refuse_falling_rate_inside_box(inside)
+        knots = self._c_contiguous_float64(self._knots.get_value())
+        half_widths = self._c_contiguous_float64(self._half_widths.get_value())
         self._knots.set_value(
-            self._fresh(self._conditioned_knots(low, high, below, above))
+            self._c_contiguous_float64(self._knots_off_box(low, high, below, above))
         )
         self._half_widths.set_value(
-            self._fresh(np.where(inside, self.knot_width * self._edge, 0.0))
+            self._c_contiguous_float64(
+                np.where(inside, self.knot_width * self._edge, 0.0)
+            )
         )
         try:
             yield
@@ -573,7 +649,7 @@ class ResolvedTieredPriceResponse(ResolvedPriceResponse):
             self._knots.set_value(knots)
             self._half_widths.set_value(half_widths)
 
-    def _regions(
+    def _classify_kinks_against_box(
         self, low: np.ndarray, high: np.ndarray
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Per kink, whether its breakpoint is at or below ``low``, at or above ``high``, or strictly inside."""
@@ -582,13 +658,14 @@ class ResolvedTieredPriceResponse(ResolvedPriceResponse):
         above = self._kink & ~below & (self._edge >= high * (1.0 - self.snap))
         return below, above, self._kink & ~below & ~above
 
-    def _refuse_falling(self, inside: np.ndarray) -> None:
+    def _refuse_falling_rate_inside_box(self, inside: np.ndarray) -> None:
         """Refuse a rate that falls across a breakpoint strictly inside a cell's bounds."""
         falling = inside & (self.slope_drops < 0.0)
         if falling.any():
             raise ValueError(
                 f"{self.label}: the rate falls across a breakpoint strictly inside the bounds of cells "
-                f"{self._cells(falling.any(axis=0))}. Delivery is convex there, so each side of the breakpoint "
+                f"{self._format_cell_labels(falling.any(axis=0))}. Delivery is convex there, so each side "
+                "of the breakpoint "
                 "can hold its own optimum and the solver cannot be trusted to find the better one. Put a bound "
                 "on the breakpoint: a lower bound on it optimizes the discounted money above it, an upper bound "
                 "on it the money below it, and comparing the two is the choice between the sides. A spend "
@@ -596,7 +673,7 @@ class ResolvedTieredPriceResponse(ResolvedPriceResponse):
                 "and not solved."
             )
 
-    def _conditioned_knots(
+    def _knots_off_box(
         self, low: np.ndarray, high: np.ndarray, below: np.ndarray, above: np.ndarray
     ) -> np.ndarray:
         """Hard knots off the box: just below ``min(B, low)`` where ``below``, above ``max(B, high)`` if ``above``."""
@@ -616,6 +693,22 @@ class ResolvedTieredPriceResponse(ResolvedPriceResponse):
 
         A breakpoint within ``snap`` of a bound cuts nothing. A cell on a breakpoint, to within ``snap``, gets
         the piece above it, or the piece below where ``from_below`` is set.
+
+        Parameters
+        ----------
+        budgets : np.ndarray
+            Budget of each cell over ``dims``, in budget units.
+        low : np.ndarray
+            Lower bound of each cell over ``dims``, in budget units.
+        high : np.ndarray
+            Upper bound of each cell over ``dims``, in budget units, infinite where unbounded.
+        from_below : np.ndarray or None
+            Boolean per cell: where set, a cell on a breakpoint gets the piece below it. ``None`` sets it nowhere.
+
+        Returns
+        -------
+        tuple[np.ndarray, np.ndarray]
+            Lower and upper end of the piece of each cell, in budget units, within ``[low, high]``.
         """
         shape = self.first_slope.shape
         budgets = np.broadcast_to(np.asarray(budgets, dtype="float64"), shape)
@@ -645,7 +738,7 @@ class ResolvedTieredPriceResponse(ResolvedPriceResponse):
             np.asarray(np.minimum(piece_high, high)),
         )
 
-    def _cells(self, where: np.ndarray) -> str:
+    def _format_cell_labels(self, where: np.ndarray) -> str:
         """Labels of the first five cells where ``where`` holds, for messages."""
         cells = [
             tuple(
@@ -656,13 +749,15 @@ class ResolvedTieredPriceResponse(ResolvedPriceResponse):
         ]
         return f"{cells}{', ...' if int(np.sum(where)) > 5 else ''}"
 
-    def _constant(self, values: np.ndarray) -> XTensorVariable:
+    def _cell_constant(self, values: np.ndarray) -> XTensorVariable:
+        """Wrap per-cell values as a float64 constant over ``dims``."""
         return as_xtensor(pt.constant(values, dtype="float64"), dims=self.dims)
 
-    def _per_period(self, per_cell: XTensorVariable) -> XTensorVariable:
+    def _weighted_by_period(self, per_cell: XTensorVariable) -> XTensorVariable:
+        """Scale a per-cell budget quantity to per-period money by the bound period weights."""
         return per_cell if self._weights is None else per_cell * self._weights
 
-    def _hinge(
+    def _hinge_value_and_slope(
         self, x: XTensorVariable, k: int
     ) -> tuple[XTensorVariable, XTensorVariable]:
         r"""Value and slope of ``max(x, 0)`` at knot ``k``, blended where its half-width is positive.
@@ -671,7 +766,7 @@ class ResolvedTieredPriceResponse(ResolvedPriceResponse):
         the hinge outside :math:`[-w, w]`, is convex and C2, and exceeds it by at most :math:`3w/16`, at the
         knot. Both ``where`` branches see a finite input: ``safe_w`` is 1 where the knot is hard.
         """
-        w = self._per_period(as_xtensor(self._half_widths[k], dims=self.dims))
+        w = self._weighted_by_period(as_xtensor(self._half_widths[k], dims=self.dims))
         blended = w > 0.0
         safe_w = ptx.math.where(blended, w, 1.0)
         t = ptx.math.clip((x + safe_w) / (2.0 * safe_w), 0.0, 1.0)
@@ -682,8 +777,10 @@ class ResolvedTieredPriceResponse(ResolvedPriceResponse):
         )
         return value, slope
 
-    def _terms(self, spend: XTensorVariable, which: int) -> XTensorVariable:
-        """``G`` in per-period money (``which=0``) or its slope (``which=1``)."""
+    def _delivery_terms(
+        self, spend: XTensorVariable, *, slope: bool
+    ) -> XTensorVariable:
+        """``G`` in per-period money, or its slope in money where ``slope`` is set."""
         if np.finfo(spend.type.dtype).eps > np.finfo(self.dtype).eps:
             raise TypeError(
                 f"{self.label}: spend is {spend.type.dtype} but the knots were snapped for {self.dtype}, so "
@@ -693,28 +790,64 @@ class ResolvedTieredPriceResponse(ResolvedPriceResponse):
         # Money below zero buys nothing. pytensor's Maximum sends the tie gradient to its first input, so
         # spend stays first for the slope at zero to survive.
         s = ptx.math.maximum(spend, 0.0)
-        first_slope = self._constant(self.first_slope)
-        total = s * first_slope if which == 0 else first_slope + 0.0 * s
+        first_slope = self._cell_constant(self.first_slope)
+        total = first_slope + 0.0 * s if slope else s * first_slope
         for k in range(self.edges.shape[0]):
-            knot = self._per_period(as_xtensor(self._knots[k], dims=self.dims))
-            total = (
-                total
-                - self._constant(self.slope_drops[k]) * self._hinge(s - knot, k)[which]
+            knot = self._weighted_by_period(as_xtensor(self._knots[k], dims=self.dims))
+            value, hinge_slope = self._hinge_value_and_slope(s - knot, k)
+            total = total - self._cell_constant(self.slope_drops[k]) * (
+                hinge_slope if slope else value
             )
         return total
 
     def to_delivery(
         self, spend: XTensorVariable, base_price: XTensorVariable | None = None
     ) -> XTensorVariable:
-        """Delivered units bought with ``spend``; ``u(0) == 0`` exactly."""
-        units = self._terms(spend, 0)
+        """Delivered units bought with ``spend``; ``u(0) == 0`` exactly.
+
+        Parameters
+        ----------
+        spend : XTensorVariable
+            Per-period money over ``(date_dim, *dims)``.
+        base_price : XTensorVariable or None
+            Base price per unit over the same dims, ``None`` for a base price of 1.
+
+        Returns
+        -------
+        XTensorVariable
+            Delivered units over ``(date_dim, *dims)``.
+
+        Raises
+        ------
+        TypeError
+            If ``spend`` has a coarser float dtype than the ``floatX`` the knots were snapped for.
+        """
+        units = self._delivery_terms(spend, slope=False)
         return units if base_price is None else units / base_price
 
     def implied_marginal_price(
         self, spend: XTensorVariable, base_price: XTensorVariable | None = None
     ) -> XTensorVariable:
-        """Money the next delivered unit costs at ``spend``: the base price times the bracket's multiplier."""
-        ratio = 1.0 / self._terms(spend, 1)
+        """Money the next delivered unit costs at ``spend``: the base price times the bracket's multiplier.
+
+        Parameters
+        ----------
+        spend : XTensorVariable
+            Per-period money over ``(date_dim, *dims)``.
+        base_price : XTensorVariable or None
+            Base price per unit over the same dims, ``None`` for a base price of 1.
+
+        Returns
+        -------
+        XTensorVariable
+            Marginal price over ``(date_dim, *dims)``.
+
+        Raises
+        ------
+        TypeError
+            If ``spend`` has a coarser float dtype than the ``floatX`` the knots were snapped for.
+        """
+        ratio = 1.0 / self._delivery_terms(spend, slope=True)
         return ratio if base_price is None else ratio * base_price
 
 
@@ -873,7 +1006,7 @@ class PriceResponse(BaseModel, ABC):
         )
 
     @staticmethod
-    def _string_keys(value: object, who: str) -> object:
+    def _keyed_by_label_string(value: object, who: str) -> object:
         """Key a dict by the string form of each label, refusing two keys with one string form.
 
         Channel labels need not be strings (``channel=[1, 2]``), JSON object keys are strings, and the gate
@@ -891,7 +1024,9 @@ class PriceResponse(BaseModel, ABC):
         return keyed
 
     @staticmethod
-    def _owner_dim(keys: set[str], template: DataArray, label: str, what: str) -> str:
+    def _dim_owning_labels(
+        keys: set[str], template: DataArray, label: str, what: str
+    ) -> str:
         """Return the one budget dim of ``template`` whose labels, as strings, include every key."""
         labels = {d: template.coords[d].values.tolist() for d in template.dims}
         owners = [d for d in template.dims if keys <= {str(lbl) for lbl in labels[d]}]
@@ -1118,7 +1253,7 @@ class PowerPriceResponse(PriceResponse):
         compares the fitted ``cost_per_unit`` table's columns by their string form; matching on ``str`` serves
         all three.
         """
-        return cls._string_keys(value, "PowerPriceResponse: elasticity")
+        return cls._keyed_by_label_string(value, "PowerPriceResponse: elasticity")
 
     @model_validator(mode="after")
     def _check_domain(self) -> Self:
@@ -1343,7 +1478,7 @@ class PowerPriceResponse(PriceResponse):
         dims = template.dims
         if not e:
             return template.copy()
-        dim = PriceResponse._owner_dim(set(e), template, label, "elasticity")
+        dim = PriceResponse._dim_owning_labels(set(e), template, label, "elasticity")
         labels = {d: template.coords[d].values.tolist() for d in dims}
         values = DataArray(
             [float(e.get(str(lbl), 0.0)) for lbl in labels[dim]],
@@ -1623,34 +1758,41 @@ class TieredPriceResponse(PriceResponse):
         Runs before pydantic validates the field, which refuses an integer key for ``dict[str, ...]`` before any
         later validator could see it.
         """
-        value = cls._string_keys(value, f"TieredPriceResponse: {info.field_name}")
+        value = cls._keyed_by_label_string(
+            value, f"TieredPriceResponse: {info.field_name}"
+        )
         if isinstance(value, Mapping):
-            return {key: cls._one_element(item) for key, item in value.items()}
-        return cls._one_element(value)
+            return {
+                key: cls._as_one_element_schedule(item) for key, item in value.items()
+            }
+        return cls._as_one_element_schedule(value)
 
     @staticmethod
-    def _one_element(value: object) -> object:
+    def _as_one_element_schedule(value: object) -> object:
+        """Read a bare number as a one-element sequence; pass anything else through."""
         return (value,) if isinstance(value, numbers.Real) else value
 
     @staticmethod
-    def _field_row(value: object, key: str) -> object:
+    def _row_for_label(value: object, key: str) -> object:
         """Return the row a field gives ``key``: a dict's entry, or the sequence every cell shares."""
         return value[key] if isinstance(value, Mapping) else value
 
     @staticmethod
-    def _form(value: object) -> str:
+    def _schedule_form(value: object) -> str:
+        """Name the form a schedule field is given in: ``DataArray``, ``dict`` or ``sequence``."""
         if isinstance(value, DataArray):
             return "DataArray"
         return "dict" if isinstance(value, Mapping) else "sequence"
 
     @staticmethod
-    def _values(row: object) -> np.ndarray:
+    def _row_as_floats(row: object) -> np.ndarray:
         """Read a sequence as floats; a ``nan`` typed into it is refused as not finite, not read as padding."""
         values = np.asarray(row, dtype="float64").reshape(-1)
         return np.where(np.isnan(values), np.inf, values)
 
     @staticmethod
-    def _padded(rows: list[np.ndarray]) -> np.ndarray:
+    def _pad_rows_with_nan(rows: list[np.ndarray]) -> np.ndarray:
+        """Stack rows of different lengths into one array, ``nan``-padded on the right."""
         width = max((row.size for row in rows), default=0)
         out = np.full((len(rows), width), np.nan)
         for i, row in enumerate(rows):
@@ -1659,12 +1801,13 @@ class TieredPriceResponse(PriceResponse):
 
     @model_validator(mode="after")
     def _check_schedule(self) -> Self:
+        """Refuse an invalid schedule and warn about one with many brackets."""
         label = "TieredPriceResponse"
         self._require_one_form(label)
         if isinstance(self.rate_multipliers, DataArray):
-            own, joint = self._array_rows_pair(self.rate_multipliers, label)
+            own, joint = self._own_and_joint_schedule_rows(self.rate_multipliers, label)
         else:
-            own, joint = None, self._sequence_rows(label)
+            own, joint = None, self._sequence_schedule_rows(label)
         if own is not None:
             own.refuse_invalid_schedule(self.rate_tolerance, self.reference_rate)
         joint.refuse_invalid_schedule(self.rate_tolerance, self.reference_rate)
@@ -1672,8 +1815,9 @@ class TieredPriceResponse(PriceResponse):
         return self
 
     def _require_one_form(self, label: str) -> None:
+        """Refuse ``breakpoints`` and ``rate_multipliers`` given in different forms or naming different labels."""
         b, r = self.breakpoints, self.rate_multipliers
-        b_form, r_form = self._form(b), self._form(r)
+        b_form, r_form = self._schedule_form(b), self._schedule_form(r)
         no_breakpoints = b_form == "sequence" and len(b) == 0
         if not no_breakpoints and b_form != r_form:
             raise ValueError(
@@ -1686,7 +1830,7 @@ class TieredPriceResponse(PriceResponse):
                 "describe one schedule, so both dicts name the same labels."
             )
 
-    def _array_rows_pair(
+    def _own_and_joint_schedule_rows(
         self, multipliers: DataArray, label: str
     ) -> tuple[ScheduleRows | None, ScheduleRows]:
         """Rows ``(own, joint)`` of the ``DataArray`` form.
@@ -1700,29 +1844,33 @@ class TieredPriceResponse(PriceResponse):
         )
         own = None
         if breakpoints is not None:
-            b_rows, b_names = self._array_rows(breakpoints)
+            b_rows, b_names = self._rows_from_dataarray(breakpoints)
             own = ScheduleRows(
                 breakpoints=b_rows,
                 multipliers=np.empty((b_rows.shape[0], 0)),
                 name=b_names.__getitem__,
                 label=label,
             )
-        b_cells, r_cells = self._joint_cells(breakpoints, multipliers)
-        r_rows, names = self._array_rows(r_cells)
+        b_cells, r_cells = self._align_breakpoints_with_multipliers(
+            breakpoints, multipliers
+        )
+        r_rows, names = self._rows_from_dataarray(r_cells)
         joint = ScheduleRows(
-            breakpoints=None if b_cells is None else self._array_rows(b_cells)[0],
+            breakpoints=None
+            if b_cells is None
+            else self._rows_from_dataarray(b_cells)[0],
             multipliers=r_rows,
             name=names.__getitem__,
             label=label,
         )
         return own, joint
 
-    def _sequence_rows(self, label: str) -> ScheduleRows:
+    def _sequence_schedule_rows(self, label: str) -> ScheduleRows:
         """Rows of the sequence or dict form, one per label, or one for every cell."""
         b, r = self.breakpoints, self.rate_multipliers
         keys = list(r) if isinstance(r, Mapping) else ["every cell"]
-        r_list = [self._values(self._field_row(r, key)) for key in keys]
-        b_list = [self._values(self._field_row(b, key)) for key in keys]
+        r_list = [self._row_as_floats(self._row_for_label(r, key)) for key in keys]
+        b_list = [self._row_as_floats(self._row_for_label(b, key)) for key in keys]
         empty = [key for key, row in zip(keys, r_list, strict=True) if row.size == 0]
         if empty:
             raise ValueError(
@@ -1730,14 +1878,15 @@ class TieredPriceResponse(PriceResponse):
                 "A schedule with no breakpoint is one multiplier."
             )
         return ScheduleRows(
-            breakpoints=self._padded(b_list),
-            multipliers=self._padded(r_list),
+            breakpoints=self._pad_rows_with_nan(b_list),
+            multipliers=self._pad_rows_with_nan(r_list),
             name=keys.__getitem__,
             label=label,
         )
 
     @staticmethod
     def _warn_many_brackets(rows: ScheduleRows) -> None:
+        """Warn when a cell has more than four brackets, which looks like a discretized price curve."""
         counts = rows.bracket_counts()
         # More than four brackets on one cell looks like a price curve cut into steps (see the Notes).
         many = counts > 4
@@ -1756,7 +1905,7 @@ class TieredPriceResponse(PriceResponse):
         )
 
     @staticmethod
-    def _array_rows(value: DataArray) -> tuple[np.ndarray, list]:
+    def _rows_from_dataarray(value: DataArray) -> tuple[np.ndarray, list]:
         """Split a schedule ``DataArray`` into rows, one per cell it describes, with ``bracket`` along the columns."""
         if Dim.BRACKET not in value.dims:
             value = value.expand_dims(Dim.BRACKET, axis=-1)
@@ -1778,7 +1927,7 @@ class TieredPriceResponse(PriceResponse):
         return rows, names
 
     @staticmethod
-    def _joint_cells(
+    def _align_breakpoints_with_multipliers(
         breakpoints: DataArray | None, multipliers: DataArray
     ) -> tuple[DataArray | None, DataArray]:
         """Lay two schedule arrays over the cells both describe, so their counts can be compared.
@@ -1836,13 +1985,41 @@ class TieredPriceResponse(PriceResponse):
         label: str,
         num_periods: int | None = None,
     ) -> ResolvedTieredPriceResponse:
-        """Bind to one variable's layout; see :meth:`PriceResponse.resolve`.
+        """Bind the schedule to one variable's cell layout.
 
-        ``derived_reference`` and ``num_periods`` are not read: the schedule is stated in money.
+        Parameters
+        ----------
+        dims : tuple[str, ...]
+            The variable's budget dims in the model's order.
+        coords : Mapping[str, list]
+            Coordinate labels of each dim in ``dims``.
+        mask : DataArray
+            Boolean mask over ``dims`` selecting the optimized cells; a masked cell is left unscheduled.
+        date_dim : str
+            Name of the date dimension, refused on a ``DataArray`` field: the schedule has no date axis.
+        derived_reference : DataArray or None
+            Not read: the schedule is stated in money.
+        label : str
+            Prefix for error messages, naming the variable.
+        num_periods : int or None
+            Not read: the schedule has no date axis.
+
+        Returns
+        -------
+        ResolvedTieredPriceResponse
+            The schedule's coefficients per cell of the layout.
+
+        Raises
+        ------
+        ValueError
+            If a budget dim is named ``bracket``, if a field names labels or dims the layout does not have or
+            carries unlabelled dims, or if the schedule on the layout's cells is invalid.
         """
         template, on = self._layout(dims, coords, mask)
         self._refuse_bracket_dim(template, label)
-        breakpoints, multipliers = self._cell_rows(template, on, date_dim, label)
+        breakpoints, multipliers = self._schedule_rows_per_cell(
+            template, on, date_dim, label
+        )
         ScheduleRows(
             breakpoints=breakpoints,
             multipliers=multipliers,
@@ -1851,9 +2028,11 @@ class TieredPriceResponse(PriceResponse):
             ),
             label=label,
         ).refuse_invalid_schedule(self.rate_tolerance, self.reference_rate)
-        first_slope, edges, slope_drops = ResolvedTieredPriceResponse._coefficients(
-            breakpoints.reshape(*template.shape, -1),
-            multipliers.reshape(*template.shape, -1),
+        first_slope, edges, slope_drops = (
+            ResolvedTieredPriceResponse._slopes_and_kinks_from_schedule(
+                breakpoints.reshape(*template.shape, -1),
+                multipliers.reshape(*template.shape, -1),
+            )
         )
         return ResolvedTieredPriceResponse(
             first_slope=first_slope,
@@ -1874,14 +2053,14 @@ class TieredPriceResponse(PriceResponse):
                 "schedule's own dim. Rename the model's dim to use a TieredPriceResponse."
             )
 
-    def _cell_rows(
+    def _schedule_rows_per_cell(
         self, template: DataArray, on: np.ndarray, date_dim: str, label: str
     ) -> tuple[np.ndarray, np.ndarray]:
         """Breakpoints and multipliers with one row per cell of ``template``, ``nan`` where masked or unscheduled."""
-        multipliers = self._cell_values(
+        multipliers = self._field_per_cell(
             self.rate_multipliers, template, date_dim, label, "rate_multipliers"
         ).reshape(on.size, -1)
-        breakpoints = self._cell_values(
+        breakpoints = self._field_per_cell(
             self.breakpoints, template, date_dim, label, "breakpoints"
         ).reshape(on.size, -1)
         scheduled = (on.reshape(-1) & ~np.isnan(multipliers).all(axis=1))[:, None]
@@ -1890,7 +2069,7 @@ class TieredPriceResponse(PriceResponse):
             np.where(scheduled, multipliers, np.nan),
         )
 
-    def _cell_values(
+    def _field_per_cell(
         self,
         value: _Schedule | Mapping[str, _Schedule] | DataArray,
         template: DataArray,
@@ -1900,23 +2079,23 @@ class TieredPriceResponse(PriceResponse):
     ) -> np.ndarray:
         """One field of the schedule per cell of ``template``, shape ``(*cells, K)``, ``nan`` where absent."""
         if isinstance(value, DataArray):
-            return self._aligned(value, template, date_dim, label, what)
+            return self._align_field_to_layout(value, template, date_dim, label, what)
         if isinstance(value, Mapping):
             if not value:
                 return np.full((*template.shape, 0), np.nan)
-            dim = self._owner_dim(set(value), template, label, what)
+            dim = self._dim_owning_labels(set(value), template, label, what)
             labels = [str(lbl) for lbl in template.coords[dim].values.tolist()]
-            per_label = self._padded(
+            per_label = self._pad_rows_with_nan(
                 [
-                    self._values(value[lbl]) if lbl in value else np.empty(0)
+                    self._row_as_floats(value[lbl]) if lbl in value else np.empty(0)
                     for lbl in labels
                 ]
             )
             return per_label[np.indices(template.shape)[template.dims.index(dim)]]
-        row = self._values(value)
+        row = self._row_as_floats(value)
         return np.broadcast_to(row, (*template.shape, row.size)).copy()
 
-    def _aligned(
+    def _align_field_to_layout(
         self,
         value: DataArray,
         template: DataArray,
