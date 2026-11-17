@@ -2663,7 +2663,7 @@ class BudgetOptimizer(BaseModel):
         if not pinned:
             return
         labels = self._media_variable.flat_labels()
-        cells = [self._cell_name(labels[i]) for i in pinned]
+        cells = [self._cell_label_for_message(labels[i]) for i in pinned]
         warnings.warn(
             f"price_response: cells {cells} are held at zero by budget_bounds but carry a non-zero "
             "elasticity. The map is steepest at zero, so the solver is handed its largest gradient on "
@@ -3540,13 +3540,24 @@ class BudgetOptimizer(BaseModel):
 
         self._objective_and_grad = objective_and_grad_func
 
-    def _resolve_minimize_kwargs(
+    def _resolve_minimize_settings(
         self, minimize_kwargs: dict[str, Any] | None
     ) -> MinimizeSettings:
         """Merge user ``minimize_kwargs`` into :attr:`DEFAULT_MINIMIZE_KWARGS` and resolve how the solves run.
 
         ``options`` are merged key by key, and only for the default method:
         another method does not get the SLSQP options.
+
+        Parameters
+        ----------
+        minimize_kwargs : dict or None
+            The caller's keyword arguments for :func:`scipy.optimize.minimize`.
+
+        Returns
+        -------
+        MinimizeSettings
+            The merged keyword arguments, whether the solves run SLSQP, whether they rescale the objective, and
+            the ``ftol`` the exact passes measure progress with.
         """
         defaults = self.DEFAULT_MINIMIZE_KWARGS
         user_kwargs = dict(minimize_kwargs or {})
@@ -3565,27 +3576,22 @@ class BudgetOptimizer(BaseModel):
         kwargs["options"] = (
             {**default_options, **user_options} if uses_default_method else user_options
         )
-        rescale = (
-            isinstance(method, str)
-            and method.lower() == "slsqp"
-            and not user_set_tolerance
-        )
-        options = kwargs["options"]
-        ftol = options.get("ftol", kwargs.get("tol"))
+        named_slsqp = isinstance(method, str) and method.lower() == "slsqp"
+        default_slsqp = method is None and bool(self._compiled_constraints)
+        merged_ftol = kwargs["options"].get("ftol", kwargs.get("tol"))
         return MinimizeSettings(
             kwargs=kwargs,
-            slsqp=(isinstance(method, str) and method.lower() == "slsqp")
-            or (method is None and bool(self._compiled_constraints)),
-            rescale=rescale,
-            ftol=1e-6 if ftol is None else float(ftol),
+            slsqp=named_slsqp or default_slsqp,
+            rescale=named_slsqp and not user_set_tolerance,
+            ftol=1e-6 if merged_ftol is None else float(merged_ftol),
         )
 
     @staticmethod
-    def _cell_name(label: tuple) -> object:
+    def _cell_label_for_message(label: tuple) -> object:
         """Return a cell's label for a message: the label itself on a one-dim layout, the tuple otherwise."""
         return label[0] if len(label) == 1 else label
 
-    def _scheduled_variables(self) -> Iterator[MediaVariable]:
+    def _priced_media_variables(self) -> Iterator[MediaVariable]:
         """Yield the media-path variables that carry a price map, in decision-vector order."""
         for variable in self._variables.variables:
             if (
@@ -3595,8 +3601,10 @@ class BudgetOptimizer(BaseModel):
                 yield variable
 
     @staticmethod
-    def _breakpoint_above(variable: MediaVariable, level: np.ndarray) -> np.ndarray:
-        """Each flat entry's first breakpoint where every breakpoint is above ``level``, ``nan`` elsewhere."""
+    def _first_breakpoint_above(
+        variable: MediaVariable, level: np.ndarray
+    ) -> np.ndarray:
+        """Return each flat entry's first breakpoint where every breakpoint is above ``level``, ``nan`` elsewhere."""
         first_low, first_above = variable.linear_piece_bounds(
             level, np.zeros_like(level), np.full_like(level, np.inf)
         )
@@ -3605,11 +3613,11 @@ class BudgetOptimizer(BaseModel):
         )
 
     @staticmethod
-    def _named_cells(variable: MediaVariable, notes: dict[int, str]) -> str:
+    def _describe_cells(variable: MediaVariable, notes: dict[int, str]) -> str:
         """Name the first five flat entries of ``notes`` by their labels, each with its note."""
         labels = variable.flat_labels()
         named = [
-            f"{BudgetOptimizer._cell_name(labels[i])} ({note})"
+            f"{BudgetOptimizer._cell_label_for_message(labels[i])} ({note})"
             for i, note in list(notes.items())[:5]
         ]
         return ", ".join(named) + (", ..." if len(notes) > 5 else "")
@@ -3620,10 +3628,10 @@ class BudgetOptimizer(BaseModel):
         All of such a cell's money is priced in the first bracket, which is what a breakpoint typed as a window
         total, or as a national commitment on a per-geo cell, does. A cell held at zero is left out.
         """
-        for variable in self._scheduled_variables():
+        for variable in self._priced_media_variables():
             top = high[self._variables.slices[variable.name]]
             open_top = np.isfinite(top) & (top > 0.0)
-            first = self._breakpoint_above(variable, np.where(open_top, top, 0.0))
+            first = self._first_breakpoint_above(variable, np.where(open_top, top, 0.0))
             above = np.flatnonzero(open_top & np.isfinite(first))
             if above.size == 0:
                 continue
@@ -3633,7 +3641,7 @@ class BudgetOptimizer(BaseModel):
             }
             warnings.warn(
                 f"{variable.name}: every breakpoint is above the upper bound of cells "
-                f"{self._named_cells(variable, notes)}, so all of their money is priced in the first bracket. "
+                f"{self._describe_cells(variable, notes)}, so all of their money is priced in the first bracket. "
                 "Breakpoints are per-period budget levels, like budget_bounds and total_budget: a "
                 f"commitment over the window of num_periods={self.num_periods} is that total divided by "
                 "num_periods, and a national commitment on a per-geo layout is split across the geos.",
@@ -3647,21 +3655,21 @@ class BudgetOptimizer(BaseModel):
         A breakpoint is a per-period budget level. One that is more than three times a cell's on-air mean in the fitted
         data, and above its peak, is more likely a window total, or a national commitment on a per-geo cell, than
         a level. A variable whose fitted data cannot be read in money gives no warning (see
-        :meth:`_fitted_money`).
+        :meth:`_fitted_level_and_peak`).
         """
-        for variable in self._scheduled_variables():
-            fitted = self._fitted_money(variable)
+        for variable in self._priced_media_variables():
+            fitted = self._fitted_level_and_peak(variable)
             if fitted is None:
                 continue
             level, peak = fitted
-            first = self._breakpoint_above(variable, np.nan_to_num(level))
+            first = self._first_breakpoint_above(variable, np.nan_to_num(level))
             far = np.flatnonzero((first > 3.0 * level) & (first > peak))
             if far.size == 0:
                 continue
             notes = {int(i): f"{first[i] / level[i]:.3g} times" for i in far}
             warnings.warn(
                 f"{variable.name}: price_response: the first breakpoint of cells "
-                f"{self._named_cells(variable, notes)} is that many times the level the model was fitted at "
+                f"{self._describe_cells(variable, notes)} is that many times the level the model was fitted at "
                 "(the on-air mean per period) and above its peak. Breakpoints are per-period budget levels: a "
                 f"commitment over the window is its total divided by num_periods={self.num_periods}, and a "
                 "schedule given as a sequence or keyed by channel applies the same breakpoint to the channel in "
@@ -3670,7 +3678,7 @@ class BudgetOptimizer(BaseModel):
                 skip_file_prefixes=_VALIDATION_WARNING_SKIP,
             )
 
-    def _fitted_money(
+    def _fitted_level_and_peak(
         self, variable: MediaVariable
     ) -> tuple[np.ndarray, np.ndarray] | None:
         """Return the on-air mean and the peak of a variable's fitted data in money, per flat entry.
@@ -3691,7 +3699,7 @@ class BudgetOptimizer(BaseModel):
             ]
         except (KeyError, AttributeError, TypeError):
             return None
-        if not self._covers(node, variable):
+        if not self._node_covers_variable(node, variable):
             return None
         money = node if from_spend else node * self._money_per_node_unit(variable)
         coords = {dim: variable.coords[dim] for dim in variable.dims}
@@ -3704,8 +3712,8 @@ class BudgetOptimizer(BaseModel):
         )
         return level, peak
 
-    def _covers(self, node: DataArray, variable: MediaVariable) -> bool:
-        """Whether a fitted node is over the date and the variable's dims, with a coordinate on each.
+    def _node_covers_variable(self, node: DataArray, variable: MediaVariable) -> bool:
+        """Return whether a fitted node is over the date and the variable's dims, with a coordinate on each.
 
         Cells the node has no label for read as ``nan`` and give no warning; the others are still checked.
         """
@@ -3767,7 +3775,7 @@ class BudgetOptimizer(BaseModel):
         result.jac = np.asarray(grad)
         return result
 
-    def _solve_bounds(
+    def _flat_bounds(
         self,
         total_budget: float,
         budget_bounds: DataArray | dict[str, tuple[float, float]] | None,
@@ -3853,7 +3861,7 @@ class BudgetOptimizer(BaseModel):
             "jac": np.array(jac) if jac is not None else None,
         }
 
-    def _solve(
+    def _solve_with_rescaling(
         self,
         start: np.ndarray,
         bounds: Bounds,
@@ -3861,7 +3869,7 @@ class BudgetOptimizer(BaseModel):
         settings: MinimizeSettings,
         callback: Callable[[np.ndarray], None] | None,
     ) -> OptimizeResult:
-        """One solve over ``bounds``: SLSQP on the rescaled objective, then a polish when the scale moved.
+        """Run one solve over ``bounds``: SLSQP on the rescaled objective, then a polish when the scale moved.
 
         The default SLSQP tolerance is absolute, so the objective is divided by its steepest gradient entry (see
         :meth:`allocate_budget` Notes). SciPy clips the start to the bounds before its first evaluation, so the
@@ -3869,17 +3877,17 @@ class BudgetOptimizer(BaseModel):
         """
         kwargs = settings.kwargs
         if not settings.rescale:
-            return self._minimize(start, bounds, 1.0, kwargs, callback)
+            return self._minimize_scaled(start, bounds, 1.0, kwargs, callback)
         lower = [-np.inf if lo is None else lo for lo, _ in bounds]
         upper = [np.inf if hi is None else hi for _, hi in bounds]
         _, grad = self._objective_and_grad(np.clip(start, lower, upper))
         scale = objective_scale_from_gradient(grad)
-        result = self._minimize(start, bounds, scale, kwargs, callback)
+        result = self._minimize_scaled(start, bounds, scale, kwargs, callback)
         if scale == 1.0:
             return result
-        return self._polished(result, bounds, scale, kwargs, callback)
+        return self._polish_with_solution_scale(result, bounds, scale, kwargs, callback)
 
-    def _minimize(
+    def _minimize_scaled(
         self,
         start: np.ndarray,
         bounds: Bounds,
@@ -3903,7 +3911,7 @@ class BudgetOptimizer(BaseModel):
             **minimize_kwargs,
         )
 
-    def _polished(
+    def _polish_with_solution_scale(
         self,
         result: OptimizeResult,
         bounds: Bounds,
@@ -3921,15 +3929,15 @@ class BudgetOptimizer(BaseModel):
         objective, grad = self._objective_and_grad(result.x)
         solution_scale = objective_scale_from_gradient(grad)
         if result.success and solution_scale * 10.0 < scale:
-            polish = self._minimize(
+            polish = self._minimize_scaled(
                 result.x, bounds, solution_scale, minimize_kwargs, callback
             )
             if polish.success:
-                self._add_counts(polish, result)
+                self._accumulate_solver_counts(polish, result)
                 result, scale = polish, solution_scale
                 objective, grad = self._objective_and_grad(result.x)
             else:
-                self._add_counts(result, polish)
+                self._accumulate_solver_counts(result, polish)
         result.fun = float(objective)
         result.jac = np.asarray(grad)
         if "multipliers" in result:
@@ -3937,12 +3945,12 @@ class BudgetOptimizer(BaseModel):
         return result
 
     @staticmethod
-    def _add_counts(into: OptimizeResult, other: OptimizeResult) -> None:
+    def _accumulate_solver_counts(into: OptimizeResult, other: OptimizeResult) -> None:
         """Add ``other``'s iteration and evaluation counts to ``into``'s."""
         for key in ("nit", "nfev", "njev"):
             into[key] += other[key]
 
-    def _optimization_result(
+    def _build_optimization_result(
         self,
         result: OptimizeResult,
         callback_info: list[OptimizationIterationInfo] | None,
@@ -4117,8 +4125,8 @@ class BudgetOptimizer(BaseModel):
           not run two solves at once, from two threads for example.
         """
         self._total_budget.set_value(np.asarray(total_budget, dtype="float64"))
-        settings = self._resolve_minimize_kwargs(minimize_kwargs)
-        bounds = self._solve_bounds(total_budget, budget_bounds)
+        settings = self._resolve_minimize_settings(minimize_kwargs)
+        bounds = self._flat_bounds(total_budget, budget_bounds)
         low = np.array([-np.inf if lo is None else lo for lo, _ in bounds], dtype=float)
         high = np.array([np.inf if hi is None else hi for _, hi in bounds], dtype=float)
         self._warn_breakpoints_above_bounds(high)
@@ -4131,7 +4139,7 @@ class BudgetOptimizer(BaseModel):
         ) -> OptimizeResult:
             # Packing casts the start through the compiled input's type, which raises a TypeError naming the
             # shape when it does not fit.
-            return self._solve(
+            return self._solve_with_rescaling(
                 self._pack_decision_vector(start),
                 solve_bounds,
                 settings=settings,
@@ -4155,7 +4163,7 @@ class BudgetOptimizer(BaseModel):
                 high=high,
                 total_budget=total_budget,
             )
-        return self._optimization_result(
+        return self._build_optimization_result(
             result, callback_info if callback else None, return_if_fail
         )
 
