@@ -19,6 +19,7 @@ import weakref
 
 import numpy as np
 import pandas as pd
+import pymc as pm
 import pytest
 from pytensor.graph.traversal import ancestors
 
@@ -41,6 +42,7 @@ from pymc_marketing.mmm.spend_reach import (
 from tests.mmm.conftest import (
     FrozenLevelEffect,
     ObservedDemandEffect,
+    PotentialTiedDemandEffect,
     RandomContributionEffect,
     SpendScaledPriorEffect,
 )
@@ -502,6 +504,18 @@ class TestRefuseBlockedSpendPaths:
         with pytest.raises(NotImplementedError, match=held):
             refuse_blocked_spend_paths(mmm, resolve_channel_dependent_effects(mmm))
 
+    def test_the_refusal_warns_that_a_potential_does_not_fix_the_path(
+        self, funnel_mmm_data
+    ):
+        """Moving the tie into a Potential silences the refusal, not the gap."""
+        mmm = build_with_effect(funnel_mmm_data, ObservedDemandEffect(prefix="m"))
+
+        with pytest.raises(NotImplementedError) as excinfo:
+            refuse_blocked_spend_paths(mmm, resolve_channel_dependent_effects(mmm))
+        assert "pm.Potential removes this error but not the problem" in str(
+            excinfo.value
+        )
+
     def test_a_likelihood_that_reads_spend_and_feeds_nothing_is_not_on_a_path(self):
         """A calibration likelihood is downstream of spend, and no path runs through it.
 
@@ -546,6 +560,53 @@ class TestRefuseBlockedSpendPaths:
         model = mmm.model
         calibration = model["roas_calibration"]
         assert model["channel_data"] in set(ancestors([calibration]))
+
+        assert refuse_blocked_spend_paths(mmm, effects=()) is None
+
+    def test_a_variable_tied_to_spend_only_by_a_potential_is_not_refused(
+        self, funnel_mmm_data
+    ):
+        """A Potential reads spend, but makes nothing downstream of it.
+
+        ``demand`` is upstream of the predictor and the Potential reads both it
+        and spend, yet ``demand`` is not a function of spend.  It keeps its draws
+        in the counterfactual, as the ``incrementality_spec`` docstring says.
+        """
+        mmm = build_with_effect(
+            funnel_mmm_data, PotentialTiedDemandEffect(prefix="tied")
+        )
+        model = mmm.model
+        tie_reads = set(ancestors([model["tied_tie"]]))
+        assert {model["channel_data"], model["tied_demand"]} <= tie_reads
+        assert model["channel_data"] not in set(ancestors([model["tied_demand"]]))
+
+        assert (
+            refuse_blocked_spend_paths(mmm, resolve_channel_dependent_effects(mmm))
+            is None
+        )
+
+    def test_a_roas_prior_written_as_a_potential_is_not_refused(self, funnel_mmm_data):
+        """A soft calibration prior on the saturation parameters is not a spend path.
+
+        The Potential reads the contribution and spend, and so the saturation
+        parameters, which keep their draws as their author means them to.
+        """
+        mmm = MMM(
+            channel_columns=["channel_1", "channel_2"],
+            date_column="date",
+            target_column="y",
+            adstock=GeometricAdstock(l_max=3),
+            saturation=LogisticSaturation(),
+        )
+        mmm.build_model(funnel_mmm_data["X_df"], funnel_mmm_data["y_series"])
+        model = mmm.model
+        with model:
+            roas = (
+                model["channel_contribution"].values.sum()
+                / model["channel_data"].values.sum()
+            )
+            pm.Potential("roas_prior", pm.logp(pm.Normal.dist(2.0, 0.5), roas))
+        assert model["saturation_beta"] in set(ancestors([model["roas_prior"]]))
 
         assert refuse_blocked_spend_paths(mmm, effects=()) is None
 
