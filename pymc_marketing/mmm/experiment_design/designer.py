@@ -668,20 +668,8 @@ class ExperimentDesigner:
             scores += assurance_weight / total * self._min_max_normalize(assurances)
         efficiency_weight = weights.get("cost_efficiency", 0.0)
         if efficiency_weight:
-            abs_cost = np.abs(net_costs)
-            paid = abs_cost > 0
-            if np.any(paid):
-                efficiency = np.zeros(len(assurances))
-                efficiency[paid] = self._min_max_normalize(
-                    assurances[paid] / abs_cost[paid]
-                )
-                free = (~paid) & (assurances > 0)
-                if np.any(free):
-                    efficiency[paid] *= np.nextafter(1.0, 0.0)
-                    efficiency[free] = 1
-            else:
-                efficiency = (assurances > 0).astype(float)
-            scores += efficiency_weight / total * efficiency
+            efficiency = assurances / np.abs(net_costs)
+            scores += efficiency_weight / total * self._min_max_normalize(efficiency)
 
         return scores
 
@@ -701,6 +689,8 @@ class ExperimentDesigner:
 
         Evaluates a grid of candidate designs (channel x spend change x
         duration) and returns a ranked collection of recommendations.
+        A percentage change on a channel with zero current spend leaves
+        the spend unchanged, so the grid skips it along with 0% changes.
 
         Parameters
         ----------

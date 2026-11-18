@@ -125,6 +125,36 @@ class TestInitFromMMM:
         )
         assert 0.5 < recommendation.snr < 100
 
+    def test_fixed_media_parameters_keep_the_draw_axis(self, simple_mmm_data):
+        import matplotlib.pyplot as plt
+
+        from pymc_marketing.mmm import MMM, NoAdstock, NoSaturation
+        from tests.mmm.conftest import mock_fit
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            adstock=NoAdstock(l_max=1),
+            saturation=NoSaturation(priors={"beta": 0.4}),
+        )
+        mock_fit(mmm, **simple_mmm_data, draws=10, random_seed=42)
+        designer = ExperimentDesigner(mmm)
+
+        recommendations = designer.recommend(
+            spend_changes=[0.2], durations=[4], min_snr=0
+        )
+        assert len(recommendations) == 3
+        for rec in recommendations:
+            assert rec.expected_lift_hdi == pytest.approx([rec.expected_lift] * 2)
+
+        fig, ax = designer.plot_saturation_curve("channel_1")
+        spend, response = ax.lines[0].get_data()
+        assert response[-1] == pytest.approx(
+            0.4 * spend[-1] / mmm.idata.constant_data.channel_scale[0].item()
+        )
+        plt.close(fig)
+
     def test_unfitted_mmm_raises(self):
         from types import SimpleNamespace
 
@@ -332,11 +362,10 @@ class TestRecommend:
         with pytest.raises(ValueError, match="significance_level"):
             designer.recommend(significance_level=0)
 
-    def test_free_intervention_has_highest_efficiency(self, designer):
-        scores = designer._compute_scores(
-            np.array([0.4, 0.8, 0.6]), np.array([1.0, 0.0, 2.0]), {"cost_efficiency": 1}
-        )
-        assert scores[1] > scores[0] > scores[2]
+    def test_zero_current_spend_is_not_a_candidate(self, designer, monkeypatch):
+        monkeypatch.setitem(designer._current_spend, "tv", 0.0)
+        result = designer.recommend(spend_changes=[0.2], durations=[4], min_snr=0)
+        assert {rec.channel for rec in result} == {"search", "social"}
 
     def test_zero_spend_change_is_not_a_candidate(self, designer):
         assert not designer.recommend(spend_changes=[0], durations=[4], min_snr=0)

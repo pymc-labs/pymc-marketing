@@ -47,7 +47,13 @@ class ContributionGraph:
         )
         response = extract_response_distribution(model, idata, Var.CHANNEL_CONTRIBUTION)
         [graph] = clone_replace([response], replace={observed_spend: self._spend})
-        self._response = cast("ptx.XTensorVariable", graph)
+        response = cast("ptx.XTensorVariable", graph)
+        if "sample" not in response.dims:
+            # Fixed media parameters have the same response in every draw.
+            sizes = idata.posterior.sizes
+            draws = np.ones(sizes["chain"] * sizes["draw"], dtype=response.dtype)
+            response = response * ptx.as_xtensor(draws, dims=("sample",))
+        self._response = response.transpose("sample", Dim.DATE, Dim.CHANNEL)
 
     @cached_property
     def _evaluate(self) -> Callable[[np.ndarray], np.ndarray]:
