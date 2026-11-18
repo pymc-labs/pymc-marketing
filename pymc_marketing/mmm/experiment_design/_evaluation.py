@@ -26,7 +26,7 @@ from pytensor import function
 from pytensor.graph.replace import clone_replace
 from pytensor.xtensor.vectorization import vectorize_graph
 
-from pymc_marketing.mmm.link import RESPONSE_SCALE_LIKELIHOODS, _distribution_name
+from pymc_marketing.mmm.link import _distribution_name
 from pymc_marketing.names.mmm import Dim, Var
 from pymc_marketing.pytensor_utils import extract_response_distribution
 
@@ -38,16 +38,19 @@ if TYPE_CHECKING:
 
 
 def validate_observed_mean(mmm: MMM, posterior: Dataset) -> None:
-    """Require the identity predictor to be the conditional target mean."""
+    """Require the predictor to give a valid observed mean for any spend change."""
     likelihood = mmm.model_config["likelihood"]
     distribution = _distribution_name(likelihood)
-    if distribution not in RESPONSE_SCALE_LIKELIHOODS:
+    # A go-dark intervention can leave a negative predictor although the
+    # fitted predictor was positive. Require a likelihood defined for any mu.
+    if distribution not in {"Normal", "Laplace", "StudentT"}:
         raise ValueError(
-            f"ExperimentDesigner does not know the conditional mean of {distribution!r}."
+            "ExperimentDesigner requires a likelihood with a defined conditional mean "
+            "equal to mu for any real mu. Supported likelihoods are Normal, Laplace, "
+            f"and StudentT with a defined mean. Got {distribution!r}."
         )
     try:
-        # On the identity link, the factor is 1 for a supported mean. The
-        # validator refuses likelihoods with an offset or an undefined mean.
+        # The link validator rejects wrappers and StudentT without a mean.
         mmm._link_spec.mean_scale_factor(posterior, likelihood, mmm.output_var)
     except ValueError as error:
         raise ValueError(

@@ -92,9 +92,9 @@ class ExperimentDesigner:
     mmm : MMM
         A fitted national-level MMM with regular weekly observations, an
         identity link, time-invariant media effects, trailing adstock, and
-        a likelihood whose conditional mean equals ``mu``. The lift
-        calculation covers the model's direct channel contributions. Spend
-        changes and costs use the units supplied to the MMM. Lift and
+        a Normal, Laplace, or StudentT likelihood with a defined mean. The
+        lift calculation covers the model's direct channel contributions.
+        Spend changes and costs use the units supplied to the MMM. Lift and
         measurement noise use the MMM's scaled target units.
     spend_lookback : int
         Number of most recent observations used to estimate current spend.

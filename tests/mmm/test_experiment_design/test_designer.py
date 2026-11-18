@@ -195,6 +195,33 @@ class TestInitFromMMM:
         ):
             ExperimentDesigner(truncated_normal_fitted_mmm)
 
+    def test_likelihood_with_positive_mean_domain_rejected(self, simple_mmm_data):
+        from pymc_extras.prior import Prior
+
+        from pymc_marketing.mmm import MMM, GeometricAdstock, LogisticSaturation
+        from tests.mmm.conftest import mock_fit
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=1, priors={"alpha": 0.5}),
+            saturation=LogisticSaturation(priors={"lam": 2, "beta": 1.9}),
+            model_config={
+                "intercept": Prior("Normal", mu=-0.45, sigma=0.01),
+                "likelihood": Prior("Gamma", sigma=0.1, dims="date"),
+            },
+        )
+        simple_mmm_data["X"]["channel_1"] = np.linspace(
+            60, 100, len(simple_mmm_data["X"])
+        )
+        mock_fit(mmm, **simple_mmm_data, draws=10, random_seed=42)
+        assert bool((mmm.idata.posterior.mu > 0).all())
+        assert bool((mmm.idata.posterior.intercept_contribution < 0).all())
+
+        with pytest.raises(ValueError, match=r"conditional mean equal to mu.*Gamma"):
+            ExperimentDesigner(mmm)
+
     @pytest.mark.parametrize("mode", ["Before", "Overlap"])
     def test_nontrailing_adstock_rejected(self, fitted_mmm, monkeypatch, mode):
         from pymc_marketing.mmm.transformers import ConvMode
