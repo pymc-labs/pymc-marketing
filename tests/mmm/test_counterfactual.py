@@ -645,6 +645,7 @@ class TestDateIndexedInputs:
         happens on plain tensors, which carry no dims.
         """
         evaluator, _ = self._level_evaluator(reduce=False, in_tensors=in_tensors)
+        assert evaluator.uncut_date_paths == ("level",)
         n_dates = len(self.dates)
         windows = self._windows(
             slice(0, n_dates), slice(2, n_dates), max_window=n_dates
@@ -681,6 +682,7 @@ class TestDateIndexedInputs:
     def test_an_uncut_variable_reduced_over_date_evaluates_on_short_windows(self):
         """Reduced over date first, the variable never meets a window's date axis."""
         evaluator, values = self._level_evaluator(reduce=True)
+        assert evaluator.uncut_date_paths == ()
         n_dates = len(self.dates)
         windows = self._windows(
             slice(0, n_dates), slice(2, n_dates), max_window=n_dates
@@ -704,7 +706,10 @@ class TestDateIndexedInputs:
             # Back on xtensors without date, the reduction is seen.
             pytest.param(False, id="reduced-then-xtensor"),
             # Plain tensors carry no dims, so the walk cannot see the reduction
-            # and takes date to survive it: refused on the safe side.
+            # and takes date to survive it: a known false positive, refused on
+            # the safe side (Incrementality evaluates such a graph on the full
+            # date axis).  Drop this case if the walk learns to see reductions
+            # on plain tensors.
             pytest.param(True, id="reduced-and-multiplied-on-tensors"),
         ],
     )

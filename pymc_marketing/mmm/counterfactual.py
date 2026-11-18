@@ -418,7 +418,9 @@ class EvaluationWindows:
             surrounding context.
         full_axis : bool, default=False
             Evaluate every period on the complete fitted date axis, for an
-            effect whose value depends on the whole series.  Expressed as a
+            effect whose value depends on the whole series, or for a graph in
+            which a date-indexed posterior variable that is not cut to windows
+            meets a windowed ``date`` axis.  Expressed as a
             window spanning every date rather than as a separate code path, so
             scenario building, input cutting and period aggregation stay
             identical: each period still perturbs only its own dates and still
@@ -442,7 +444,9 @@ class EvaluationWindows:
             if full_axis:
                 in_window = np.ones(len(dates), dtype=bool)
                 # Full-axis mode is selected when the probe cannot bound some
-                # node's reach, or the adstock is not ``After``. Summing to the applicable axis boundary costs
+                # node's reach, the adstock is not ``After``, or an uncut
+                # date-indexed posterior variable meets a windowed date axis.
+                # Summing to the applicable axis boundary costs
                 # nothing in correctness: outside the perturbation's reach the
                 # baseline and counterfactual are the same computation on the
                 # same inputs, so the extra summands are exactly zero. ``After``
@@ -895,6 +899,10 @@ class CounterfactualEvaluator:
         alongside the intervention values, excluding the intervention target and
         ``time_index``.  Under an endogenous target this includes
         ``channel_data`` itself, held at its factual values.
+    uncut_date_paths : tuple of str
+        Posterior variables with a ``date`` dimension that are not cut to windows
+        and whose ``date`` axis meets a windowed one in the graph, so that a
+        window shorter than the fitted dates would read them at the wrong dates.
     target_dtype : dtype
         Dtype the intervention values are cast to; :attr:`channel_dtype` is its
         alias for the default spend target.
@@ -1171,7 +1179,8 @@ class CounterfactualEvaluator:
         # cut to a window.  Where its date axis meets a windowed one, a window
         # shorter than the fitted axis either fails on the shape or, when the
         # padded length happens to equal the fitted one, reads the wrong dates.
-        # Record those variables here; a windowed evaluation refuses them.
+        # Record those variables here: a windowed evaluation refuses them, and
+        # Incrementality evaluates such a graph on the full date axis instead.
         shared_posterior = self._conditioned.shared_posterior
         posterior_dims = shared_posterior.dims
         uncut = {
@@ -1181,8 +1190,8 @@ class CounterfactualEvaluator:
             and source in graph_ancestors
             and Dim.DATE in posterior_dims[name]
         }
-        self._uncut_date_paths: list[str] = self._colliding_date_paths(
-            graphs, uncut, windowed=replace.keys()
+        self._uncut_date_paths: tuple[str, ...] = tuple(
+            self._colliding_date_paths(graphs, uncut, windowed=replace.keys())
         )
 
         # A response that reads none of the inputs replaced above has no
@@ -1405,6 +1414,11 @@ class CounterfactualEvaluator:
     def windowed_data_vars(self) -> tuple[str, ...]:
         """Names of the auxiliary date-indexed inputs discovered in the graph."""
         return tuple(aux.name for aux in self._aux)
+
+    @property
+    def uncut_date_paths(self) -> tuple[str, ...]:
+        """Uncut date-indexed posterior variables that meet a windowed ``date`` axis."""
+        return self._uncut_date_paths
 
     @property
     def channel_dtype(self) -> str:
@@ -2107,11 +2121,15 @@ class CounterfactualEvaluator:
         listing = ", ".join(repr(name) for name in self._uncut_date_paths)
         raise ValueError(
             "Posterior variables not cut to windows meet a windowed 'date' axis "
-            f"in the graph: {listing}.  They hold their draws over all fitted "
-            "dates, so on a window shorter than the fitted dates they would be "
-            "read at the wrong dates.  List each one in 'frozen_deterministics' "
-            "to cut it to each window, or evaluate on windows that span the "
-            "fitted dates."
+            f"in the graph: {listing}.  Each holds its draws over all fitted "
+            "dates, so a window shorter than the fitted dates would read it at "
+            "the wrong dates.  Evaluate on windows that span the fitted dates, "
+            "or list in 'frozen_deterministics' a date-indexed Deterministic of "
+            "each variable's own path, taken before it meets the windowed axis, "
+            "such as the cumulative sum of a random walk's steps.  Listing the "
+            "variable itself is enough only when the graph reads it date by "
+            "date up to that point: a sum, cumulative sum or mean over 'date' "
+            "on the way would be taken within each window."
         )
 
     def _frozen_args(

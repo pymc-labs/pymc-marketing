@@ -793,12 +793,19 @@ class MuEffect(SerializableBaseModel, ABC):
         effect that freezes one should also override ``supports_new_dates`` to
         return ``False``, so that prediction on other dates is refused.
 
-        A free random variable with a ``date`` dimension can be listed as well, and
-        incrementality then cuts it to each window in the same way. Unlisted, such a
-        variable keeps its draws over all fitted dates, and incrementality refuses
-        any window shorter than the fitted dates where its ``date`` axis meets
-        spend's. List the variable itself: a deterministic that only renames it,
-        such as ``Deterministic(name, rv)``, currently raises a ``KeyError`` there.
+        A free random variable with a ``date`` dimension holds its draws over all
+        fitted dates. Where its ``date`` axis meets a windowed one (spend,
+        ``time_index``, date-indexed data or a frozen path), incrementality
+        evaluates every period on the full date axis, which is correct but slower
+        than a window. To keep the windows, list a date-indexed Deterministic of
+        the variable's own path, taken before it meets that axis and so not
+        reading the channel data, such as the cumulative sum of a random walk's
+        steps. A listed path is cut to each window before the graph reads it, so a
+        sum, cumulative sum or mean over ``date`` taken after it covers only the
+        window: list the variable itself only when the graph reads it date by date
+        up to that point. Listing a deterministic that only renames
+        the variable, such as ``Deterministic(name, rv)``, currently raises a
+        ``KeyError`` in incrementality.
         """
         return []
 
