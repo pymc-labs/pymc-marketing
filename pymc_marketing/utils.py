@@ -18,7 +18,7 @@ from pathlib import Path
 
 import xarray as xr
 
-from pymc_marketing.data.idata.utils import idata_from_zarr, idata_to_zarr
+from pymc_marketing.data.idata.io import idata_from_zarr, idata_to_zarr
 
 __all__ = ["from_netcdf", "idata_from_zarr", "idata_to_zarr"]
 

@@ -68,6 +68,7 @@ from pymc_marketing.mmm.summary.sensitivity import (
     sensitivity_uplift as _sensitivity_uplift,
 )
 from pymc_marketing.mmm.xarray_utils import _select_dims
+from pymc_marketing.names.mmm import Dim, Var
 
 __all__ = [
     "MMMSummaryFactory",
@@ -441,7 +442,7 @@ class MMMSummaryFactory:
 
         # Add observed values
         observed_df = observed.to_dataframe(name="observed").reset_index()
-        merge_keys = ["date", *data.custom_dims]
+        merge_keys = [Dim.DATE, *data.custom_dims]
         df = df.merge(observed_df, on=merge_keys, how="left")
 
         return self._convert_output(df, output_format)
@@ -732,11 +733,12 @@ class MMMSummaryFactory:
         )
 
         spend = self.data.get_channel_spend()
+        # The value column carries the name of the idata variable it holds.
         col_name = (
-            "channel_spend"
+            Var.CHANNEL_SPEND
             if hasattr(self.data.idata, "constant_data")
-            and "channel_spend" in self.data.idata.constant_data
-            else "channel_data"
+            and Var.CHANNEL_SPEND in self.data.idata.constant_data
+            else Var.CHANNEL_DATA
         )
         df = spend.to_dataframe(name=col_name).reset_index()
 
@@ -1015,7 +1017,9 @@ class MMMSummaryFactory:
             component_data = contributions[component_name]
             # Sum across the component dimension if present (e.g., sum across channels)
             component_dims = list(component_data.dims)
-            sum_dims = [d for d in component_dims if d not in ["chain", "draw", "date"]]
+            sum_dims = [
+                d for d in component_dims if d not in ["chain", "draw", Dim.DATE]
+            ]
 
             if sum_dims:
                 summed_data = component_data.sum(dim=sum_dims)
@@ -1030,7 +1034,7 @@ class MMMSummaryFactory:
         if not all_dfs:
             # Return empty DataFrame with correct schema
             return self._convert_output(
-                pd.DataFrame(columns=["date", "component", "mean", "median"]),
+                pd.DataFrame(columns=[Dim.DATE, "component", "mean", "median"]),
                 output_format,
             )
 
@@ -1094,7 +1098,7 @@ class MMMSummaryFactory:
         )
 
         # Check for date dimension
-        if "date" not in contributions.dims:
+        if Dim.DATE not in contributions.dims:
             raise ValueError(
                 "change_over_time requires date dimension. "
                 "Data may have been aggregated with frequency='all_time', "
@@ -1105,7 +1109,7 @@ class MMMSummaryFactory:
         # Compute percentage change using xarray operations
         # Formula: (value[t] - value[t-1]) / value[t-1] * 100
         shifted = contributions.shift(date=1)
-        diff = contributions.diff("date")
+        diff = contributions.diff(Dim.DATE)
 
         # Handle division by zero (set to NaN)
         # Use xr.where to replace zeros with NaN before division
@@ -1297,7 +1301,7 @@ class MMMSummaryFactory:
         df = self._compute_summary_stats_with_hdi(pp_samples, hdi_probs)
 
         observed_df = observed.to_dataframe(name="observed").reset_index()
-        merge_keys = ["date", *data.custom_dims]
+        merge_keys = [Dim.DATE, *data.custom_dims]
         df = df.merge(observed_df, on=merge_keys, how="left")
 
         return self._convert_output(df, output_format)
@@ -1394,7 +1398,7 @@ class MMMSummaryFactory:
                         f"Available: {list(residuals.dims)}"
                     )
 
-        sample_dims = ["chain", "draw", "date"] + (aggregation or [])
+        sample_dims = ["chain", "draw", Dim.DATE] + (aggregation or [])
         quantile_da = residuals.quantile(list(quantiles), dim=sample_dims)
         df = quantile_da.to_dataframe(name="value").reset_index()
 

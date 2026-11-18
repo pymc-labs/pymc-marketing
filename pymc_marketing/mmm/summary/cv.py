@@ -44,6 +44,7 @@ from pymc_marketing.mmm.summary.helpers import (
     convert_output,
 )
 from pymc_marketing.mmm.xarray_utils import _select_dims
+from pymc_marketing.names.mmm import Dim, Group, Var
 
 __all__ = [
     "MMMCVSummaryFactory",
@@ -56,7 +57,7 @@ def _validate_cv_results(cv_data: xr.DataTree) -> None:
     """Raise if cv_data is not a valid CV DataTree."""
     if not isinstance(cv_data, xr.DataTree):
         raise TypeError(f"cv_data must be xr.DataTree, got {type(cv_data).__name__}.")
-    if not hasattr(cv_data, "cv_metadata"):
+    if not hasattr(cv_data, Group.CV_METADATA):
         raise ValueError(
             "cv_data must have a 'cv_metadata' group. "
             "Ensure TimeSliceCrossValidator.run() has been called and the "
@@ -66,14 +67,14 @@ def _validate_cv_results(cv_data: xr.DataTree) -> None:
 
 def _extract_cv_labels(cv_data: xr.DataTree) -> list[str]:
     """Return the list of CV fold labels from cv_metadata coords."""
-    return list(cv_data.cv_metadata.coords["cv"].values)
+    return list(cv_data.cv_metadata.coords[Dim.CV].values)
 
 
 def _read_fold_meta(
     cv_data: xr.DataTree, cv_label: str
 ) -> tuple[pd.DataFrame, pd.Series, pd.DataFrame, pd.Series]:
     """Return (X_train, y_train, X_test, y_test) for a given fold label."""
-    meta = cv_data.cv_metadata["metadata"].sel(cv=cv_label).values.item()
+    meta = cv_data.cv_metadata[Var.METADATA].sel(cv=cv_label).values.item()
     return meta["X_train"], meta["y_train"], meta["X_test"], meta["y_test"]
 
 
@@ -83,7 +84,7 @@ def _build_predictions_arrays(
 ) -> tuple[xr.DataArray, xr.DataArray, xr.DataArray, xr.DataArray]:
     """Build stacked train/test/observed/train-end arrays across all CV folds."""
     cv_labels = _extract_cv_labels(cv_data)
-    full_dates = pp.coords["date"].values
+    full_dates = pp.coords[Dim.DATE].values
 
     y_train_list: list[xr.DataArray] = []
     y_test_list: list[xr.DataArray] = []
@@ -102,13 +103,13 @@ def _build_predictions_arrays(
 
         train_mask = xr.DataArray(
             np.isin(full_dates, train_dates.values),
-            dims=["date"],
-            coords={"date": full_dates},
+            dims=[Dim.DATE],
+            coords={Dim.DATE: full_dates},
         )
         test_mask = xr.DataArray(
             np.isin(full_dates, test_dates.values),
-            dims=["date"],
-            coords={"date": full_dates},
+            dims=[Dim.DATE],
+            coords={Dim.DATE: full_dates},
         )
 
         pp_fold = pp.sel(cv=lbl)
@@ -123,15 +124,17 @@ def _build_predictions_arrays(
                 date_to_y[d] = float(y)
         y_obs_arr = np.array([date_to_y.get(d, np.nan) for d in full_dates])
         y_obs_list.append(
-            xr.DataArray(y_obs_arr, dims=["date"], coords={"date": full_dates})
+            xr.DataArray(y_obs_arr, dims=[Dim.DATE], coords={Dim.DATE: full_dates})
         )
         train_end_list.append(mdates.date2num(train_dates.max()))
 
-    cv_coord = xr.DataArray(cv_labels, dims=["cv"], name="cv")
+    cv_coord = xr.DataArray(cv_labels, dims=[Dim.CV], name=Dim.CV)
     y_train_da = xr.concat(y_train_list, dim=cv_coord).assign_coords(cv=cv_labels)
     y_test_da = xr.concat(y_test_list, dim=cv_coord).assign_coords(cv=cv_labels)
     y_obs_da = xr.concat(y_obs_list, dim=cv_coord).assign_coords(cv=cv_labels)
-    train_end_da = xr.DataArray(train_end_list, dims=["cv"], coords={"cv": cv_labels})
+    train_end_da = xr.DataArray(
+        train_end_list, dims=[Dim.CV], coords={Dim.CV: cv_labels}
+    )
     return y_train_da, y_test_da, y_obs_da, train_end_da
 
 
@@ -141,9 +144,9 @@ def _pred_matrix_for_rows(
     rows_df: pd.DataFrame,
 ) -> np.ndarray:
     """Build (n_samples, n_rows) prediction matrix for CRPS computation."""
-    da = cv_data["/posterior_predictive"].dataset["y_original_scale"].sel(cv=cv_label)
+    da = cv_data["/posterior_predictive"].dataset[Var.Y_ORIGINAL_SCALE].sel(cv=cv_label)
 
-    base_dims = {"chain", "draw", "date"}
+    base_dims = {"chain", "draw", Dim.DATE}
     extra_dims = [d for d in da.dims if d not in base_dims]
 
     da_s = da.stack(sample=("chain", "draw"))
@@ -155,7 +158,7 @@ def _pred_matrix_for_rows(
     mat = np.empty((n_samples, n_rows))
 
     for j, (_, row) in enumerate(rows_df.iterrows()):
-        sel_kwargs: dict[str, Any] = {"date": row["date"]}
+        sel_kwargs: dict[str, Any] = {Dim.DATE: row["date"]}
         for dim in extra_dims:
             if dim in row.index:
                 sel_kwargs[dim] = row[dim]
@@ -266,13 +269,13 @@ class MMMCVSummaryFactory:
 
         if (
             not hasattr(self.cv_data, "posterior_predictive")
-            or "y_original_scale" not in self.cv_data.posterior_predictive
+            or Var.Y_ORIGINAL_SCALE not in self.cv_data.posterior_predictive
         ):
             raise ValueError(
                 "cv_data must have posterior_predictive['y_original_scale']."
             )
 
-        pp = self.cv_data.posterior_predictive["y_original_scale"]
+        pp = self.cv_data.posterior_predictive[Var.Y_ORIGINAL_SCALE]
         y_train_da, y_test_da, y_obs_da, _ = _build_predictions_arrays(self.cv_data, pp)
 
         if dims:
@@ -288,9 +291,13 @@ class MMMCVSummaryFactory:
 
         observed_df = y_obs_da.to_dataframe(name="observed").reset_index()
         merge_keys = [
-            "cv",
-            "date",
-            *[d for d in observed_df.columns if d not in {"cv", "date", "observed"}],
+            Dim.CV,
+            Dim.DATE,
+            *[
+                d
+                for d in observed_df.columns
+                if d not in {Dim.CV, Dim.DATE, "observed"}
+            ],
         ]
         df = df.merge(observed_df, on=merge_keys, how="left")
 
@@ -326,7 +333,7 @@ class MMMCVSummaryFactory:
 
         if not hasattr(self.cv_data, "posterior"):
             raise ValueError("cv_data has no 'posterior' group.")
-        if "cv" not in self.cv_data.posterior.dims:
+        if Dim.CV not in self.cv_data.posterior.dims:
             raise ValueError(
                 "No 'cv' coordinate found in cv_data.posterior. "
                 "Ensure the DataTree was produced by TimeSliceCrossValidator.run()."
@@ -346,13 +353,13 @@ class MMMCVSummaryFactory:
                     continue
                 da = posterior[var_name].sel(cv=cv_label)
                 df = compute_summary_stats_with_hdi(da, hdi_probs)
-                df["cv"] = cv_label
+                df[Dim.CV] = cv_label
                 df["variable"] = var_name
                 all_dfs.append(df)
 
         if not all_dfs:
             return convert_output(
-                pd.DataFrame(columns=["cv", "variable", "mean", "median"]),
+                pd.DataFrame(columns=[Dim.CV, "variable", "mean", "median"]),
                 output_format,
             )
 
@@ -392,20 +399,20 @@ class MMMCVSummaryFactory:
             Table with ``split``, ``cv``, optional extra-dimension columns,
             and ``mean_crps``.
         """
-        if not hasattr(self.cv_data, "cv_metadata"):
+        if not hasattr(self.cv_data, Group.CV_METADATA):
             raise ValueError("cv_data must have a 'cv_metadata' group.")
         if (
             not hasattr(self.cv_data, "posterior_predictive")
-            or "y_original_scale" not in self.cv_data.posterior_predictive
+            or Var.Y_ORIGINAL_SCALE not in self.cv_data.posterior_predictive
         ):
             raise ValueError(
                 "cv_data must have posterior_predictive['y_original_scale']."
             )
 
-        pp = self.cv_data.posterior_predictive["y_original_scale"]
+        pp = self.cv_data.posterior_predictive[Var.Y_ORIGINAL_SCALE]
         cv_labels = _extract_cv_labels(self.cv_data)
 
-        base_dims = {"cv", "chain", "draw", "date"}
+        base_dims = {Dim.CV, "chain", "draw", Dim.DATE}
         extra_dims = [d for d in pp.dims if d not in base_dims]
 
         combo_coords: dict[str, list[Any]] = {
@@ -436,10 +443,13 @@ class MMMCVSummaryFactory:
         coords: dict[str, Any] = {
             "split": ["train", "test"],
             **combo_coords,
-            "cv": cv_labels,
+            Dim.CV: cv_labels,
         }
         crps_da = xr.DataArray(
-            data_arr, dims=["split", *extra_dims, "cv"], coords=coords, name="mean_crps"
+            data_arr,
+            dims=["split", *extra_dims, Dim.CV],
+            coords=coords,
+            name="mean_crps",
         )
 
         df = crps_da.to_dataframe(name="mean_crps").reset_index()

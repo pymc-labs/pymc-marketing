@@ -43,6 +43,8 @@ from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.mmm.dims import XTensorLike
 from pymc_marketing.model_config import parse_model_config
+from pymc_marketing.names import Key
+from pymc_marketing.names.mmm import Dim
 from pymc_marketing.plot import (
     SelToString,
     plot_curve,
@@ -51,7 +53,7 @@ from pymc_marketing.plot import (
 )
 
 # "x" for saturation, "time since exposure" for adstock
-NON_GRID_NAMES: frozenset[str] = frozenset({"x", "time since exposure"})
+NON_GRID_NAMES: frozenset[str] = frozenset({"x", Dim.TIME_SINCE_EXPOSURE})
 
 type SupportedPrior = (
     InstanceOf[Prior]
@@ -187,7 +189,7 @@ class Transformation:
     def from_dict(cls, data: dict) -> Self:
         """Reconstruct a transformation from a dict."""
         data = data.copy()
-        data.pop("__type__", None)
+        data.pop(Key.TYPE, None)
 
         if "priors" in data:
             data["priors"] = {
@@ -787,7 +789,8 @@ class Transformation:
         If called inside a ``pm.Model`` context that already contains this
         transformation's variables (e.g. after :meth:`apply` has been called
         during ``build_model``), the existing ``XTensorVariable``s are reused
-        rather than creating new ones.  Otherwise falls back to
+        rather than creating new ones. Fixed parameters without registered
+        variables retain their configured values. Otherwise falls back to
         :meth:`apply` behaviour (creates new distributions).
 
         Parameters
@@ -844,10 +847,14 @@ class Transformation:
         """
         model = pm.Model.get_context(error_if_none=False)
         if model is not None and all(
-            v in model.named_vars for v in self.variable_mapping.values()
+            model.name_for(var) in model.named_vars
+            or not hasattr(self.function_priors[param], "create_variable")
+            for param, var in self.variable_mapping.items()
         ):
             kwargs = {
-                param: model.named_vars[var]
+                param: model.named_vars.get(
+                    model.name_for(var), self.function_priors[param]
+                )
                 for param, var in self.variable_mapping.items()
             }
         else:

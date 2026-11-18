@@ -40,6 +40,7 @@ from pytensor.xtensor import as_xtensor
 
 from pymc_marketing.mmm.data_conversion import to_mmm_dataset
 from pymc_marketing.mmm.spend_reach import resolve_channel_dependent_effects
+from pymc_marketing.names.mmm import ORIGINAL_SCALE_SUFFIX, Attr, DatasetVar, Dim, Var
 from pymc_marketing.serialization import serialization
 
 if TYPE_CHECKING:
@@ -58,7 +59,7 @@ def _validate_factor_spec(
     """Normalize a scalar specification without changing a model graph."""
     if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", name):
         raise ValueError("name must be an identifier starting with a letter")
-    if name.endswith(("_original_scale", "_factor")) or {
+    if name.endswith((ORIGINAL_SCALE_SUFFIX, "_factor")) or {
         name,
         f"{name}_factor",
     }.intersection(reserved_names):
@@ -128,7 +129,7 @@ def _training_fingerprint(dataset: xr.Dataset, mask: xr.DataArray) -> str:
     for name, coord in sorted(dataset.coords.items()):
         values = (
             [pd.Timestamp(v).isoformat() for v in coord.values]
-            if name == "date"
+            if name == Dim.DATE
             else coord.values.tolist()
         )
         digest.update(json.dumps([name, values], default=str).encode())
@@ -162,7 +163,9 @@ class ContributionFactorState:
             control_columns=mmm.control_columns,
             target_column=mmm.target_column,
         )
-        mask = self.mask if self.restoring else np.isfinite(candidate["_target"])
+        mask = (
+            self.mask if self.restoring else np.isfinite(candidate[DatasetVar.TARGET])
+        )
         if mask is None or _training_fingerprint(candidate, mask) != self.fingerprint:
             raise ValueError(
                 "Contribution factors refer to the original training cells. "
@@ -216,7 +219,7 @@ class ContributionFactorState:
 
     def _capture_inputs(self, mmm: MMM) -> None:
         """Copy only mutable ancestors of the original-scale contribution."""
-        source = mmm.model["channel_contribution"] * mmm.model["target_scale"]
+        source = mmm.model[Var.CHANNEL_CONTRIBUTION] * mmm.model[Var.TARGET_SCALE]
         inputs = set(ancestors([source]))
         self.inputs = {
             v.name: np.array(v.get_value(), copy=True)
@@ -277,15 +280,17 @@ class ContributionFactorState:
             raise ValueError(
                 "Contributions require real observed outcomes, not a placeholder target"
             )
-        if not np.all(np.isfinite(self.inputs["target_scale"])) or not np.all(
-            self.inputs["target_scale"] > 0
+        if not np.all(np.isfinite(self.inputs[Var.TARGET_SCALE])) or not np.all(
+            self.inputs[Var.TARGET_SCALE] > 0
         ):
             raise ValueError(
                 "Original-unit contributions require finite positive target scaling"
             )
         if self.mask is None or not bool(self.mask.any()):
             raise ValueError("Contributions require finite observed training outcomes")
-        denominator = float(mmm.xarray_dataset["_target"].where(self.mask, 0).sum())
+        denominator = float(
+            mmm.xarray_dataset[DatasetVar.TARGET].where(self.mask, 0).sum()
+        )
         if quantity == "share" and (not np.isfinite(denominator) or denominator <= 0):
             raise ValueError(
                 "Shares require a finite positive sum of observed training outcomes"
@@ -325,10 +330,10 @@ class ContributionFactorState:
                 )
             if prior.distribution == "LogNormal":
                 channels_data = xr.DataArray(
-                    self.inputs["channel_data"],
-                    dims=mmm.model["channel_data"].dims,
+                    self.inputs[Var.CHANNEL_DATA],
+                    dims=mmm.model[Var.CHANNEL_DATA].dims,
                     coords={
-                        d: mmm.model_coords[d] for d in mmm.model["channel_data"].dims
+                        d: mmm.model_coords[d] for d in mmm.model[Var.CHANNEL_DATA].dims
                     },
                 )
                 if not bool((channels_data.sel(channel=list(channels)) > 0).any()):
@@ -339,7 +344,7 @@ class ContributionFactorState:
     def _freeze_training_contribution_graph(self, mmm: MMM) -> Any:
         """Reuse the original-scale transform, sharing RVs but fixing Data."""
         source = mmm._link_spec.original_scale_transform(
-            mmm.model["channel_contribution"], mmm.model["target_scale"]
+            mmm.model[Var.CHANNEL_CONTRIBUTION], mmm.model[Var.TARGET_SCALE]
         )
         replacements = {
             mmm.model[k]: mmm.model[k].type.constant_type(
@@ -361,12 +366,14 @@ class ContributionFactorState:
             source = self._freeze_training_contribution_graph(mmm)
         # Resolve selections and the observation mask against the historical
         # labels, never the mutable prediction coordinates.
-        indices = pd.Index(mmm.model_coords["channel"]).get_indexer(spec["channels"])
+        indices = pd.Index(mmm.model_coords[Dim.CHANNEL]).get_indexer(spec["channels"])
         if self.mask is None:
             raise ValueError("Contributions require an observed training mask")
         mask = self.mask.reindex({dim: mmm.model_coords[dim] for dim in self.mask.dims})
         total = source.isel(channel=indices).where(as_xtensor(mask), 0).sum()
-        denominator = float(mmm.xarray_dataset["_target"].where(self.mask, 0).sum())
+        denominator = float(
+            mmm.xarray_dataset[DatasetVar.TARGET].where(self.mask, 0).sum()
+        )
         value = total / denominator if spec["quantity"] == "share" else total
         value_aggregate = mmm.model.replace_rvs_by_values([value])[0]
         # XTensor Potential logp is not lowered by conditional_logp. Keep
@@ -391,7 +398,7 @@ class ContributionFactorState:
         """Store small definitions and a fingerprint, with no numeric training arrays."""
         return {
             "contribution_factors": json.dumps(
-                {"version": 1, "specs": self.specs, "fingerprint": self.fingerprint}
+                {Attr.VERSION: 1, "specs": self.specs, "fingerprint": self.fingerprint}
             )
         }
 
@@ -405,7 +412,7 @@ class ContributionFactorState:
         """Read factor definitions; frozen graph inputs are rebuilt from fit_data."""
         metadata = json.loads(idata.attrs.get("contribution_factors", "{}"))
         specs = metadata.get("specs", [])
-        if metadata and metadata.get("version") != 1:
+        if metadata and metadata.get(Attr.VERSION) != 1:
             raise ValueError("Unsupported contribution-factor serialization version")
         mask = idata.contribution_factor_data["observed_mask"].copy() if specs else None
         return cls(

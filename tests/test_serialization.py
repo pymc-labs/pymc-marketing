@@ -22,6 +22,23 @@ import pytest
 from pymc_marketing.serialization import serialization
 
 
+def _make_effect_class() -> type:
+    """Return a fresh class so registering it (which patches ``to_dict``) stays test-local."""
+
+    class MyEffect:
+        def __init__(self, a: int = 1) -> None:
+            self.a = a
+
+        def to_dict(self) -> dict[str, Any]:
+            return {"a": self.a}
+
+        @classmethod
+        def from_dict(cls, data: dict[str, Any]) -> MyEffect:
+            return cls(data["a"])
+
+    return MyEffect
+
+
 class TestSerializationError:
     def test_is_exception(self):
         from pymc_marketing.serialization import SerializationError
@@ -285,6 +302,110 @@ class TestTypeRegistry:
         with pytest.raises(TypeError, match="class must be provided"):
             reg.register("some.string.key")
 
+    def test_string_key_is_written_and_read(self):
+        """A class registered only under a string key round-trips under that key (GH-3330)."""
+        from pymc_marketing.serialization import TypeRegistry
+
+        reg = TypeRegistry()
+        MyEffect = _make_effect_class()
+        reg.register("my_package.MyEffect", MyEffect)
+        effect = MyEffect(3)
+
+        expected = {"__type__": "my_package.MyEffect", "a": 3}
+        assert reg.is_registered(effect)
+        assert reg.serialize(effect) == expected
+        assert effect.to_dict() == expected
+        restored = reg.deserialize(effect.to_dict())
+        assert isinstance(restored, MyEffect)
+        assert restored.a == 3
+
+    @pytest.mark.parametrize(
+        "primary_is_string", [True, False], ids=["string", "class"]
+    )
+    def test_first_registered_key_is_written_and_later_keys_still_load(
+        self, primary_is_string
+    ):
+        from pymc_marketing.serialization import TypeRegistry
+
+        reg = TypeRegistry()
+        MyEffect = _make_effect_class()
+        if primary_is_string:
+            primary = "my_package.MyEffect"
+            reg.register(primary, MyEffect)
+        else:
+            primary = f"{MyEffect.__module__}.{MyEffect.__qualname__}"
+            reg.register(MyEffect)
+        reg.register("old_package.MyEffect", MyEffect)
+
+        assert reg.serialize(MyEffect(3)) == {"__type__": primary, "a": 3}
+        restored = reg.deserialize({"__type__": "old_package.MyEffect", "a": 4})
+        assert isinstance(restored, MyEffect)
+        assert restored.a == 4
+
+    def test_serialize_writes_its_own_key_when_another_registry_wrapped_the_class(
+        self,
+    ):
+        from pymc_marketing.serialization import TypeRegistry
+
+        first, second = TypeRegistry(), TypeRegistry()
+        MyEffect = _make_effect_class()
+        first.register(MyEffect)
+        second.register("my_package.MyEffect", MyEffect)
+
+        data = second.serialize(MyEffect(2))
+        assert data == {"__type__": "my_package.MyEffect", "a": 2}
+        assert second.deserialize(data).a == 2
+
+    def test_key_registered_for_another_class_is_no_longer_written_by_the_first(self):
+        from pymc_marketing.serialization import TypeRegistry
+
+        reg = TypeRegistry()
+        MyEffect = _make_effect_class()
+        reg.register("my_package.MyEffect", MyEffect)
+
+        class OtherEffect(MyEffect):
+            pass
+
+        reg.register("my_package.MyEffect", OtherEffect)
+
+        assert not reg.is_registered(MyEffect(1))
+        with pytest.raises(KeyError):
+            reg.serialize(MyEffect(1))
+        data = reg.serialize(OtherEffect(2))
+        assert data == {"__type__": "my_package.MyEffect", "a": 2}
+        assert type(reg.deserialize(data)) is OtherEffect
+
+    def test_model_config_uses_serializer_of_string_keyed_class(self):
+        from pymc_marketing.serialization import TypeRegistry
+
+        reg = TypeRegistry()
+        MyEffect = _make_effect_class()
+        reg.register(
+            "my_package.MyEffect",
+            MyEffect,
+            serializer=lambda obj: {"__type__": "my_package.MyEffect", "b": obj.a},
+        )
+
+        serialized = reg.serialize_model_config({"effect": MyEffect(3)})
+        assert serialized == {"effect": {"__type__": "my_package.MyEffect", "b": 3}}
+
+    def test_subclass_of_string_keyed_class_uses_its_own_key(self):
+        from pymc_marketing.serialization import TypeRegistry
+
+        reg = TypeRegistry()
+        MyEffect = _make_effect_class()
+        reg.register("my_package.MyEffect", MyEffect)
+
+        class SubEffect(MyEffect):
+            pass
+
+        assert not reg.is_registered(SubEffect(5))
+
+        reg.register(SubEffect)
+        data = SubEffect(5).to_dict()
+        assert data["__type__"] == f"{SubEffect.__module__}.{SubEffect.__qualname__}"
+        assert type(reg.deserialize(data)) is SubEffect
+
 
 class TestSerializableBaseModel:
     def test_auto_registration(self):
@@ -359,6 +480,41 @@ class TestSerializableBaseModel:
 
         concrete_key = f"{ConcreteEffect.__module__}.{ConcreteEffect.__qualname__}"
         assert concrete_key in serialization._registry
+
+    def test_string_key_is_written_instead_of_auto_registered_module_path(self):
+        """Auto-registration does not pin the written key; an explicit string key does (GH-3330)."""
+        from pymc_marketing.serialization import SerializableBaseModel
+
+        class StableKeyModel(SerializableBaseModel):
+            a: int = 1
+
+        module_key = f"{StableKeyModel.__module__}.{StableKeyModel.__qualname__}"
+        serialization.register("tests.serialization.StableKeyModel", StableKeyModel)
+
+        data = serialization.serialize(StableKeyModel(a=2))
+        assert data == {"__type__": "tests.serialization.StableKeyModel", "a": 2}
+        assert serialization.deserialize(data) == StableKeyModel(a=2)
+        # Dicts saved under the module path before the key was registered still load.
+        legacy = {"__type__": module_key, "a": 3}
+        assert serialization.deserialize(legacy) == StableKeyModel(a=3)
+
+    def test_registering_the_class_first_keeps_writing_the_module_path(self):
+        """A key registered after ``register(cls)`` only loads (GH-3330)."""
+        from pymc_marketing.serialization import SerializableBaseModel
+
+        class MovedModel(SerializableBaseModel):
+            a: int = 1
+
+        old_key = "tests.serialization.old_module.MovedModel"
+        serialization.register(MovedModel)
+        serialization.register(old_key, MovedModel)
+
+        module_key = f"{MovedModel.__module__}.{MovedModel.__qualname__}"
+        data = serialization.serialize(MovedModel(a=2))
+        assert data == {"__type__": module_key, "a": 2}
+        assert serialization.deserialize({"__type__": old_key, "a": 3}) == MovedModel(
+            a=3
+        )
 
 
 class TestSerializeModelConfig:
@@ -480,3 +636,94 @@ class TestSerializeModelConfig:
 
         np.testing.assert_array_equal(restored["arr"], [1.0, 2.0, 3.0])
         assert restored["scalar"] == 4.0
+
+    @pytest.mark.parametrize(
+        "case",
+        [
+            "no-transform",
+            "transform",
+            "nested-transform",
+            "non-centered-transform",
+            "array-parameter",
+            "censored-parameter",
+        ],
+    )
+    def test_prior_survives_json_round_trip(self, case):
+        """Regression test for #3225: a ``Prior`` and its ``transform`` survive save and load."""
+        import json
+
+        import numpy as np
+        from pymc_extras.prior import Censored, Prior
+
+        prior = {
+            "no-transform": Prior("Normal", mu=0, sigma=1, dims="channel"),
+            "transform": Prior(
+                "Normal", mu=0, sigma=1, dims="channel", transform="abs"
+            ),
+            "nested-transform": Prior(
+                "Normal", mu=Prior("Normal", transform="exp"), sigma=1, dims="channel"
+            ),
+            "non-centered-transform": Prior(
+                "Normal",
+                mu=0,
+                sigma=Prior("HalfNormal"),
+                dims=("geo", "channel"),
+                centered=False,
+                transform="abs",
+            ),
+            "array-parameter": Prior(
+                "Normal",
+                mu=np.array([1.0, 2.0]),
+                sigma=1,
+                dims="channel",
+                transform="exp",
+            ),
+            "censored-parameter": Prior(
+                "Normal",
+                mu=0,
+                sigma=Censored(Prior("Normal", sigma=1), lower=0),
+                transform="exp",
+            ),
+        }[case]
+
+        serialized = json.loads(
+            json.dumps(serialization.serialize_model_config({"prior": prior}))
+        )
+        restored = serialization.deserialize_model_config(serialized)["prior"]
+
+        assert restored == prior
+
+    @pytest.mark.parametrize("factor_dtype", ["float64", "float32", "int64"])
+    def test_prior_with_scaled_parameter_survives_json_round_trip(self, factor_dtype):
+        """A ``Scaled`` parameter is written in the format ``Prior.from_dict`` reads.
+
+        ``float32`` and ``int64`` factors are numpy scalars that ``json`` cannot encode.
+        """
+        import json
+
+        import numpy as np
+        from pymc_extras.prior import Prior, Scaled
+
+        inner = Prior("HalfNormal", sigma=1, transform="exp")
+        factor = np.dtype(factor_dtype).type(2)
+        prior = Prior("Normal", mu=0, sigma=Scaled(inner, factor=factor))
+
+        serialized = json.loads(
+            json.dumps(serialization.serialize_model_config({"prior": prior}))
+        )
+        restored = serialization.deserialize_model_config(serialized)["prior"]
+
+        restored_sigma = restored.parameters["sigma"]
+        assert isinstance(restored_sigma, Scaled)
+        assert restored_sigma.dist == inner
+        assert restored_sigma.factor == 2.0
+
+    def test_prior_without_transform_writes_no_transform_key(self):
+        """A ``Prior`` without a transform is written without a ``transform`` key."""
+        from pymc_extras.prior import Prior
+
+        serialized = serialization.serialize_model_config(
+            {"prior": Prior("Normal", mu=0, sigma=1, dims="channel")}
+        )
+
+        assert "transform" not in serialized["prior"]

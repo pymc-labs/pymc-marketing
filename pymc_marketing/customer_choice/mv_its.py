@@ -31,6 +31,7 @@ from xarray import DataArray
 from pymc_marketing.mmm.additive_effect import MuEffect
 from pymc_marketing.model_builder import RegressionModelBuilder, create_idata_accessor
 from pymc_marketing.model_config import parse_model_config
+from pymc_marketing.names import Attr
 
 HDI_ALPHA = 0.5
 
@@ -124,9 +125,9 @@ class MVITS(RegressionModelBuilder):
         """
         return {
             "model_config": cls._model_config_formatting(
-                json.loads(attrs["model_config"])
+                json.loads(attrs[Attr.MODEL_CONFIG])
             ),
-            "sampler_config": json.loads(attrs["sampler_config"]),
+            "sampler_config": json.loads(attrs[Attr.SAMPLER_CONFIG]),
             "existing_sales": json.loads(attrs["existing_sales"]),
             "saturated_market": json.loads(attrs["saturated_market"]),
         }
@@ -531,7 +532,7 @@ class MVITS(RegressionModelBuilder):
             The variable to compare. Either "mu" or "y".
         plot_total_sales : bool, optional
             Whether to plot the total sales or not.
-        axes : plt.Axes, optional
+        ax : plt.Axes, optional
             The matplotlib axes.
 
         Returns

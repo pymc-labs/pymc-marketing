@@ -479,6 +479,42 @@ class TestModifiedBetaGeoModel:
             rtol=rtol,
         )
 
+    def test_distribution_new_customer_uses_T_argument(self) -> None:
+        mock_model = ModifiedBetaGeoModel()
+        mock_model.build_model(data=self.data)
+        mock_model.idata = az.from_dict(
+            {
+                "posterior": {
+                    "a": np.array([[self.a_true]]),
+                    "b": np.array([[self.b_true]]),
+                    "alpha": np.array([[self.alpha_true]]),
+                    "r": np.array([[self.r_true]]),
+                }
+            }
+        )
+
+        # `T` overrides the `T` column of `data`.
+        subset = self.data.head(20)
+        short = mock_model.distribution_new_customer_recency_frequency(
+            subset, T=1, random_seed=42, n_samples=200
+        )
+        long = mock_model.distribution_new_customer_recency_frequency(
+            subset, T=100, random_seed=42, n_samples=200
+        )
+        assert (
+            short.sel(obs_var="frequency").mean() < long.sel(obs_var="frequency").mean()
+        )
+        assert (long.sel(obs_var="recency") <= 100).all()
+        assert (short.sel(obs_var="recency") <= 1).all()
+
+        # `T` is accepted in place of a `T` column.
+        new_customers = pd.DataFrame({"customer_id": [0, 1, 2]})
+        rf = mock_model.distribution_new_customer_recency_frequency(
+            new_customers, T=10, random_seed=42, n_samples=200
+        )
+        assert rf.sizes["customer_id"] == 3
+        assert (rf.sel(obs_var="recency") <= 10).all()
+
     def test_save_load(self, tmp_path):
         save_path = tmp_path / "test_model"
         self.model.save(save_path)
