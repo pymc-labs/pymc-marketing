@@ -179,6 +179,25 @@ class TestInitFromMMM:
         with pytest.raises(NotImplementedError, match="trailing adstock"):
             ExperimentDesigner(fitted_mmm)
 
+    def test_daily_mmm_is_not_treated_as_weekly(self, simple_mmm_data):
+        import pandas as pd
+
+        from pymc_marketing.mmm import MMM, GeometricAdstock, LogisticSaturation
+        from tests.mmm.conftest import mock_fit
+
+        x = simple_mmm_data["X"]
+        x["date"] = pd.date_range("2025-01-01", periods=len(x), freq="D")
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mock_fit(mmm, **simple_mmm_data, draws=10, random_seed=42)
+        with pytest.raises(ValueError, match="regular weekly observations"):
+            ExperimentDesigner(mmm)
+
     def test_mismatched_observations_raise(self, fitted_mmm, monkeypatch):
         idata = fitted_mmm.idata.copy()
         idata["observed_data"] = idata.observed_data.dataset.isel(date=slice(1, None))
@@ -369,6 +388,13 @@ class TestRecommend:
     def test_invalid_significance_level_raises(self, designer):
         with pytest.raises(ValueError, match="significance_level"):
             designer.recommend(significance_level=0)
+
+    @pytest.mark.parametrize("change", [-1.2, np.nan])
+    def test_invalid_spend_change_raises(self, designer, change):
+        with pytest.raises(
+            ValueError, match="Spend changes must be finite and at least -1"
+        ):
+            designer.recommend(spend_changes=[change], durations=[4])
 
     def test_zero_current_spend_is_not_a_candidate(self, designer, monkeypatch):
         monkeypatch.setitem(designer._current_spend, "tv", 0.0)

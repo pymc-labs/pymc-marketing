@@ -87,8 +87,8 @@ class ExperimentDesigner:
     Parameters
     ----------
     mmm : MMM
-        A fitted national-level MMM with an identity link, time-invariant
-        media effects, and trailing adstock. Spend changes and costs use the
+        A fitted national-level MMM with regular weekly observations, an
+        identity link, time-invariant media effects, and trailing adstock. Spend changes and costs use the
         units supplied to the MMM. Lift and measurement noise use the MMM's
         scaled target units.
     spend_lookback : int
@@ -98,7 +98,7 @@ class ExperimentDesigner:
     Raises
     ------
     ValueError
-        If the MMM has not been fitted.
+        If the MMM has not been fitted or its observations are not weekly.
     NotImplementedError
         If the model includes panel dimensions, a non-identity link,
         time-varying media effects, non-trailing adstock, or
@@ -173,6 +173,13 @@ class ExperimentDesigner:
                 "Observed and predicted targets must be weekly time series."
             )
         observed, prediction = xr.align(observed, prediction, join="exact")
+        dates = observed.indexes.get(Dim.DATE)
+        if (
+            not isinstance(dates, pd.DatetimeIndex)
+            or len(dates) < 2
+            or not ((dates[1:] - dates[:-1]) == pd.Timedelta(weeks=1)).all()
+        ):
+            raise ValueError("ExperimentDesigner requires regular weekly observations.")
         residual_std, residual_autocorr = residual_statistics(
             (observed - prediction).values
         )
@@ -703,7 +710,8 @@ class ExperimentDesigner:
         ----------
         spend_changes : list[float] | None
             Fractional per-week spend changes. E.g. ``[0.2, -0.5, -1.0]``
-            means +20%, -50%, and go-dark. Defaults to
+            means +20%, -50%, and go-dark. Values must be finite and at
+            least -1. Defaults to
             ``[0.1, 0.2, 0.3, 0.5, -0.2, -0.5, -1.0]``.
         durations : list[int] | None
             Experiment durations in weeks. Defaults to ``[4, 6, 8, 12]``.
@@ -726,6 +734,8 @@ class ExperimentDesigner:
         if durations is None:
             durations = [4, 6, 8, 12]
 
+        if not all(np.isfinite(change) and change >= -1 for change in spend_changes):
+            raise ValueError("Spend changes must be finite and at least -1 (go dark).")
         if any(duration < 1 for duration in durations):
             raise ValueError("Experiment durations must be positive.")
         if not 0 < significance_level < 1:
