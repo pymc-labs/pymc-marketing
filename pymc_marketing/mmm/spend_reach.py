@@ -598,12 +598,22 @@ class SpendReach:
         ``requires_full_axis``: no window bounds the reach, so there is no
         longest lag to report.  Any other combination raises ``ValueError``, so
         a windowed reach always carries a horizon.
+    uncut_date_paths : tuple of str, default=()
+        Posterior variables with a ``date`` dimension that the evaluator does not
+        cut to windows and whose ``date`` axis meets a windowed one in a term
+        the request reads on each window (the linear predictor only for a path
+        request); see
+        :meth:`~pymc_marketing.mmm.counterfactual.CounterfactualEvaluator.uncut_date_paths`.
+        When there are any, every period is evaluated on the full date axis,
+        where they line up with the dates they were fitted on.  The reach and
+        ``max_lag`` stay as measured: the probe evaluates on the full axis.
     """
 
     effective_l_max: int
     requires_full_axis: bool
     measured: Mapping[str, TemporalReach] = field(default_factory=dict)
     max_lag: int | None = None
+    uncut_date_paths: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         """Reject a windowed reach without a horizon, and the reverse.
