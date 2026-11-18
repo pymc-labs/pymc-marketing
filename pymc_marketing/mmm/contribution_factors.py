@@ -228,6 +228,8 @@ class ContributionFactorState:
             ):
                 original.__dict__.update(staged.__dict__)
                 setattr(working, attribute, original)
+        # Graph construction may remove cache fields; publish deletions too.
+        mmm.__dict__.clear()
         mmm.__dict__.update(working.__dict__)
 
     @contextmanager
