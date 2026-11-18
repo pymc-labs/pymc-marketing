@@ -98,7 +98,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get install graphviz graphviz-dev
-        uv venv --python 3.12
+        uv venv --python 3.14
         uv pip install --upgrade pip
         uv pip install -e ".[docs,test,dag]"
         uv pip list
