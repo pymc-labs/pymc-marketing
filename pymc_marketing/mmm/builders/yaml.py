@@ -20,15 +20,19 @@ from pathlib import Path
 
 import pandas as pd
 import xarray as xr
+from pymc_extras.prior import Prior
 
+from pymc_marketing.data.idata.io import load_idata
 from pymc_marketing.mmm.builders.factories import build, naming, resolve
 from pymc_marketing.mmm.builders.schema import CalibrationStep, MMMYamlConfig
 from pymc_marketing.mmm.data_conversion import (
     _dataset_has_target,
     _validate_extra_vars,
+    has_embedded_target,
     to_mmm_dataset,
 )
 from pymc_marketing.mmm.mmm import MMM
+from pymc_marketing.names.mmm import Dim
 
 
 def _load_df(path: str | Path) -> pd.DataFrame:
@@ -57,20 +61,19 @@ def _apply_and_validate_calibration_steps(
         if not callable(method):
             raise TypeError(f"Attribute '{step.method_name}' is not callable on MMM.")
 
-        if (
-            step.method_name == "add_lift_test_measurements"
-            and step.params
-            and "dist" in step.params
-        ):
-            raise ValueError(
-                "`dist` parameter for 'add_lift_test_measurements' is not "
-                "supported via YAML configuration yet."
-            )
-
         resolved_kwargs = {}
         for key, value in (step.params or {}).items():
             with naming(f"{step.method_name}.{key}"):
                 resolved_kwargs[key] = resolve(value)
+
+        if step.method_name == "add_lift_test_measurements":
+            if "dist" in resolved_kwargs:
+                raise ValueError(
+                    "Use `likelihood` for YAML lift-test configuration; `dist` is "
+                    "only supported as a deprecated Python API argument."
+                )
+            if isinstance(resolved_kwargs.get("likelihood"), str):
+                resolved_kwargs["likelihood"] = Prior(resolved_kwargs["likelihood"])
 
         try:
             method(**resolved_kwargs)
@@ -79,6 +82,28 @@ def _apply_and_validate_calibration_steps(
                 f"Failed to apply calibration step '{step.method_name}' "
                 f"from YAML configuration: \n {err}"
             ) from err
+
+
+_LFS_POINTER_PREFIX = b"version https://git-lfs.github.com/spec/v1"
+
+
+def _raise_if_lfs_pointer(path: Path) -> None:
+    """Raise a clear error when ``path`` is an un-pulled Git LFS pointer file.
+
+    Without this check, xarray fails with a generic "did not find a match in any
+    of xarray's currently installed IO backends" error that does not mention LFS.
+    Directories (Zarr stores) are skipped: an LFS pointer is always a single file.
+    """
+    if not path.is_file():
+        return
+    with open(path, "rb") as f:
+        head = f.read(len(_LFS_POINTER_PREFIX))
+    if head == _LFS_POINTER_PREFIX:
+        raise FileNotFoundError(
+            f"{path} is a Git LFS pointer, not the netCDF file it stands for. "
+            "Install Git LFS and run `git lfs pull` to download it "
+            "(see CONTRIBUTING.md)."
+        )
 
 
 def build_mmm_from_yaml(
@@ -139,12 +164,7 @@ def build_mmm_from_yaml(
         X = _load_df(data_cfg.X_path)
     target_column = model_spec["kwargs"].get("target_column")
     if y is None:
-        has_embedded_target = (
-            isinstance(X, xr.Dataset) and _dataset_has_target(X)
-        ) or (
-            isinstance(X, pd.DataFrame) and target_column and target_column in X.columns
-        )
-        if not has_embedded_target:
+        if not has_embedded_target(X, target_column):
             if data_cfg is None or data_cfg.y_path is None:
                 raise ValueError("y not provided and no `data.y_path` found in YAML.")
             y = _load_df(data_cfg.y_path)
@@ -156,17 +176,14 @@ def build_mmm_from_yaml(
 
     date_column = model_spec["kwargs"].get("date_column")
     if isinstance(X, pd.DataFrame) and date_column:
-        date_col_in_X = date_column in X.columns
-
         if date_column in X.columns:
-            X.loc[:, date_column] = pd.to_datetime(X[date_column])
-
-        if not date_col_in_X:
+            X = X.assign(**{date_column: pd.to_datetime(X[date_column])})
+        else:
             raise ValueError(
                 f"Date column '{date_column}' specified in config not found "
                 f"in either X or y data."
             )
-    elif isinstance(X, xr.Dataset) and date_column and "date" not in X.coords:
+    elif isinstance(X, xr.Dataset) and date_column and Dim.DATE not in X.coords:
         raise ValueError(
             f"Date column '{date_column}' specified in config but Dataset "
             f"input is missing a 'date' coordinate."
@@ -213,6 +230,7 @@ def build_mmm_from_yaml(
     if cfg.idata_path is not None:
         idata_path = Path(cfg.idata_path)
         if os.path.exists(idata_path):
-            model.idata = xr.open_datatree(str(idata_path))
+            _raise_if_lfs_pointer(idata_path)
+            model.idata = load_idata(idata_path)
 
     return model

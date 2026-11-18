@@ -15,6 +15,7 @@
 
 import json
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Any, Self
 
 import matplotlib.pyplot as plt
@@ -27,17 +28,47 @@ import xarray as xr
 from pymc.util import RandomState
 from pymc_extras.prior import Prior
 
+from pymc_marketing.customer_choice._choice_data_mixin import ChoiceDataMixin
 from pymc_marketing.model_builder import (
     ModelBuilder,
     SamplingMethod,
 )
 from pymc_marketing.model_config import parse_model_config
+from pymc_marketing.names.customer_choice import Attr, Dim, Var
 from pymc_marketing.version import __version__
 
-HDI_ALPHA = 0.5
+
+@dataclass(frozen=True)
+class MNLogitPreprocessedData:
+    """Arrays and metadata built from choice data before a model is created.
+
+    Attributes
+    ----------
+    X : np.ndarray
+        Alternative-specific covariates of shape
+        ``(n_obs, n_alts, n_covariates)``.
+    F : np.ndarray or None
+        Fixed covariates of shape ``(n_obs, n_fixed_covariates)``, or ``None``
+        when the utility equations have no fixed covariates.
+    y : np.ndarray
+        Encoded choices of shape ``(n_obs,)``.
+    alternatives : list of str
+        Alternative names in utility-equation order.
+    fixed_covar : np.ndarray
+        Unique fixed-covariate names taken from the utility equations.
+    coords : dict
+        Coordinates for the PyMC model.
+    """
+
+    X: np.ndarray
+    F: np.ndarray | None
+    y: np.ndarray
+    alternatives: list[str]
+    fixed_covar: np.ndarray
+    coords: dict[str, Sequence[str] | Sequence[int]]
 
 
-class MNLogit(ModelBuilder):
+class MNLogit(ChoiceDataMixin, ModelBuilder):
     """
     Multinomial Logit class.
 
@@ -47,17 +78,16 @@ class MNLogit(ModelBuilder):
 
     Parameters
     ----------
-    choice_df : pd.DataFrame
-        A wide DataFrame where each row is a choice scenario. Product-specific
-        attributes are stored in columns, and the dependent variable identifies
-        the chosen product.
+    choice_df : pd.DataFrame, optional
+        Deprecated. Pass the choice data to :meth:`fit` instead.
+        A wide DataFrame where each row is a choice scenario.
+        Product-specific attributes are stored in columns, and the dependent variable identifies the chosen product.
 
     utility_equations : list of formula strings
-        A list of formulas specifying how to model the utility of
-        each product alternative. The formulas should be in Wilkinson
-        style notation and allow the target product to be specified as
-        as a function of the alternative specific attributes and the individual
-        specific attributes::
+        Formulas specifying how to model the utility of each product alternative.
+        The formulas use Wilkinson style notation.
+        The target product is specified as a function of the alternative-specific attributes.
+        Individual-specific attributes may be added after a ``|``::
 
             target_product ~ target_attribute1 + target_attribute2 | individual_attribute
 
@@ -95,6 +125,17 @@ class MNLogit(ModelBuilder):
             "alt_3 ~ X1_alt3 + X2_alt3 | income",
         ]
 
+    Create the model with its settings and pass the choice data to ``fit``:
+
+    .. code-block:: python
+
+        mnl = MNLogit(
+            utility_equations=utility_equations,
+            depvar="depvar",
+            covariates=["X1", "X2"],
+        )
+        mnl.fit(choice_df)
+
     """
 
     #: Deterministics on these models span the full (obs, alts) panel, so the
@@ -105,19 +146,46 @@ class MNLogit(ModelBuilder):
     _model_type = "Multinomial Logit Model"
     version = "0.2.0"
 
+    #: Name of the ``pm.Data`` container holding the fixed covariates.
+    _fixed_data_name = Var.F
+
+    #: Attribute holding the design matrix stored by :meth:`build_model`.
+    _X_data_name = "X"
+
     def __init__(
         self,
-        choice_df: pd.DataFrame,
-        utility_equations: list[str],
-        depvar: str,
-        covariates: list[str],
+        choice_df: pd.DataFrame | None = None,
+        utility_equations: list[str] | None = None,
+        depvar: str | None = None,
+        covariates: list[str] | None = None,
         model_config: dict | None = None,
         sampler_config: dict | None = None,
     ):
-        self.choice_df = choice_df
-        self.utility_equations = utility_equations
-        self.depvar = depvar
-        self.covariates = covariates
+        """Initialize the model.
+
+        Raises
+        ------
+        TypeError
+            If the deprecated first positional argument is neither ``None``
+            nor a :class:`pandas.DataFrame`.
+        ValueError
+            If any of ``utility_equations``, ``depvar`` or ``covariates`` is None.
+        """
+        self._raise_if_choice_df_not_dataframe(
+            choice_df, ("utility_equations", "depvar", "covariates")
+        )
+        if utility_equations is None or depvar is None or covariates is None:
+            self._raise_missing_settings(
+                utility_equations=utility_equations,
+                depvar=depvar,
+                covariates=covariates,
+            )
+        self._warn_if_choice_df_at_init(choice_df)
+
+        self.choice_df: pd.DataFrame | None = None
+        self.depvar: str = depvar
+        self.covariates: list[str] = covariates
+        self._set_choice_inputs(choice_df, utility_equations)
 
         model_config = model_config or {}
         model_config = parse_model_config(model_config)
@@ -137,9 +205,11 @@ class MNLogit(ModelBuilder):
             The default model configuration.
 
         """
-        alphas = Prior("Normal", mu=0, sigma=5, dims="alts")
-        betas = Prior("Normal", mu=0, sigma=1, dims="alt_covariates")
-        betas_fixed = Prior("Normal", mu=0, sigma=1, dims=("alts", "fixed_covariates"))
+        alphas = Prior("Normal", mu=0, sigma=5, dims=Dim.ALTS)
+        betas = Prior("Normal", mu=0, sigma=1, dims=Dim.ALT_COVARIATES)
+        betas_fixed = Prior(
+            "Normal", mu=0, sigma=1, dims=(Dim.ALTS, Dim.FIXED_COVARIATES)
+        )
 
         return {
             "alphas_": alphas,
@@ -148,7 +218,7 @@ class MNLogit(ModelBuilder):
             "likelihood": Prior(
                 "Categorical",
                 p=0,
-                dims="obs",
+                dims=Dim.OBS,
             ),
         }
 
@@ -160,7 +230,7 @@ class MNLogit(ModelBuilder):
     @property
     def output_var(self) -> str:
         """The output variable of the model."""
-        return "y"
+        return Var.Y
 
     @property
     def _serializable_model_config(self) -> dict[str, int | float | dict]:  # type: ignore
@@ -168,7 +238,7 @@ class MNLogit(ModelBuilder):
             "alphas_": self.model_config["alphas_"].to_dict(),
             "likelihood": self.model_config["likelihood"].to_dict(),
             "betas": self.model_config["betas"].to_dict(),
-            "betas_fixed": self.model_config["betas_fixed_"].to_dict(),
+            "betas_fixed_": self.model_config["betas_fixed_"].to_dict(),
         }
 
         return result
@@ -271,8 +341,7 @@ class MNLogit(ModelBuilder):
         utility formulas.
         """
         mode_mapping = dict(zip(alternatives, range(len(alternatives)), strict=False))
-        df["mode_encoded"] = df[depvar].map(mode_mapping)
-        y = df["mode_encoded"].values
+        y = df[depvar].map(mode_mapping).to_numpy()
         return y
 
     @staticmethod
@@ -288,44 +357,99 @@ class MNLogit(ModelBuilder):
         else:
             f_cov = []
         coords = {
-            "alts": alternatives,
-            "alts_probs": alternatives[:-1],
-            "alt_covariates": covariates,
-            "fixed_covariates": f_cov,
-            "obs": range(len(df)),
+            Dim.ALTS: alternatives,
+            Dim.ALTS_PROBS: alternatives[:-1],
+            Dim.ALT_COVARIATES: covariates,
+            Dim.FIXED_COVARIATES: f_cov,
+            Dim.OBS: range(len(df)),
         }
         return coords
+
+    def _preprocess(
+        self, choice_df: pd.DataFrame, utility_equations: list[str]
+    ) -> MNLogitPreprocessedData:
+        """Build the model inputs from choice data without storing them.
+
+        Parameters
+        ----------
+        choice_df : pd.DataFrame
+            The choice data to preprocess.
+        utility_equations : list of str
+            The utility equations to preprocess the data with.
+
+        Returns
+        -------
+        MNLogitPreprocessedData
+            The frozen preprocessing result.
+        """
+        X, F, alternatives, fixed_covar = self.prepare_X_matrix(
+            choice_df, utility_equations, self.depvar
+        )
+        y = self._prepare_y_outcome(choice_df, alternatives, self.depvar)
+        coords = self._prepare_coords(
+            choice_df, alternatives, self.covariates, fixed_covar
+        )
+        return MNLogitPreprocessedData(
+            X=X,
+            F=F,
+            y=y,
+            alternatives=alternatives,
+            fixed_covar=fixed_covar,
+            coords=coords,
+        )
+
+    def _store_preprocessed(self, data: MNLogitPreprocessedData) -> None:
+        """Store a preprocessing result under the model's public attributes."""
+        self.X = data.X
+        self.F: np.ndarray | None = data.F
+        self.alternatives = data.alternatives
+        self.fixed_covar = data.fixed_covar
+        self.y = data.y
+        self.coords: dict[str, Sequence[str] | Sequence[int]] = data.coords
 
     def preprocess_model_data(
         self, choice_df: pd.DataFrame, utility_equations: list[str]
     ) -> tuple[np.ndarray, np.ndarray | None, np.ndarray]:
-        """Pre-process the model initiation inputs into a format that can be used by the PyMC model."""
-        X, F, alternatives, fixed_covar = self.prepare_X_matrix(
-            choice_df, utility_equations, self.depvar
-        )
-        self.X = X
-        self.F: np.ndarray | None = F
-        self.alternatives = alternatives
-        self.fixed_covar = fixed_covar
-        y = self._prepare_y_outcome(choice_df, self.alternatives, self.depvar)
-        self.y = y
+        """Pre-process the model initiation inputs into a format that can be used by the PyMC model.
 
-        # note: type hints for coords required for mypy to not get confused
-        self.coords: dict[str, Sequence[str] | Sequence[int]] = self._prepare_coords(
-            choice_df, self.alternatives, self.covariates, self.fixed_covar
-        )
+        The instance state is left untouched; only :meth:`build_model` stores
+        the preprocessed arrays.
 
-        return X, F, y
+        Parameters
+        ----------
+        choice_df : pd.DataFrame
+            The choice data to preprocess.
+        utility_equations : list of str
+            The utility equations to preprocess the data with.
+
+        Returns
+        -------
+        X : np.ndarray
+            Alternative-specific covariates, shape
+            ``(n_obs, n_alts, n_covariates)``.
+        F : np.ndarray or None
+            Fixed covariates, or ``None`` when the utility equations have none.
+        y : np.ndarray
+            Encoded choices, shape ``(n_obs,)``.
+        """
+        data = self._preprocess(choice_df, utility_equations)
+        return data.X, data.F, data.y
 
     def build_model(self, **kwargs) -> None:
         """
-        Build model using stored choice_df and utility_equations.
+        Build the model from the stored choice data and utility equations.
 
-        This is the abstract method from ModelBuilder. For discrete choice,
-        we don't pass data as arguments - we use the stored data from __init__.
+        This is the abstract method from ModelBuilder.
+        The choice data must have been provided to :meth:`fit`.
+
+        Raises
+        ------
+        ValueError
+            If no choice data has been provided.
         """
-        X, F, y = self.preprocess_model_data(self.choice_df, self.utility_equations)
-        self.model = self.make_model(X, F, y)
+        data = self._preprocess(self._require_choice_df(), self.utility_equations)
+        self._store_preprocessed(data)
+        self.model = self.make_model(data.X, data.F, data.y)
 
     def make_intercepts(self) -> pt.TensorVariable:
         """Create alternative-specific intercepts with reference alternative set to zero.
@@ -337,7 +461,7 @@ class MNLogit(ModelBuilder):
         """
         alphas_ = self.model_config["alphas_"].create_variable(name="alphas_")
         alphas = pm.Deterministic(
-            "alphas", pt.set_subtensor(alphas_[-1], 0), dims="alts"
+            Var.ALPHAS, pt.set_subtensor(alphas_[-1], 0), dims=Dim.ALTS
         )
         return alphas
 
@@ -353,7 +477,7 @@ class MNLogit(ModelBuilder):
         return betas
 
     def make_fixed_coefs(
-        self, X_fixed: np.ndarray | None, n_obs: int, n_alts: int
+        self, X_fixed: np.ndarray | None, n_obs: int | pt.TensorVariable, n_alts: int
     ) -> pt.TensorVariable:
         """Create alternative-varying coefficients for fixed (non-varying) covariates.
 
@@ -361,8 +485,9 @@ class MNLogit(ModelBuilder):
         ----------
         X_fixed : np.ndarray or None
             Fixed covariates matrix of shape (n_obs, n_fixed_covariates)
-        n_obs : int
-            Number of observations
+        n_obs : int or TensorVariable
+            Number of observations, as a Python int or a graph value that tracks
+            a mutable data container.
         n_alts : int
             Number of alternatives
 
@@ -374,14 +499,14 @@ class MNLogit(ModelBuilder):
         if X_fixed is None or len(X_fixed) == 0:
             F = pt.zeros((n_obs, n_alts))
         else:
-            X_fixed_data = pm.Data("F", X_fixed)
+            X_fixed_data = pm.Data(Var.F, X_fixed)
             betas_fixed_ = self.model_config["betas_fixed_"].create_variable(
                 name="betas_fixed_"
             )
             betas_fixed = pm.Deterministic(
-                "betas_fixed",
+                Var.BETAS_FIXED,
                 pt.set_subtensor(betas_fixed_[-1, :], 0),
-                dims=("alts", "fixed_covariates"),
+                dims=(Dim.ALTS, Dim.FIXED_COVARIATES),
             )
             F = pm.Deterministic(
                 "F_interaction", pm.math.dot(X_fixed_data, betas_fixed.T)
@@ -414,7 +539,7 @@ class MNLogit(ModelBuilder):
             Systematic utility, shape (n_obs, n_alts)
         """
         U = pm.math.dot(X_data, betas)  # (n_obs, n_alts)
-        U = pm.Deterministic("U", F + U + alphas, dims=("obs", "alts"))
+        U = pm.Deterministic(Var.U, F + U + alphas, dims=(Dim.OBS, Dim.ALTS))
         return U
 
     def make_choice_prob(self, U: pt.TensorVariable) -> pt.TensorVariable:
@@ -430,11 +555,18 @@ class MNLogit(ModelBuilder):
         p : TensorVariable
             Choice probabilities, shape (n_obs, n_alts)
         """
-        p = pm.Deterministic("p", pm.math.softmax(U, axis=1), dims=("obs", "alts"))
+        p = pm.Deterministic(
+            Var.P, pm.math.softmax(U, axis=1), dims=(Dim.OBS, Dim.ALTS)
+        )
         return p
 
     def make_model(
-        self, X: np.ndarray, F: np.ndarray | None, y: np.ndarray
+        self,
+        X: np.ndarray,
+        F: np.ndarray | None,
+        y: np.ndarray,
+        *,
+        coords: dict[str, Sequence[str] | Sequence[int]] | None = None,
     ) -> pm.Model:
         """Build Model.
 
@@ -446,42 +578,50 @@ class MNLogit(ModelBuilder):
             Fixed covariates, shape (n_obs, n_fixed_covariates)
         y : np.ndarray
             Observed choices, shape (n_obs,)
+        coords : dict, optional
+            Coordinates for the PyMC model. Defaults to the stored coordinates.
 
         Returns
         -------
         model : pm.Model
             PyMC model
         """
-        n_obs, n_alts = X.shape[0], X.shape[1]
+        n_alts = X.shape[1]
+        if coords is None:
+            coords = self.coords
 
-        with pm.Model(coords=self.coords) as model:
+        with pm.Model(coords=coords) as model:
             # Create parameters
             alphas = self.make_intercepts()
             betas = self.make_alt_coefs()
 
             # Instantiate data
-            X_data = pm.Data("X", X, dims=("obs", "alts", "alt_covariates"))
-            observed = pm.Data("y", y, dims="obs")
+            X_data = pm.Data(Var.X, X, dims=(Dim.OBS, Dim.ALTS, Dim.ALT_COVARIATES))
+            observed = pm.Data(Var.Y, y, dims=Dim.OBS)
 
-            # Handle fixed covariates
-            F_contrib = self.make_fixed_coefs(F, n_obs, n_alts)
+            # Handle fixed covariates. The row count is taken from the data
+            # container so a swapped data set with a different number of rows
+            # keeps a compatible shape.
+            F_contrib = self.make_fixed_coefs(F, X_data.shape[0], n_alts)
 
             # Compute utility and probabilities
             U = self.make_utility(X_data, alphas, betas, F_contrib)
             p = self.make_choice_prob(U)
 
             # Likelihood
-            _ = pm.Categorical("likelihood", p=p, observed=observed, dims="obs")
+            _ = pm.Categorical(Var.LIKELIHOOD, p=p, observed=observed, dims=Dim.OBS)
 
         return model
 
     def create_idata_attrs(self) -> dict[str, str]:
         """Create attributes for DataTree."""
         attrs = super().create_idata_attrs()
-        attrs["covariates"] = json.dumps(self.covariates)
-        attrs["depvar"] = json.dumps(self.depvar)
-        attrs["choice_df"] = json.dumps("Placeholder for DF")
-        attrs["utility_equations"] = json.dumps(self.utility_equations)
+        attrs[Attr.COVARIATES] = json.dumps(self.covariates)
+        attrs[Attr.DEPVAR] = json.dumps(self.depvar)
+        # The choice data is persisted in the fit_data group rather than duplicated here.
+        # The base class still requires one attr per __init__ argument, so keep the key.
+        attrs["choice_df"] = json.dumps(None)
+        attrs[Attr.UTILITY_EQUATIONS] = json.dumps(self.utility_equations)
         return attrs
 
     def sample_prior_predictive(  # type: ignore[override]
@@ -498,9 +638,9 @@ class MNLogit(ModelBuilder):
         Parameters
         ----------
         choice_df : pd.DataFrame, optional
-            New choice data. If None, uses data from initialization.
+            New choice data. If None, uses the choice data already set on the model.
         utility_equations : list[str], optional
-            New utility equations. If None, uses from initialization.
+            New utility equations. If None, uses the equations already set on the model.
         samples : int, optional
             Number of prior samples
         extend_idata : bool, optional
@@ -512,11 +652,15 @@ class MNLogit(ModelBuilder):
         -------
         xr.DataTree
             Prior predictive samples
+
+        Raises
+        ------
+        ValueError
+            If no choice data has been provided, or if the model was already
+            built and the passed choice data or utility equations differ from
+            the ones it was built with.
         """
-        if choice_df is not None:
-            self.choice_df = choice_df
-        if utility_equations is not None:
-            self.utility_equations = utility_equations
+        self._set_choice_inputs(choice_df, utility_equations)
 
         if not hasattr(self, "model"):
             self.build_model()
@@ -535,21 +679,6 @@ class MNLogit(ModelBuilder):
 
         return prior_pred
 
-    def create_fit_data_group(self) -> xr.Dataset:
-        """
-        Create xarray Dataset for storing choice_df in DataTree.
-
-        This allows the model to be reconstructed when loading from file.
-
-        Returns
-        -------
-        xr.Dataset
-            Choice data as xarray Dataset with 'obs' dimension
-        """
-        df_xr = self.choice_df.to_xarray()
-        df_xr = df_xr.rename({"index": "obs"})
-        return df_xr
-
     def fit(  # type: ignore[override]
         self,
         choice_df: pd.DataFrame | None = None,
@@ -567,9 +696,9 @@ class MNLogit(ModelBuilder):
         Parameters
         ----------
         choice_df : pd.DataFrame, optional
-            New choice data. If None, uses data from initialization.
+            New choice data. If None, uses the choice data already set on the model.
         utility_equations : list[str], optional
-            New utility equations. If None, uses equations from initialization.
+            New utility equations. If None, uses the equations already set on the model.
         method : str
             Method used to fit the model. One of ``"mcmc"``, ``"map"``, ``"demz"``,
             ``"advi"`` or ``"fullrank_advi"``.
@@ -586,12 +715,14 @@ class MNLogit(ModelBuilder):
         -------
         xr.DataTree
             Fitted model with posterior samples
+
+        Raises
+        ------
+        ValueError
+            If no choice data has been provided, or if the model was already
+            built with different choice data or utility equations.
         """
-        # Allow updating data at fit time
-        if choice_df is not None:
-            self.choice_df = choice_df
-        if utility_equations is not None:
-            self.utility_equations = utility_equations
+        self._set_choice_inputs(choice_df, utility_equations)
 
         return super().fit(
             method=method,
@@ -600,21 +731,6 @@ class MNLogit(ModelBuilder):
             sample_kwargs=sample_kwargs,
             **kwargs,
         )
-
-    def build_from_idata(self, idata: xr.DataTree) -> None:
-        """
-        Build model from loaded DataTree.
-
-        This is called by load() after the model is initialized.
-
-        Parameters
-        ----------
-        idata : xr.DataTree
-            Loaded inference data
-        """
-        self.choice_df = idata["fit_data"].dataset.to_dataframe()
-        if not hasattr(self, "model"):
-            self.build_model()
 
     def sample_posterior_predictive(  # type: ignore[override]
         self,
@@ -638,24 +754,22 @@ class MNLogit(ModelBuilder):
         -------
         xr.DataTree
             Posterior predictive samples
+
+        Raises
+        ------
+        ValueError
+            If no choice data has been provided.
         """
-        if choice_df is not None:
-            # Update data in existing model
-            new_X, new_F, new_y = self.preprocess_model_data(
-                choice_df, self.utility_equations
-            )
-            with self.model:
-                data_dict = {"X": new_X, "y": new_y}
-                if new_F is not None and len(new_F) > 0:
-                    data_dict["F"] = new_F
-                pm.set_data(data_dict)
+        self._require_choice_df()
 
         if self.idata is None:
             raise RuntimeError("self.idata must be initialized before extending")
-        with self.model:
-            post_pred = pm.sample_posterior_predictive(
-                self.idata, var_names=["likelihood", "p"], **kwargs
-            )
+
+        with self._prediction_model_data(choice_df):
+            with self.model:
+                post_pred = pm.sample_posterior_predictive(
+                    self.idata, var_names=[Var.LIKELIHOOD, Var.P], **kwargs
+                )
 
         if extend_idata:
             self.idata.update(post_pred)
@@ -695,10 +809,15 @@ class MNLogit(ModelBuilder):
         fit_kwargs = fit_kwargs or {}
         sample_posterior_predictive_kwargs = sample_posterior_predictive_kwargs or {}
 
-        if not hasattr(self, "model"):
-            X, F, y = self.preprocess_model_data(self.choice_df, self.utility_equations)  # type: ignore
-            model = self.make_model(X, F, y)
-            self.model = model
+        if (
+            self.choice_df is None
+            and sample_prior_predictive_kwargs.get("choice_df") is None
+        ):
+            raise ValueError(
+                "Choice data is required to build the model. Pass it to "
+                "`fit(choice_df)` first, or to `sample_prior_predictive_kwargs` "
+                "when calling `sample`."
+            )
 
         self.sample_prior_predictive(
             extend_idata=True, **sample_prior_predictive_kwargs
@@ -714,36 +833,37 @@ class MNLogit(ModelBuilder):
     ) -> xr.DataTree:
         """Apply one of two types of intervention.
 
-        The first type of intervention assumes we have a fitted model and
-        just aims to sample from the posterior predictive distribution after
-        adjusting one of more of the models observable attributes and passing
-        in the new_choice_df. The second type of intervention allows that we remove a
-        product entirely from the market place and model the market share which
-        accrues to each product in the adjusted market.
+        The first type of intervention assumes we have a fitted model.
+        It samples from the posterior predictive distribution after adjusting one or more observable attributes.
+        The adjusted attributes are passed in through the new_choice_df.
+        The second type of intervention removes a product entirely from the market place.
+        It models the market share which accrues to each product in the adjusted market.
+
+        Raises
+        ------
+        ValueError
+            If no choice data has been provided.
         """
+        self._require_choice_df()
+
         if not hasattr(self, "model"):
             self.sample()
         if new_utility_equations is None:
-            new_X, new_F, new_y = self.preprocess_model_data(
-                new_choice_df, self.utility_equations
-            )
-            with self.model:
-                pm.set_data({"X": new_X, "F": new_F, "y": new_y})
-                # use the updated values and predict outcomes and probabilities:
-                idata_new_policy = pm.sample_posterior_predictive(
-                    self.idata,
-                    var_names=["p", "likelihood"],
-                    return_inferencedata=True,
-                    extend_inferencedata=False,
-                    random_seed=100,
-                )
+            with self._prediction_model_data(new_choice_df):
+                with self.model:
+                    # use the updated values and predict outcomes and probabilities:
+                    idata_new_policy = pm.sample_posterior_predictive(
+                        self.idata,
+                        var_names=[Var.P, Var.LIKELIHOOD],
+                        return_inferencedata=True,
+                        extend_inferencedata=False,
+                        random_seed=100,
+                    )
 
             self.intervention_idata = idata_new_policy
         else:
-            new_X, new_F, new_y = self.preprocess_model_data(
-                new_choice_df, new_utility_equations
-            )
-            new_model = self.make_model(new_X, new_F, new_y)
+            data = self._preprocess(new_choice_df, new_utility_equations)
+            new_model = self.make_model(data.X, data.F, data.y, coords=data.coords)
             with new_model:
                 idata_new_policy = pm.sample_prior_predictive()
                 idata_new_policy.update(
@@ -756,7 +876,7 @@ class MNLogit(ModelBuilder):
                 )
                 idata_new_policy.update(
                     pm.sample_posterior_predictive(
-                        idata_new_policy, var_names=["p", "likelihood"]
+                        idata_new_policy, var_names=[Var.P, Var.LIKELIHOOD]
                     ),
                 )
 
@@ -767,15 +887,14 @@ class MNLogit(ModelBuilder):
     @staticmethod
     def calculate_share_change(idata, new_idata) -> pd.DataFrame:
         """Calculate difference in market share due to market intervention."""
-        expected = idata["posterior_predictive"].mean(dim=("chain", "draw", "obs"))["p"]
-        expected_new = new_idata["posterior_predictive"].mean(
-            dim=("chain", "draw", "obs")
-        )["p"]
+        mean_dims = ("chain", "draw", Dim.OBS)
+        expected = idata["posterior_predictive"].mean(dim=mean_dims)[Var.P]
+        expected_new = new_idata["posterior_predictive"].mean(dim=mean_dims)[Var.P]
         shares_df = pd.DataFrame(
-            {"product": expected["alts"], "policy_share": expected}
+            {"product": expected[Dim.ALTS], "policy_share": expected}
         )
         shares_df_new = pd.DataFrame(
-            {"product": expected_new["alts"], "new_policy_share": expected_new}
+            {"product": expected_new[Dim.ALTS], "new_policy_share": expected_new}
         )
         shares_df = shares_df.merge(
             shares_df_new, left_on="product", right_on="product", how="left"

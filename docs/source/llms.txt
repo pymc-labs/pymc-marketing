@@ -10,6 +10,7 @@ Install with `pip install pymc-marketing`. Source code: https://github.com/pymc-
 
 ## Media Mix Modeling (MMM)
 
+- [Getting Started with MMM: A Guided Path](https://www.pymc-marketing.io/en/stable/guide/mmm/mmm_learning_path.html): Ordered reading and running path through the MMM notebooks, with a data-readiness check and a conceptual primer.
 - [Introduction to Media Mix Modeling](https://www.pymc-marketing.io/en/stable/guide/mmm/mmm_intro.html): Conceptual introduction — adstock, saturation, and why Bayesian MMM.
 - [MMM end-to-end example](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_example.html): Complete worked example of building, fitting, and interpreting an MMM in Python.
 - [Multidimensional MMM](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_multidimensional_example.html): Modeling multiple geographies/markets in one hierarchical MMM.

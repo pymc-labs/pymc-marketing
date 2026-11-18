@@ -17,8 +17,10 @@ benefits/model_deployment
 :caption: Media Mix Models
 :maxdepth: 1
 
+mmm/mmm_learning_path
 mmm/mmm_intro
 mmm/data_export
+mmm/experimental_optimizer
 mmm/resources
 :::
 

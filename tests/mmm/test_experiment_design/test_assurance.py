@@ -21,6 +21,7 @@ because they require many simulated experiments.
 
 from __future__ import annotations
 
+import arviz as az
 import numpy as np
 import pytest
 from scipy.stats import norm
@@ -122,20 +123,20 @@ class TestChannelRanking:
     """Validate that channel ranking reflects posterior uncertainty."""
 
     def test_most_uncertain_channel_ranked_first(self, fixture_with_truth):
-        """The channel with the widest posterior HDI product should be
-        ranked as the most uncertain (rank #1).
-        """
-        designer, _true_params, _idata = fixture_with_truth
+        """Rank the channel with the widest response HDI first."""
+        designer, _true_params, idata = fixture_with_truth
         ranks = designer._get_uncertainty_ranks()
 
         uncertainties = {}
         for ch in designer.channel_columns:
-            import arviz as az
-
-            p = designer._posterior_samples[ch]
-            hdi_lam = az.hdi(p["lam"], hdi_prob=0.94)
-            hdi_beta = az.hdi(p["beta"], hdi_prob=0.94)
-            uncertainties[ch] = (hdi_lam[1] - hdi_lam[0]) * (hdi_beta[1] - hdi_beta[0])
+            posterior = idata.posterior.sel(channel=ch)
+            spend = idata.constant_data.current_weekly_spend.sel(channel=ch).item()
+            # At steady state, normalized adstock leaves constant spend unchanged.
+            response = posterior.saturation_beta.values * _logistic_saturation_np(
+                spend, posterior.saturation_lam.values
+            )
+            lower, upper = az.hdi(response.ravel(), prob=0.94)
+            uncertainties[ch] = upper - lower
 
         most_uncertain = max(uncertainties, key=uncertainties.get)
         assert ranks[most_uncertain] == 1

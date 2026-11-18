@@ -23,10 +23,10 @@ from __future__ import annotations
 
 import warnings
 
-import arviz as az
 import numpy as np
 import xarray as xr
-from arviz import InferenceData
+
+from pymc_marketing.names.mmm import Dim, Var
 
 
 def _simulate_spend(
@@ -111,8 +111,8 @@ def generate_experiment_fixture(
     n_draws: int = 2000,
     n_tune: int = 1000,
     target_accept: float = 0.9,
-) -> InferenceData:
-    """Generate a realistic InferenceData fixture for testing.
+) -> xr.DataTree:
+    """Generate a realistic xr.DataTree fixture for testing.
 
     Simulates spend data, applies a known DGP, and (optionally) fits a
     PyMC-Marketing MMM to produce realistic posterior samples.
@@ -155,8 +155,8 @@ def generate_experiment_fixture(
 
     Returns
     -------
-    InferenceData
-        An ArviZ InferenceData suitable for
+    xr.DataTree
+        An xarray DataTree suitable for
         :meth:`ExperimentDesigner.from_idata`.
     """
     if channels is None:
@@ -236,8 +236,8 @@ def generate_experiment_fixture(
         {
             "current_weekly_spend": xr.DataArray(
                 current_spend,
-                dims=["channel"],
-                coords={"channel": channels},
+                dims=[Dim.CHANNEL],
+                coords={Dim.CHANNEL: channels},
             ),
             "residual_std": xr.DataArray(residual_std),
             "residual_autocorr": xr.DataArray(residual_autocorr),
@@ -245,8 +245,8 @@ def generate_experiment_fixture(
             "normalize": xr.DataArray(normalize),
             "spend_correlation": xr.DataArray(
                 spend_corr,
-                dims=["channel", "channel_bis"],
-                coords={"channel": channels, "channel_bis": channels},
+                dims=[Dim.CHANNEL, "channel_bis"],
+                coords={Dim.CHANNEL: channels, "channel_bis": channels},
             ),
         },
         attrs={
@@ -258,7 +258,11 @@ def generate_experiment_fixture(
             "true_params": str(true_params),
         },
     )
-    idata.add_groups(constant_data=constant_data)
+    if "constant_data" in idata:
+        constant_data = constant_data.merge(
+            idata.constant_data.dataset, combine_attrs="no_conflicts"
+        )
+    idata["constant_data"] = constant_data
 
     return idata
 
@@ -269,7 +273,7 @@ def _create_synthetic_posterior(
     rng: np.random.Generator,
     n_draws: int = 2000,
     n_chains: int = 2,
-) -> InferenceData:
+) -> xr.DataTree:
     """Create synthetic posterior samples around true parameter values.
 
     This is a fast alternative to fitting when realistic MCMC structure
@@ -299,35 +303,35 @@ def _create_synthetic_posterior(
         {
             "saturation_lam": xr.DataArray(
                 lam_arr,
-                dims=["chain", "draw", "channel"],
+                dims=["chain", "draw", Dim.CHANNEL],
                 coords={
                     "chain": np.arange(n_chains),
                     "draw": np.arange(n_draws),
-                    "channel": channels,
+                    Dim.CHANNEL: channels,
                 },
             ),
             "saturation_beta": xr.DataArray(
                 beta_arr,
-                dims=["chain", "draw", "channel"],
+                dims=["chain", "draw", Dim.CHANNEL],
                 coords={
                     "chain": np.arange(n_chains),
                     "draw": np.arange(n_draws),
-                    "channel": channels,
+                    Dim.CHANNEL: channels,
                 },
             ),
             "adstock_alpha": xr.DataArray(
                 alpha_arr,
-                dims=["chain", "draw", "channel"],
+                dims=["chain", "draw", Dim.CHANNEL],
                 coords={
                     "chain": np.arange(n_chains),
                     "draw": np.arange(n_draws),
-                    "channel": channels,
+                    Dim.CHANNEL: channels,
                 },
             ),
         }
     )
 
-    return az.InferenceData(posterior=posterior)
+    return xr.DataTree.from_dict({"posterior": posterior})
 
 
 def _fit_mmm_for_fixture(
@@ -341,7 +345,7 @@ def _fit_mmm_for_fixture(
     n_draws: int,
     n_tune: int,
     target_accept: float,
-) -> InferenceData:
+) -> xr.DataTree:
     """Fit a PyMC-Marketing MMM on simulated data."""
     try:
         import pandas as pd
@@ -355,16 +359,16 @@ def _fit_mmm_for_fixture(
 
     dates = pd.date_range("2020-01-06", periods=len(y), freq="W-MON")
     df = pd.DataFrame(spend, columns=channels)
-    df["date"] = dates
-    df["y"] = y
+    df[Dim.DATE] = dates
+    df[Var.Y] = y
 
-    X = df[["date", *channels]]
-    y_series = df["y"]
+    X = df[[Dim.DATE, *channels]]
+    y_series = df[Var.Y]
 
     mmm = MMM(
-        date_column="date",
+        date_column=Dim.DATE,
         channel_columns=channels,
-        target_column="y",
+        target_column=Var.Y,
         adstock=GeometricAdstock(l_max=l_max, normalize=normalize),
         saturation=LogisticSaturation(),
     )

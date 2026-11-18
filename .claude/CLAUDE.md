@@ -7,13 +7,18 @@
 - Temporary or test scripts that are not meant to be committed should be created in the `sandbox/` folder.
 - Do not insert hard line breaks inside a sentence; let the editor handle word wrap. Line breaks between sentences are fine.
 
+## Code conventions
+
+- Library-owned names that more than one place has to agree on (model variables, dims, fixed DataFrame columns, InferenceData groups, `idata.attrs` keys, serialization keys such as `__type__`) are `Final` constants in the `pymc_marketing/names/` package (`mmm.py`, `clv.py`, `customer_choice.py`, `bass.py`, and `__init__.py` for the shared ones). Use the constant, not the string literal, and add new names there. `CONTRIBUTING.md` lists the cases that stay literal. The `validate-names` pre-commit hook checks the rule, and `scripts/validate_names.py` lists the exceptions per file. Tests keep the literal strings, and `tests/test_names.py` pins every value.
+
 ## Skills (shared with Cursor)
 
-Domain knowledge and workflow skills live in `.cursor/skills/`. Read the relevant
-skill file **before** starting work in that domain.
+Read the relevant skill entry listed below **before** starting work in that domain.
+The docs skill lives in `.agents/skills/` and is exposed to Claude Code through a symlink in `.claude/skills/`; Codex and Cursor discover it directly in `.agents/skills/`.
 
 | Skill | When to read | Entry file |
 |---|---|---|
+| **docs** | Creating or editing documentation, including small notebook edits | `.agents/skills/docs/SKILL.md` |
 | **mmm-modeling** | Building, fitting, diagnosing, or optimizing Media Mix Models with PyMC-Marketing | `.cursor/skills/mmm-modeling/SKILL.md` (references in `references/` subdirectory) |
 | **code-best-practice** | Writing or reviewing PyMC-Marketing code (style, typing, docstrings, PyTensor, testing) | `.cursor/skills/code-best-practice/SKILL.md` |
 | **research** | Structuring a research task before implementation | `.cursor/skills/research/SKILL.md` |

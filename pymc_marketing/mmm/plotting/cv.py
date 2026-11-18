@@ -40,6 +40,31 @@ from pymc_marketing.mmm.summary.cv import (
     _read_fold_meta,
     _validate_cv_results,
 )
+from pymc_marketing.names.mmm import Dim, Group, Var
+
+
+def _label_fold_ticks(pc: PlotCollection, cv_labels: list[Any]) -> None:
+    """Tick the fold axis at integer positions and label it with the fold names.
+
+    The CRPS x coordinate is a positional index over folds, so without this the
+    axis reads as float-formatted positions (``0.0``, ``0.5``, ...) and the fold
+    labels the plot already has in hand are lost. Backends whose plot objects do
+    not expose matplotlib's tick API are left untouched.
+
+    Parameters
+    ----------
+    pc : PlotCollection
+        Plot collection whose panels were drawn against ``np.arange(n_folds)``.
+    cv_labels : list
+        Fold labels, in plotting order.
+    """
+    positions = np.arange(len(cv_labels))
+    texts = [str(label) for label in cv_labels]
+    for ax in np.ravel(pc.viz["plot"].values):
+        if not hasattr(ax, "set_xticks"):
+            continue
+        ax.set_xticks(positions)
+        ax.set_xticklabels(texts)
 
 
 class MMMCVPlotSuite:
@@ -50,6 +75,16 @@ class MMMCVPlotSuite:
     cv_data : xr.DataTree
         Combined DataTree produced by ``TimeSliceCrossValidator.run()``.
         Must contain a ``cv_metadata`` group with per-fold metadata.
+
+    Notes
+    -----
+    :meth:`predictions` and :meth:`crps` draw
+    ``posterior_predictive["y_original_scale"]``, the predictive draws of the
+    target on the original scale, which ``TimeSliceCrossValidator.run()``
+    provides for every fold fitted with the library's ``MMM``, under both
+    link functions. See
+    :class:`~pymc_marketing.mmm.summary.cv.MMMCVSummaryFactory` for how this
+    differs from the noise-free ``posterior["mu_original_scale"]``.
     """
 
     def __init__(self, cv_data: xr.DataTree) -> None:
@@ -112,19 +147,19 @@ class MMMCVPlotSuite:
         if cv_data is not None:
             _validate_cv_results(data)
 
-        if not hasattr(data, "cv_metadata") or "metadata" not in data.cv_metadata:
+        if not hasattr(data, Group.CV_METADATA) or Var.METADATA not in data.cv_metadata:
             raise ValueError(
                 "cv_data must have a cv_metadata group containing a 'metadata' variable."
             )
         if (
             not hasattr(data, "posterior_predictive")
-            or "y_original_scale" not in data.posterior_predictive
+            or Var.Y_ORIGINAL_SCALE not in data.posterior_predictive
         ):
             raise ValueError(
                 "cv_data must have posterior_predictive['y_original_scale']."
             )
 
-        pp = data.posterior_predictive["y_original_scale"]
+        pp = data.posterior_predictive[Var.Y_ORIGINAL_SCALE]
         y_train_da, y_test_da, y_obs_da, train_end_da = _build_predictions_arrays(
             data, pp
         )
@@ -134,7 +169,7 @@ class MMMCVPlotSuite:
             y_test_da = _select_dims(y_test_da, dims)
             y_obs_da = _select_dims(y_obs_da, dims)
 
-        standard_dims = {"cv", "chain", "draw", "date"}
+        standard_dims = {Dim.CV, "chain", "draw", Dim.DATE}
         custom_dims = [d for d in y_train_da.dims if d not in standard_dims]
 
         split_ds = xr.Dataset({"train": y_train_da, "test": y_test_da})
@@ -153,7 +188,7 @@ class MMMCVPlotSuite:
         )
 
         hdi_ds = split_ds.azstats.hdi(prob=hdi_prob)
-        date_da = split_ds["train"].coords["date"]
+        date_da = split_ds["train"].coords[Dim.DATE]
 
         pc.map(
             azp.visuals.fill_between_y,
@@ -173,10 +208,10 @@ class MMMCVPlotSuite:
             "alpha": 0.9,
         }
         _plot_da = pc.viz["plot"]
-        _cv_pos = _plot_da.dims.index("cv")
+        _cv_pos = _plot_da.dims.index(Dim.CV)
         for _idx in np.ndindex(*_plot_da.shape):
             _ax = _plot_da.values[_idx]
-            _cv_lbl = str(_plot_da.coords["cv"].values[_idx[_cv_pos]])
+            _cv_lbl = str(_plot_da.coords[Dim.CV].values[_idx[_cv_pos]])
             _ax.axvline(x=float(train_end_da.sel(cv=_cv_lbl).item()), **_vline_kw)
 
         pc.add_legend("__variable__")
@@ -215,6 +250,9 @@ class MMMCVPlotSuite:
             Figure size in inches; takes precedence over ``figure_kwargs["figsize"]``.
         figure_kwargs : dict or None
             Extra kwargs for the figure constructor; merged with defaults.
+            Defaults to ``layout="constrained"`` so the variable labels do not
+            overlap the channel labels; pass ``{"layout": "none"}`` to place the
+            axes by hand.
         backend : str or None
             PlotCollection backend.
         return_as_pc : bool
@@ -236,7 +274,7 @@ class MMMCVPlotSuite:
 
         if not hasattr(data, "posterior"):
             raise ValueError("cv_data has no 'posterior' group.")
-        if "cv" not in data.posterior.dims:
+        if Dim.CV not in data.posterior.dims:
             raise ValueError(
                 "No 'cv' coordinate found in cv_data.posterior. "
                 "Ensure the DataTree was produced by TimeSliceCrossValidator.run()."
@@ -248,7 +286,7 @@ class MMMCVPlotSuite:
 
         # Move labelled dims to the end so the forest plot reads naturally.
         # Guard: only include dims that actually exist after optional filtering.
-        dims_to_end = [d for d in ("channel", "cv") if d in posterior.dims]
+        dims_to_end = [d for d in (Dim.CHANNEL, Dim.CV) if d in posterior.dims]
         if dims_to_end:
             posterior = posterior.transpose(..., *dims_to_end)
 
@@ -256,7 +294,7 @@ class MMMCVPlotSuite:
 
         fig_kw: dict[str, Any] = {
             "width_ratios": [1, 2],
-            "layout": "none",
+            "layout": "constrained",
             **(figure_kwargs or {}),
         }
         if figsize is not None:
@@ -265,10 +303,10 @@ class MMMCVPlotSuite:
         pc = azp.plot_forest(
             idata_for_plot,
             var_names=var_names,
-            aes={"color": ["cv"]},
+            aes={"color": [Dim.CV]},
             figure_kwargs=fig_kw,
             combined=True,
-            shade_label="channel",
+            shade_label=Dim.CHANNEL,
             backend=backend,
             **pc_kwargs,
         )
@@ -282,6 +320,7 @@ class MMMCVPlotSuite:
         backend: str | None = None,
         return_as_pc: bool = False,
         line_kwargs: dict[str, Any] | None = None,
+        combine_splits: bool = False,
         **pc_kwargs,
     ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
         """Line chart of mean CRPS per fold for train and test splits.
@@ -289,7 +328,13 @@ class MMMCVPlotSuite:
         Renders an n×2 grid: left column = train CRPS, right column = test CRPS,
         one row per Cartesian combination of extra dimensions in
         ``y_original_scale`` (e.g. one row per geo). When no extra dimensions
-        are present the result is a 1×2 grid.
+        are present the result is a 1×2 grid. With ``combine_splits=True`` the
+        two splits share a single panel (and therefore a single y-scale), which
+        is what makes train and test directly comparable by eye.
+
+        The x axis is the fold, a discrete coordinate: ticks are placed at
+        integer positions and labelled with the fold labels carried by
+        ``cv_data``, and the points are drawn with markers.
 
         Parameters
         ----------
@@ -306,7 +351,11 @@ class MMMCVPlotSuite:
         return_as_pc : bool
             Return the raw ``PlotCollection`` instead of ``(Figure, NDArray[Axes])``.
         line_kwargs : dict or None
-            Extra kwargs forwarded to ``azp.visuals.line_xy``.
+            Extra kwargs forwarded to ``azp.visuals.line_xy``. Defaults to
+            ``{"marker": "o"}``; pass ``{"marker": None}`` for a bare line.
+        combine_splits : bool
+            Draw train and test in one panel per row instead of one panel per
+            split, so both series share a y-scale.
         **pc_kwargs
             Forwarded to ``PlotCollection.grid()``.
 
@@ -322,20 +371,20 @@ class MMMCVPlotSuite:
         if cv_data is not None:
             _validate_cv_results(data)
 
-        if not hasattr(data, "cv_metadata"):
+        if not hasattr(data, Group.CV_METADATA):
             raise ValueError("cv_data must have a 'cv_metadata' group.")
         if (
             not hasattr(data, "posterior_predictive")
-            or "y_original_scale" not in data.posterior_predictive
+            or Var.Y_ORIGINAL_SCALE not in data.posterior_predictive
         ):
             raise ValueError(
                 "cv_data must have posterior_predictive['y_original_scale']."
             )
 
-        pp = data.posterior_predictive["y_original_scale"]
+        pp = data.posterior_predictive[Var.Y_ORIGINAL_SCALE]
         cv_labels = _extract_cv_labels(data)
 
-        base_dims = {"cv", "chain", "draw", "date"}
+        base_dims = {Dim.CV, "chain", "draw", Dim.DATE}
         extra_dims = [d for d in pp.dims if d not in base_dims]
 
         combo_coords: dict[str, list[Any]] = {
@@ -363,10 +412,10 @@ class MMMCVPlotSuite:
         coords: dict[str, Any] = {
             "split": ["train", "test"],
             **combo_coords,
-            "cv": cv_labels,
+            Dim.CV: cv_labels,
         }
         crps_da = xr.DataArray(
-            data_arr, dims=["split", *extra_dims, "cv"], coords=coords
+            data_arr, dims=["split", *extra_dims, Dim.CV], coords=coords
         )
         crps_ds = crps_da.to_dataset(name="crps")
 
@@ -374,16 +423,21 @@ class MMMCVPlotSuite:
         pc = PlotCollection.grid(
             crps_ds,
             rows=[*extra_dims],
-            cols=["split"],
+            cols=[] if combine_splits else ["split"],
             aes={"color": ["split"]},
             backend=backend,
             **pc_kwargs,
         )
 
         cv_x = xr.DataArray(
-            np.arange(len(cv_labels)), dims=["cv"], coords={"cv": cv_labels}
+            np.arange(len(cv_labels)), dims=[Dim.CV], coords={Dim.CV: cv_labels}
         )
-        pc.map(azp.visuals.line_xy, x=cv_x, y=crps_ds["crps"], **(line_kwargs or {}))
+        pc.map(
+            azp.visuals.line_xy,
+            x=cv_x,
+            y=crps_ds["crps"],
+            **{"marker": "o", **(line_kwargs or {})},
+        )
         pc.add_legend("split")
         pc.map(
             azp.visuals.labelled_title,
@@ -391,5 +445,6 @@ class MMMCVPlotSuite:
             labeller=mix_labellers((NoVarLabeller, DimCoordLabeller))(),
             ignore_aes={"color"},
         )
+        _label_fold_ticks(pc, cv_labels)
 
         return _extract_matplotlib_result(pc, return_as_pc)

@@ -35,6 +35,7 @@ from pymc_marketing.mmm.plotting._helpers import (
     _select_dims,
 )
 from pymc_marketing.mmm.summary.helpers import compute_channel_shares
+from pymc_marketing.names.mmm import Dim
 
 
 class DecompositionPlots:
@@ -190,6 +191,7 @@ class DecompositionPlots:
                 f"Unknown contribution type(s): {invalid}. Valid options: {all_keys}"
             )
 
+        data = data.broadcast_per_period_contributions()
         contributions_ds = data.get_contributions(
             original_scale=original_scale,
             include_baseline="baseline" in include_set,
@@ -201,49 +203,27 @@ class DecompositionPlots:
 
         extra_dims = list(data.custom_dims)
 
-        # Find date coordinate from any contribution that has a date dim.
-        # Fall back to the raw posterior coordinate so baseline-only plots work.
-        dates_coord = next(
-            (
-                contributions_ds[k].coords["date"]
-                for k in contributions_ds.data_vars
-                if "date" in contributions_ds[k].dims
-            ),
-            None,
-        )
-        if dates_coord is None:
-            posterior = data.idata.posterior
-            if "date" in posterior.coords:
-                dates_coord = posterior.coords["date"]
-
         # Build flat entries: each entry has dims (chain, draw, date[, extra_dims])
         # so the rendering loop below is unchanged.
         entries_ds = xr.Dataset()
 
         if "channels" in contributions_ds:
             ch_da = contributions_ds["channels"]
-            for ch in ch_da.coords["channel"].values:
+            for ch in ch_da.coords[Dim.CHANNEL].values:
                 entries_ds[f"channel={ch}"] = _select_dims(
                     ch_da.sel(channel=ch), dims, allow_missing=True
                 )
 
         if "baseline" in contributions_ds:
-            bl_da = contributions_ds["baseline"]
-            # baseline has no date dim — broadcast it over the date axis
-            bl_broadcast = (
-                bl_da.expand_dims({"date": dates_coord})
-                if dates_coord is not None
-                else bl_da
-            )
             entries_ds["baseline"] = _select_dims(
-                bl_broadcast, dims, allow_missing=True
+                contributions_ds["baseline"], dims, allow_missing=True
             )
 
         if "controls" in contributions_ds:
             ctrl_da = contributions_ds["controls"]
             # sum over the control dim → single time-series
             entries_ds["controls"] = _select_dims(
-                ctrl_da.sum(dim="control"), dims, allow_missing=True
+                ctrl_da.sum(dim=Dim.CONTROL), dims, allow_missing=True
             )
 
         if "seasonality" in contributions_ds:
@@ -324,15 +304,15 @@ class DecompositionPlots:
 
         for ds_key, coord_dim in [
             ("baseline", None),
-            ("channels", "channel"),
-            ("controls", "control"),
+            ("channels", Dim.CHANNEL),
+            ("controls", Dim.CONTROL),
             ("seasonality", None),
         ]:
             if ds_key not in contributions_ds:
                 continue
             da = _select_dims(contributions_ds[ds_key], dims, allow_missing=True)
             # mean over whichever of chain/draw/date are present (baseline has no date dim)
-            mean_dims = [d for d in ("chain", "draw", "date") if d in da.dims]
+            mean_dims = [d for d in ("chain", "draw", Dim.DATE) if d in da.dims]
             if coord_dim is not None:
                 for val in da.coords[coord_dim].values:
                     entries.append(

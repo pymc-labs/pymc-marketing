@@ -117,6 +117,7 @@ from pytensor.xtensor.type import XTensorVariable, as_xtensor
 from pymc_marketing.mmm.components.base import Transformation
 from pymc_marketing.mmm.dims import XTensorLike
 from pymc_marketing.mmm.utils import density
+from pymc_marketing.names import Key
 from pymc_marketing.serialization import serialization
 
 
@@ -129,15 +130,8 @@ class Basis(Transformation):
     def from_dict(cls, data: dict) -> "Basis":
         """Reconstruct a basis from a dict."""
         data = data.copy()
-        data.pop("__type__", None)
         data.pop("lookup_name", None)
-
-        if "priors" in data:
-            from pymc_extras.deserialize import deserialize
-
-            data["priors"] = {k: deserialize(v) for k, v in data["priors"].items()}
-
-        return cls(**data)
+        return super().from_dict(data)
 
     @validate_call
     def sample_curve(
@@ -233,11 +227,11 @@ class EventEffect(BaseModel):
     def from_dict(cls, data: dict) -> "EventEffect":
         """Create an event effect from a dictionary."""
         data_inner = data.get("data", data)
-        if "__type__" in data_inner:
-            data_inner = {k: v for k, v in data_inner.items() if k != "__type__"}
+        if Key.TYPE in data_inner:
+            data_inner = {k: v for k, v in data_inner.items() if k != Key.TYPE}
 
         basis_data = data_inner["basis"]
-        if isinstance(basis_data, dict) and "__type__" in basis_data:
+        if isinstance(basis_data, dict) and Key.TYPE in basis_data:
             basis = serialization.deserialize(basis_data)
         else:
             basis = deserialize(basis_data)

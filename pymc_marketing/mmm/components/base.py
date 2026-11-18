@@ -24,7 +24,7 @@ import warnings
 from collections.abc import Iterable, Sequence
 from copy import deepcopy
 from inspect import signature
-from typing import Any
+from typing import Any, Self
 
 import numpy as np
 import numpy.typing as npt
@@ -35,6 +35,7 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from pydantic import InstanceOf
 from pymc.distributions.shape_utils import Dims
+from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior, VariableFactory
 from pytensor.graph.basic import Variable
 from pytensor.xtensor import as_xtensor
@@ -42,6 +43,8 @@ from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.mmm.dims import XTensorLike
 from pymc_marketing.model_config import parse_model_config
+from pymc_marketing.names import Key
+from pymc_marketing.names.mmm import Dim
 from pymc_marketing.plot import (
     SelToString,
     plot_curve,
@@ -50,7 +53,7 @@ from pymc_marketing.plot import (
 )
 
 # "x" for saturation, "time since exposure" for adstock
-NON_GRID_NAMES: frozenset[str] = frozenset({"x", "time since exposure"})
+NON_GRID_NAMES: frozenset[str] = frozenset({"x", Dim.TIME_SINCE_EXPOSURE})
 
 type SupportedPrior = (
     InstanceOf[Prior]
@@ -182,6 +185,19 @@ class Transformation:
             },
         }
 
+    @classmethod
+    def from_dict(cls, data: dict) -> Self:
+        """Reconstruct a transformation from a dict."""
+        data = data.copy()
+        data.pop(Key.TYPE, None)
+
+        if "priors" in data:
+            data["priors"] = {
+                k: _deserialize_value(v) for k, v in data["priors"].items()
+            }
+
+        return cls(**data)
+
     def __eq__(self, other: Any) -> bool:
         """Check if two transformations are equal."""
         if not isinstance(other, self.__class__):
@@ -202,7 +218,34 @@ class Transformation:
     @function_priors.setter  # type: ignore
     def function_priors(self, priors: dict[str, Any | Prior] | None) -> None:
         priors = parse_model_config(priors or {})
+        self._check_prior_names(priors)
         self._function_priors = {**deepcopy(self.default_priors), **priors}
+
+    def _check_prior_names(self, priors: dict[str, Any]) -> None:
+        """Reject priors for parameters that the function doesn't take.
+
+        Without this, an unused prior is merged into ``function_priors``, ignored
+        when the model is built, and serialised by ``to_dict``, so a misspelled
+        parameter name silently leaves the default prior in place.
+        """
+        if not (unknown := priors.keys() - self.default_priors.keys()):
+            return
+
+        msg = (
+            f"Priors for {sorted(unknown)} are not parameters of"
+            f" {type(self).__name__}. Parameters are {sorted(self.default_priors)}."
+        )
+
+        # Model variable names like "saturation_lam" are a common mix-up.
+        if suggestions := {
+            name: parameter
+            for name in sorted(unknown)
+            for parameter in self.default_priors
+            if name.endswith(f"_{parameter}")
+        }:
+            msg = f"{msg} Use the parameter name, not the variable name: {suggestions}."
+
+        raise ValueError(msg)
 
     def update_priors(self, priors: dict[str, Prior]) -> None:
         """Update the priors for a function after initialization.
@@ -520,6 +563,72 @@ class Transformation:
             sel_to_string=sel_to_string,
         )
 
+    def _sample_response(
+        self,
+        var_name: str,
+        parameters: xr.Dataset | xr.DataTree,
+        x: Any,
+        *,
+        dims: Sequence[str],
+        coords: dict[str, Any],
+        core_dim: str,
+        **sample_posterior_predictive_kwargs: Any,
+    ) -> xr.DataArray:
+        """Apply the transformation to *x* at every draw of *parameters*.
+
+        Builds a model holding the transformation of *x* as one deterministic,
+        with the parameters' own coordinates added to *coords*, and samples it
+        with ``pm.sample_posterior_predictive``.  *x* may have any dimensions.
+
+        Parameters
+        ----------
+        var_name : str
+            Name of the deterministic, and of the returned array.
+        parameters : xr.Dataset or xr.DataTree
+            The transformation's parameters, with ``chain`` and ``draw``
+            dimensions.
+        x : array-like
+            The input, with the dimensions in *dims*.
+        dims : sequence of str
+            Dimension names of *x*, in order.
+        coords : dict
+            Coordinates of *x*'s dimensions.
+        core_dim : str
+            The dimension the transformation acts along, as in :meth:`apply`.
+        **sample_posterior_predictive_kwargs : Any
+            Passed to ``pm.sample_posterior_predictive``.
+
+        Returns
+        -------
+        xr.DataArray
+            The transformed input per draw, ``(chain, draw, *dims)`` and the
+            parameters' other dimensions.  The draws are in the posterior's order
+            and under its ``chain`` and ``draw`` labels.
+        """
+        coords = coords | {
+            dim: np.asarray(coord)
+            for dim, coord in parameters.coords.items()
+            if dim not in ["chain", "draw"]
+        }
+
+        with pm.Model(coords=coords):
+            pmd.Deterministic(
+                var_name,
+                self.apply(as_xtensor(x, dims=tuple(dims)), core_dim=core_dim),
+            )
+
+            dt_cls = getattr(xr, "DataTree", None)
+            if isinstance(parameters, xr.Dataset) and dt_cls is not None:
+                idata = dt_cls.from_dict({"/posterior": parameters})
+            else:
+                idata = parameters
+
+            return pm.sample_posterior_predictive(
+                idata,
+                var_names=[var_name],
+                **sample_posterior_predictive_kwargs,
+            ).posterior_predictive[var_name]
+
     def _sample_curve(
         self,
         var_name: str,
@@ -533,31 +642,15 @@ class Transformation:
             raise ValueError("The coords should only have one key.")
         x_dim = keys[0]
 
-        x = as_xtensor(x, dims=(x_dim,))
-
-        coords = coords | {
-            dim: np.asarray(coord)
-            for dim, coord in parameters.coords.items()
-            if dim not in ["chain", "draw"]
-        }
-
-        with pm.Model(coords=coords):
-            pmd.Deterministic(
-                var_name,
-                self.apply(x, core_dim=x_dim),
-            )
-
-            dt_cls = getattr(xr, "DataTree", None)
-            if isinstance(parameters, xr.Dataset) and dt_cls is not None:
-                idata = dt_cls.from_dict({"/posterior": parameters})
-            else:
-                idata = parameters
-
-            return pm.sample_posterior_predictive(
-                idata,
-                var_names=[var_name],
-                **sample_prior_predictive_kwargs,
-            ).posterior_predictive[var_name]
+        return self._sample_response(
+            var_name,
+            parameters,
+            x,
+            dims=(x_dim,),
+            coords=coords,
+            core_dim=x_dim,
+            **sample_prior_predictive_kwargs,
+        )
 
     def plot_curve_samples(
         self,
@@ -696,7 +789,8 @@ class Transformation:
         If called inside a ``pm.Model`` context that already contains this
         transformation's variables (e.g. after :meth:`apply` has been called
         during ``build_model``), the existing ``XTensorVariable``s are reused
-        rather than creating new ones.  Otherwise falls back to
+        rather than creating new ones. Fixed parameters without registered
+        variables retain their configured values. Otherwise falls back to
         :meth:`apply` behaviour (creates new distributions).
 
         Parameters
@@ -753,10 +847,14 @@ class Transformation:
         """
         model = pm.Model.get_context(error_if_none=False)
         if model is not None and all(
-            v in model.named_vars for v in self.variable_mapping.values()
+            model.name_for(var) in model.named_vars
+            or not hasattr(self.function_priors[param], "create_variable")
+            for param, var in self.variable_mapping.items()
         ):
             kwargs = {
-                param: model.named_vars[var]
+                param: model.named_vars.get(
+                    model.name_for(var), self.function_priors[param]
+                )
                 for param, var in self.variable_mapping.items()
             }
         else:
@@ -773,5 +871,14 @@ def _serialize_value(value: Any) -> Any:
 
     if isinstance(value, np.ndarray):
         return value.tolist()
+
+    return value
+
+
+def _deserialize_value(value: Any) -> Any:
+    # Inverse of ``_serialize_value``: only dicts describe a distribution,
+    # anything else is a constant parameter (#1613).
+    if isinstance(value, dict):
+        return deserialize(value)
 
     return value

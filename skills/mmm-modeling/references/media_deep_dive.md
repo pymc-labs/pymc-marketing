@@ -67,9 +67,9 @@ This registers `pm.Deterministic` variables that multiply by the target scaler:
 - `channel_contribution_original_scale` -- channel media contributions
 - `control_contribution_original_scale` -- control variable contributions
 - `intercept_contribution_original_scale` -- baseline
-- `y_original_scale` -- predicted target on original scale
+- `y_original_scale` -- predictive draws of the target on the original scale (`y * target_scale`, under every link)
 
-Without this call, `*_original_scale` variables will not exist in the posterior predictive.
+Without this call, the `*_contribution_original_scale` variables will not exist in the posterior, and `y_original_scale` will not exist in the posterior predictive. The diagnostics and summaries derive `y * target_scale` themselves when `y_original_scale` is absent. Under `link="log"` the noise-free LogNormal median is `posterior["mu_original_scale"]`, registered automatically.
 
 ## Waterfall Decomposition
 

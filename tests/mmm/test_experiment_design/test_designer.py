@@ -647,41 +647,29 @@ class TestFromIdataEdgeCases:
 
     def test_from_idata_without_residual_autocorr(self):
         """from_idata sets autocorrelation to 0.0 when field is absent."""
-        import xarray as xr
-
         idata = generate_experiment_fixture(
             channels=["ch1"],
             true_params={"ch1": {"lam": 1.0, "beta": 1.0, "alpha": 0.5}},
             fit_model=False,
             seed=1,
         )
-        cd = {
-            k: v
-            for k, v in idata.constant_data.data_vars.items()
-            if k != "residual_autocorr"
-        }
-        del idata.constant_data
-        idata.add_groups({"constant_data": xr.Dataset(cd)})
+        idata["constant_data"] = idata.constant_data.dataset.drop_vars(
+            "residual_autocorr"
+        )
         d = ExperimentDesigner.from_idata(idata)
         assert d._residual_autocorr == 0.0
 
     def test_from_idata_without_spend_correlation(self):
         """from_idata sets correlation to None when field is absent."""
-        import xarray as xr
-
         idata = generate_experiment_fixture(
             channels=["ch1"],
             true_params={"ch1": {"lam": 1.0, "beta": 1.0, "alpha": 0.5}},
             fit_model=False,
             seed=1,
         )
-        cd = {
-            k: v
-            for k, v in idata.constant_data.data_vars.items()
-            if k != "spend_correlation"
-        }
-        del idata.constant_data
-        idata.add_groups({"constant_data": xr.Dataset(cd)})
+        idata["constant_data"] = idata.constant_data.dataset.drop_vars(
+            "spend_correlation"
+        )
         d = ExperimentDesigner.from_idata(idata)
         assert d._spend_correlation is None
 

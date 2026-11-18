@@ -36,16 +36,17 @@ import numpy as np
 import pandas as pd
 from matplotlib.figure import Figure
 from scipy.stats import norm
+from xarray import DataTree
 
 from pymc_marketing.mmm.experiment_design.recommendation import (
     ExperimentRecommendation,
     ExperimentRecommendations,
     _format_rationale,
 )
+from pymc_marketing.names.mmm import Dim, Var
 
 if TYPE_CHECKING:
     import matplotlib.axes
-    from arviz import InferenceData
 
 _DEFAULT_SCORE_WEIGHTS: dict[str, float] = {
     "assurance": 0.5,
@@ -55,7 +56,7 @@ _DEFAULT_SCORE_WEIGHTS: dict[str, float] = {
 
 def _build_eval_fn_from_model(
     model: Any,
-    idata: Any,
+    idata: DataTree,
     n_channels: int,
 ) -> Callable[[np.ndarray], np.ndarray]:
     """Build a compiled function that evaluates channel contributions.
@@ -68,7 +69,7 @@ def _build_eval_fn_from_model(
     ----------
     model : pm.Model
         The fitted PyMC model containing a ``channel_contribution`` variable.
-    idata : InferenceData
+    idata : DataTree
         Posterior samples.
     n_channels : int
         Number of channels.
@@ -81,7 +82,7 @@ def _build_eval_fn_from_model(
         - ``contributions`` has shape ``(n_samples, T, n_channels)``
     """
     import pytensor.xtensor as ptx
-    from pytensor.compile.function import function
+    from pytensor import function
     from pytensor.graph.replace import clone_replace
 
     from pymc_marketing.pytensor_utils import extract_response_distribution
@@ -89,16 +90,16 @@ def _build_eval_fn_from_model(
     response_graph = extract_response_distribution(
         pymc_model=model,
         idata=idata,
-        response_variable="channel_contribution",
+        response_variable=Var.CHANNEL_CONTRIBUTION,
     )
 
-    data_var = model["channel_data"]
+    data_var = model[Var.CHANNEL_DATA]
 
     dynamic_input = ptx.xtensor(
         name="channel_data_input",
         dtype=str(data_var.dtype),
         shape=(None, n_channels),
-        dims=("date", "channel"),
+        dims=(Dim.DATE, Dim.CHANNEL),
     )
 
     [new_graph] = clone_replace([response_graph], replace={data_var: dynamic_input})
@@ -178,7 +179,7 @@ class ExperimentDesigner:
 
         eval_fn = _build_eval_fn_from_model(mmm.model, mmm.idata, n_channels)
 
-        data_var = mmm.model["channel_data"]
+        data_var = mmm.model[Var.CHANNEL_DATA]
         data_values = data_var.get_value()
         n_recent = min(8, data_values.shape[0])
         current_spend_arr = np.mean(data_values[-n_recent:], axis=0)
@@ -203,7 +204,7 @@ class ExperimentDesigner:
             channel_columns=channel_columns,
             l_max=int(mmm.adstock.l_max),
             normalize=bool(mmm.adstock.normalize),
-            posterior=mmm.idata.posterior,
+            posterior=mmm.idata.posterior.dataset,
             current_spend=current_spend,
             residual_std=residual_std,
             residual_autocorr=residual_autocorr,
@@ -300,11 +301,11 @@ class ExperimentDesigner:
     @classmethod
     def from_idata(
         cls,
-        idata: InferenceData,
+        idata: DataTree,
         saturation: str = "logistic",
         adstock: str = "geometric",
     ) -> ExperimentDesigner:
-        """Create an ExperimentDesigner from a saved InferenceData fixture.
+        """Create an ExperimentDesigner from a saved DataTree fixture.
 
         This constructor builds a lightweight PyMC model using the
         specified transformation classes, then compiles a graph-based
@@ -312,8 +313,8 @@ class ExperimentDesigner:
 
         Parameters
         ----------
-        idata : InferenceData
-            An ArviZ InferenceData containing posterior samples with
+        idata : DataTree
+            An xarray DataTree containing posterior samples with
             variables ``saturation_lam``, ``saturation_beta``, and
             ``adstock_alpha`` (with a ``channel`` dimension), plus
             ``constant_data`` with ``current_weekly_spend``,
@@ -351,14 +352,14 @@ class ExperimentDesigner:
 
         instance = cls.__new__(cls)
 
-        posterior = idata.posterior
+        posterior = idata.posterior.dataset
         stacked = posterior.stack(sample=("chain", "draw"))
 
         first_param_var = next(iter(stacked.data_vars))
-        if "channel" in stacked[first_param_var].dims:
-            channels = list(stacked[first_param_var].coords["channel"].values)
+        if Dim.CHANNEL in stacked[first_param_var].dims:
+            channels = list(stacked[first_param_var].coords[Dim.CHANNEL].values)
         else:
-            channels = list(stacked.coords.get("channel", []))
+            channels = list(stacked.coords.get(Dim.CHANNEL, []))
 
         cd = idata.constant_data
         l_max = int(cd["l_max"].values)
@@ -369,26 +370,26 @@ class ExperimentDesigner:
         adstock_obj = _ADSTOCK_MAP[adstock](l_max=l_max, normalize=normalize)
         saturation_obj = _SATURATION_MAP[saturation]()
 
-        adstock_obj.set_dims_for_all_priors(("channel",))
-        saturation_obj.set_dims_for_all_priors(("channel",))
+        adstock_obj.set_dims_for_all_priors((Dim.CHANNEL,))
+        saturation_obj.set_dims_for_all_priors((Dim.CHANNEL,))
 
         with pm.Model(
             coords={
-                "channel": channels,
-                "date": np.arange(T_dummy),
+                Dim.CHANNEL: channels,
+                Dim.DATE: np.arange(T_dummy),
             }
         ) as model:
             channel_data = pmd.Data(
-                "channel_data",
+                Var.CHANNEL_DATA,
                 value=np.zeros((T_dummy, n_channels)),
-                dims=("date", "channel"),
+                dims=(Dim.DATE, Dim.CHANNEL),
             )
-            adstocked = adstock_obj.apply(x=channel_data, core_dim="date")
-            contribution = saturation_obj.apply(x=adstocked, core_dim="date")
+            adstocked = adstock_obj.apply(x=channel_data, core_dim=Dim.DATE)
+            contribution = saturation_obj.apply(x=adstocked, core_dim=Dim.DATE)
             pmd.Deterministic(
-                "channel_contribution",
+                Var.CHANNEL_CONTRIBUTION,
                 contribution,
-                dims=("date", "channel"),
+                dims=(Dim.DATE, Dim.CHANNEL),
             )
 
         eval_fn = _build_eval_fn_from_model(model, idata, n_channels)
@@ -644,7 +645,7 @@ class ExperimentDesigner:
         spend = self._make_spend_array(self.l_max + 1)
         contrib = self._eval_contributions(spend)
         values = contrib[:, -1, ch_idx]
-        hdi = az.hdi(values, hdi_prob=0.94)
+        hdi = az.hdi(values, prob=0.94)
         return float(hdi[1] - hdi[0])
 
     def _compute_gradient(self, channel: str) -> float:
@@ -808,7 +809,7 @@ class ExperimentDesigner:
         candidates: list[ExperimentRecommendation] = []
         for i, data in enumerate(candidate_data):
             score = float(scores[i])
-            corr_result = self._get_correlation_info(data["channel"])
+            corr_result = self._get_correlation_info(data[Dim.CHANNEL])
             corr_desc = corr_result[0] if corr_result else None
             corr_value = corr_result[1] if corr_result else None
 
@@ -850,7 +851,7 @@ class ExperimentDesigner:
                 for T in durations:
                     predicted_lift = self._predict_lift(channel, delta_x, T)
                     expected_lift = float(np.mean(predicted_lift))
-                    hdi_arr = az.hdi(predicted_lift, hdi_prob=0.94)
+                    hdi_arr = az.hdi(predicted_lift, prob=0.94)
                     lift_hdi = (float(hdi_arr[0]), float(hdi_arr[1]))
                     sigma_d = self._effective_sigma(T)
                     snr = expected_lift / sigma_d if sigma_d > 0 else 0.0
@@ -868,7 +869,7 @@ class ExperimentDesigner:
 
                     candidate_data.append(
                         {
-                            "channel": channel,
+                            Dim.CHANNEL: channel,
                             "spend_change_frac": frac,
                             "spend_change_abs": delta_x,
                             "duration_weeks": T,
@@ -1083,7 +1084,7 @@ class ExperimentDesigner:
                 ax_ij = axes[i, j]
                 delta_x = frac * x_current
                 lift = self._predict_lift(channel, delta_x, T)
-                hdi = az.hdi(lift, hdi_prob=0.94)
+                hdi = az.hdi(lift, prob=0.94)
 
                 ax_ij.hist(lift, bins=50, density=True, alpha=0.6, color=color)
                 ax_ij.axvline(0, color="black", linestyle="--", linewidth=0.8)

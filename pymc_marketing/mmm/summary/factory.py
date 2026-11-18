@@ -48,6 +48,7 @@ from scipy.stats import gaussian_kde
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.schema import Frequency
+from pymc_marketing.data.idata.utils import _aggregate_over_time
 from pymc_marketing.mmm.incrementality import Incrementality
 from pymc_marketing.mmm.summary.helpers import (
     DataFrameType,
@@ -56,7 +57,6 @@ from pymc_marketing.mmm.summary.helpers import (
     compute_residuals,
     compute_waterfall_components,
     get_channel_x_data,
-    get_prior_for_plot,
 )
 from pymc_marketing.mmm.summary.sensitivity import (
     sensitivity_analysis as _sensitivity_analysis,
@@ -68,6 +68,7 @@ from pymc_marketing.mmm.summary.sensitivity import (
     sensitivity_uplift as _sensitivity_uplift,
 )
 from pymc_marketing.mmm.xarray_utils import _select_dims
+from pymc_marketing.names.mmm import Dim, Var
 
 __all__ = [
     "MMMSummaryFactory",
@@ -314,8 +315,15 @@ class MMMSummaryFactory:
         result_dict = {"mean": mean_, "median": median_, **hdi_results}
         result_ds = xr.Dataset(result_dict)
 
-        # Convert to DataFrame - this preserves coordinate values
-        df = result_ds.to_dataframe().reset_index()
+        if index_cols:
+            # Convert to DataFrame - this preserves coordinate values
+            df = result_ds.to_dataframe().reset_index()
+        else:
+            # A quantity with no dims besides the sample dims (e.g. a
+            # time-invariant intercept) reduces to scalars: one row.
+            df = pd.DataFrame(
+                {name: [value.item()] for name, value in result_ds.data_vars.items()}
+            )
 
         # Ensure coordinate columns have correct order
         other_cols = [c for c in df.columns if c not in index_cols]
@@ -336,7 +344,14 @@ class MMMSummaryFactory:
         1. Resolves hdi_probs default from self.hdi_probs
         2. Resolves output_format default from self.output_format
         3. Validates hdi_probs
-        4. Aggregates data by frequency if specified
+        4. Repeats a time-invariant intercept on every date, since the model
+           adds it to ``mu`` in every period
+           (:meth:`MMMIDataWrapper.broadcast_per_period_contributions`)
+        5. Aggregates data by frequency if specified. Summaries that decompose
+           contributions pass ``frequency=None`` and sum the decomposed
+           samples over each period instead: under ``link="log"`` the
+           decomposition is nonlinear in ``mu``, so it has to run on the
+           original dates.
 
         Parameters
         ----------
@@ -359,7 +374,7 @@ class MMMSummaryFactory:
 
         self._validate_hdi_probs(effective_hdi_probs)
 
-        data = self.data
+        data = self.data.broadcast_per_period_contributions()
         if frequency is not None and frequency != "original":
             data = data.aggregate_time(frequency)
 
@@ -381,8 +396,9 @@ class MMMSummaryFactory:
     ) -> DataFrameType:
         """Create posterior predictive summary DataFrame.
 
-        Computes mean, median, and HDI bounds for posterior predictive samples,
-        along with observed values for comparison.
+        Computes mean, median, and HDI bounds for the posterior predictive
+        draws of the target in original units (``y * target_scale`` under
+        every link), along with observed values for comparison.
 
         Parameters
         ----------
@@ -416,11 +432,7 @@ class MMMSummaryFactory:
             hdi_probs, frequency, output_format
         )
 
-        # Get posterior predictive samples
-        if hasattr(data.idata, "posterior_predictive"):
-            pp_samples = data.to_original_scale(data.idata.posterior_predictive["y"])
-        else:
-            raise AttributeError("No posterior predictive samples found in idata")
+        pp_samples = data.get_predictive_target("posterior", original_scale=True)
 
         # Get observed data
         observed = data.get_target(original_scale=True)
@@ -430,7 +442,7 @@ class MMMSummaryFactory:
 
         # Add observed values
         observed_df = observed.to_dataframe(name="observed").reset_index()
-        merge_keys = ["date", *data.custom_dims]
+        merge_keys = [Dim.DATE, *data.custom_dims]
         df = df.merge(observed_df, on=merge_keys, how="left")
 
         return self._convert_output(df, output_format)
@@ -483,10 +495,15 @@ class MMMSummaryFactory:
         -----
         Expects validated data. Call `data.validate_or_raise()` if you've
         modified the underlying idata before calling this method.
+
+        A time-invariant intercept is reported on every date, since the model
+        adds it to ``mu`` in every period. With a ``frequency`` it is summed
+        over the dates in each period like every other component, so the
+        components add up to the prediction at any frequency.
         """
         # Resolve all defaults in one call
         data, hdi_probs, output_format = self._prepare_data_and_hdi(
-            hdi_probs, frequency, output_format
+            hdi_probs, frequency=None, output_format=output_format
         )
 
         if component == "control":
@@ -506,6 +523,9 @@ class MMMSummaryFactory:
             if component not in contributions.data_vars:
                 raise ValueError(f"No {component} contributions found in model")
             component_data = contributions[component]
+
+        # Sum the per-date decomposition over each period
+        component_data = _aggregate_over_time(component_data, frequency or "original")
 
         # Compute summary stats with HDI
         df = self._compute_summary_stats_with_hdi(component_data, hdi_probs)
@@ -546,7 +566,8 @@ class MMMSummaryFactory:
             - **elementwise**: Simple element-wise division of contributions
               by spend. Does NOT account for carryover effects. Useful for
               daily efficiency tracking but not true incrementality.
-              Works with data-only factory.
+              Works with data-only factory. With a ``frequency``, contributions
+              and spend are each summed over the period before dividing.
         include_carryover : bool, default True
             Include adstock carryover effects. Only used when
             ``method="incremental"``.
@@ -666,9 +687,9 @@ class MMMSummaryFactory:
             )
         elif method == "elementwise":
             data = data.filter_dates(start_date=start_date, end_date=end_date)
-            if frequency is not None and frequency != "original":
-                data = data.aggregate_time(frequency)
-            roas = data.get_elementwise_roas(original_scale=True)
+            roas = data.get_elementwise_roas(
+                original_scale=True, period=frequency or "original"
+            )
         else:
             raise ValueError(
                 f"method must be 'incremental' or 'elementwise', got {method!r}"
@@ -712,11 +733,12 @@ class MMMSummaryFactory:
         )
 
         spend = self.data.get_channel_spend()
+        # The value column carries the name of the idata variable it holds.
         col_name = (
-            "channel_spend"
+            Var.CHANNEL_SPEND
             if hasattr(self.data.idata, "constant_data")
-            and "channel_spend" in self.data.idata.constant_data
-            else "channel_data"
+            and Var.CHANNEL_SPEND in self.data.idata.constant_data
+            else Var.CHANNEL_DATA
         )
         df = spend.to_dataframe(name=col_name).reset_index()
 
@@ -981,11 +1003,13 @@ class MMMSummaryFactory:
         """
         # Resolve all defaults in one call
         data, hdi_probs, output_format = self._prepare_data_and_hdi(
-            hdi_probs, frequency, output_format
+            hdi_probs, frequency=None, output_format=output_format
         )
 
-        # Get all contributions
-        contributions = data.get_contributions(original_scale=True)
+        # Get all contributions, the per-date decomposition summed over each period
+        contributions = _aggregate_over_time(
+            data.get_contributions(original_scale=True), frequency or "original"
+        )
 
         all_dfs = []
 
@@ -993,7 +1017,9 @@ class MMMSummaryFactory:
             component_data = contributions[component_name]
             # Sum across the component dimension if present (e.g., sum across channels)
             component_dims = list(component_data.dims)
-            sum_dims = [d for d in component_dims if d not in ["chain", "draw", "date"]]
+            sum_dims = [
+                d for d in component_dims if d not in ["chain", "draw", Dim.DATE]
+            ]
 
             if sum_dims:
                 summed_data = component_data.sum(dim=sum_dims)
@@ -1008,7 +1034,7 @@ class MMMSummaryFactory:
         if not all_dfs:
             # Return empty DataFrame with correct schema
             return self._convert_output(
-                pd.DataFrame(columns=["date", "component", "mean", "median"]),
+                pd.DataFrame(columns=[Dim.DATE, "component", "mean", "median"]),
                 output_format,
             )
 
@@ -1062,14 +1088,17 @@ class MMMSummaryFactory:
         """
         # Resolve all defaults in one call
         data, hdi_probs, output_format = self._prepare_data_and_hdi(
-            hdi_probs, frequency, output_format
+            hdi_probs, frequency=None, output_format=output_format
         )
 
-        # Get contributions (chain, draw, date, channel)
-        contributions = data.get_channel_contributions(original_scale=True)
+        # Get contributions (chain, draw, date, channel), summed over each period
+        contributions = _aggregate_over_time(
+            data.get_channel_contributions(original_scale=True),
+            frequency or "original",
+        )
 
         # Check for date dimension
-        if "date" not in contributions.dims:
+        if Dim.DATE not in contributions.dims:
             raise ValueError(
                 "change_over_time requires date dimension. "
                 "Data may have been aggregated with frequency='all_time', "
@@ -1080,7 +1109,7 @@ class MMMSummaryFactory:
         # Compute percentage change using xarray operations
         # Formula: (value[t] - value[t-1]) / value[t-1] * 100
         shifted = contributions.shift(date=1)
-        diff = contributions.diff("date")
+        diff = contributions.diff(Dim.DATE)
 
         # Handle division by zero (set to NaN)
         # Use xr.where to replace zeros with NaN before division
@@ -1244,7 +1273,10 @@ class MMMSummaryFactory:
         frequency : Frequency, optional
             Time aggregation period (default: None, no aggregation)
         original_scale : bool, default True
-            If True, summarize ``y_original_scale`` from ``idata.prior``.
+            If True, summarize the prior predictive draws of the target in
+            original units (``y * target_scale``; the stored
+            ``prior["y_original_scale"]`` when registered, otherwise derived
+            from ``prior_predictive["y"]``).
             If False, summarize ``y`` from ``idata.prior_predictive``.
         output_format : {"pandas", "polars"}, optional
             Output DataFrame format (default: uses factory default)
@@ -1263,20 +1295,13 @@ class MMMSummaryFactory:
             hdi_probs, frequency, output_format
         )
 
-        pp_ds = get_prior_for_plot(data, original_scale)
-        var_name = "y_original_scale" if original_scale else "y"
-        if var_name not in pp_ds:
-            raise AttributeError(
-                f"Variable '{var_name}' not found in prior predictive data. "
-                f"Available: {list(pp_ds.data_vars)}"
-            )
-        pp_samples = pp_ds[var_name]
+        pp_samples = data.get_predictive_target("prior", original_scale)
 
         observed = data.get_target(original_scale=original_scale)
         df = self._compute_summary_stats_with_hdi(pp_samples, hdi_probs)
 
         observed_df = observed.to_dataframe(name="observed").reset_index()
-        merge_keys = ["date", *data.custom_dims]
+        merge_keys = [Dim.DATE, *data.custom_dims]
         df = df.merge(observed_df, on=merge_keys, how="left")
 
         return self._convert_output(df, output_format)
@@ -1373,7 +1398,7 @@ class MMMSummaryFactory:
                         f"Available: {list(residuals.dims)}"
                     )
 
-        sample_dims = ["chain", "draw", "date"] + (aggregation or [])
+        sample_dims = ["chain", "draw", Dim.DATE] + (aggregation or [])
         quantile_da = residuals.quantile(list(quantiles), dim=sample_dims)
         df = quantile_da.to_dataframe(name="value").reset_index()
 

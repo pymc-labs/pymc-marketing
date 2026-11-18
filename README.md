@@ -10,7 +10,7 @@
 ![Test Notebook](https://github.com/pymc-labs/pymc-marketing/actions/workflows/test_notebook.yml/badge.svg)
 [![codecov](https://codecov.io/gh/pymc-labs/pymc-marketing/branch/main/graph/badge.svg?token=OBV3BS5TYE)](https://codecov.io/gh/pymc-labs/pymc-marketing)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-[![docs](https://readthedocs.org/projects/pymc-marketing/badge/?version=latest)](https://www.pymc-marketing.io/en/latest/)
+[![docs](https://readthedocs.org/projects/pymc-marketing/badge/?version=latest)](https://www.pymc-marketing.io/en/stable/)
 
 [![PyPI Version](https://img.shields.io/pypi/v/pymc-marketing.svg)](https://pypi.python.org/pypi/pymc-marketing)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
@@ -62,9 +62,10 @@ Some features are available as optional extras:
 ```bash
 pip install pymc-marketing[dag]  # causal identification tooling
 pip install pymc-marketing[pie]  # Predicted Incrementality by Experimentation (PIE), requires pymc-bart
+pip install pymc-marketing[var]  # VAR baseline for long-term brand effects, requires impulso
 ```
 
-For a comprehensive installation guide, refer to the [installation documentation](https://www.pymc-marketing.io/en/latest/getting_started/installation/index.html).
+For a comprehensive installation guide, refer to the [installation documentation](https://www.pymc-marketing.io/en/stable/getting_started/installation/index.html).
 
 ### Docker
 
@@ -89,8 +90,8 @@ Leverage our Bayesian MMM API to tailor your marketing strategies effectively. L
 | Out-of-sample Predictions                  | Forecast future marketing performance with credible intervals. Use this for simulations and scenario planning.                                                                                                                                                                                                                                                                          |
 | Budget Optimization                        | Allocate your marketing spend efficiently across various channels for maximum ROI. See the [budget optimization example notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_budget_allocation_example.html)                                                                                                                                                             |
 | Experiment Calibration                     | Fine-tune your model based on empirical experiments for a more unified view of marketing. See the [lift test integration explanation](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_lift_test.html) for more details. [Here](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_roas.html) you can find a *Case Study: Unobserved Confounders, ROAS and Lift Tests*. |
-| ROAS / CAC Calibration                     | Calibrate your model with ROAS or cost-per-acquisition estimates via `add_cost_per_target_calibration`. See the [ROAS calibration notebook](https://www.pymc-marketing.io/en/latest/notebooks/mmm/mmm_roas_calibration.html) for a worked example.                                                                                                                                       |
-| Funnel Models                              | Model upper-funnel to lower-funnel mediation (e.g., awareness driving search and conversions) via custom `MuEffect`s. See the [introductory funnel-aware MMM notebook](https://www.pymc-marketing.io/en/latest/notebooks/mmm/mmm_funnel_mueffect.html) and the [advanced geo-level example](https://www.pymc-marketing.io/en/latest/notebooks/mmm/mmm_funnel_mueffect_advanced.html).     |
+| ROAS / CAC Calibration                     | Calibrate your model with ROAS or cost-per-acquisition estimates via `add_cost_per_target_calibration`. See the [ROAS calibration notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_roas_calibration.html) for a worked example.                                                                                                                                       |
+| Funnel Models                              | Model upper-funnel to lower-funnel mediation (e.g., awareness driving search and conversions) via custom `MuEffect`s. See the [introductory funnel-aware MMM notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_funnel_mueffect.html) and the [advanced geo-level example](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_funnel_mueffect_advanced.html).     |
 
 ### MMM Quickstart
 
@@ -147,12 +148,12 @@ Once the model is fitted, we can further optimize our budget allocation as we ar
 
 ### Long-Term Effects & Brand Metrics
 
-Media investments do not only drive short-term sales; they also build brand equity that pays off over longer horizons. PyMC-Marketing lets you measure long-term brand effects in MMMs by coupling brand-tracking metrics (e.g., awareness, consideration) with a Bayesian VARX model. See the [long-term brand effects notebook](https://www.pymc-marketing.io/en/latest/notebooks/mmm/mmm_brand_metrics_long_term.html) for a complete tutorial.
+Media investments do not only drive short-term sales; they also build brand equity that pays off over longer horizons. PyMC-Marketing lets you measure long-term brand effects in MMMs by coupling brand-tracking metrics (e.g., awareness, consideration) with a Bayesian VARX model. See the [long-term brand effects notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_brand_metrics_long_term.html) for a complete tutorial.
 
 ### Essential Reading for Marketing Mix Modeling (MMM)
 
-- [Bayesian Media Mix Modeling for Marketing Optimization](https://www.pymc-labs.com/blog-posts/bayesian-media-mix-modeling-for-marketing-optimization/)
-- [Improving the Speed and Accuracy of Bayesian Marketing Mix Models](https://www.pymc-labs.com/blog-posts/reducing-customer-acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget/)
+- [Bayesian Media Mix Modeling for Marketing Optimization](https://www.pymc-labs.com/blog-posts/bayesian-media-mix-modeling-for-marketing-optimization)
+- [Improving the Speed and Accuracy of Bayesian Marketing Mix Models](https://www.pymc-labs.com/blog-posts/reducing-customer-acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget)
 - [Johns, Michael and Wang,  Zhenyu. "A Bayesian Approach to Media Mix Modeling"](https://www.youtube.com/watch?v=UznM_-_760Y)
 - [Orduz, Juan. "Media Effect Estimation with PyMC: Adstock, Saturation & Diminishing Returns"](https://juanitorduz.github.io/pymc_mmm/)
 - [A Comprehensive Guide to Bayesian Marketing Mix Modeling](https://1749.io/learn/f/a-comprehensive-guide-to-bayesian-marketing-mix-modeling)
@@ -262,12 +263,12 @@ Discrete choice models come in various forms, but each aims to show how choosing
 
 Explore the full family of choice and preference models:
 
-- [Multinomial Logit](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/mnl_logit.html)
-- [Nested Logit](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/nested_logit.html)
-- [Mixed Logit](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/mixed_logit.html)
-- [Consideration Set Mixed Logit](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/consideration_set_logit.html)
-- [MaxDiff (Best-Worst Scaling)](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/maxdiff.html)
-- [Bayesian BLP: Structural Demand on Aggregate Shares](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/bayesian_blp.html) and its application to the [Nevo cereal panel](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/bayesian_blp_nevo.html)
+- [Multinomial Logit](https://www.pymc-marketing.io/en/stable/notebooks/customer_choice/mnl_logit.html)
+- [Nested Logit](https://www.pymc-marketing.io/en/stable/notebooks/customer_choice/nested_logit.html)
+- [Mixed Logit](https://www.pymc-marketing.io/en/stable/notebooks/customer_choice/mixed_logit.html)
+- [Consideration Set Mixed Logit](https://www.pymc-marketing.io/en/stable/notebooks/customer_choice/consideration_set_logit.html)
+- [MaxDiff (Best-Worst Scaling)](https://www.pymc-marketing.io/en/stable/notebooks/customer_choice/maxdiff.html)
+- [Bayesian BLP: Structural Demand on Aggregate Shares](https://www.pymc-marketing.io/en/stable/notebooks/customer_choice/bayesian_blp.html) and its application to the [Nevo cereal panel](https://www.pymc-marketing.io/en/stable/notebooks/customer_choice/bayesian_blp_nevo.html)
 
 ## Bass Diffusion Model
 
@@ -283,7 +284,7 @@ See the [Bass Diffusion Model example notebook](https://www.pymc-marketing.io/en
 
 Predict the *incremental* effect of ad campaigns that never ran an experiment with **PIE** (alpha). Randomized experiments — geo tests and ghost-ad holdouts — are the gold standard for measuring campaign incrementality, but they are costly and slow. PIE fits a Bayesian BART model on the corpus of campaigns that *did* run an experiment, learning the map from campaign features to measured incrementality, then predicts a full posterior of incrementality for the campaigns that never did. The approach follows [Gordon, Moakler & Zettelmeyer (2026)](https://www.nber.org/papers/w35044).
 
-The `pymc_marketing.pie` module is in **alpha**: the API and defaults may change between releases. It requires the `pie` extra (`pip install pymc-marketing[pie]`). See the [PIE example notebook](https://www.pymc-marketing.io/en/latest/notebooks/pie/pie_example.html) for a worked example, including where predictions beat last-click attribution.
+The `pymc_marketing.pie` module is in **alpha**: the API and defaults may change between releases. It requires the `pie` extra (`pip install pymc-marketing[pie]`). See the [PIE example notebook](https://www.pymc-marketing.io/en/stable/notebooks/pie/pie_example.html) for a worked example, including where predictions beat last-click attribution.
 
 ## Why PyMC-Marketing vs other solutions?
 

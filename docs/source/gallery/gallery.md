@@ -54,9 +54,19 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_sensitivity_analysis.html
 :::
 
+:::{grid-item-card} Current vs Future Media Value: Splitting Contributions by When They Land
+:img-top: ../gallery/images/mmm_current_vs_future_value.png
+:link: ../notebooks/mmm/mmm_current_vs_future_value.html
+:::
+
 :::{grid-item-card} Additive vs Log vs Log-Log MMMs
 :img-top: ../gallery/images/mmm_multiplicative.png
 :link: ../notebooks/mmm/mmm_multiplicative.html
+:::
+
+:::{grid-item-card} Introduction to Mu Effects: Channel Interactions
+:img-top: ../gallery/images/mmm_mu_effects_intro.png
+:link: ../notebooks/mmm/mmm_mu_effects_intro.html
 :::
 
 :::{grid-item-card} Interactive MMM Visualizations
@@ -67,6 +77,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} Cost-per-Unit: Model What Drives Revenue, Report What You Spend
 :img-top: ../gallery/images/mmm_cost_per_unit.png
 :link: ../notebooks/mmm/mmm_cost_per_unit.html
+:::
+
+:::{grid-item-card} Why and how to account for media inflation in your media mix model (MMM)
+:img-top: ../gallery/images/mmm_media_inflation.png
+:link: ../notebooks/mmm/mmm_media_inflation.html
 :::
 
 :::{grid-item-card} Parameter Recovery
@@ -123,6 +138,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} Splitting MMM Channel Impact Across Campaigns
 :img-top: ../gallery/images/mmm_credibility_disaggregation.png
 :link: ../notebooks/mmm/mmm_credibility_disaggregation.html
+:::
+
+:::{grid-item-card} Year-over-Year Target Transform for Highly Seasonal KPIs
+:img-top: ../gallery/images/mmm_yoy_target_transform.png
+:link: ../notebooks/mmm/mmm_yoy_target_transform.html
 :::
 ::::
 
@@ -198,6 +218,16 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_roas_calibration.png
 :link: ../notebooks/mmm/mmm_roas_calibration.html
 :::
+
+:::{grid-item-card} How Much Would One Lift Test Reduce ROAS Uncertainty?
+:img-top: ../gallery/images/mmm_roas_experimentation.png
+:link: ../notebooks/mmm/mmm_roas_experimentation.html
+:::
+
+:::{grid-item-card} Endogenous Budgets: Separating Designed from Chosen Spend
+:img-top: ../gallery/images/mmm_endogenous_budget.png
+:link: ../notebooks/mmm/mmm_endogenous_budget.html
+:::
 ::::
 
 ### Time-Varying Parameters
@@ -229,6 +259,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} Metrics and Model Evaluation
 :img-top: ../gallery/images/mmm_evaluation.png
 :link: ../notebooks/mmm/mmm_evaluation.html
+:::
+
+:::{grid-item-card} Prior Sensitivity in the MMM Workflow
+:img-top: ../gallery/images/mmm_prior_sensitivity_psense.png
+:link: ../notebooks/mmm/mmm_prior_sensitivity.html
 :::
 ::::
 
@@ -291,6 +326,16 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} MMM End-to-End Case Study
 :img-top: ../gallery/images/mmm_case_study.png
 :link: ../notebooks/mmm/mmm_case_study.html
+:::
+
+:::{grid-item-card} MMM Case Study II: Funnel-Aware Modeling, ROAS Calibration, and Budget Planning
+:img-top: ../gallery/images/mmm_case_study2.png
+:link: ../notebooks/mmm/mmm_case_study2.html
+:::
+
+:::{grid-item-card} Pareto Optimization Across Products with a Shared Media Budget
+:img-top: ../gallery/images/mmm_pareto_optimization_frontier.png
+:link: ../notebooks/mmm/mmm_pareto_optimization.html
 :::
 
 :::{grid-item-card} Integrating Foundational Time Series Models with PyMC-Marketing MMM

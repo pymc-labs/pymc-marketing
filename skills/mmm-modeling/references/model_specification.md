@@ -126,7 +126,7 @@ The `beta` parameter controls the maximum reachable effect per channel. Setting 
 | `HillSaturation` | Generalized Hill function | `slope ~ HalfNormal(1.5)`, `kappa ~ HalfNormal(1.5)`, `beta ~ HalfNormal(1.5)` |
 | `HillSaturationSigmoid` | Sigmoid variant of Hill | `sigma ~ HalfNormal(1.5)`, `beta ~ HalfNormal(1.5)`, `lam ~ HalfNormal(1.5)` |
 | `TanhSaturation` | Hyperbolic tangent | `b ~ HalfNormal(1)`, `c ~ HalfNormal(1)` |
-| `TanhSaturationBaselined` | Baselined tanh with offset | `x0 ~ HalfNormal(1)`, `gain ~ HalfNormal(1)`, `r ~ HalfNormal(1)`, `beta ~ HalfNormal(1)` |
+| `TanhSaturationBaselined` | Baselined tanh with offset | `x0 ~ HalfNormal(1)`, `gain ~ HalfNormal(1)`, `r ~ Beta(2, 3)`, `beta ~ HalfNormal(1)` |
 | `RootSaturation` | Power-law (root) transformation | `alpha ~ Beta(1, 2)`, `beta ~ Gamma(mu=1, sigma=1)` |
 | `NoSaturation` | Identity (no saturation, scaling only) | `beta ~ HalfNormal(1)` |
 

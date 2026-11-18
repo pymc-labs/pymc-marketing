@@ -124,6 +124,113 @@ def mock_mmm_idata_wrapper(simple_dates, simple_channels):
 
 
 @pytest.fixture
+def mock_mmm_idata_wrapper_with_intercept(simple_dates, simple_channels):
+    """Mock MMMIDataWrapper with a time-invariant intercept.
+
+    ``intercept_contribution`` has no ``date`` dim, as in a model without a
+    time-varying intercept, while ``channel_contribution`` is per date.
+    """
+    local_rng = np.random.default_rng(seed=45)
+
+    idata = xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "channel_contribution": xr.DataArray(
+                        local_rng.normal(loc=1.0, scale=0.1, size=(2, 10, 52, 3)),
+                        dims=("chain", "draw", "date", "channel"),
+                        coords={"date": simple_dates, "channel": simple_channels},
+                    ),
+                    "intercept_contribution": xr.DataArray(
+                        local_rng.normal(loc=3.0, scale=0.2, size=(2, 10)),
+                        dims=("chain", "draw"),
+                    ),
+                }
+            ),
+            "/constant_data": xr.Dataset(
+                {
+                    "channel_data": xr.DataArray(
+                        local_rng.uniform(0, 100, size=(52, 3)),
+                        dims=("date", "channel"),
+                        coords={"date": simple_dates, "channel": simple_channels},
+                    ),
+                    "target_scale": xr.DataArray(500.0),
+                }
+            ),
+        }
+    )
+
+    return MMMIDataWrapper(idata, schema=None, validate_on_init=False)
+
+
+@pytest.fixture(
+    params=[("log", -1.0), ("log", 1.0), ("identity", 1.0)],
+    ids=["log_negative_mu", "log_positive_mu", "identity"],
+)
+def aggregation_mmm_idata_wrapper(request):
+    """Posterior with a custom ``geo`` dim, a per-geo target scale and spend.
+
+    Under the log link the sign of ``mu`` decides whether exponentiating a sum
+    over dates shrinks or inflates the contributions.
+    """
+    link, mu_sign = request.param
+    local_rng = np.random.default_rng(seed=3052)
+    dates = pd.date_range("2024-01-01", periods=400, freq="D")
+    geos = ["A", "B"]
+    channels = ["TV", "Radio"]
+    n_chain, n_draw = 2, 5
+
+    channel_contribution = xr.DataArray(
+        local_rng.uniform(
+            0.05, 0.3, size=(n_chain, n_draw, len(dates), len(geos), len(channels))
+        ),
+        dims=("chain", "draw", "date", "geo", "channel"),
+        coords={"date": dates, "geo": geos, "channel": channels},
+    )
+    mu = xr.DataArray(
+        mu_sign
+        * local_rng.uniform(0.7, 1.5, size=(n_chain, n_draw, len(dates), len(geos))),
+        dims=("chain", "draw", "date", "geo"),
+        coords={"date": dates, "geo": geos},
+    )
+    # Time-invariant: the identity-link baseline is counted once per date
+    intercept_contribution = xr.DataArray(
+        local_rng.uniform(0.5, 1.0, size=(n_chain, n_draw, len(geos))),
+        dims=("chain", "draw", "geo"),
+        coords={"geo": geos},
+    )
+    channel_data = xr.DataArray(
+        local_rng.uniform(10.0, 100.0, size=(len(dates), len(geos), len(channels))),
+        dims=("date", "geo", "channel"),
+        coords={"date": dates, "geo": geos, "channel": channels},
+    )
+    # No TV spend in geo A for January and February 2024: whole weeks and months
+    # without spend, inside a quarter that still has some
+    channel_data.loc[
+        {"date": slice("2024-01-01", "2024-02-29"), "geo": "A", "channel": "TV"}
+    ] = 0.0
+    target_scale = xr.DataArray([100.0, 250.0], dims="geo", coords={"geo": geos})
+
+    idata = xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "channel_contribution": channel_contribution,
+                    "intercept_contribution": intercept_contribution,
+                    "mu": mu,
+                }
+            ),
+            "/constant_data": xr.Dataset(
+                {"channel_data": channel_data, "target_scale": target_scale}
+            ),
+        }
+    )
+    idata.attrs = {"link": link}
+
+    return MMMIDataWrapper(idata, schema=None, validate_on_init=False)
+
+
+@pytest.fixture
 def mock_mmm_idata_wrapper_with_zero_spend(simple_dates):
     """Mock MMMIDataWrapper with zero spend channel for ROAS testing."""
     local_rng = np.random.default_rng(seed=43)
@@ -526,6 +633,29 @@ class TestDataFrameSchemas:
         # Each (date, country) combination should appear exactly once
         date_country_counts = df.groupby(["date", "country"]).size()
         assert all(date_country_counts == 1)
+
+    def test_summaries_ignore_synthetic_target_scale_dimension(
+        self, mock_mmm_idata_wrapper
+    ):
+        """A length-one target scale dimension does not leak into summaries."""
+        idata = mock_mmm_idata_wrapper.idata.copy()
+        target_scale = float(mock_mmm_idata_wrapper.get_target_scale())
+        idata["constant_data"] = xr.DataTree(
+            idata["constant_data"]
+            .to_dataset()
+            .assign(
+                target_scale=xr.DataArray([target_scale], dims=("target_scale_dim_0",))
+            )
+        )
+        factory = MMMSummaryFactory(
+            MMMIDataWrapper(idata, schema=None, validate_on_init=False)
+        )
+
+        posterior_predictive = factory.posterior_predictive(hdi_probs=[0.94])
+        contributions = factory.contributions(hdi_probs=[0.94])
+
+        assert "target_scale_dim_0" not in posterior_predictive.columns
+        assert "target_scale_dim_0" not in contributions.columns
 
     def test_contribution_summary_schema(self, mock_mmm_idata_wrapper):
         """Test contribution summary returns DataFrame with correct schema."""
@@ -1264,12 +1394,305 @@ class TestNonChannelComponents:
         assert "control" in df.columns
         assert len(df["control"].unique()) == 2  # price and promo
 
+    def test_contribution_summary_time_invariant_baseline_has_a_row_per_date(
+        self, mock_mmm_idata_wrapper_with_intercept, simple_dates
+    ):
+        """A time-invariant intercept is reported on every date, like the channels."""
+        data = mock_mmm_idata_wrapper_with_intercept
+        df = MMMSummaryFactory(data).contributions(
+            component="baseline", hdi_probs=[0.94]
+        )
+
+        intercept = (
+            data.idata.posterior["intercept_contribution"] * data.get_target_scale()
+        )
+        np.testing.assert_array_equal(df["date"].to_numpy(), simple_dates.to_numpy())
+        np.testing.assert_allclose(df["mean"], float(intercept.mean()))
+        np.testing.assert_allclose(df["median"], float(intercept.median()))
+        assert (df["abs_error_94_lower"] < df["mean"]).all()
+        assert (df["abs_error_94_upper"] > df["mean"]).all()
+
     def test_contribution_summary_missing_component_raises(
         self, mock_mmm_idata_wrapper
     ):
         """Test that requesting missing component raises ValueError."""
         with pytest.raises(ValueError, match=r"No controls contributions found"):
             MMMSummaryFactory(mock_mmm_idata_wrapper).contributions(component="control")
+
+
+class TestDecomposedContributionAggregation:
+    """Summaries at a frequency sum the per-date decomposition over each period.
+
+    Under the log link the decomposition is nonlinear in ``mu``, so it has to
+    run on the original dates before aggregating (#3052). Under the identity
+    link both orders agree.
+    """
+
+    @staticmethod
+    def _aggregate_samples(samples: xr.DataArray, frequency: str) -> xr.DataArray:
+        if frequency == "all_time":
+            return samples.sum("date")
+
+        rule = {
+            "weekly": "W",
+            "monthly": "ME",
+            "quarterly": "QE",
+            "yearly": "YE",
+        }[frequency]
+        return samples.resample(date=rule).sum("date")
+
+    @staticmethod
+    def _assert_frames_equal(
+        actual: pd.DataFrame, expected: pd.DataFrame, keys: list[str]
+    ) -> None:
+        sort_columns = [column for column in keys if column in actual.columns]
+        pd.testing.assert_frame_equal(
+            actual.sort_values(sort_columns).reset_index(drop=True),
+            expected.sort_values(sort_columns).reset_index(drop=True),
+            rtol=1e-12,
+            atol=1e-12,
+        )
+
+    @pytest.mark.parametrize(
+        "frequency", ["weekly", "monthly", "quarterly", "yearly", "all_time"]
+    )
+    def test_channel_contributions_sum_per_date_samples(
+        self, aggregation_mmm_idata_wrapper, frequency
+    ):
+        data = aggregation_mmm_idata_wrapper
+        factory = MMMSummaryFactory(data)
+        per_date = data.get_channel_contributions(original_scale=True)
+        expected = factory._compute_summary_stats_with_hdi(
+            self._aggregate_samples(per_date, frequency), [0.8]
+        )
+
+        actual = factory.contributions(frequency=frequency, hdi_probs=[0.8])
+
+        self._assert_frames_equal(actual, expected, ["date", "geo", "channel"])
+
+    @pytest.mark.parametrize(
+        "frequency", ["weekly", "monthly", "quarterly", "yearly", "all_time"]
+    )
+    def test_total_contribution_sums_per_date_samples(
+        self, aggregation_mmm_idata_wrapper, frequency
+    ):
+        data = aggregation_mmm_idata_wrapper
+        factory = MMMSummaryFactory(data)
+        # The model adds a time-invariant intercept on every date
+        per_date = data.broadcast_per_period_contributions().get_contributions(
+            original_scale=True
+        )
+
+        expected_frames = []
+        for component_name, component_data in per_date.data_vars.items():
+            sum_dims = [
+                dim
+                for dim in component_data.dims
+                if dim not in ["chain", "draw", "date"]
+            ]
+            if sum_dims:
+                component_data = component_data.sum(sum_dims)
+            frame = factory._compute_summary_stats_with_hdi(
+                self._aggregate_samples(component_data, frequency), [0.8]
+            )
+            frame["component"] = component_name
+            expected_frames.append(frame)
+        expected = pd.concat(expected_frames, ignore_index=True)
+
+        actual = factory.total_contribution(frequency=frequency, hdi_probs=[0.8])
+
+        self._assert_frames_equal(actual, expected, ["date", "component"])
+
+    @pytest.mark.parametrize("frequency", ["weekly", "monthly", "quarterly", "yearly"])
+    def test_change_over_time_compares_period_sums(
+        self, aggregation_mmm_idata_wrapper, frequency
+    ):
+        data = aggregation_mmm_idata_wrapper
+        factory = MMMSummaryFactory(data)
+        aggregated = self._aggregate_samples(
+            data.get_channel_contributions(original_scale=True), frequency
+        )
+        shifted = aggregated.shift(date=1)
+        expected = factory._compute_summary_stats_with_hdi(
+            (aggregated.diff("date") / shifted.where(shifted != 0)) * 100, [0.8]
+        ).rename(columns={"mean": "pct_change_mean", "median": "pct_change_median"})
+
+        actual = factory.change_over_time(frequency=frequency, hdi_probs=[0.8])
+
+        self._assert_frames_equal(actual, expected, ["date", "geo", "channel"])
+
+    def test_change_over_time_all_time_keeps_date_requirement(
+        self, aggregation_mmm_idata_wrapper
+    ):
+        factory = MMMSummaryFactory(aggregation_mmm_idata_wrapper)
+
+        with pytest.raises(
+            ValueError, match=r"change_over_time requires date dimension.*all_time"
+        ):
+            factory.change_over_time(frequency="all_time")
+
+    @pytest.mark.parametrize(
+        "frequency", ["weekly", "monthly", "quarterly", "yearly", "all_time"]
+    )
+    def test_elementwise_roas_divides_period_sums(
+        self, aggregation_mmm_idata_wrapper, frequency
+    ):
+        data = aggregation_mmm_idata_wrapper
+        factory = MMMSummaryFactory(data)
+        contributions = self._aggregate_samples(
+            data.get_channel_contributions(original_scale=True), frequency
+        )
+        spend = self._aggregate_samples(data.get_channel_spend(), frequency)
+        expected = factory._compute_summary_stats_with_hdi(
+            contributions / spend.where(spend != 0), [0.8]
+        )
+
+        actual = factory.roas(frequency=frequency, hdi_probs=[0.8])
+
+        self._assert_frames_equal(actual, expected, ["date", "geo", "channel"])
+        # A period without spend has no ROAS, not an infinite one, while a
+        # period with some spend keeps a finite ROAS
+        keys = [c for c in ["date", "geo", "channel"] if c in actual.columns]
+        no_spend = (spend == 0).to_dataframe(name="no_spend").reset_index()
+        rows = actual.merge(no_spend, on=keys, validate="one_to_one")
+        np.testing.assert_array_equal(rows["mean"].isna(), rows["no_spend"])
+
+
+class TestTimeInvariantBaselineAggregation:
+    """A time-invariant intercept is added to ``mu`` in every period.
+
+    Aggregating over time must therefore count it once per period, like every
+    per-date contribution, so that the aggregated components still add up to
+    the aggregated prediction.
+    """
+
+    @staticmethod
+    def _mean_prediction(data: MMMIDataWrapper) -> xr.DataArray:
+        """Posterior-mean prediction per date: channels plus intercept."""
+        posterior = data.idata.posterior
+        return (
+            (
+                posterior["channel_contribution"].sum("channel")
+                + posterior["intercept_contribution"]
+            )
+            * data.get_target_scale()
+        ).mean(("chain", "draw"))
+
+    def test_all_time_baseline_counts_every_period(
+        self, mock_mmm_idata_wrapper_with_intercept, simple_dates
+    ):
+        factory = MMMSummaryFactory(mock_mmm_idata_wrapper_with_intercept)
+
+        per_date = factory.contributions(component="baseline", hdi_probs=[0.94])
+        all_time = factory.contributions(
+            component="baseline", frequency="all_time", hdi_probs=[0.94]
+        )
+
+        assert len(all_time) == 1
+        # Every date carries the same draws, so each statistic scales by N.
+        n_periods = len(simple_dates)
+        for column in ["mean", "median", "abs_error_94_lower", "abs_error_94_upper"]:
+            np.testing.assert_allclose(
+                all_time[column].item(),
+                n_periods * per_date[column].iloc[0],
+                rtol=1e-10,
+            )
+
+    def test_all_time_baseline_with_length_one_target_scale(
+        self, mock_mmm_idata_wrapper_with_intercept, simple_dates
+    ):
+        """Some samplers store ``target_scale`` with a length-1 dim, not 0-d."""
+        target_scale = float(mock_mmm_idata_wrapper_with_intercept.get_target_scale())
+        idata = mock_mmm_idata_wrapper_with_intercept.idata.copy()
+        idata["constant_data"] = xr.DataTree(
+            idata["constant_data"]
+            .to_dataset()
+            .assign(
+                target_scale=xr.DataArray([target_scale], dims=("target_scale_dim_0",))
+            )
+        )
+        factory = MMMSummaryFactory(
+            MMMIDataWrapper(idata, schema=None, validate_on_init=False)
+        )
+
+        per_date = factory.contributions(component="baseline", hdi_probs=[0.94])
+        all_time = factory.contributions(
+            component="baseline", frequency="all_time", hdi_probs=[0.94]
+        )
+
+        for column in ["mean", "median", "abs_error_94_lower", "abs_error_94_upper"]:
+            np.testing.assert_allclose(
+                all_time[column].item(),
+                len(simple_dates) * per_date[column].iloc[0],
+                rtol=1e-10,
+            )
+
+    def test_all_time_components_add_up_to_the_window_total(
+        self, mock_mmm_idata_wrapper_with_intercept
+    ):
+        data = mock_mmm_idata_wrapper_with_intercept
+        factory = MMMSummaryFactory(data)
+        channels = factory.contributions(component="channel", frequency="all_time")
+        baseline = factory.contributions(component="baseline", frequency="all_time")
+
+        np.testing.assert_allclose(
+            channels["mean"].sum() + baseline["mean"].sum(),
+            float(self._mean_prediction(data).sum("date")),
+            rtol=1e-10,
+        )
+
+    @pytest.mark.parametrize(
+        ("frequency", "rule"),
+        [("monthly", "ME"), ("quarterly", "QE"), ("yearly", "YE")],
+    )
+    def test_periodic_baseline_counts_the_periods_in_each_bucket(
+        self, mock_mmm_idata_wrapper_with_intercept, simple_dates, frequency, rule
+    ):
+        factory = MMMSummaryFactory(mock_mmm_idata_wrapper_with_intercept)
+
+        per_date = factory.contributions(component="baseline")["mean"].iloc[0]
+        periodic = factory.contributions(component="baseline", frequency=frequency)
+
+        periods_per_bucket = (
+            pd.Series(1, index=simple_dates).resample(rule).sum().to_numpy()
+        )
+        np.testing.assert_allclose(
+            periodic["mean"].to_numpy(), periods_per_bucket * per_date, rtol=1e-10
+        )
+
+    @pytest.mark.parametrize(
+        ("frequency", "aggregate"),
+        [
+            (None, lambda prediction: prediction),
+            ("monthly", lambda prediction: prediction.resample(date="ME").sum()),
+        ],
+        ids=["original", "monthly"],
+    )
+    def test_total_contribution_components_add_up_on_every_date(
+        self, mock_mmm_idata_wrapper_with_intercept, frequency, aggregate
+    ):
+        data = mock_mmm_idata_wrapper_with_intercept
+        df = MMMSummaryFactory(data).total_contribution(frequency=frequency)
+
+        per_date = df.groupby("date")["mean"].sum()
+
+        np.testing.assert_allclose(
+            per_date.to_numpy(),
+            aggregate(self._mean_prediction(data)).to_numpy(),
+            rtol=1e-10,
+        )
+
+    def test_total_contribution_all_time_adds_up_to_the_window_total(
+        self, mock_mmm_idata_wrapper_with_intercept
+    ):
+        data = mock_mmm_idata_wrapper_with_intercept
+        df = MMMSummaryFactory(data).total_contribution(frequency="all_time")
+
+        np.testing.assert_allclose(
+            df["mean"].sum(),
+            float(self._mean_prediction(data).sum("date")),
+            rtol=1e-10,
+        )
 
 
 # =============================================================================

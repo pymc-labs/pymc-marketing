@@ -14,9 +14,9 @@
 
 """Tests for fixture generation and from_idata round-trip."""
 
-import arviz as az
 import numpy as np
 import pytest
+import xarray as xr
 
 from pymc_marketing.mmm.experiment_design import (
     ExperimentDesigner,
@@ -39,7 +39,7 @@ class TestGenerateExperimentFixture:
     """Tests for generate_experiment_fixture."""
 
     def test_returns_inference_data(self, synthetic_idata):
-        assert isinstance(synthetic_idata, az.InferenceData)
+        assert isinstance(synthetic_idata, xr.DataTree)
 
     def test_has_posterior(self, synthetic_idata):
         assert hasattr(synthetic_idata, "posterior")
@@ -109,10 +109,9 @@ class TestFromIdataRoundTrip:
 
     def test_netcdf_round_trip(self, synthetic_idata, tmp_path):
         path = tmp_path / "test_fixture.nc"
-        az.to_netcdf(synthetic_idata, str(path))
-        loaded = az.from_netcdf(str(path))
-
-        designer = ExperimentDesigner.from_idata(loaded)
+        synthetic_idata.to_netcdf(path)
+        with xr.open_datatree(path) as loaded:
+            designer = ExperimentDesigner.from_idata(loaded)
         assert designer.channel_columns == ["tv", "search", "social"]
         assert designer.n_draws == 2 * 2000
 

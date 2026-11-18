@@ -109,7 +109,7 @@ mmm.plot.residuals_over_time(
 ) -> tuple[Figure, NDArray[Axes]]
 ```
 
-Plots residuals (target - predicted) over time with HDI bands. Requires `y_original_scale` in `posterior_predictive` and `target_data` in `constant_data`. Multiple HDI probabilities can be overlaid:
+Plots residuals (target - predicted) over time with HDI bands. Requires the `y` draws in `posterior_predictive` plus `target_data` and `target_scale` in `constant_data`; predictions are `y * target_scale` under every link (a registered `y_original_scale` is used when present). Multiple HDI probabilities can be overlaid:
 
 ```python
 mmm.plot.residuals_over_time(hdi_prob=[0.5, 0.85, 0.94])

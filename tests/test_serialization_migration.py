@@ -18,9 +18,20 @@ import subprocess
 import sys
 
 import numpy as np
+import pytest
 import xarray as xr
 
-from pymc_marketing.serialization_migration import CURRENT_VERSION, migrate_idata
+from pymc_marketing.data.idata.io import (
+    idata_format_from_path,
+    idata_to_zarr,
+    load_idata,
+    save_idata,
+)
+from pymc_marketing.serialization_migration import (
+    CURRENT_VERSION,
+    main,
+    migrate_idata,
+)
 
 
 def _make_v0_idata():
@@ -137,18 +148,22 @@ class TestMigrateIdataV0ToV1:
         assert migrated.attrs == original_attrs
 
 
+def _v0_tree() -> tuple[xr.DataTree, xr.Dataset]:
+    posterior = xr.Dataset({"x": xr.DataArray(np.random.randn(4, 100))})
+    idata = xr.DataTree.from_dict({"/posterior": posterior})
+    idata.attrs["model_type"] = "MMM"
+    idata.attrs["version"] = "0.0.1"
+    idata.attrs["adstock"] = json.dumps({"lookup_name": "geometric", "l_max": 4})
+    return idata, posterior
+
+
 class TestMigrateIdataCLI:
     """Verify the CLI entry point."""
 
-    def test_cli_migrates_file(self, tmp_path):
+    def test_module_entry_point_runs(self, tmp_path):
         """python -m pymc_marketing.serialization_migration <file> should migrate in-place."""
-        posterior = xr.Dataset({"x": xr.DataArray(np.random.randn(4, 100))})
-        idata = xr.DataTree.from_dict({"/posterior": posterior})
-        idata.attrs["model_type"] = "MMM"
-        idata.attrs["version"] = "0.0.1"
-        idata.attrs["adstock"] = json.dumps({"lookup_name": "geometric", "l_max": 4})
-        fname = tmp_path / "model.nc"
-        idata.to_netcdf(str(fname))
+        idata, _ = _v0_tree()
+        fname = save_idata(idata, tmp_path / "model.nc")
 
         result = subprocess.run(  # noqa: S603
             [
@@ -160,7 +175,42 @@ class TestMigrateIdataCLI:
             capture_output=True,
             text=True,
         )
-        assert result.returncode == 0
 
-        reloaded = xr.open_datatree(fname)
+        assert result.returncode == 0, result.stderr
+        assert "__serialization_version__" in load_idata(fname).attrs
+
+    @pytest.mark.parametrize(
+        "write",
+        [
+            lambda idata, d: save_idata(idata, d / "model.nc"),
+            lambda idata, d: save_idata(idata, d / "model.zarr"),
+            lambda idata, d: idata_to_zarr(idata, d / "store") or d / "store",
+        ],
+        ids=["netcdf", "zarr", "zarr-without-suffix"],
+    )
+    def test_migrates_in_place_and_keeps_the_format(self, tmp_path, monkeypatch, write):
+        idata, posterior = _v0_tree()
+        fname = write(idata, tmp_path)
+        format_before = idata_format_from_path(fname)
+        monkeypatch.setattr(sys, "argv", ["migrate", str(fname)])
+
+        main()
+
+        reloaded = load_idata(fname)
+        assert idata_format_from_path(fname) == format_before
         assert "__serialization_version__" in reloaded.attrs
+        np.testing.assert_array_equal(
+            reloaded["posterior"]["x"].values, posterior["x"].values
+        )
+        assert [p.name for p in tmp_path.iterdir()] == [fname.name]
+
+    def test_already_migrated_file_is_left_alone(self, tmp_path, monkeypatch, capsys):
+        idata, _ = _v0_tree()
+        fname = save_idata(migrate_idata(idata), tmp_path / "model.nc")
+        mtime = fname.stat().st_mtime_ns
+        monkeypatch.setattr(sys, "argv", ["migrate", str(fname)])
+
+        main()
+
+        assert "nothing to do" in capsys.readouterr().out
+        assert fname.stat().st_mtime_ns == mtime

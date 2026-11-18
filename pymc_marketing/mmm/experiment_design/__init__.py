@@ -23,7 +23,7 @@ ExperimentRecommendation
 ExperimentRecommendations
     Sequence container returned by ``ExperimentDesigner.recommend()``.
 generate_experiment_fixture
-    Utility for generating realistic InferenceData test fixtures.
+    Utility for generating realistic xarray DataTree test fixtures.
 """
 
 from pymc_marketing.mmm.experiment_design.designer import ExperimentDesigner
