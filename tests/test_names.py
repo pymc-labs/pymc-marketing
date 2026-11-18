@@ -24,9 +24,9 @@ from typing import get_args
 import pytest
 
 from pymc_marketing import names
-from pymc_marketing.names import bass, clv, customer_choice, mmm
+from pymc_marketing.names import bass, clv, conversion, customer_choice, mmm
 
-MODULES = [names, mmm, clv, customer_choice, bass]
+MODULES = [names, mmm, clv, customer_choice, bass, conversion]
 
 # Public module-level names that are not classes.
 MODULE_LEVEL = {
@@ -41,8 +41,18 @@ MODULE_LEVEL = {
     clv: {"NewCustomerVar", "NEW_CUSTOMER_VARS"},
     customer_choice: set(),
     bass: set(),
+    conversion: set(),
 }
-IMPORTED = {"Final", "Literal", "names", "bass", "clv", "customer_choice", "mmm"}
+IMPORTED = {
+    "Final",
+    "Literal",
+    "names",
+    "bass",
+    "clv",
+    "conversion",
+    "customer_choice",
+    "mmm",
+}
 
 SHARED_ATTR = {
     "ID": "id",
@@ -215,6 +225,13 @@ EXPECTED = {
         "Y": "y",
         "Y_OBS": "y_obs",
     },
+    (conversion, "Col"): {"STAGE": "stage", "COUNT": "count"},
+    (conversion, "Dim"): {"STEP": "step"},
+    (conversion, "Var"): {
+        "ENTERED": "entered",
+        "CONVERTED": "converted",
+        "Y": "y",
+    },
 }
 
 CASES = [
@@ -240,7 +257,7 @@ def test_values_are_unique_within_a_class(module, class_name) -> None:
 
 def test_every_names_module_is_pinned() -> None:
     found = {module.name for module in pkgutil.iter_modules(names.__path__)}
-    assert found == {"bass", "clv", "customer_choice", "mmm"}
+    assert found == {"bass", "clv", "conversion", "customer_choice", "mmm"}
 
 
 @pytest.mark.parametrize("module", MODULES)

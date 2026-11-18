@@ -57,6 +57,7 @@ SCOPES = {
     "clv": "clv",
     "customer_choice": "customer_choice",
     "bass": "bass",
+    "conversion": "conversion",
 }
 SHARED = "shared"
 
@@ -102,6 +103,9 @@ ALLOWED: dict[str, dict[str, tuple[str, int]]] = {
     },
     "clv/utils.py": {
         "customer_id": (_DEFAULT, 1),
+    },
+    "conversion/funnel.py": {
+        "step": (_COLUMN, 1),
     },
     "customer_choice/_choice_data_mixin.py": {
         "covariates": (_KEYWORD, 1),
