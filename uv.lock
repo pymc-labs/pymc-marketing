@@ -4849,7 +4849,6 @@ dag = [
 ]
 docs = [
     { name = "blackjax" },
-    { name = "causalpy" },
     { name = "dowhy", version = "0.12", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13'" },
     { name = "dowhy", version = "0.14", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
     { name = "fastprogress" },
@@ -4932,6 +4931,14 @@ dev = [
     { name = "pandas-stubs" },
     { name = "pyyaml" },
 ]
+geolift-notebook = [
+    { name = "causalpy" },
+    { name = "graphviz" },
+    { name = "ipykernel" },
+    { name = "nutpie" },
+    { name = "papermill" },
+    { name = "watermark" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -4940,7 +4947,6 @@ requires-dist = [
     { name = "arviz-stats", specifier = ">=1.2.0,<2.0" },
     { name = "blackjax", marker = "extra == 'docs'", specifier = "<1.6" },
     { name = "blackjax", marker = "extra == 'test'", specifier = "<1.6" },
-    { name = "causalpy", marker = "extra == 'docs'", specifier = ">=1.0.0rc1,<2" },
     { name = "coverage", marker = "extra == 'test'", specifier = ">=7.1" },
     { name = "dowhy", marker = "extra == 'dag'" },
     { name = "dowhy", marker = "extra == 'docs'" },
@@ -4975,7 +4981,7 @@ requires-dist = [
     { name = "numpydoc", marker = "extra == 'docs'" },
     { name = "numpyro", marker = "extra == 'docs'" },
     { name = "numpyro", marker = "extra == 'test'" },
-    { name = "nutpie", marker = "extra == 'docs'", specifier = ">=0.16.11" },
+    { name = "nutpie", marker = "extra == 'docs'", specifier = ">=0.16.7" },
     { name = "nutpie", marker = "extra == 'test'", specifier = ">=0.16.7" },
     { name = "packaging" },
     { name = "pandas", specifier = ">=2.2" },
@@ -5031,6 +5037,14 @@ dev = [
     { name = "mypy", specifier = ">=2.1.0" },
     { name = "pandas-stubs", specifier = ">=3.0.3.260530" },
     { name = "pyyaml", specifier = ">=6.0.3" },
+]
+geolift-notebook = [
+    { name = "causalpy", specifier = "==1.0.0rc1" },
+    { name = "graphviz" },
+    { name = "ipykernel" },
+    { name = "nutpie", specifier = ">=0.16.11" },
+    { name = "papermill" },
+    { name = "watermark" },
 ]
 
 [[package]]

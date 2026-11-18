@@ -199,7 +199,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::
 
 :::{grid-item-card} MMM Calibration with Multi-Arm Geo Lift Tests
-:img-top: ../gallery/images/mmm_multi_arm_geolift_calibration.png
+:img-top: ../gallery/images/mmm_multi_arm_geolift_arm_effects.png
 :link: ../notebooks/mmm/mmm_multi_arm_geolift_calibration.html
 :::
 
