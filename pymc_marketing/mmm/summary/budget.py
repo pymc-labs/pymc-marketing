@@ -72,7 +72,7 @@ def prepare_allocation_roas(
         )
 
     roas_da = (
-        samples[Var.CHANNEL_CONTRIBUTION_ORIGINAL_SCALE].sum("date")
+        samples[Var.CHANNEL_CONTRIBUTION_ORIGINAL_SCALE].sum(Dim.DATE)
         / samples[Var.TOTAL_ALLOCATION]
     )
     roas_da.name = "roas"

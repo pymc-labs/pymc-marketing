@@ -36,7 +36,7 @@ from pytensor.xtensor.type import XTensorVariable
 from scipy.special import erfcx
 from scipy.stats import truncnorm
 
-from pymc_marketing.names.mmm import Var
+from pymc_marketing.names.mmm import Dim, Var
 
 if TYPE_CHECKING:
     import pymc as pm
@@ -1014,7 +1014,7 @@ class IdentityLinkSpec(LinkSpec):
         return Prior(
             "Normal",
             sigma=Prior("HalfNormal", sigma=2, dims=dims),
-            dims=("date", *dims),
+            dims=(Dim.DATE, *dims),
         )
 
     def default_intercept(self, dims: tuple[str, ...]) -> Prior:
@@ -1041,7 +1041,7 @@ class IdentityLinkSpec(LinkSpec):
         """Register additive ``total_media_contribution_original_scale``."""
         pmd.Deterministic(
             Var.TOTAL_MEDIA_CONTRIBUTION_ORIGINAL_SCALE,
-            (channel_contribution.sum(dim="date") * target_scale).sum(),
+            (channel_contribution.sum(dim=Dim.DATE) * target_scale).sum(),
         )
 
     def channel_incremental_contribution(
@@ -1346,7 +1346,7 @@ class LogLinkSpec(LinkSpec):
         return Prior(
             "LogNormal",
             sigma=Prior("HalfNormal", sigma=0.5, dims=dims),
-            dims=("date", *dims),
+            dims=(Dim.DATE, *dims),
         )
 
     def default_intercept(self, dims: tuple[str, ...]) -> Prior:
@@ -1403,16 +1403,16 @@ class LogLinkSpec(LinkSpec):
         It is not the output variable: ``y_original_scale`` stays
         ``y * target_scale``, the predictive draws with observation noise.
         """
-        mu_media = channel_contribution.sum(dim="channel")
+        mu_media = channel_contribution.sum(dim=Dim.CHANNEL)
         y_hat = ptxm.exp(mu_var) * target_scale
         y_hat_no_media = ptxm.exp(mu_var - mu_media) * target_scale
 
         pmd.Deterministic(
             Var.TOTAL_MEDIA_CONTRIBUTION_ORIGINAL_SCALE,
-            (y_hat - y_hat_no_media).sum(dim="date").sum(),
+            (y_hat - y_hat_no_media).sum(dim=Dim.DATE).sum(),
         )
 
-        pmd.Deterministic(Var.MU_ORIGINAL_SCALE, y_hat.transpose("date", ...))
+        pmd.Deterministic(Var.MU_ORIGINAL_SCALE, y_hat.transpose(Dim.DATE, ...))
 
     def channel_incremental_contribution(
         self,

@@ -39,7 +39,7 @@ from scipy.stats import halfnorm
 
 from pymc_marketing.mmm.additive_effect import MuEffect, safe_to_datetime
 from pymc_marketing.mmm.link import LinkFunction
-from pymc_marketing.names.mmm import DatasetVar, Var, effect_contribution_name
+from pymc_marketing.names.mmm import DatasetVar, Dim, Var, effect_contribution_name
 from pymc_marketing.serialization import (
     DeserializationContext,
     SerializationError,
@@ -944,7 +944,7 @@ class VARBaselineEffect(MuEffect):
                 latent_init_sigma=latent_init_sigma,
             )
 
-        baseline = ptx.as_xtensor(handles.latent[:, 0], dims=("date",))
+        baseline = ptx.as_xtensor(handles.latent[:, 0], dims=(Dim.DATE,))
         return pmd.Deterministic(
             effect_contribution_name(self.prefix), baseline / target_scale
         )
@@ -1229,7 +1229,7 @@ class VARBaselineEffect(MuEffect):
             endog_names=self.endog_names,
             exog=columns[self.exog_names].to_numpy() if self.exog_names else None,
             exog_names=self.exog_names or None,
-            index=safe_to_datetime(mmm.model.coords["date"], "date"),
+            index=safe_to_datetime(mmm.model.coords[Dim.DATE], Dim.DATE),
         )
 
     @property
@@ -1285,7 +1285,7 @@ class VARBaselineEffect(MuEffect):
                 "MMM stores naive dates; drop the time zone with "
                 ".dt.tz_localize(None)."
             )
-        mmm_dates = safe_to_datetime(mmm.model.coords["date"], "date")
+        mmm_dates = safe_to_datetime(mmm.model.coords[Dim.DATE], Dim.DATE)
 
         # Rows on other dates may repeat a date, which `get_indexer` refuses, so they
         # are dropped first.
