@@ -5078,11 +5078,11 @@ class Incrementality:
         if reach.requires_full_axis:
             note = (
                 "The spend probe could not bound the perturbation's reach, so each "
-                "period was evaluated on the full date axis.  There is no "
-                "measured carryover horizon: observed=False marks the longest lag "
-                "the probe measured for a node that stopped moving before the "
-                "last date, or the adstock kernel's own trailing lags if longer, "
-                "past the fitted axis, a lower bound on what the data cannot show."
+                "period was evaluated on the full date axis.  No horizon bounds "
+                "every node, so observed=False marks the longest lag the probe "
+                "measured for a node that stopped moving before the last date, or "
+                "the adstock kernel's own trailing lags if longer: a lower bound "
+                "on what the data cannot show."
             )
             if self.model.adstock.mode == ConvMode.After:
                 # Under a leading kernel the dates before a period are kept, and

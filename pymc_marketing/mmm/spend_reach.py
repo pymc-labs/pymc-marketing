@@ -1719,6 +1719,7 @@ class SpendProbe:
                     additional_carryover_lags=lags,
                     requires_full_axis=requires_full_axis,
                     max_lag=own.max_lag,
+                    reaches_axis_end=own.reaches_axis_end,
                 )
             )
 
