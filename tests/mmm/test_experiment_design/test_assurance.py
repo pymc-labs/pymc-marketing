@@ -30,9 +30,6 @@ from pymc_marketing.mmm.experiment_design import (
     ExperimentDesigner,
     generate_experiment_fixture,
 )
-from pymc_marketing.mmm.experiment_design.fixture import (
-    _logistic_saturation_np,
-)
 
 
 @pytest.fixture(scope="module")
@@ -65,7 +62,7 @@ class TestAssuranceCalibration:
         the detection threshold should be within ±0.10 of the reported
         assurance.
         """
-        designer, true_params, _idata = fixture_with_truth
+        designer, true_params, idata = fixture_with_truth
         channel = "search"
         frac = 0.3
         T = 6
@@ -83,6 +80,8 @@ class TestAssuranceCalibration:
         )
 
         p = true_params[channel]
+        lam = p["lam"] * idata.constant_data.channel_scale.sel(channel=channel).item()
+        beta = p["beta"] / idata.constant_data.target_scale.item()
         true_alpha = p["alpha"]
         l_max = designer.l_max
 
@@ -95,10 +94,8 @@ class TestAssuranceCalibration:
             partial = (1 - alpha_safe ** (t + 1)) / (1 - alpha_safe)
             ramp = partial / S
             effective = x_ss_true + delta_x * ramp
-            weekly_lift = (
-                p["beta"] * _logistic_saturation_np(np.array([effective]), p["lam"])[0]
-                - p["beta"]
-                * _logistic_saturation_np(np.array([x_ss_true]), p["lam"])[0]
+            weekly_lift = beta * (
+                np.tanh(lam * effective / 2) - np.tanh(lam * x_ss_true / 2)
             )
             true_total_lift += weekly_lift
 
@@ -132,8 +129,8 @@ class TestChannelRanking:
             posterior = idata.posterior.sel(channel=ch)
             spend = idata.constant_data.current_weekly_spend.sel(channel=ch).item()
             # At steady state, normalized adstock leaves constant spend unchanged.
-            response = posterior.saturation_beta.values * _logistic_saturation_np(
-                spend, posterior.saturation_lam.values
+            response = posterior.saturation_beta.values * np.tanh(
+                spend * posterior.saturation_lam.values / 2
             )
             lower, upper = az.hdi(response.ravel(), prob=0.94)
             uncertainties[ch] = upper - lower

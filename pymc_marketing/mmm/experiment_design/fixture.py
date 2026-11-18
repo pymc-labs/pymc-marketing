@@ -21,18 +21,18 @@ that hand-crafted distributions cannot replicate.
 
 from __future__ import annotations
 
-import warnings
-
 import numpy as np
 import xarray as xr
+from pytensor.xtensor import as_xtensor
 
+from pymc_marketing.mmm.experiment_design._statistics import residual_statistics
+from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
 from pymc_marketing.names.mmm import Dim, Var
 
 
 def _simulate_spend(
     n_weeks: int,
     n_channels: int,
-    channel_names: list[str],
     correlation_matrix: np.ndarray | None = None,
     rng: np.random.Generator | None = None,
 ) -> np.ndarray:
@@ -44,8 +44,6 @@ def _simulate_spend(
         Number of weeks.
     n_channels : int
         Number of channels.
-    channel_names : list[str]
-        Channel names (for labelling).
     correlation_matrix : np.ndarray | None
         Desired correlation matrix. If None, uses moderate correlation.
     rng : np.random.Generator | None
@@ -74,25 +72,15 @@ def _simulate_spend(
     return spend
 
 
-def _geometric_adstock_np(
-    x: np.ndarray, alpha: float, l_max: int, normalize: bool = True
-) -> np.ndarray:
-    """Apply geometric adstock to a 1-D series (numpy)."""
-    n = len(x)
-    weights = alpha ** np.arange(l_max)
-    if normalize:
-        weights = weights / weights.sum()
-
-    out = np.zeros(n)
-    for t in range(n):
-        for lag in range(min(l_max, t + 1)):
-            out[t] += weights[lag] * x[t - lag]
-    return out
-
-
-def _logistic_saturation_np(x: np.ndarray, lam: float) -> np.ndarray:
-    """Numpy logistic saturation (without beta scaling)."""
-    return (1.0 - np.exp(-lam * x)) / (1.0 + np.exp(-lam * x))
+def _validate_transformations(saturation: str, adstock: str) -> None:
+    if saturation != "logistic":
+        raise NotImplementedError(
+            f"Saturation {saturation!r} is unsupported; use 'logistic'."
+        )
+    if adstock != "geometric":
+        raise NotImplementedError(
+            f"Adstock {adstock!r} is unsupported; use 'geometric'."
+        )
 
 
 def generate_experiment_fixture(
@@ -107,10 +95,10 @@ def generate_experiment_fixture(
     normalize: bool = True,
     seed: int = 42,
     fit_model: bool = True,
-    n_chains: int = 2,
-    n_draws: int = 2000,
-    n_tune: int = 1000,
-    target_accept: float = 0.9,
+    n_chains: int | None = None,
+    n_draws: int | None = None,
+    *,
+    spend_lookback: int = 8,
 ) -> xr.DataTree:
     """Generate a realistic xr.DataTree fixture for testing.
 
@@ -144,14 +132,13 @@ def generate_experiment_fixture(
         If True, fits an actual MMM (slow, 2-5 minutes). If False,
         creates synthetic posterior samples from the true parameters
         with added noise (fast, for testing).
-    n_chains : int
-        Number of MCMC chains (only used if ``fit_model=True``).
-    n_draws : int
-        Number of MCMC draws per chain (only used if ``fit_model=True``).
-    n_tune : int
-        Number of tuning steps (only used if ``fit_model=True``).
-    target_accept : float
-        Target acceptance rate (only used if ``fit_model=True``).
+    n_chains : int | None
+        Number of synthetic chains. Defaults to two in synthetic mode.
+    n_draws : int | None
+        Number of draws per synthetic chain. Defaults to 2,000 in synthetic
+        mode. Leave both counts unset when fitting an MMM.
+    spend_lookback : int
+        Number of recent weeks used for the current spend in the fixture.
 
     Returns
     -------
@@ -159,6 +146,11 @@ def generate_experiment_fixture(
         An xarray DataTree suitable for
         :meth:`ExperimentDesigner.from_idata`.
     """
+    _validate_transformations(saturation, adstock)
+    if fit_model and (n_chains is not None or n_draws is not None):
+        raise ValueError("n_chains and n_draws only apply to synthetic draws.")
+    if spend_lookback < 1:
+        raise ValueError("spend_lookback must be positive.")
     if channels is None:
         channels = ["tv", "search", "social"]
     n_channels = len(channels)
@@ -172,65 +164,61 @@ def generate_experiment_fixture(
 
     rng = np.random.default_rng(seed)
 
-    spend = _simulate_spend(n_weeks, n_channels, channels, rng=rng)
-
-    y = np.full(n_weeks, intercept)
-    for i, ch in enumerate(channels):
-        p = true_params[ch]
-        adstocked = _geometric_adstock_np(spend[:, i], p["alpha"], l_max, normalize)
-        saturated = _logistic_saturation_np(adstocked, p["lam"])
-        y += p["beta"] * saturated
-
-    y += rng.normal(0, noise_std, n_weeks)
-
-    spend_corr = np.corrcoef(spend.T)
-    if spend_corr.ndim == 0:
-        spend_corr = spend_corr.reshape(1, 1)
-
-    max_spend = np.max(np.abs(spend), axis=0)
-    spend_scaled = spend / max_spend
-    max_y = np.max(np.abs(y))
-    y_scaled = y / max_y
-
-    current_spend = np.mean(spend_scaled[-8:], axis=0)
-
-    y_pred_true = np.full(n_weeks, intercept / max_y)
-    for i, ch in enumerate(channels):
-        p = true_params[ch]
-        adstocked = _geometric_adstock_np(
-            spend_scaled[:, i], p["alpha"], l_max, normalize
+    spend = _simulate_spend(n_weeks, n_channels, rng=rng)
+    params = {
+        key: np.array([true_params[ch][key] for ch in channels])
+        for key in ("alpha", "lam", "beta")
+    }
+    adstocked = geometric_adstock(
+        as_xtensor(spend, dims=(Dim.DATE, Dim.CHANNEL)),
+        alpha=as_xtensor(params["alpha"], dims=(Dim.CHANNEL,)),
+        l_max=l_max,
+        normalize=normalize,
+        dim=Dim.DATE,
+    )
+    response = (
+        logistic_saturation(
+            adstocked, lam=as_xtensor(params["lam"], dims=(Dim.CHANNEL,))
         )
-        saturated = _logistic_saturation_np(adstocked, p["lam"])
-        y_pred_true += (p["beta"] / max_y) * saturated
+        .transpose(Dim.DATE, Dim.CHANNEL)
+        .values.eval()
+    )
+    noise = rng.normal(0, noise_std, n_weeks)
+    y = intercept + response @ params["beta"] + noise
 
-    residuals = y_scaled - y_pred_true
-    residual_std = float(np.std(residuals))
-    if len(residuals) > 2:
-        residual_autocorr = float(np.corrcoef(residuals[:-1], residuals[1:])[0, 1])
-    else:
-        residual_autocorr = 0.0
-
+    spend_corr = np.atleast_2d(np.corrcoef(spend.T))
     if fit_model:
-        idata = _fit_mmm_for_fixture(
-            spend,
-            y,
-            channels,
-            l_max,
-            normalize,
-            seed,
-            n_chains,
-            n_draws,
-            n_tune,
-            target_accept,
-        )
+        idata = _fit_mmm_for_fixture(spend, y, channels, l_max, normalize, seed)
+        spend_scale = idata.constant_data[Var.CHANNEL_SCALE].values
+        target_scale = float(idata.constant_data[Var.TARGET_SCALE].item())
     else:
+        spend_scale = np.max(np.abs(spend), axis=0)
+        target_scale = float(np.max(np.abs(y))) or 1.0
+        scaled_params = {
+            ch: {
+                "lam": true_params[ch]["lam"] * spend_scale[i],
+                "beta": true_params[ch]["beta"] / target_scale,
+                "alpha": true_params[ch]["alpha"],
+            }
+            for i, ch in enumerate(channels)
+        }
         idata = _create_synthetic_posterior(
             channels,
-            true_params,
+            scaled_params,
             rng,
-            n_draws,
-            n_chains,
+            n_draws=n_draws if n_draws is not None else 2000,
+            n_chains=n_chains if n_chains is not None else 2,
         )
+        idata["constant_data"] = xr.Dataset(
+            {
+                Var.CHANNEL_SCALE: ((Dim.CHANNEL,), spend_scale),
+                Var.TARGET_SCALE: target_scale,
+            },
+            coords={Dim.CHANNEL: channels},
+        )
+
+    current_spend = (spend[-spend_lookback:] / spend_scale).mean(axis=0)
+    residual_std, residual_autocorr = residual_statistics(noise / target_scale)
 
     constant_data = xr.Dataset(
         {
@@ -291,7 +279,7 @@ def _create_synthetic_posterior(
         )
         beta_arr[:, :, i] = np.maximum(
             p["beta"] + rng.normal(0, p["beta"] * 0.15, (n_chains, n_draws)),
-            0.01,
+            0.0,
         )
         alpha_arr[:, :, i] = np.clip(
             p["alpha"] + rng.normal(0, 0.05, (n_chains, n_draws)),
@@ -341,21 +329,11 @@ def _fit_mmm_for_fixture(
     l_max: int,
     normalize: bool,
     seed: int,
-    n_chains: int,
-    n_draws: int,
-    n_tune: int,
-    target_accept: float,
 ) -> xr.DataTree:
     """Fit a PyMC-Marketing MMM on simulated data."""
-    try:
-        import pandas as pd
+    import pandas as pd
 
-        from pymc_marketing.mmm import MMM, GeometricAdstock, LogisticSaturation
-    except ImportError as e:
-        raise ImportError(
-            "PyMC-Marketing must be installed to fit an MMM fixture. "
-            "Use fit_model=False for synthetic posteriors."
-        ) from e
+    from pymc_marketing.mmm import MMM, GeometricAdstock, LogisticSaturation
 
     dates = pd.date_range("2020-01-06", periods=len(y), freq="W-MON")
     df = pd.DataFrame(spend, columns=channels)
@@ -373,12 +351,4 @@ def _fit_mmm_for_fixture(
         saturation=LogisticSaturation(),
     )
 
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        mmm.fit(
-            X,
-            y_series,
-            random_seed=seed,
-        )
-
-    return mmm.idata
+    return mmm.fit(X, y_series, random_seed=seed)

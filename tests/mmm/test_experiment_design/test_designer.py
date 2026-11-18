@@ -75,125 +75,73 @@ class TestExperimentDesignerInit:
 class TestInitFromMMM:
     """Tests for ExperimentDesigner.__init__(mmm) constructor path."""
 
-    @staticmethod
-    def _make_mock_mmm(
-        channels=None,
-        true_params=None,
-        predict_fn=None,
-        spend_correlation_ok=True,
-        idata_present=True,
-        adstock_first=True,
-    ):
-        """Build a mock MMM with a real PyMC model for __init__ tests."""
-        from types import SimpleNamespace
-
+    @pytest.fixture(scope="class")
+    @classmethod
+    def fitted_mmm(cls):
         import pandas as pd
-        import pymc as pm
-        import pymc.dims as pmd
 
-        from pymc_marketing.mmm.components.adstock import GeometricAdstock
-        from pymc_marketing.mmm.components.saturation import LogisticSaturation
+        from pymc_marketing.mmm import MMM, GeometricAdstock, LogisticSaturation
 
-        if channels is None:
-            channels = ["ch1", "ch2"]
-        if true_params is None:
-            true_params = {
-                "ch1": {"lam": 1.0, "beta": 2.0, "alpha": 0.5},
-                "ch2": {"lam": 0.5, "beta": 1.0, "alpha": 0.3},
+        rng = np.random.default_rng(8)
+        n_dates = 35
+        spend = rng.uniform(1, 8, n_dates)
+        x = pd.DataFrame(
+            {
+                "date": pd.date_range("2025-01-01", periods=n_dates, freq="W"),
+                "tv": spend,
             }
-
-        idata = generate_experiment_fixture(
-            channels=channels,
-            true_params=true_params,
-            fit_model=False,
-            seed=42,
         )
-
-        n_channels = len(channels)
-        l_max = 8
-        T_dummy = l_max + 4
-        rng = np.random.default_rng(42)
-
-        adstock_obj = GeometricAdstock(l_max=l_max, normalize=True)
-        saturation_obj = LogisticSaturation()
-        adstock_obj.set_dims_for_all_priors(("channel",))
-        saturation_obj.set_dims_for_all_priors(("channel",))
-
-        with pm.Model(
-            coords={"channel": channels, "date": np.arange(T_dummy)}
-        ) as model:
-            channel_data = pmd.Data(
-                "channel_data",
-                value=rng.exponential(size=(T_dummy, n_channels)) * 0.5,
-                dims=("date", "channel"),
-            )
-            adstocked = adstock_obj.apply(x=channel_data, core_dim="date")
-            contribution = saturation_obj.apply(x=adstocked, core_dim="date")
-            pmd.Deterministic(
-                "channel_contribution", contribution, dims=("date", "channel")
-            )
-
-        X = pd.DataFrame(rng.normal(size=(T_dummy, n_channels)), columns=channels)
-        y = pd.Series(rng.normal(size=T_dummy))
-
-        if predict_fn is None:
-            predict_fn = lambda x: np.zeros(len(x))  # noqa: E731
-
-        mmm = SimpleNamespace(
-            idata=idata if idata_present else None,
-            model=model,
-            channel_columns=channels,
-            adstock=SimpleNamespace(l_max=l_max, normalize=True),
-            adstock_first=adstock_first,
-            X=X,
-            y=y,
-            predict=predict_fn,
+        response = 10_000 + 4_500 * np.tanh(spend / 5) + rng.normal(0, 50, n_dates)
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["tv"],
+            target_column="response",
+            adstock=GeometricAdstock(l_max=1),
+            saturation=LogisticSaturation(),
         )
-        if not spend_correlation_ok:
-            mmm.X = "not-a-dataframe"
-
+        mmm.fit(x, response, random_seed=8)
         return mmm
 
-    def test_happy_path(self):
-        mmm = self._make_mock_mmm()
-        designer = ExperimentDesigner(mmm)
-        assert designer.channel_columns == ["ch1", "ch2"]
-        assert designer.l_max == 8
-        assert designer.normalize is True
-        assert designer.n_draws > 0
-        assert callable(designer._eval_fn)
+    def test_fitted_mmm_uses_same_units_without_mutating_idata(self, fitted_mmm):
+        import xarray as xr
+
+        idata = fitted_mmm.idata
+        before = idata.copy(deep=True)
+        designer = ExperimentDesigner(fitted_mmm, spend_lookback=5)
+        recommendations = designer.recommend(
+            spend_changes=[0.2], durations=[4], min_snr=0.5
+        )
+        xr.testing.assert_identical(idata, before)
+        assert designer.channel_columns == ["tv"]
+        raw_spend = idata.constant_data.channel_data.isel(date=slice(-5, None)).values
+        scaled_predictions = idata.posterior.mu.mean(("chain", "draw")).values
+        target_scale = idata.constant_data.target_scale.item()
+        residual = np.asarray(fitted_mmm.y) / target_scale - scaled_predictions
+        assert designer._residual_std == pytest.approx(residual.std())
+        (recommendation,) = recommendations
+        assert recommendation.spend_change_abs == pytest.approx(0.2 * raw_spend.mean())
+        assert recommendation.net_cost == pytest.approx(
+            4 * recommendation.spend_change_abs
+        )
+        assert 0.5 < recommendation.snr < 100
 
     def test_unfitted_mmm_raises(self):
-        mmm = self._make_mock_mmm(idata_present=False)
+        from types import SimpleNamespace
+
         with pytest.raises(ValueError, match="fitted"):
-            ExperimentDesigner(mmm)
+            ExperimentDesigner(SimpleNamespace(idata=None))
 
-    def test_adstock_first_false_raises(self):
-        mmm = self._make_mock_mmm(adstock_first=False)
+    def test_unsupported_mmm_raises(self, fitted_mmm, monkeypatch):
+        monkeypatch.setattr(fitted_mmm, "adstock_first", False)
         with pytest.raises(NotImplementedError, match="adstock_first"):
-            ExperimentDesigner(mmm)
+            ExperimentDesigner(fitted_mmm)
 
-    def test_residual_fallback_on_predict_error(self):
-        def bad_predict(x):
-            raise RuntimeError("predict failed")
-
-        mmm = self._make_mock_mmm(predict_fn=bad_predict)
-        with pytest.warns(UserWarning, match="residual"):
-            designer = ExperimentDesigner(mmm)
-        assert designer._residual_std == 1.0
-        assert designer._residual_autocorr == 0.0
-
-    def test_spend_correlation_fallback(self):
-        mmm = self._make_mock_mmm(spend_correlation_ok=False)
-        with pytest.warns(UserWarning, match="correlation"):
-            designer = ExperimentDesigner(mmm)
-        assert designer._spend_correlation is None
-
-    def test_recommend_runs(self):
-        mmm = self._make_mock_mmm()
-        designer = ExperimentDesigner(mmm)
-        recs = designer.recommend(spend_changes=[0.2], durations=[4], min_snr=0.0)
-        assert len(recs) > 0
+    def test_mismatched_observations_raise(self, fitted_mmm, monkeypatch):
+        idata = fitted_mmm.idata.copy()
+        idata["observed_data"] = idata.observed_data.dataset.isel(date=slice(1, None))
+        monkeypatch.setattr(fitted_mmm, "idata", idata)
+        with pytest.raises(ValueError, match="exact"):
+            ExperimentDesigner(fitted_mmm)
 
 
 class TestAdstockRamp:
@@ -315,11 +263,10 @@ class TestRecommend:
             durations=[4],
             min_snr=0.0,
         )
-        recs_high = designer.recommend(
-            spend_changes=[0.2],
-            durations=[4],
-            min_snr=100.0,
-        )
+        with pytest.warns(UserWarning, match="Best absolute SNR"):
+            recs_high = designer.recommend(
+                spend_changes=[0.2], durations=[4], min_snr=100.0
+            )
         assert len(recs_high) <= len(recs_low)
 
     def test_go_dark_has_frac_minus_1(self, designer):
@@ -366,12 +313,50 @@ class TestRecommend:
             scores = [r.score for r in recs]
             assert scores == sorted(scores, reverse=True)
 
-    def test_empty_result_when_nothing_passes_filter(self, designer):
-        recs = designer.recommend(
-            spend_changes=[0.001],
-            durations=[1],
-            min_snr=1000.0,
+    def test_partial_weights_rank_by_assurance_only(self, designer):
+        scores = designer._compute_scores(
+            np.array([0.4, 0.8, 0.6]), np.array([1.0, 20.0, 2.0]), {"assurance": 1}
         )
+        np.testing.assert_allclose(scores, [0, 1, 0.5])
+
+    def test_unknown_weight_raises(self, designer):
+        with pytest.raises(ValueError, match=r"Unknown score weights.*uncertainty"):
+            designer.recommend(score_weights={"uncertainty": 1})
+
+    def test_invalid_significance_level_raises(self, designer):
+        with pytest.raises(ValueError, match="significance_level"):
+            designer.recommend(significance_level=0)
+
+    def test_free_intervention_has_highest_efficiency(self, designer):
+        scores = designer._compute_scores(
+            np.array([0.4, 0.8, 0.6]), np.array([1.0, 0.0, 2.0]), {"cost_efficiency": 1}
+        )
+        assert scores[1] > scores[0] > scores[2]
+
+    def test_zero_spend_change_is_not_a_candidate(self, designer):
+        assert not designer.recommend(spend_changes=[0], durations=[4], min_snr=0)
+
+    def test_baselines_are_evaluated_once_per_horizon(self, designer, monkeypatch):
+        calls = {}
+        evaluate = designer._eval_contributions
+        baseline_row = designer._make_spend_array(1)[0]
+
+        def tracked(spend):
+            if len(spend) in (designer.l_max + 4, designer.l_max + 8) and np.all(
+                spend == baseline_row
+            ):
+                calls[len(spend)] = calls.get(len(spend), 0) + 1
+            return evaluate(spend)
+
+        monkeypatch.setattr(designer, "_eval_contributions", tracked)
+        designer.recommend(spend_changes=[0.2, -0.2], durations=[4, 8], min_snr=0)
+        assert calls == {designer.l_max + 4: 1, designer.l_max + 8: 1}
+
+    def test_empty_result_when_nothing_passes_filter(self, designer):
+        with pytest.warns(UserWarning, match=r"min_snr=1000.*Best absolute SNR"):
+            recs = designer.recommend(
+                spend_changes=[0.001], durations=[1], min_snr=1000.0
+            )
         assert len(recs) == 0
 
 
@@ -449,7 +434,9 @@ class TestAutocorrelationCorrection:
         """Verify the AR(1) correction factor for a known rho."""
         designer._residual_autocorr = 0.5
         sigma = designer._effective_sigma(8)
-        expected = designer._residual_std * np.sqrt(8 * (1.5 / 0.5))
+        expected = designer._residual_std * np.sqrt(
+            sum(0.5 ** abs(i - j) for i in range(8) for j in range(8))
+        )
         assert sigma == pytest.approx(expected)
 
     def test_residual_autocorr_loaded_from_fixture(self, designer):
@@ -568,32 +555,14 @@ class TestCorrelationWarning:
         assert "Caution" in rationale
         assert "identification" in rationale
 
-    def test_low_correlation_no_warning(self):
-        """Rationale does NOT include caution when correlation is low."""
-        from pymc_marketing.mmm.experiment_design.recommendation import (
-            _format_rationale,
-        )
+    def test_low_correlation_not_described_as_high(self, designer, monkeypatch):
+        import pandas as pd
 
-        rec = ExperimentRecommendation(
-            channel="tv",
-            spend_change_frac=0.2,
-            spend_change_abs=0.1,
-            duration_weeks=8,
-            expected_lift=100.0,
-            expected_lift_hdi=(50.0, 150.0),
-            snr=3.0,
-            assurance=0.85,
-            adstock_ramp_fraction=0.9,
-            net_cost=0.8,
-            score=0.7,
-            rationale="",
-        )
-        rationale = _format_rationale(
-            rec,
-            correlation_info="high spend correlation with search (r = 0.40)",
-            max_correlation=0.40,
-        )
-        assert "Caution" not in rationale
+        channels = designer.channel_columns
+        correlations = pd.DataFrame(0.02, index=channels, columns=channels)
+        monkeypatch.setattr(designer, "_spend_correlation", correlations)
+        result = designer.recommend(spend_changes=[0.2], durations=[4], min_snr=0)
+        assert all("high spend correlation" not in rec.rationale for rec in result)
 
 
 class TestScoring:
@@ -833,22 +802,42 @@ class TestPlotting:
         assert fig is not None
         plt.close(fig)
 
+    def test_plot_lift_distributions_single_cell(self, designer):
+        import matplotlib.pyplot as plt
+
+        fig, axes = designer.plot_lift_distributions(
+            "tv", spend_changes=[0.2], durations=[4]
+        )
+        assert axes.shape == (1, 1)
+        plt.close(fig)
+
     def test_plot_saturation_curve(self, designer):
         fig, _ax = designer.plot_saturation_curve(
             "tv",
-            n_samples=10,
         )
         assert fig is not None
         import matplotlib.pyplot as plt
 
         plt.close(fig)
 
+    def test_saturation_sweep_agrees_with_pointwise_graph(self, designer):
+        import matplotlib.pyplot as plt
+
+        figure, axes = designer.plot_saturation_curve("tv")
+        levels, means = axes.lines[0].get_data()
+        for i in (0, 57, 199):
+            spend = designer._make_spend_array(designer.l_max + 1)
+            spend[:, 0] = levels[i]
+            mean = designer._eval_contributions(spend)[:, -1, 0].mean()
+            assert means[i] == pytest.approx(mean)
+        plt.close(figure)
+
     def test_plot_saturation_curve_existing_ax(self, designer):
         """Saturation curve on a pre-existing axes."""
         import matplotlib.pyplot as plt
 
         _fig0, ax0 = plt.subplots()
-        fig, ax = designer.plot_saturation_curve("tv", ax=ax0, n_samples=10)
+        fig, ax = designer.plot_saturation_curve("tv", ax=ax0)
         assert fig is not None
         assert ax is ax0
         plt.close(fig)
@@ -857,9 +846,7 @@ class TestPlotting:
         """Saturation curve with spend-level markers."""
         import matplotlib.pyplot as plt
 
-        fig, _ax = designer.plot_saturation_curve(
-            "tv", n_samples=10, spend_levels=[0.2, 0.5]
-        )
+        fig, _ax = designer.plot_saturation_curve("tv", spend_levels=[0.2, 0.5])
         assert fig is not None
         plt.close(fig)
 

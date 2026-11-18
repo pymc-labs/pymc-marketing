@@ -47,6 +47,57 @@ class TestGenerateExperimentFixture:
     def test_has_constant_data(self, synthetic_idata):
         assert hasattr(synthetic_idata, "constant_data")
 
+    def test_noise_matches_injected_residuals_on_scaled_target(self, synthetic_idata):
+        constant = synthetic_idata.constant_data
+        n_weeks = constant.attrs["n_weeks"]
+        rng = np.random.default_rng(42)
+        rng.standard_normal((n_weeks, 3))
+        residuals = rng.normal(0, constant.attrs["noise_std"], n_weeks)
+        assert constant.residual_std.item() == pytest.approx(
+            residuals.std() / constant.target_scale.item()
+        )
+
+    def test_synthetic_posterior_uses_scaled_channel_and_target_parameters(
+        self, synthetic_idata
+    ):
+        cd = synthetic_idata.constant_data
+        posterior = synthetic_idata.posterior
+        lam = posterior.saturation_lam.sel(channel="tv").mean().item()
+        beta = posterior.saturation_beta.sel(channel="tv").mean().item()
+        assert lam / cd.channel_scale.sel(channel="tv").item() == pytest.approx(
+            0.5, rel=0.02
+        )
+        assert beta * cd.target_scale.item() == pytest.approx(3.0, rel=0.02)
+
+    def test_fitted_fixture_keeps_training_data_and_uses_known_noise(self):
+        idata = generate_experiment_fixture(fit_model=True, n_weeks=30, l_max=3)
+        cd = idata.constant_data
+        rng = np.random.default_rng(42)
+        rng.standard_normal((30, 3))
+        noise = rng.normal(0, cd.attrs["noise_std"], 30)
+        assert cd.residual_std.item() * cd.target_scale.item() == pytest.approx(
+            noise.std()
+        )
+        expected_spend = (
+            cd.channel_data.isel(date=slice(-8, None)) / cd.channel_scale
+        ).mean("date")
+        np.testing.assert_allclose(cd.current_weekly_spend, expected_spend)
+        designer = ExperimentDesigner.from_idata(idata)
+        assert (
+            len(designer.recommend(spend_changes=[0.2], durations=[4], min_snr=0)) == 3
+        )
+
+    @pytest.mark.parametrize(
+        "options", [{"saturation": "hill"}, {"adstock": "weibull"}]
+    )
+    def test_rejects_mislabeled_fixture(self, options):
+        with pytest.raises(NotImplementedError, match="unsupported"):
+            generate_experiment_fixture(fit_model=False, **options)
+
+    def test_real_fit_does_not_silently_ignore_synthetic_counts(self):
+        with pytest.raises(ValueError, match="synthetic draws"):
+            generate_experiment_fixture(fit_model=True, n_draws=12)
+
     def test_posterior_has_expected_variables(self, synthetic_idata):
         posterior = synthetic_idata.posterior
         assert "saturation_lam" in posterior
@@ -140,7 +191,7 @@ class TestSimulateSpend:
 
     def test_default_rng(self):
         """Calling without rng uses the default generator (covers line 60)."""
-        spend = _simulate_spend(n_weeks=10, n_channels=2, channel_names=["a", "b"])
+        spend = _simulate_spend(n_weeks=10, n_channels=2)
         assert spend.shape == (10, 2)
         assert np.all(spend > 0)
 

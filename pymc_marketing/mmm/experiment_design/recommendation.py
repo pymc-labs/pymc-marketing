@@ -40,7 +40,7 @@ class ExperimentRecommendation:
     spend_change_frac : float
         Fractional per-week spend change (e.g. 0.2 for +20%, -1.0 for go-dark).
     spend_change_abs : float
-        Absolute weekly spend change in model-scale units.
+        Absolute weekly spend change in the designer's input units.
     duration_weeks : int
         Active intervention period in weeks.
     expected_lift : float
@@ -297,12 +297,9 @@ def _format_rationale(
     uncertainty_str = (
         f" (uncertainty rank #{uncertainty_rank})" if uncertainty_rank else ""
     )
-    correlation_str = f" and {correlation_info}" if correlation_info else ""
+    correlation_str = f" Spend shows {correlation_info}." if correlation_info else ""
 
-    sentence1 = (
-        f"{rec.channel} is a high-priority test target{uncertainty_str}"
-        f"{correlation_str}."
-    )
+    sentence1 = f"Candidate for {rec.channel}{uncertainty_str}.{correlation_str}"
 
     sentence2 = (
         f"A {direction} change for {rec.duration_weeks} weeks produces "
@@ -314,7 +311,7 @@ def _format_rationale(
 
     sentence3 = (
         f"Adstock ramp fraction {rec.adstock_ramp_fraction:.2f} — "
-        f"net cost: {rec.net_cost:.2f} (model-scale units)."
+        f"net cost: {rec.net_cost:.2f} in spend units."
     )
 
     parts = [sentence1, sentence2, sentence3]

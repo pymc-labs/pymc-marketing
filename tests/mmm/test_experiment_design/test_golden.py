@@ -24,9 +24,9 @@ the underlying mathematics (adstock ramp, saturation, assurance formula, or
 scoring). If a refactoring breaks these tests, it means the refactoring
 changed the numerical output and needs investigation.
 
-Note: ramp fraction values were updated when switching from the analytic
-geometric-only formula to graph-based computation that accounts for
-adstock + saturation jointly, making the metric honest for any adstock type.
+Reference values were checked against the finite geometric sum, logistic
+response, and the finite-horizon AR(1) covariance matrix using the fixture's
+stored posterior draws and scales.
 """
 
 from __future__ import annotations
@@ -90,7 +90,7 @@ class TestGoldenRecommendRanking:
         )
         assert len(recs) == 12
 
-    def test_top_recommendation_is_search_increase_4w(self, three_channel_designer):
+    def test_top_recommendation_is_search_go_dark_4w(self, three_channel_designer):
         recs = three_channel_designer.recommend(
             spend_changes=[0.2, -1.0],
             durations=[4, 8],
@@ -98,7 +98,7 @@ class TestGoldenRecommendRanking:
         )
         top = recs[0]
         assert top.channel == "search"
-        assert top.spend_change_frac == 0.2
+        assert top.spend_change_frac == -1.0
         assert top.duration_weeks == 4
 
     def test_top_recommendation_numerical_values(self, three_channel_designer):
@@ -108,10 +108,10 @@ class TestGoldenRecommendRanking:
             min_snr=0.0,
         )
         top = recs[0]
-        assert top.expected_lift == pytest.approx(0.352033, rel=REL_TOL)
-        assert top.assurance == pytest.approx(0.980172, abs=ABS_TOL_ASSURANCE)
-        assert top.snr == pytest.approx(4.623117, rel=REL_TOL)
-        assert top.score == pytest.approx(0.985678, rel=REL_TOL)
+        assert top.expected_lift == pytest.approx(-0.280297346, rel=REL_TOL)
+        assert top.assurance == pytest.approx(0.960018048, abs=ABS_TOL_ASSURANCE)
+        assert top.snr == pytest.approx(-4.090878004, rel=REL_TOL)
+        assert top.score == pytest.approx(0.979170462, rel=REL_TOL)
 
     def test_ranking_order_top_5(self, three_channel_designer):
         """Verify the channel+config ordering of the top 5 results."""
@@ -121,11 +121,11 @@ class TestGoldenRecommendRanking:
             min_snr=0.0,
         )
         expected_order = [
-            ("search", 0.2, 4),
-            ("search", 0.2, 8),
-            ("tv", 0.2, 8),
             ("search", -1.0, 4),
-            ("social", -1.0, 4),
+            ("tv", -1.0, 4),
+            ("search", -1.0, 8),
+            ("tv", -1.0, 8),
+            ("social", -1.0, 8),
         ]
         actual_order = [
             (r.channel, r.spend_change_frac, r.duration_weeks) for r in recs[:5]
@@ -152,9 +152,9 @@ class TestGoldenLiftPrediction:
     @pytest.mark.parametrize(
         "channel, expected_lift, expected_assurance, expected_snr, expected_ramp",
         [
-            ("search", 0.809327, 0.999944, 8.678206, 0.930221),
-            ("tv", 0.537842, 0.993562, 5.767141, 0.698281),
-            ("social", 0.266753, 0.780957, 2.860321, 0.839206),
+            ("search", 0.003089422, 0.050297495, 0.036565530, 0.963485474),
+            ("tv", 0.094805949, 0.206146158, 1.122096677, 0.723001834),
+            ("social", 0.017118089, 0.055193096, 0.202604909, 0.874426384),
         ],
     )
     def test_channel_lift_values(
