@@ -286,6 +286,12 @@ Predict the *incremental* effect of ad campaigns that never ran an experiment wi
 
 The `pymc_marketing.pie` module is in **alpha**: the API and defaults may change between releases. It requires the `pie` extra (`pip install pymc-marketing[pie]`). See the [PIE example notebook](https://www.pymc-marketing.io/en/stable/notebooks/pie/pie_example.html) for a worked example, including where predictions beat last-click attribution.
 
+## Conversion Funnels
+
+Follow a cohort of users through the steps of a funnel with `FunnelModel` (alpha). The model reads counts by step and by any grouping, such as the variants of an A/B test or customer segments. The counts have to come from a closed cohort: the users who enter a step are the ones who converted at the step before it. The model returns the posterior of the conversion of each step, of the whole funnel, and of the value of a user who enters it. From those draws it answers where the funnel loses most users and which variant converts better, with the probability and the expected loss of each choice. Small segments can share information through partial pooling.
+
+The `pymc_marketing.conversion` module is in **alpha**: the API and defaults may change between releases. See the [conversion funnel example notebook](https://www.pymc-marketing.io/en/stable/notebooks/conversion/funnel.html) for a worked example.
+
 ## Why PyMC-Marketing vs other solutions?
 
 PyMC-Marketing is and will always be free for commercial use, licensed under [Apache 2.0](LICENSE). Developed by core developers behind the popular PyMC package and marketing experts, it provides state-of-the-art measurements and analytics for marketing teams.

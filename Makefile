@@ -59,7 +59,7 @@ run_notebooks: ## Run Jupyter notebooks
 	uv run python scripts/run_notebooks/runner.py
 
 run_notebooks_mmm: ## Run MMM Jupyter notebooks only
-	uv run python scripts/run_notebooks/runner.py --exclude-dirs clv bass customer_choice general
+	uv run python scripts/run_notebooks/runner.py --exclude-dirs clv bass conversion customer_choice general
 
 run_notebooks_other: ## Run non-MMM Jupyter notebooks
 	uv run python scripts/run_notebooks/runner.py --exclude-dirs mmm

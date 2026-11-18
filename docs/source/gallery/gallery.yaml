@@ -178,6 +178,10 @@ sections:
     cards:
       - title: Predicting Campaign Incrementality with PIE
         notebook: pie/pie_example
+  - title: Conversion Funnels
+    cards:
+      - title: "Conversion Funnels: Where Do Users Drop Off and Which Variant Wins?"
+        notebook: conversion/funnel
   - title: General Tutorials
     cards:
       - title: Model Configuration
