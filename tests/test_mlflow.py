@@ -23,6 +23,7 @@ from importlib import metadata
 from pathlib import Path
 from types import SimpleNamespace
 
+import graphviz
 import mlflow
 import mlflow.artifacts
 import numpy as np
@@ -47,6 +48,7 @@ from pymc_marketing.mlflow import (
     create_log_callback,
     load_mmm,
     load_mmm_from_run,
+    log_arviz_summary,
     log_error,
     log_inference_data,
     log_likelihood_type,
@@ -337,17 +339,27 @@ def test_dims_censored_likelihood_type() -> None:
             ValueError("lam < 0 or lam contains NaNs"),
             "Unable to render the model graph. lam < 0 or lam contains NaNs",
         ),
+        # `graph.render` saves the DOT source before it invokes `dot`, so
+        # patching below `save` checks that a failed render leaves no file.
+        (
+            "graphviz.backend.rendering.render",
+            graphviz.ExecutableNotFound(["dot"]),
+            f"Unable to render the model graph. {graphviz.ExecutableNotFound(['dot'])}",
+        ),
     ],
-    ids=["no_graphviz", "render_error", "graph_creation_error"],
+    ids=["no_graphviz", "render_error", "graph_creation_error", "dot_missing"],
 )
 def test_log_model_graph_no_graphviz(
     caplog,
     mocker,
+    monkeypatch,
     model_with_likelihood,
+    tmp_path,
     to_patch,
     side_effect,
     expected_info_message,
 ) -> None:
+    monkeypatch.chdir(tmp_path)
     mocker.patch(
         to_patch,
         side_effect=side_effect,
@@ -355,6 +367,8 @@ def test_log_model_graph_no_graphviz(
     with mlflow.start_run() as run:
         with caplog.at_level(logging.INFO, logger="pymc_marketing.mlflow"):
             log_model_graph(model_with_likelihood, "model_graph")
+
+    assert not list(tmp_path.glob("model_graph*"))
 
     # Only inspect records emitted by pymc-marketing itself. caplog's handler is
     # attached to the root logger, so it also captures unrelated INFO logs from
@@ -760,6 +774,64 @@ def test_log_sample_diagnostics_missing_group(mock_idata, selected_group: str) -
     match = rf"DataTree object does not contain the group {missing_group}."
     with pytest.raises(KeyError, match=match):
         log_sample_diagnostics(idata)
+
+
+@pytest.mark.parametrize("prefix", ["", "out/"], ids=["name", "missing_dir"])
+def test_arviz_summary_written_outside_working_directory(
+    mock_idata, monkeypatch, tmp_path, prefix
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "summary.html").write_text("user data")
+
+    with mlflow.start_run() as run:
+        log_arviz_summary(mock_idata, f"{prefix}summary.html")
+
+    assert get_run_data(run.info.run_id)[-1] == ["summary.html"]
+    assert (tmp_path / "summary.html").read_text() == "user data"
+    assert not (tmp_path / "out").exists()
+
+
+def test_arviz_summary_log_failure_writes_no_file(
+    mock_idata, mocker, monkeypatch, tmp_path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    mocker.patch("mlflow.log_artifact", side_effect=RuntimeError("upload failed"))
+
+    with pytest.raises(RuntimeError, match="upload failed"):
+        log_arviz_summary(mock_idata, "summary.html")
+
+    assert not list(tmp_path.iterdir())
+
+
+def test_model_graph_log_failure_writes_no_file(
+    model_with_likelihood, mocker, monkeypatch, tmp_path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    log_artifact = mocker.patch(
+        "mlflow.log_artifact", side_effect=RuntimeError("upload failed")
+    )
+
+    with pytest.raises(RuntimeError, match="upload failed"):
+        log_model_graph(model_with_likelihood, "model_graph")
+
+    (logged,) = log_artifact.call_args.args
+    assert Path(logged).name == "model_graph.pdf"
+    assert not Path(logged).exists()
+    assert not list(tmp_path.iterdir())
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["", ".", "reports/..", "reports/"],
+    ids=["empty", "dot", "parent", "trailing_sep"],
+)
+def test_artifact_path_without_file_name_raises(
+    model_with_likelihood, mock_idata, path
+) -> None:
+    with pytest.raises(ValueError, match="must end in a file name"):
+        log_model_graph(model_with_likelihood, path)
+    with pytest.raises(ValueError, match="must end in a file name"):
+        log_arviz_summary(mock_idata, path)
 
 
 def test_force_load_idata_groups_visits_every_group(mock_idata, monkeypatch) -> None:
