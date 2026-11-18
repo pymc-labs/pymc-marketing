@@ -5,15 +5,20 @@ on:
     paths:
       - .github/scripts/issue_automation.py
       - .github/scripts/test_issue_automation.py
+      - .github/scripts/stale_summary.py
+      - .github/scripts/test_stale_summary.py
       - .github/workflows/pr-labeler.yml
       - .github/workflows/triage.yml
       - .github/workflows/duplicate-issues.yml
+      - .github/workflows/stale-summary.yml
       - .github/workflows/issue-automation-tests.yml
   push:
     branches: [main]
     paths:
       - .github/scripts/issue_automation.py
       - .github/scripts/test_issue_automation.py
+      - .github/scripts/stale_summary.py
+      - .github/scripts/test_stale_summary.py
       - .github/workflows/issue-automation-tests.yml
 
 permissions:
@@ -33,4 +38,4 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install PyYAML==6.0.3
-      - run: python -m unittest discover -s .github/scripts -p test_issue_automation.py -v
+      - run: python -m unittest discover -s .github/scripts -p "test_*.py" -v
