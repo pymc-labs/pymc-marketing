@@ -25,6 +25,9 @@ if TYPE_CHECKING:
     import pandas
 
 
+_HIGH_CORRELATION_THRESHOLD = 0.7
+
+
 @dataclass
 class ExperimentRecommendation:
     """A recommended experiment design for a single channel.
@@ -146,8 +149,6 @@ class ExperimentRecommendations(Sequence[ExperimentRecommendation]):
         parts.append(")")
         return "".join(parts)
 
-    # -- Jupyter rendering ---------------------------------------------------
-
     def _repr_html_(self) -> str:
         """Render as an HTML table in Jupyter notebooks."""
         if not self._recommendations:
@@ -253,9 +254,6 @@ class ExperimentRecommendations(Sequence[ExperimentRecommendation]):
             for i, rec in enumerate(self._recommendations)
         ]
         return pd.DataFrame(records)
-
-
-_HIGH_CORRELATION_THRESHOLD = 0.7
 
 
 def _format_rationale(

@@ -12,12 +12,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-"""Fixture generation for ExperimentDesigner demos and tests.
-
-Generates realistic posteriors by fitting an MMM to simulated data,
-producing posterior structure (parameter correlations, degeneracies)
-that hand-crafted distributions cannot replicate.
-"""
+"""Generate sample fits for the ExperimentDesigner tutorial and tests."""
 
 from __future__ import annotations
 
@@ -100,10 +95,14 @@ def generate_experiment_fixture(
     *,
     spend_lookback: int = 8,
 ) -> xr.DataTree:
-    """Generate a realistic xr.DataTree fixture for testing.
+    """Generate a reproducible experiment-design example or test fixture.
 
-    Simulates spend data, applies a known DGP, and (optionally) fits a
-    PyMC-Marketing MMM to produce realistic posterior samples.
+    Simulates weekly national spend and applies the package's geometric adstock
+    and logistic saturation. The fast mode supplies synthetic draws for the
+    experiment-design tutorial and regression tests. The fitted mode runs an MMM
+    on the simulated data to capture posterior dependence between parameters.
+    See :ref:`mmm_data_generator` for an end-to-end example of parameter recovery
+    with the MMM graph.
 
     Parameters
     ----------
