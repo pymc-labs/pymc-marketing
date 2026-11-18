@@ -49,6 +49,7 @@ from pymc_marketing.mmm.additive_effect import (
     ControlMuEffect,
     DataVarMuEffect,
     EventAdditiveEffect,
+    IncrementalitySpec,
     LinearTrendEffect,
     MediaMuEffect,
     MuEffect,
@@ -75,6 +76,7 @@ from pymc_marketing.mmm.scaling import (
     FixedScaling,
     Scaling,
 )
+from pymc_marketing.mmm.transformers import ConvMode
 from pymc_marketing.model_builder import DifferentModelError
 from pymc_marketing.serialization import serialization
 from pymc_marketing.special_priors import LogNormalPrior
@@ -3300,6 +3302,252 @@ def test_monthly_incrementality_cuts_a_frozen_path(
     expected = contribution.assign_coords(date=month_ends).groupby("date").sum()
     assert incremental.indexes["date"].equals(expected.indexes["date"])
     np.testing.assert_allclose(incremental, expected.transpose(*incremental.dims))
+
+
+class _DateLevelEffect(_ZeroEffect):
+    """A free random variable over the model's dates, added to ``mu``."""
+
+    prefix: str = "level"
+    reduce: bool = False
+    freeze: bool = False
+
+    @property
+    def frozen_deterministics(self) -> list[str]:
+        """The free random variable itself, when asked to freeze it."""
+        return [f"{self.prefix}_draws"] if self.freeze else []
+
+    def create_effect(self, mmm):
+        """One free value per date, or their mean on every date when reduced."""
+        level = pmd.Normal(f"{self.prefix}_draws", sigma=0.1, dims="date")
+        if self.reduce:
+            zeros = as_xtensor(pt.zeros(mmm.model.dim_lengths["date"]), dims=("date",))
+            level = zeros + level.mean("date")
+        return pmd.Deterministic(self.contribution_var_name, level)
+
+
+@pytest.fixture
+def fit_mmm_with_effect(simple_mmm_data, mock_pymc_sample):
+    """Fit an MMM carrying the effects it is given."""
+
+    def fit(*effects):
+        X, y = simple_mmm_data["X"], simple_mmm_data["y"]
+        mmm = MMM(
+            date_column="date",
+            target_column="target",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            adstock=GeometricAdstock(l_max=1),
+            saturation=LogisticSaturation(),
+        )
+        for effect in effects:
+            mmm.add_mu_effect(effect)
+        mmm.fit(X, y, draws=50, chains=1, random_seed=42)
+        return mmm
+
+    return fit
+
+
+@pytest.mark.parametrize(
+    "max_batch_elements",
+    [
+        pytest.param(None, id="one-block"),
+        # Every draw is over the budget, so each is a block of its own.
+        pytest.param(1, id="a-block-per-draw"),
+    ],
+)
+@pytest.mark.parametrize("freeze", [False, True], ids=["unfrozen", "frozen"])
+def test_monthly_incrementality_on_a_date_variable(
+    fit_mmm_with_effect, monkeypatch, freeze, max_batch_elements
+):
+    """A free random variable over the dates gives each month's contribution.
+
+    It only adds to the linear predictor, which a total does not read on windows,
+    so the months keep their windows whether it is frozen or not, and nothing
+    warns about the full date axis.  It does not depend on spend and there is no
+    carryover, so each channel's increment on a month is its contribution summed
+    over that month.
+    """
+    mmm = fit_mmm_with_effect(_DateLevelEffect(freeze=freeze))
+    if max_batch_elements is not None:
+        monkeypatch.setattr(
+            CounterfactualEvaluator, "MAX_BATCH_ELEMENTS", max_batch_elements
+        )
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "error", message=".*not cut to evaluation windows", category=UserWarning
+        )
+        incremental = mmm.incrementality.compute_incremental_contribution(
+            frequency="monthly"
+        )
+        split = mmm.incrementality.split_incremental_contribution_over_time(
+            frequency="monthly"
+        )
+
+    contribution = (
+        mmm.idata.posterior["channel_contribution"]
+        * mmm.idata.constant_data["target_scale"]
+    )
+    month_ends = contribution.indexes["date"].to_period("M").end_time.normalize()
+    expected = contribution.assign_coords(date=month_ends).groupby("date").sum()
+    assert incremental.indexes["date"].equals(expected.indexes["date"])
+    np.testing.assert_allclose(incremental, expected.transpose(*incremental.dims))
+    assert json.loads(split.attrs["assumptions"])["evaluation"] == "window"
+
+
+def test_monthly_incrementality_evaluates_a_reduced_date_variable(
+    fit_mmm_with_effect,
+):
+    """Reduced over date, the variable never meets a window's date axis.
+
+    The periods keep their windows rather than the full date axis.
+    """
+    mmm = fit_mmm_with_effect(_DateLevelEffect(reduce=True))
+
+    incremental = mmm.incrementality.compute_incremental_contribution(
+        frequency="monthly"
+    )
+    split = mmm.incrementality.split_incremental_contribution_over_time(
+        frequency="monthly"
+    )
+
+    assert np.isfinite(incremental).all()
+    assert json.loads(split.attrs["assumptions"])["evaluation"] == "window"
+
+
+class _ScaledByDateLevelEffect(_ZeroEffect):
+    """A free random variable over the dates that scales the channel contribution.
+
+    With ``walk``, the variable holds the steps of a random walk, and the walk, their
+    cumulative sum over ``date``, is a Deterministic whether frozen or not.
+    """
+
+    prefix: str = "scaled"
+    walk: bool = False
+    freeze: bool = False
+
+    def incrementality_spec(self) -> IncrementalitySpec:
+        """Opt in: the effect reads the channel contribution."""
+        return IncrementalitySpec()
+
+    @property
+    def frozen_deterministics(self) -> list[str]:
+        """The path where the variable meets spend, when asked to freeze it.
+
+        The variable itself without ``walk``, and the walk with it: frozen steps
+        would be cut to each window before their cumulative sum is taken.
+        """
+        if not self.freeze:
+            return []
+        return [f"{self.prefix}_walk" if self.walk else f"{self.prefix}_level"]
+
+    def create_effect(self, mmm):
+        """The channel contribution, times one free value per date or their walk."""
+        level = pmd.Normal(f"{self.prefix}_level", mu=1.0, sigma=0.5, dims="date")
+        if self.walk:
+            level = pmd.Deterministic(f"{self.prefix}_walk", level.cumsum("date"))
+        contribution = mmm.model["channel_contribution"].sum("channel")
+        return pmd.Deterministic(self.contribution_var_name, level * contribution)
+
+
+@pytest.mark.parametrize("walk", [False, True], ids=["level", "random-walk"])
+def test_yearly_incrementality_on_a_variable_that_scales_spend(mock_pymc_sample, walk):
+    """Unfrozen, a variable that scales spend gives the increments of its frozen path.
+
+    The first year's window spans every fitted date and the second is padded to the
+    same length, so no shape fails.  Unfrozen, the variable holds its draws over all
+    fitted dates and every period is evaluated on the full date axis, with the
+    horizon the probe measured.  Frozen at the path where it meets spend, it is cut
+    to each window.
+    """
+    from tests.mmm.conftest import _make_mmm_data
+
+    data = _make_mmm_data(periods=18, freq="MS", n_channels=3, seed=99)
+
+    def yearly(freeze: bool) -> tuple[xr.DataArray, xr.Dataset]:
+        mmm = MMM(
+            date_column="date",
+            target_column="target",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            adstock=GeometricAdstock(l_max=6),
+            saturation=LogisticSaturation(),
+        ).add_mu_effect(_ScaledByDateLevelEffect(walk=walk, freeze=freeze))
+        mmm.fit(data["X"], data["y"], draws=50, chains=1, random_seed=42)
+        incrementality = mmm.incrementality
+        return (
+            incrementality.compute_incremental_contribution(frequency="yearly"),
+            incrementality.split_incremental_contribution_current_future(
+                frequency="yearly"
+            ),
+        )
+
+    with pytest.warns(UserWarning, match="full date axis"):
+        unfrozen, unfrozen_split = yearly(freeze=False)
+    frozen, frozen_split = yearly(freeze=True)
+
+    np.testing.assert_allclose(unfrozen, frozen.transpose(*unfrozen.dims))
+    xr.testing.assert_allclose(unfrozen_split, frozen_split)
+    assert (
+        unfrozen_split.attrs["effective_horizon"]
+        == frozen_split.attrs["effective_horizon"]
+    )
+    assert json.loads(unfrozen_split.attrs["assumptions"])["evaluation"] == "full_axis"
+    assert "'scaled_level'" in unfrozen_split.attrs["warnings"]
+
+
+def test_no_full_axis_warning_where_the_mode_uses_the_full_axis_anyway(
+    mock_pymc_sample,
+):
+    """Under ``ConvMode.Before`` every period is on the full date axis already.
+
+    The uncut variable then changes nothing, so it is not warned about.
+    """
+    from tests.mmm.conftest import _make_mmm_data
+
+    data = _make_mmm_data(periods=18, freq="MS", n_channels=3, seed=99)
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        adstock=GeometricAdstock(l_max=6, mode=ConvMode.Before),
+        saturation=LogisticSaturation(),
+    ).add_mu_effect(_ScaledByDateLevelEffect())
+    mmm.fit(data["X"], data["y"], draws=50, chains=1, random_seed=42)
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "error", message=".*not cut to evaluation windows", category=UserWarning
+        )
+        incremental = mmm.incrementality.compute_incremental_contribution(
+            frequency="yearly"
+        )
+
+    assert np.isfinite(incremental).all()
+
+
+def test_direct_path_on_a_date_variable_in_the_predictor(funnel_mmm_data):
+    """A path request reads the linear predictor on each window, unlike a total.
+
+    The variable only adds to the predictor, so the direct path evaluates every
+    period on the full date axis, and gives the increments of the variable frozen
+    and cut to each window.
+    """
+    from tests.mmm.conftest import _build_funnel_mmm, _funnel_effect
+
+    def direct(freeze: bool) -> xr.DataArray:
+        mmm = _build_funnel_mmm(
+            funnel_mmm_data,
+            "identity",
+            effects=[_funnel_effect(), _DateLevelEffect(freeze=freeze)],
+        )
+        return mmm.incrementality.compute_incremental_contribution(
+            frequency="monthly", paths="direct"
+        )
+
+    with pytest.warns(UserWarning, match="full date axis"):
+        unfrozen = direct(freeze=False)
+    frozen = direct(freeze=True)
+
+    np.testing.assert_allclose(unfrozen, frozen.transpose(*unfrozen.dims))
 
 
 def test_sample_posterior_predictive_same_data_with_include_last_observations(
