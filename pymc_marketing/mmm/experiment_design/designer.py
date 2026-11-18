@@ -33,6 +33,7 @@ import arviz as az
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import pymc as pm
 import xarray as xr
 from matplotlib.figure import Figure
 from scipy.stats import norm
@@ -155,8 +156,9 @@ class ExperimentDesigner:
                 "(adstock applied before saturation) is supported."
             )
 
-        channel_columns = list(mmm.channel_columns)
-        n_channels = len(channel_columns)
+        # A reloaded model follows the posterior's coordinate order.
+        channel_columns = list(mmm.model.coords[Dim.CHANNEL])
+        posterior = idata.posterior.dataset.sel({Dim.CHANNEL: channel_columns})
 
         spend = idata.constant_data[Var.CHANNEL_DATA].sel(
             {Dim.CHANNEL: channel_columns}
@@ -172,30 +174,42 @@ class ExperimentDesigner:
         )
         spend_correlation = spend.transpose(Dim.DATE, Dim.CHANNEL).to_pandas().corr()
         observed = idata.observed_data[mmm.output_var]
-        prediction = idata.posterior[Var.MU].mean(("chain", "draw"))
+        if Var.MU in posterior:
+            fitted_mu = posterior[Var.MU]
+        else:
+            # Older identity-link fits did not store mu in the posterior.
+            training_model = mmm._set_xarray_data(
+                mmm.xarray_dataset, model=mmm.model.copy()
+            )
+            fitted_mu = pm.compute_deterministics(
+                posterior, var_names=[Var.MU], model=training_model, progressbar=False
+            )[Var.MU]
+        prediction = fitted_mu.mean(("chain", "draw"))
         if observed.dims != (Dim.DATE,) or prediction.dims != (Dim.DATE,):
             raise ValueError(
                 "Observed and predicted targets must be weekly time series."
             )
         observed, prediction = xr.align(observed, prediction, join="exact")
         dates = observed.indexes.get(Dim.DATE)
+        if dates is None or dates.inferred_type not in {"datetime", "datetime64"}:
+            raise ValueError("ExperimentDesigner requires regular weekly observations.")
+        local_dates = pd.DatetimeIndex(dates).tz_localize(None)
         if (
-            not isinstance(dates, pd.DatetimeIndex)
-            or len(dates) < 2
-            or not ((dates[1:] - dates[:-1]) == pd.Timedelta(weeks=1)).all()
+            len(local_dates) < 2
+            or not ((local_dates[1:] - local_dates[:-1]) == pd.Timedelta(weeks=1)).all()
         ):
             raise ValueError("ExperimentDesigner requires regular weekly observations.")
         residual_std, residual_autocorr = residual_statistics(
             (observed - prediction).values
         )
-        eval_fn = ContributionGraph(mmm.model, idata, n_channels)
+        eval_fn = ContributionGraph(mmm.model, posterior, len(channel_columns))
 
         self._init_common(
             eval_fn=eval_fn,
             channel_columns=channel_columns,
             l_max=int(mmm.adstock.l_max),
             normalize=bool(mmm.adstock.normalize),
-            posterior=idata.posterior.dataset,
+            posterior=posterior,
             current_spend=current_spend,
             residual_std=residual_std,
             residual_autocorr=residual_autocorr,
@@ -322,15 +336,16 @@ class ExperimentDesigner:
                 dims=(Dim.DATE, Dim.CHANNEL),
             )
 
-        eval_fn = ContributionGraph(model, idata, n_channels)
+        eval_fn = ContributionGraph(model, posterior, n_channels)
 
         spend = cd["current_weekly_spend"]
         current_spend = {ch: float(spend.sel(channel=ch).values) for ch in channels}
 
         if "spend_correlation" in cd:
-            corr_vals = cd["spend_correlation"].values
-            spend_correlation: pd.DataFrame | None = pd.DataFrame(
-                corr_vals, index=channels, columns=channels
+            spend_correlation: pd.DataFrame | None = (
+                cd["spend_correlation"]
+                .to_pandas()
+                .reindex(index=channels, columns=channels)
             )
         else:
             spend_correlation = None
@@ -557,13 +572,14 @@ class ExperimentDesigner:
         for ch in self.channel_columns:
             mean_corr = 0.0
             if self._spend_correlation is not None:
-                corr_df = self._spend_correlation
-                others = [
-                    abs(float(corr_df.loc[ch, o]))  # type: ignore[arg-type]
-                    for o in self.channel_columns
-                    if o != ch
-                ]
-                mean_corr = float(np.mean(others)) if others else 0.0
+                others = (
+                    self._spend_correlation.loc[ch]
+                    .drop(index=ch)
+                    .dropna()
+                    .abs()
+                    .to_numpy()
+                )
+                mean_corr = float(others.mean()) if others.size else 0.0
 
             grad = self._compute_gradient(ch)
 
@@ -641,7 +657,7 @@ class ExperimentDesigner:
 
         if max_other is None or max_corr < _HIGH_CORRELATION_THRESHOLD:
             return None
-        desc = f"high spend correlation with {max_other} (r = {max_corr:.2f})"
+        desc = f"high spend correlation with {max_other} (|r| = {max_corr:.2f})"
         return desc, max_corr
 
     # ------------------------------------------------------------------

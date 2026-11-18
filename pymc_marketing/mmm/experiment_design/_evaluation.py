@@ -31,13 +31,13 @@ from pymc_marketing.pytensor_utils import extract_response_distribution
 
 if TYPE_CHECKING:
     from pymc import Model
-    from xarray import DataTree
+    from xarray import Dataset
 
 
 class ContributionGraph:
     """Evaluate a channel response graph with posterior values bound."""
 
-    def __init__(self, model: Model, idata: DataTree, n_channels: int) -> None:
+    def __init__(self, model: Model, posterior: Dataset, n_channels: int) -> None:
         observed_spend = model[Var.CHANNEL_DATA]
         self._spend = ptx.xtensor(
             name="channel_data_input",
@@ -45,12 +45,14 @@ class ContributionGraph:
             shape=(None, n_channels),
             dims=(Dim.DATE, Dim.CHANNEL),
         )
-        response = extract_response_distribution(model, idata, Var.CHANNEL_CONTRIBUTION)
+        response = extract_response_distribution(
+            model, posterior, Var.CHANNEL_CONTRIBUTION
+        )
         [graph] = clone_replace([response], replace={observed_spend: self._spend})
         response = cast("ptx.XTensorVariable", graph)
         if "sample" not in response.dims:
             # Fixed media parameters have the same response in every draw.
-            sizes = idata.posterior.sizes
+            sizes = posterior.sizes
             draws = np.ones(sizes["chain"] * sizes["draw"], dtype=response.dtype)
             response = response * ptx.as_xtensor(draws, dims=("sample",))
         self._response = response.transpose("sample", Dim.DATE, Dim.CHANNEL)

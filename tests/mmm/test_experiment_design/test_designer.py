@@ -223,6 +223,72 @@ class TestInitFromMMM:
         with pytest.raises(ValueError, match="exact"):
             ExperimentDesigner(fitted_mmm)
 
+    @pytest.mark.parametrize("posterior_change", ["channel_order", "missing_mu"])
+    def test_loaded_fit_preserves_channel_lift_and_residuals(
+        self, simple_mmm_data, posterior_change
+    ):
+        import pymc as pm
+        import xarray as xr
+
+        from pymc_marketing.mmm import MMM, GeometricAdstock, LogisticSaturation
+        from pymc_marketing.names.mmm import Var
+        from tests.mmm.conftest import mock_fit
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mock_fit(mmm, **simple_mmm_data, draws=10, random_seed=42)
+        expected = ExperimentDesigner(mmm)
+        saved = mmm.idata.copy(deep=True)
+        posterior = saved.posterior.dataset
+        saved["posterior"] = (
+            posterior.isel(channel=slice(None, None, -1))
+            if posterior_change == "channel_order"
+            else posterior.drop_vars("mu")
+        )
+        loaded = MMM.load_from_idata(saved)
+        before = loaded.idata.copy(deep=True)
+        changed_spend = np.zeros_like(loaded.model[Var.CHANNEL_DATA].get_value())
+        pm.set_data({Var.CHANNEL_DATA: changed_spend}, model=loaded.model)
+
+        actual = ExperimentDesigner(loaded)
+
+        for channel in mmm.channel_columns:
+            np.testing.assert_allclose(
+                actual._predict_lift(channel, delta_x=10, T_active=4),
+                expected._predict_lift(channel, delta_x=10, T_active=4),
+            )
+        assert actual._residual_std == pytest.approx(expected._residual_std)
+        xr.testing.assert_identical(loaded.idata, before)
+        np.testing.assert_array_equal(
+            loaded.model[Var.CHANNEL_DATA].get_value(), changed_spend
+        )
+
+    def test_weekly_timezone_aware_fit_across_dst(self, simple_mmm_data):
+        import pandas as pd
+
+        from pymc_marketing.mmm import MMM, GeometricAdstock, LogisticSaturation
+        from tests.mmm.conftest import mock_fit
+
+        x = simple_mmm_data["X"]
+        x["date"] = pd.date_range(
+            "2025-03-01", periods=len(x), freq="W", tz="Europe/London"
+        )
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mock_fit(mmm, **simple_mmm_data, draws=10, random_seed=42)
+
+        assert ExperimentDesigner(mmm)._residual_std > 0
+
 
 class TestAdstockRamp:
     """Tests for graph-based ramp fraction computation."""
@@ -649,6 +715,22 @@ class TestCorrelationWarning:
         monkeypatch.setattr(designer, "_spend_correlation", correlations)
         result = designer.recommend(spend_changes=[0.2], durations=[4], min_snr=0)
         assert all("high spend correlation" not in rec.rationale for rec in result)
+
+    def test_inverse_correlation_with_constant_channel(self, designer, monkeypatch):
+        import pandas as pd
+
+        spend = pd.DataFrame({"tv": [1, 2, 3], "search": [3, 2, 1], "social": 0})
+        monkeypatch.setattr(designer, "_spend_correlation", spend.corr())
+
+        metrics = designer._channel_metrics()
+        assert metrics["tv"]["mean_correlation"] == pytest.approx(1.0)
+        assert metrics["search"]["mean_correlation"] == pytest.approx(1.0)
+        recommendations = designer.recommend(
+            spend_changes=[0.2], durations=[4], min_snr=0
+        )
+        tv = next(rec for rec in recommendations if rec.channel == "tv")
+        assert "Caution" in tv.rationale
+        assert "|r| = 1.00" in tv.rationale
 
 
 class TestScoring:

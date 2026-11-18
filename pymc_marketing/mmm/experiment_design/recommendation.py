@@ -52,8 +52,8 @@ class ExperimentRecommendation:
     assurance : float
         Posterior-predictive power (Bayesian assurance).
     adstock_ramp_fraction : float
-        Mean fraction of steady-state effect captured over the experiment
-        duration (posterior mean across draws).
+        Ratio of posterior mean weekly lift during the experiment to posterior
+        mean weekly lift at steady state, clipped to [0, 1].
     net_cost : float
         Direct additional spend: spend_change_abs * duration_weeks.
     score : float
@@ -319,7 +319,7 @@ def _format_rationale(
     if max_correlation is not None and max_correlation >= _HIGH_CORRELATION_THRESHOLD:
         parts.append(
             f"Caution: {rec.channel} has high spend correlation "
-            f"(r = {max_correlation:.2f}) with other channels, which "
+            f"(|r| = {max_correlation:.2f}) with other channels, which "
             "may indicate identification problems. The model's posterior "
             "for this channel could be influenced by confounding. "
             "Interpret assurance with care."
