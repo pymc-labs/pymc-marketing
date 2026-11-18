@@ -803,15 +803,14 @@ class ExperimentDesigner:
         candidates: list[ExperimentRecommendation] = []
         for i, data in enumerate(candidate_data):
             score = float(scores[i])
-            corr_result = self._get_correlation_info(data[Dim.CHANNEL])
-            corr_desc = corr_result[0] if corr_result else None
-            corr_value = corr_result[1] if corr_result else None
-
             rec = ExperimentRecommendation(
                 **data,
                 score=score,
                 rationale="",
             )
+            corr_result = self._get_correlation_info(rec.channel)
+            corr_desc = corr_result[0] if corr_result else None
+            corr_value = corr_result[1] if corr_result else None
             rec.rationale = _format_rationale(
                 rec,
                 uncertainty_rank=uncertainty_ranks.get(rec.channel),
@@ -862,18 +861,18 @@ class ExperimentDesigner:
                     net_cost = delta_x * T
 
                     candidate_data.append(
-                        {
-                            Dim.CHANNEL: channel,
-                            "spend_change_frac": frac,
-                            "spend_change_abs": delta_x,
-                            "duration_weeks": T,
-                            "expected_lift": expected_lift,
-                            "expected_lift_hdi": lift_hdi,
-                            "snr": snr,
-                            "assurance": assurance,
-                            "adstock_ramp_fraction": ramp_frac,
-                            "net_cost": net_cost,
-                        }
+                        dict(
+                            channel=channel,
+                            spend_change_frac=frac,
+                            spend_change_abs=delta_x,
+                            duration_weeks=T,
+                            expected_lift=expected_lift,
+                            expected_lift_hdi=lift_hdi,
+                            snr=snr,
+                            assurance=assurance,
+                            adstock_ramp_fraction=ramp_frac,
+                            net_cost=net_cost,
+                        )
                     )
 
         return candidate_data
