@@ -686,6 +686,14 @@ def _attach_run_id(idata: xr.DataTree) -> None:
     idata.attrs["mlflow_run_id"] = run.info.run_id
 
 
+def _artifact_file_name(path: str | Path) -> str:
+    """Return the file name in ``path``, which a logger uses as the artifact name."""
+    name = Path(path).name
+    if name in ("", "..") or str(path).endswith(("/", os.sep)):
+        raise ValueError(f"path must end in a file name; got {str(path)!r}.")
+    return name
+
+
 def log_arviz_summary(
     idata: xr.DataTree,
     path: str | Path,
@@ -694,26 +702,32 @@ def log_arviz_summary(
 ) -> None:
     """Log the ArviZ summary as an artifact on MLflow.
 
-    The summary is written in a temporary directory, so no file is written to
-    the working directory.
+    The HTML file is written to a temporary directory that is removed afterwards,
+    also when the upload fails, so nothing is left in the working directory.
 
     Parameters
     ----------
     idata : xr.DataTree
         The DataTree object returned by the sampling method.
     path : str | Path
-        The name to log the HTML summary under. Only the file name is used; any
-        directory part is ignored.
+        File name of the logged artifact, such as ``"summary.html"``. Any directory
+        part is ignored.
     var_names : list[str], optional
         The names of the variables to include in the summary. Default is
         all the variables in the DataTree object.
     summary_kwargs : dict
         Additional keyword arguments to pass to `az.summary`.
 
+    Raises
+    ------
+    ValueError
+        If ``path`` does not end in a file name.
+
     """
+    name = _artifact_file_name(path)
     df_summary = az.summary(idata, var_names=var_names, **summary_kwargs)
     with tempfile.TemporaryDirectory() as tmp_dir:
-        tmp_path = Path(tmp_dir) / Path(path).name
+        tmp_path = Path(tmp_dir) / name
         df_summary.to_html(tmp_path)
         mlflow.log_artifact(str(tmp_path))
 
@@ -759,18 +773,25 @@ def log_metadata(model: Model, idata: xr.DataTree) -> None:
 def log_model_graph(model: Model, path: str | Path) -> None:
     """Log the model graph PDF as artifact on MLflow.
 
-    The graph is rendered in a temporary directory, so no file is written to the
-    working directory.
+    The graph is rendered in a temporary directory that is removed afterwards, also
+    when rendering or the upload fails, so nothing is left in the working directory.
 
     Parameters
     ----------
     model : Model
         The PyMC model object.
     path : str | Path
-        The name to log the model graph under. Only the file name is used; any
-        directory part is ignored.
+        Name of the logged artifact without the ``.pdf`` extension, which Graphviz
+        appends: ``"model_graph"`` is logged as ``model_graph.pdf``. Any directory
+        part is ignored.
+
+    Raises
+    ------
+    ValueError
+        If ``path`` does not end in a file name.
 
     """
+    name = _artifact_file_name(path)
     try:
         graph = pm.model_to_graphviz(model)
     except ImportError as e:
@@ -787,11 +808,11 @@ def log_model_graph(model: Model, path: str | Path) -> None:
         return None
 
     # `graph.render` writes the DOT source before it invokes `dot`, so a render
-    # that raises leaves the source file in the working directory. Rendering in a
-    # temporary directory avoids that, for both the source and the PDF.
+    # that raises would leave the source file behind. Rendering in a temporary
+    # directory avoids that, for both the source and the PDF.
     with tempfile.TemporaryDirectory() as tmp_dir:
         try:
-            saved_path = graph.render(Path(tmp_dir) / Path(path).name)
+            saved_path = graph.render(Path(tmp_dir) / name)
         except Exception as e:
             msg = f"Unable to render the model graph. {e}"
             logger.info(msg)

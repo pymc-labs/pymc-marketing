@@ -803,6 +803,37 @@ def test_arviz_summary_log_failure_writes_no_file(
     assert not list(tmp_path.iterdir())
 
 
+def test_model_graph_log_failure_writes_no_file(
+    model_with_likelihood, mocker, monkeypatch, tmp_path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    log_artifact = mocker.patch(
+        "mlflow.log_artifact", side_effect=RuntimeError("upload failed")
+    )
+
+    with pytest.raises(RuntimeError, match="upload failed"):
+        log_model_graph(model_with_likelihood, "model_graph")
+
+    (logged,) = log_artifact.call_args.args
+    assert Path(logged).name == "model_graph.pdf"
+    assert not Path(logged).exists()
+    assert not list(tmp_path.iterdir())
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["", ".", "reports/..", "reports/"],
+    ids=["empty", "dot", "parent", "trailing_sep"],
+)
+def test_artifact_path_without_file_name_raises(
+    model_with_likelihood, mock_idata, path
+) -> None:
+    with pytest.raises(ValueError, match="must end in a file name"):
+        log_model_graph(model_with_likelihood, path)
+    with pytest.raises(ValueError, match="must end in a file name"):
+        log_arviz_summary(mock_idata, path)
+
+
 def test_force_load_idata_groups_visits_every_group(mock_idata, monkeypatch) -> None:
     """Regression test: ``_force_load_idata_groups`` must load every group.
 
