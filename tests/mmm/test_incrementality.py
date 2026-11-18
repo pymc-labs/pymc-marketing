@@ -110,6 +110,7 @@ from tests.mmm.conftest import (
     mock_fit,
 )
 from tests.mmm.conftest import seed as fit_seed
+from tests.mmm.test_counterfactual import eval_mask
 from tests.mmm.test_spend_reach import (
     assert_identical_statistics,
     effective_l_max,
@@ -9924,9 +9925,9 @@ def test_the_paths_of_a_panel_model_match_holding_its_hubs(panel_hubs_fitted_mmm
 class TestPathDeltas:
     """The change in the linear predictor, one node and one column at a time.
 
-    Synthetic arrays, no model.  The reference differences every node over
-    the evaluation mask in full, then keeps a ``channel_contribution`` column
-    or sums the channels.
+    Synthetic arrays, no model.  The change is read through the window's
+    slices; the reference differences every node over the evaluation masks in
+    full, then keeps a ``channel_contribution`` column or sums the channels.
     """
 
     DATES = pd.date_range("2023-01-01", periods=6, freq="W-SUN")
@@ -10010,13 +10011,14 @@ class TestPathDeltas:
 
         for period_idx, window in enumerate(windows.windows):
             row = 2 * period_idx + 1
-            mask = window.eval_mask(windows.max_window)
+            mask = eval_mask(window, windows.max_window)
             got = Incrementality._path_deltas(
                 row=row,
-                cf_mask=mask,
+                cf_slice=window.window_eval_slice,
                 window_dates=window.eval_dates,
                 baseline={
-                    name: values[:, window.in_eval] for name, values in baseline.items()
+                    name: values[:, window.eval_slice]
+                    for name, values in baseline.items()
                 },
                 counterfactual=counterfactual,
                 non_date_dims=self.NON_DATE_DIMS,

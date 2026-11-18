@@ -6930,7 +6930,7 @@ class Incrementality:
     @staticmethod
     def _path_deltas(
         row: int,
-        cf_mask: np.ndarray,
+        cf_slice: slice,
         window_dates: pd.DatetimeIndex,
         baseline: Mapping[str, np.ndarray],
         counterfactual: Mapping[str, np.ndarray],
@@ -6960,9 +6960,9 @@ class Incrementality:
         row : int
             Row of the counterfactual predictions to read, from
             :attr:`CounterfactualScenarios.rows`.
-        cf_mask : np.ndarray
-            Boolean mask over the padded window selecting the evaluation dates,
-            from :meth:`~pymc_marketing.mmm.counterfactual.PeriodWindow.eval_mask`.
+        cf_slice : slice
+            The evaluation dates' positions in the padded window, from
+            :attr:`~pymc_marketing.mmm.counterfactual.PeriodWindow.window_eval_slice`.
         window_dates : pd.DatetimeIndex
             The same dates as labels, from
             :attr:`~pymc_marketing.mmm.counterfactual.PeriodWindow.eval_dates`, so
@@ -6972,6 +6972,9 @@ class Incrementality:
         baseline : dict
             Per response variable, unperturbed predictions already restricted to
             the evaluation dates, shape ``(n_samples, n_eval_dates, *non_date_dims)``.
+            Read through basic indexing, as is the counterfactual, so both sides
+            of each difference are views and the difference is the only array
+            made.
         counterfactual : dict
             Per response variable, predictions per scenario, shape
             ``(n_scenarios, n_samples, max_window, *non_date_dims)``.
@@ -7020,18 +7023,15 @@ class Incrementality:
 
         def delta(name: str, column: int | None = None) -> xr.DataArray:
             dims = non_date_dims[name]
-            moved = counterfactual[name][row][:, cf_mask]
-            unmoved = baseline[name]
+            cf_index: tuple = (row, slice(None), cf_slice)
+            baseline_index: tuple = (slice(None), slice(None))
             if column is not None:
-                column_index: tuple = (
-                    *(slice(None),) * (2 + dims.index(Dim.CHANNEL)),
-                    column,
-                )
-                moved = moved[column_index]
-                unmoved = unmoved[column_index]
+                to_channel = (slice(None),) * dims.index(Dim.CHANNEL)
+                cf_index = (*cf_index, *to_channel, column)
+                baseline_index = (*baseline_index, *to_channel, column)
                 dims = tuple(dim for dim in dims if dim != Dim.CHANNEL)
             return xr.DataArray(
-                moved - unmoved,
+                counterfactual[name][cf_index] - baseline[name][baseline_index],
                 dims=("sample", Dim.DATE, *dims),
                 coords={
                     Dim.DATE: window_dates,
@@ -7154,20 +7154,22 @@ class Incrementality:
         row_slices = reduction.row_slices
         for period_idx, window in enumerate(windows.windows):
             # The same evaluation dates on both sides of the difference, in the
-            # same order: ``in_eval`` picks them out of the full-axis baseline and
-            # ``eval_mask`` picks them out of the padded counterfactual window.
-            # Both come from the window itself, so there is no second expression
-            # to keep in step with the first.
+            # same order: ``eval_slice`` reads them out of the full-axis baseline
+            # and ``window_eval_slice`` out of the padded counterfactual window,
+            # both as views.  Both come from the window itself, so there is no
+            # second expression to keep in step with the first.  The views share
+            # memory with the full-axis baseline every later period reads, so
+            # nothing may write into them in place.
             period_baseline = {
-                name: values[:, window.in_eval] for name, values in baseline.items()
+                name: values[:, window.eval_slice] for name, values in baseline.items()
             }
-            cf_mask = window.eval_mask(windows.max_window)
+            cf_slice = window.window_eval_slice
             rows = [scenarios.rows[(period_idx, key)] for key, _ in row_slices]
             # A period with no fitted date in its window has nothing evaluated to
             # compare.  Wider than ``moves_spend`` on purpose: a period that moves
             # no spend still has its rows checked, which is what tells rounding
             # apart from a term that takes another value on the window.
-            evaluated = bool(cf_mask.any())
+            evaluated = len(window.eval_dates) > 0
             # A period with no fitted date of its own scales no spend, so every
             # scenario of it is the factual spend and every result is zero.  The
             # difference below is zero only to rounding, since the window and the
@@ -7179,7 +7181,7 @@ class Incrementality:
                 self._check_rows(
                     rows=sorted(set(rows)),
                     factual_row=scenarios.factual_rows[period_idx],
-                    cf_mask=cf_mask,
+                    cf_slice=cf_slice,
                     baseline=period_baseline,
                     counterfactual=counterfactual,
                     non_date_dims=reduction.non_date_dims,
@@ -7189,7 +7191,7 @@ class Incrementality:
                 increments = self._path_increments(
                     rows=rows,
                     window=window,
-                    cf_mask=cf_mask,
+                    cf_slice=cf_slice,
                     baseline=period_baseline,
                     counterfactual=counterfactual,
                     # A request that wants a path always comes with its reducer.
@@ -7218,7 +7220,7 @@ class Incrementality:
                     mediators=reduction.mediators,
                     rows=sorted(set(rows)),
                     factual_row=scenarios.factual_rows[period_idx],
-                    cf_mask=cf_mask,
+                    cf_slice=cf_slice,
                     baseline=period_baseline,
                     counterfactual=counterfactual,
                 )
@@ -7226,7 +7228,7 @@ class Incrementality:
                 movement = self._mediator_movement(
                     mediator,
                     rows=rows,
-                    cf_mask=cf_mask,
+                    cf_slice=cf_slice,
                     baseline=period_baseline,
                     counterfactual=counterfactual,
                     labels=labels,
@@ -7343,7 +7345,7 @@ class Incrementality:
         *,
         rows: Sequence[int],
         window: PeriodWindow,
-        cf_mask: np.ndarray,
+        cf_slice: slice,
         baseline: Mapping[str, np.ndarray],
         counterfactual: Mapping[str, np.ndarray],
         reducer: IncrementalReducer,
@@ -7358,8 +7360,8 @@ class Incrementality:
             :attr:`PeriodReduction.row_slices`.
         window : PeriodWindow
             The period's window.
-        cf_mask : np.ndarray
-            Positions of the evaluated dates in the padded window.
+        cf_slice : slice
+            The evaluated dates' positions in the padded window.
         baseline : mapping
             Per node, the full-axis baseline on the evaluated dates.
         counterfactual : mapping
@@ -7378,7 +7380,7 @@ class Incrementality:
         deltas = [
             cls._path_deltas(
                 row=row,
-                cf_mask=cf_mask,
+                cf_slice=cf_slice,
                 window_dates=window.eval_dates,
                 baseline=baseline,
                 counterfactual=counterfactual,
@@ -7454,7 +7456,7 @@ class Incrementality:
         mediator: ResolvedMediator,
         *,
         rows: Sequence[int],
-        cf_mask: np.ndarray,
+        cf_slice: slice,
         baseline: Mapping[str, np.ndarray],
         counterfactual: Mapping[str, np.ndarray],
         labels: Mapping[str, np.ndarray],
@@ -7468,8 +7470,8 @@ class Incrementality:
             The node, with the scale it is reported in.
         rows : sequence of int
             The period's scenario row per output slice.
-        cf_mask : np.ndarray
-            Positions of the evaluated dates in the padded window.
+        cf_slice : slice
+            The evaluated dates' positions in the padded window.
         baseline : mapping
             Per node, the full-axis baseline on the evaluated dates.
         counterfactual : mapping
@@ -7495,7 +7497,7 @@ class Incrementality:
         movement = cls._stack_channel_rows(
             [
                 xr.DataArray(
-                    counterfactual[mediator.variable][row][:, cf_mask]
+                    counterfactual[mediator.variable][row, :, cf_slice]
                     - baseline[mediator.variable],
                     dims=("sample", Dim.DATE, *dims),
                     coords=coords,
@@ -7518,7 +7520,7 @@ class Incrementality:
         *,
         rows: Sequence[int],
         factual_row: int,
-        cf_mask: np.ndarray,
+        cf_slice: slice,
         baseline: Mapping[str, np.ndarray],
         counterfactual: Mapping[str, np.ndarray],
         non_date_dims: Mapping[str, tuple[str, ...]],
@@ -7544,8 +7546,8 @@ class Incrementality:
             The perturbed rows of the period.
         factual_row : int
             The row holding actual spend on the period's window.
-        cf_mask : np.ndarray
-            Positions of the evaluated dates in the padded window.
+        cf_slice : slice
+            The evaluated dates' positions in the padded window.
         baseline : mapping
             Per accounted node, the full-axis baseline on the evaluated dates.
         counterfactual : mapping
@@ -7567,7 +7569,7 @@ class Incrementality:
         """
         compared = (Var.MU, *accounted)
         factual = {
-            name: counterfactual[name][factual_row][:, cf_mask] for name in compared
+            name: counterfactual[name][factual_row, :, cf_slice] for name in compared
         }
         for name, values in factual.items():
             SpendProbe._assert_finite(name, values)
@@ -7576,7 +7578,7 @@ class Incrementality:
             **{name: baseline[name] for name in accounted},
         }
         for row in rows:
-            moved = {name: counterfactual[name][row][:, cf_mask] for name in compared}
+            moved = {name: counterfactual[name][row, :, cf_slice] for name in compared}
             for name, values in moved.items():
                 SpendProbe._assert_finite(name, values)
             stats = ProbeStatistics.fold(
@@ -7657,7 +7659,7 @@ class Incrementality:
         mediators: Sequence[ResolvedMediator],
         rows: Sequence[int],
         factual_row: int,
-        cf_mask: np.ndarray,
+        cf_slice: slice,
         baseline: Mapping[str, np.ndarray],
         counterfactual: Mapping[str, np.ndarray],
     ) -> None:
@@ -7681,8 +7683,8 @@ class Incrementality:
             The perturbed rows of the period.
         factual_row : int
             The row holding actual spend on the period's window.
-        cf_mask : np.ndarray
-            Positions of the evaluated dates in the padded window.
+        cf_slice : slice
+            The evaluated dates' positions in the padded window.
         baseline : mapping
             Per node, the full-axis baseline on the evaluated dates.
         counterfactual : mapping
@@ -7696,12 +7698,12 @@ class Incrementality:
         """
         for mediator in mediators:
             on_axis = baseline[mediator.variable]
-            on_window = counterfactual[mediator.variable][factual_row][:, cf_mask]
+            on_window = counterfactual[mediator.variable][factual_row, :, cf_slice]
             SpendProbe._assert_finite(mediator.variable, on_window)
             largest_move = max(
                 float(
                     np.abs(
-                        counterfactual[mediator.variable][row][:, cf_mask] - on_axis
+                        counterfactual[mediator.variable][row, :, cf_slice] - on_axis
                     ).max()
                 )
                 for row in rows
