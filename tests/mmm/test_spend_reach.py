@@ -13,9 +13,17 @@
 #   limitations under the License.
 """Tests for the spend-reach probe: window length and increment completeness."""
 
-import numpy as np
-import pytest
+import dataclasses
+import gc
+import weakref
 
+import numpy as np
+import pandas as pd
+import pymc as pm
+import pytest
+from pytensor.graph.traversal import ancestors
+
+from pymc_marketing.mmm import MMM, GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.additive_effect import IncrementalitySpec
 from pymc_marketing.mmm.counterfactual import CounterfactualEvaluator
 from pymc_marketing.mmm.incrementality import kernel_trailing_lags
@@ -23,11 +31,20 @@ from pymc_marketing.mmm.spend_reach import (
     CHANNEL_CONTRIBUTION,
     LINEAR_PREDICTOR,
     ChannelDependentEffect,
+    ProbeStatistics,
     SpendProbe,
     SpendReach,
     TemporalReach,
     linear_predictor,
+    refuse_blocked_spend_paths,
     resolve_channel_dependent_effects,
+)
+from tests.mmm.conftest import (
+    FrozenLevelEffect,
+    ObservedDemandEffect,
+    PotentialTiedDemandEffect,
+    RandomContributionEffect,
+    SpendScaledPriorEffect,
 )
 
 
@@ -43,6 +60,8 @@ class FakeEvaluator:
     """
 
     channel_dtype = "float64"
+    non_date_dims = {CHANNEL_CONTRIBUTION: ("channel",), LINEAR_PREDICTOR: ()}
+    """The dimensions after ``sample`` and ``date`` of the usual analytic nodes."""
 
     def __init__(self, **nodes):
         self.nodes = nodes
@@ -412,6 +431,184 @@ class TestResolveChannelDependentEffects:
         resolved = resolve_channel_dependent_effects(mmm)
 
         assert any(effect.contribution_var == contribution_var for effect in resolved)
+
+
+def build_with_effect(data, effect):
+    """An identity-link MMM on the funnel frame carrying *effect*, built and not fitted.
+
+    The guard on blocked spend paths reads the graph alone, so there is no
+    posterior to make up.
+    """
+    mmm = MMM(
+        channel_columns=["channel_1", "channel_2"],
+        date_column="date",
+        target_column="y",
+        adstock=GeometricAdstock(l_max=3),
+        saturation=LogisticSaturation(),
+    )
+    mmm.add_mu_effect(effect)
+    mmm.build_model(data["X_df"], data["y_series"])
+    return mmm
+
+
+class TestRefuseBlockedSpendPaths:
+    """What a posterior-conditioned evaluation holds fixed on a path from spend.
+
+    A random variable keeps its draws and a frozen deterministic its posterior
+    values whatever spend is, so a path from ``channel_data`` to the linear
+    predictor through one of them is cut.  The evaluations cannot show it: the
+    predictor and the accounted nodes fail to move through it together.  The
+    refusal is therefore read off the graph, and names the variable.
+
+    The four ways of writing a latent mediator are tested through the public
+    methods in ``test_incrementality.py``.  The shapes here are the other things
+    the posterior holds fixed.
+    """
+
+    @pytest.mark.parametrize(
+        "effect, held",
+        [
+            pytest.param(
+                ObservedDemandEffect(prefix="measured"),
+                "measured_demand",
+                id="an observed variable",
+            ),
+            pytest.param(
+                RandomContributionEffect(prefix="noisy"),
+                "noisy_effect_contribution",
+                id="a contribution that is a random variable",
+            ),
+            pytest.param(
+                FrozenLevelEffect(prefix="scaled"),
+                "scaled_level",
+                id="a frozen deterministic",
+            ),
+            pytest.param(
+                SpendScaledPriorEffect(prefix="empirical"),
+                "empirical_beta",
+                id="a prior scaled by spend",
+            ),
+        ],
+    )
+    def test_a_held_variable_on_a_spend_path_is_refused_by_name(
+        self, funnel_mmm_data, effect, held
+    ):
+        """Each kind of held variable is refused, and the refusal says which one.
+
+        The last case is not a structural equation: ``beta`` is a parameter, and
+        today's number for that model is right.  The graph cannot tell it from a
+        latent mediator, so it is refused with the others.
+        """
+        mmm = build_with_effect(funnel_mmm_data, effect)
+
+        with pytest.raises(NotImplementedError, match=held):
+            refuse_blocked_spend_paths(mmm, resolve_channel_dependent_effects(mmm))
+
+    def test_the_refusal_warns_that_a_potential_does_not_fix_the_path(
+        self, funnel_mmm_data
+    ):
+        """Moving the tie into a Potential silences the refusal, not the gap."""
+        mmm = build_with_effect(funnel_mmm_data, ObservedDemandEffect(prefix="m"))
+
+        with pytest.raises(NotImplementedError) as excinfo:
+            refuse_blocked_spend_paths(mmm, resolve_channel_dependent_effects(mmm))
+        assert "pm.Potential removes this error but not the problem" in str(
+            excinfo.value
+        )
+
+    def test_a_likelihood_that_reads_spend_and_feeds_nothing_is_not_on_a_path(self):
+        """A calibration likelihood is downstream of spend, and no path runs through it.
+
+        ``roas_calibration`` is the one random variable besides the target that
+        the library itself puts downstream of ``channel_data``.  It is a leaf,
+        as the likelihood on a mediator's indicator is, so the model is answered.
+        """
+        rng = np.random.default_rng(3128)
+        dates = pd.date_range("2025-01-05", periods=12, freq="W")
+        X = pd.concat(
+            [
+                pd.DataFrame(
+                    {
+                        "date": dates,
+                        "geo": geo,
+                        "C1": rng.uniform(50, 150, len(dates)),
+                        "C2": rng.uniform(20, 80, len(dates)),
+                    }
+                )
+                for geo in ("a", "b")
+            ],
+            ignore_index=True,
+        )
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["C1", "C2"],
+            dims=("geo",),
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            link="log",
+        )
+        mmm.build_model(X, pd.Series(rng.uniform(500, 900, len(X)), name="y"))
+        mmm.add_cost_per_target_calibration(
+            data=X,
+            calibration_data=pd.DataFrame(
+                {"channel": ["C1"], "geo": ["a"], "roas": [2.0], "sigma": [0.5]}
+            ),
+            name_prefix="roas_calibration",
+            target_column="roas",
+            target_per_cost=True,
+        )
+        model = mmm.model
+        calibration = model["roas_calibration"]
+        assert model["channel_data"] in set(ancestors([calibration]))
+
+        assert refuse_blocked_spend_paths(mmm, effects=()) is None
+
+    def test_a_variable_tied_to_spend_only_by_a_potential_is_not_refused(
+        self, funnel_mmm_data
+    ):
+        """A Potential reads spend, but makes nothing downstream of it.
+
+        ``demand`` is upstream of the predictor and the Potential reads both it
+        and spend, yet ``demand`` is not a function of spend.  It keeps its draws
+        in the counterfactual, as the ``incrementality_spec`` docstring says.
+        """
+        mmm = build_with_effect(
+            funnel_mmm_data, PotentialTiedDemandEffect(prefix="tied")
+        )
+        model = mmm.model
+        tie_reads = set(ancestors([model["tied_tie"]]))
+        assert {model["channel_data"], model["tied_demand"]} <= tie_reads
+        assert model["channel_data"] not in set(ancestors([model["tied_demand"]]))
+
+        assert (
+            refuse_blocked_spend_paths(mmm, resolve_channel_dependent_effects(mmm))
+            is None
+        )
+
+    def test_a_roas_prior_written_as_a_potential_is_not_refused(self, funnel_mmm_data):
+        """A soft calibration prior on the saturation parameters is not a spend path.
+
+        The Potential reads the contribution and spend, and so the saturation
+        parameters, which keep their draws as their author means them to.
+        """
+        mmm = MMM(
+            channel_columns=["channel_1", "channel_2"],
+            date_column="date",
+            target_column="y",
+            adstock=GeometricAdstock(l_max=3),
+            saturation=LogisticSaturation(),
+        )
+        mmm.build_model(funnel_mmm_data["X_df"], funnel_mmm_data["y_series"])
+        model = mmm.model
+        with model:
+            roas = (
+                model["channel_contribution"].values.sum()
+                / model["channel_data"].values.sum()
+            )
+            pm.Potential("roas_prior", pm.logp(pm.Normal.dist(2.0, 0.5), roas))
+        assert model["saturation_beta"] in set(ancestors([model["roas_prior"]]))
+
+        assert refuse_blocked_spend_paths(mmm, effects=()) is None
 
 
 class TestSpendProbe:
@@ -1395,3 +1592,474 @@ class TestSpendProbe:
                     LINEAR_PREDICTOR: (),
                 },
             )
+
+
+EFFECT = "effect_contribution"
+
+
+def assert_identical_statistics(left, right):
+    """Assert two :class:`ProbeStatistics` hold bitwise-equal values in every field."""
+    for statistic in dataclasses.fields(ProbeStatistics):
+        left_value = getattr(left, statistic.name)
+        right_value = getattr(right, statistic.name)
+        if statistic.name == "per_date_move":
+            assert left_value.keys() == right_value.keys()
+            for name, per_date in left_value.items():
+                assert per_date.dtype == right_value[name].dtype
+                np.testing.assert_array_equal(per_date, right_value[name])
+        else:
+            assert left_value == right_value, statistic.name
+
+
+class TestProbeStatistics:
+    """The probe keeps statistics folded over slices of samples, never evaluations."""
+
+    non_date_dims = {
+        CHANNEL_CONTRIBUTION: ("geo", "channel"),
+        EFFECT: ("geo",),
+        LINEAR_PREDICTOR: ("geo",),
+    }
+    accounted = (CHANNEL_CONTRIBUTION, EFFECT)
+
+    @staticmethod
+    def _evaluations(rng, dtype, n_samples=7, n_dates=11):
+        """Random baseline and probe evaluations of a channel node, an effect and mu."""
+        shapes = {
+            CHANNEL_CONTRIBUTION: (n_samples, n_dates, 3, 4),
+            EFFECT: (n_samples, n_dates, 3),
+            LINEAR_PREDICTOR: (n_samples, n_dates, 3),
+        }
+        baseline = {
+            name: (rng.normal(size=shape) * 1e3).astype(dtype)
+            for name, shape in shapes.items()
+        }
+        probed = {
+            name: (values + rng.normal(size=values.shape)).astype(dtype)
+            for name, values in baseline.items()
+        }
+        return probed, baseline
+
+    @pytest.mark.parametrize("dtype", ["float64", "float32"])
+    @pytest.mark.parametrize("seed", range(5))
+    def test_any_slicing_gives_bitwise_equal_statistics(self, dtype, seed, monkeypatch):
+        """Every statistic is a maximum, so slicing and order cannot change it."""
+        rng = np.random.default_rng(seed)
+        probed, baseline = self._evaluations(rng, dtype)
+        whole = ProbeStatistics.fold(
+            probed,
+            baseline,
+            accounted=self.accounted,
+            non_date_dims=self.non_date_dims,
+        )
+
+        n_samples = baseline[LINEAR_PREDICTOR].shape[0]
+        n_cuts = int(rng.integers(1, n_samples))
+        cuts = np.sort(rng.choice(np.arange(1, n_samples), size=n_cuts, replace=False))
+        shuffled = ProbeStatistics(accounted=self.accounted)
+        for samples in np.split(rng.permutation(n_samples), cuts):
+            shuffled.update(
+                {name: values[samples] for name, values in probed.items()},
+                {name: values[samples] for name, values in baseline.items()},
+                non_date_dims=self.non_date_dims,
+            )
+        monkeypatch.setattr(ProbeStatistics, "FOLD_ELEMENTS", 1)
+        one_at_a_time = ProbeStatistics.fold(
+            probed,
+            baseline,
+            accounted=self.accounted,
+            non_date_dims=self.non_date_dims,
+        )
+
+        assert_identical_statistics(whole, shuffled)
+        assert_identical_statistics(whole, one_at_a_time)
+
+    def test_statistics_compare_by_identity(self):
+        """A generated ``__eq__`` would compare dicts of arrays and raise."""
+        left = ProbeStatistics(per_date_move={CHANNEL_CONTRIBUTION: np.zeros(3)})
+        right = ProbeStatistics(per_date_move={CHANNEL_CONTRIBUTION: np.zeros(3)})
+
+        assert left == left
+        assert left != right
+
+    def test_a_nan_move_survives_any_slicing(self, monkeypatch):
+        """A NaN move is in the largest move, whether its sample is folded alone or not.
+
+        Sample 0's float32 channel moves overflow and sum to ``inf - inf``;
+        sample 1 moves by 2.  A NaN-skipping maximum would drop the NaN over
+        the whole evaluation but keep it when sample 0 is a slice of its own.
+        """
+        n_dates = 6
+        channel_base = np.zeros((2, n_dates, 2), dtype="float32")
+        channel_base[0, :, 0], channel_base[0, :, 1] = -3e38, 3e38
+        channel_probed = -channel_base
+        channel_probed[1] = 1.0
+        predictor_base = np.zeros((2, n_dates), dtype="float32")
+        probed = {
+            CHANNEL_CONTRIBUTION: channel_probed,
+            LINEAR_PREDICTOR: predictor_base + 2,
+        }
+        baseline = {
+            CHANNEL_CONTRIBUTION: channel_base,
+            LINEAR_PREDICTOR: predictor_base,
+        }
+        non_date_dims = FakeEvaluator.non_date_dims
+
+        with np.errstate(over="ignore", invalid="ignore"):
+            whole = ProbeStatistics.fold(
+                probed,
+                baseline,
+                accounted=(CHANNEL_CONTRIBUTION,),
+                non_date_dims=non_date_dims,
+            )
+            monkeypatch.setattr(ProbeStatistics, "FOLD_ELEMENTS", 1)
+            one_at_a_time = ProbeStatistics.fold(
+                probed,
+                baseline,
+                accounted=(CHANNEL_CONTRIBUTION,),
+                non_date_dims=non_date_dims,
+            )
+
+        for stats in (whole, one_at_a_time):
+            assert stats.max_expected == 2.0
+            assert np.isnan(stats.max_accounted)
+            assert np.isnan(stats.max_residual)
+
+    def test_a_residual_at_the_rounding_of_atol_is_decided_as_allclose(self):
+        """A float32 residual within an ulp of ``atol`` gets numpy.allclose's answer.
+
+        ``allclose`` compares in the arrays' dtype, so an ``atol`` a quarter ulp
+        below the residual rounds up to it and passes.  Comparing the folded
+        residual in float64 would refuse it.
+        """
+        residual = np.float32(0.1)
+        n_dates = 3
+        baseline = {
+            CHANNEL_CONTRIBUTION: np.zeros((1, n_dates, 1), dtype="float32"),
+            LINEAR_PREDICTOR: np.zeros((1, n_dates), dtype="float32"),
+        }
+        probed = {name: values.copy() for name, values in baseline.items()}
+        probed[CHANNEL_CONTRIBUTION][0, 1, 0] = residual
+        stats = ProbeStatistics.fold(
+            probed,
+            baseline,
+            accounted=(CHANNEL_CONTRIBUTION,),
+            non_date_dims=FakeEvaluator.non_date_dims,
+        )
+        accounted = (probed[CHANNEL_CONTRIBUTION] - baseline[CHANNEL_CONTRIBUTION]).sum(
+            axis=-1
+        )
+        expected = probed[LINEAR_PREDICTOR] - baseline[LINEAR_PREDICTOR]
+
+        ulp = float(np.spacing(residual))
+        candidates = [float(residual) + k * ulp / 4 for k in range(-6, 7)]
+        reference = [
+            np.allclose(accounted, expected, rtol=0.0, atol=atol) for atol in candidates
+        ]
+
+        assert [stats.residual_within(atol) for atol in candidates] == reference
+        assert any(
+            passes and atol < float(residual)
+            for atol, passes in zip(candidates, reference, strict=True)
+        )
+
+    @pytest.mark.parametrize("with_predictor", [True, False])
+    def test_one_probe_evaluation_alive_at_a_time(self, with_predictor):
+        """No array of an earlier probe is alive while the next one is evaluated.
+
+        Two flighted channels never spend on the same date, so each gets its
+        own probe date.
+        """
+        returned = []
+        alive_at_each_call = []
+
+        class RecordingEvaluator(FakeEvaluator):
+            def evaluate_baseline(self, channel_data):
+                gc.collect()
+                alive_at_each_call.append(sum(ref() is not None for ref in returned))
+                out = super().evaluate_baseline(channel_data)
+                returned.extend(weakref.ref(array) for array in out.values())
+                return out
+
+        node = causal_filter(3)
+        nodes = {CHANNEL_CONTRIBUTION: node}
+        if with_predictor:
+            nodes[LINEAR_PREDICTOR] = lambda spend: node(spend).sum(axis=-1)
+        evaluator = RecordingEvaluator(**nodes)
+        spend = np.zeros((24, 2))
+        spend[1::2, 0] = 2.0
+        spend[2::2, 1] = 2.0
+        baseline = evaluator.evaluate_baseline(spend)
+        returned.clear()
+        alive_at_each_call.clear()
+
+        probe = SpendProbe(
+            evaluator=evaluator,
+            baseline=baseline,
+            baseline_array=spend,
+            counterfactual_spend_factor=0.0,
+        )
+
+        assert len(probe.probe_indices) == 2
+        assert alive_at_each_call == [0, 0]
+
+    def test_the_probe_keeps_no_evaluation(self):
+        """Once folded, no array the evaluator returned for a probe is alive."""
+        returned = []
+
+        class RecordingEvaluator(FakeEvaluator):
+            def evaluate_baseline(self, channel_data):
+                out = super().evaluate_baseline(channel_data)
+                returned.extend(weakref.ref(array) for array in out.values())
+                return out
+
+        node = causal_filter(3)
+        evaluator = RecordingEvaluator(
+            **{
+                CHANNEL_CONTRIBUTION: node,
+                LINEAR_PREDICTOR: lambda spend: node(spend).sum(axis=-1),
+            }
+        )
+        spend = TestSpendProbe._spend()
+        baseline = evaluator.evaluate_baseline(spend)
+        n_baseline = len(returned)
+
+        probe = SpendProbe(
+            evaluator=evaluator,
+            baseline=baseline,
+            baseline_array=spend,
+            counterfactual_spend_factor=0.0,
+        )
+        probe.assert_increment_is_complete(
+            effects=(), non_date_dims=evaluator.non_date_dims
+        )
+        probe.measure(effects=(), l_max=3, trailing_lags=2)
+        probe.mixes_channels(non_date_dims=evaluator.non_date_dims)
+        gc.collect()
+
+        probe_arrays = returned[n_baseline:]
+        assert probe.probe_indices
+        assert probe_arrays
+        assert all(ref() is None for ref in probe_arrays)
+
+    def test_a_nan_residual_is_refused(self):
+        """A NaN residual is not within atol, as numpy.allclose decides it.
+
+        Finite float32 nodes can still move by more than float32 holds: the
+        channel moves overflow and their sum is ``inf - inf``.  A fold that
+        dropped the NaN would pass the check.
+        """
+        n_dates = 6
+        spend = np.full((n_dates, 2), 2.0)
+        channel_base = np.zeros((1, n_dates, 2), dtype="float32")
+        channel_base[0, :, 0], channel_base[0, :, 1] = -3e38, 3e38
+        channel_probed = -channel_base
+        predictor_base = np.zeros((1, n_dates), dtype="float32")
+        predictor_probed = predictor_base + 1
+
+        with np.errstate(over="ignore", invalid="ignore"):
+            probe = dtype_probe(
+                spend=spend,
+                channel_dtype="float32",
+                **{
+                    CHANNEL_CONTRIBUTION: (channel_base, channel_probed),
+                    LINEAR_PREDICTOR: (predictor_base, predictor_probed),
+                },
+            )
+            with pytest.raises(NotImplementedError, match="Some path from spend"):
+                probe.assert_increment_is_complete(
+                    effects=(), non_date_dims=FakeEvaluator.non_date_dims
+                )
+
+    @pytest.mark.parametrize(
+        "accounted_move, complete",
+        [(3e38, True), (0.5, False)],
+        ids=["matched", "unattributed"],
+    )
+    def test_an_infinite_predictor_move_is_decided_as_allclose(
+        self, accounted_move, complete
+    ):
+        """Where mu moves by inf, numpy.allclose asks for the same inf, not |x - y| <= atol.
+
+        The accounted sum that moves by the same inf is complete.  One that
+        moves by 1 leaves a path unattributed, even though the tolerance,
+        scaled by the inf move, is inf too.
+        """
+        n_dates = 6
+        spend = np.full((n_dates, 1), 2.0)
+        channel_base = np.full((1, n_dates, 1), -accounted_move, dtype="float32")
+        predictor_probed = np.full((1, n_dates), 3e38, dtype="float32")
+
+        with np.errstate(over="ignore", invalid="ignore"):
+            probe = dtype_probe(
+                spend=spend,
+                channel_dtype="float32",
+                **{
+                    CHANNEL_CONTRIBUTION: (channel_base, -channel_base),
+                    LINEAR_PREDICTOR: (-predictor_probed, predictor_probed),
+                },
+            )
+            if complete:
+                probe.assert_increment_is_complete(
+                    effects=(), non_date_dims=FakeEvaluator.non_date_dims
+                )
+            else:
+                with pytest.raises(NotImplementedError, match="Some path from spend"):
+                    probe.assert_increment_is_complete(
+                        effects=(), non_date_dims=FakeEvaluator.non_date_dims
+                    )
+
+    def test_the_completeness_check_refuses_effects_it_was_not_folded_for(self):
+        """The fold sums every baseline node but mu; asking about others is an error."""
+        node = causal_filter(3)
+        evaluator = FakeEvaluator(
+            **{
+                CHANNEL_CONTRIBUTION: node,
+                EFFECT: lambda spend: 0.5 * node(spend).sum(axis=-1),
+                LINEAR_PREDICTOR: lambda spend: 1.5 * node(spend).sum(axis=-1),
+            }
+        )
+        evaluator.non_date_dims = {
+            **FakeEvaluator.non_date_dims,
+            EFFECT: (),
+        }
+        spend = TestSpendProbe._spend()
+        probe = SpendProbe(
+            evaluator=evaluator,
+            baseline=evaluator.evaluate_baseline(spend),
+            baseline_array=spend,
+            counterfactual_spend_factor=0.0,
+        )
+        effect = ChannelDependentEffect(
+            contribution_var=EFFECT,
+            label="effect",
+            declared_carryover_lags=None,
+            declared_evaluation_mode="auto",
+        )
+
+        probe.assert_increment_is_complete(
+            effects=(effect,), non_date_dims=evaluator.non_date_dims
+        )
+        with pytest.raises(ValueError, match="was folded for"):
+            probe.assert_increment_is_complete(
+                effects=(), non_date_dims=evaluator.non_date_dims
+            )
+
+
+HUB = "funnel_hub"
+
+
+def predictor_of(*nodes):
+    """A linear predictor that is the sum of *nodes*, each summed over its channels."""
+
+    def node(spend):
+        total = 0.0
+        for term in nodes:
+            value = term(spend)
+            total = total + (value.sum(axis=-1) if value.ndim == 3 else value)
+        return total
+
+    return node
+
+
+class TestMediatorNodes:
+    """Nodes the probe is asked to measure without counting them in the predictor.
+
+    A request that reports a mediator evaluates it next to the accounted terms.
+    The mediator is not a term of the linear predictor, so it stays out of the
+    completeness check, and its reach sizes the window like any other node's.
+    """
+
+    l_max = 3
+
+    def _probe(self, *, mediators=(HUB,)):
+        """A probe over a causal contribution, its predictor and a slower hub."""
+        contribution = causal_filter(self.l_max)
+        nodes = {
+            CHANNEL_CONTRIBUTION: contribution,
+            LINEAR_PREDICTOR: predictor_of(contribution),
+            HUB: single_channel_filter(self.l_max + 3, channel=0),
+        }
+        evaluator = FakeEvaluator(**nodes)
+        evaluator.non_date_dims = {**FakeEvaluator.non_date_dims, HUB: ()}
+        spend = TestSpendProbe._spend()
+        baseline = evaluator.evaluate_baseline(spend)
+        probe = SpendProbe(
+            evaluator=evaluator,
+            baseline=baseline,
+            baseline_array=spend,
+            counterfactual_spend_factor=0.0,
+            mediators=mediators,
+        )
+        return probe, evaluator
+
+    def test_a_mediator_stays_out_of_the_accounting(self):
+        """Summed into the accounted move, the hub would read as an unattributed path."""
+        probe, evaluator = self._probe()
+
+        compared = probe.assert_increment_is_complete(
+            effects=(), non_date_dims=evaluator.non_date_dims
+        )
+
+        assert compared
+
+    def test_a_node_that_is_not_named_as_a_mediator_is_accounted(self):
+        """The same graph without the declaration fails, which is what the check is for."""
+        probe, evaluator = self._probe(mediators=())
+        hub_as_effect = ChannelDependentEffect(
+            contribution_var=HUB,
+            label="hub",
+            declared_carryover_lags=None,
+            declared_evaluation_mode="auto",
+        )
+
+        with pytest.raises(NotImplementedError, match="Some path from spend"):
+            probe.assert_increment_is_complete(
+                effects=(hub_as_effect,), non_date_dims=evaluator.non_date_dims
+            )
+
+    def test_a_mediator_that_outlives_the_contribution_widens_the_window(self):
+        """Its movement is summed on the same window, so the window has to hold it."""
+        probe, _ = self._probe()
+
+        reach = probe.measure(
+            effects=(), l_max=self.l_max, trailing_lags=self.l_max - 1
+        )
+
+        # Six dates are five lags, three of which the model's own window carries.
+        assert reach.measured[HUB].max_lag == self.l_max + 2
+        assert reach.max_lag == self.l_max + 2
+        assert reach.effective_l_max == self.l_max + 2
+        assert reach.measured[CHANNEL_CONTRIBUTION].max_lag == self.l_max - 1
+
+
+class TestCompletenessReport:
+    """The tolerance the completeness check shares with the requests' own rows."""
+
+    @pytest.mark.parametrize(
+        "predictor_move, gap",
+        [
+            pytest.param(2.0, None, id="the terms account for the whole move"),
+            pytest.param(3.0, 1.0 / 3.0, id="a third of the move is unaccounted"),
+            pytest.param(0.0, 1.0, id="the terms move and the predictor does not"),
+        ],
+    )
+    def test_the_gap_is_a_share_of_the_larger_move(self, predictor_move, gap):
+        """One tolerance, for the probe and for a request's own rows."""
+        stats = ProbeStatistics(accounted=(CHANNEL_CONTRIBUTION,))
+        stats.update(
+            {
+                CHANNEL_CONTRIBUTION: np.ones((2, 4, 2)),
+                LINEAR_PREDICTOR: np.full((2, 4), predictor_move),
+            },
+            {
+                CHANNEL_CONTRIBUTION: np.zeros((2, 4, 2)),
+                LINEAR_PREDICTOR: np.zeros((2, 4)),
+            },
+            non_date_dims={CHANNEL_CONTRIBUTION: ("channel",), LINEAR_PREDICTOR: ()},
+        )
+
+        assert stats.accounting_gap() == (None if gap is None else pytest.approx(gap))
+
+    def test_statistics_with_nothing_folded_report_no_gap(self):
+        """Nothing was compared, so nothing can be missing."""
+        assert ProbeStatistics().accounting_gap() is None

@@ -228,8 +228,9 @@ Notes
 
 import json
 import warnings
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
+from functools import partial
 from pathlib import Path
 from typing import (
     Any,
@@ -279,9 +280,15 @@ from pymc_marketing.mmm.optimization_variables import (
     OptimizationVariables,
     align_to_model_coords,
 )
-from pymc_marketing.mmm.price_response import PriceResponse
+from pymc_marketing.mmm.price_response import PriceResponse, _cell_label_for_message
+from pymc_marketing.mmm.price_schedule import (
+    Bounds,
+    BreakpointSettler,
+    objective_scale_from_gradient,
+)
 from pymc_marketing.mmm.spend_reach import _PKG_PREFIX
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
+from pymc_marketing.names.mmm import Attr, Dim, Var
 from pymc_marketing.pytensor_utils import (
     ConditionedModel,
     SharedPosterior,
@@ -298,13 +305,12 @@ Construction runs through pydantic's validator, so a warning raised there is
 attributed to the first frame outside both this package and pydantic: the
 caller's.
 """
-
-DEFAULT_RESPONSE_VARIABLE = "total_media_contribution_original_scale"
+DEFAULT_RESPONSE_VARIABLE = Var.TOTAL_MEDIA_CONTRIBUTION_ORIGINAL_SCALE
 """Objective used when no ``response_variable`` is given: the media contribution
 alone. A model whose response also travels through a ``MuEffect`` wants
 ``"total_response_original_scale"`` instead."""
 
-MMM_CHANNEL_DATA_VAR = "channel_data"
+MMM_CHANNEL_DATA_VAR = Var.CHANNEL_DATA
 """The node ``MMM`` fits its channels on, and the only one its historical
 ``cost_per_unit`` table (``idata.attrs["cost_per_unit"]``) describes."""
 
@@ -349,6 +355,7 @@ class OptimizationIterationInfo(TypedDict):
     fun: float
     jac: np.ndarray
     constraint_info: NotRequired[list[ConstraintIterationInfo]]
+    solve: NotRequired[int]
 
 
 @dataclass
@@ -414,9 +421,31 @@ class BudgetOptimizationResult:
         so the window-average price is ``budgets * num_periods / implied_delivery.sum(date_dim)``.
     implied_marginal_price : xarray.DataArray or None
         Money the *next* delivered unit would cost, per period and cell; ``nan`` where
-        ``implied_price`` is. Above the floor it is ``implied_price / (1 - elasticity)``,
-        so their ratio is the whole content of a spend-dependent price: at elasticity
-        0.25 the increment costs 33% more than the average unit.
+        ``implied_price`` is. Its ratio to ``implied_price`` is the whole content of a
+        spend-dependent price. Under :class:`~pymc_marketing.mmm.price_response.PowerPriceResponse`
+        it is ``implied_price / (1 - elasticity)`` above the floor, so at elasticity 0.25
+        the increment costs 33% more than the average unit. Under
+        :class:`~pymc_marketing.mmm.price_response.TieredPriceResponse` it is the base price
+        times the multiplier of the bracket the next unit falls in; a cell on its breakpoint
+        reports the next bracket's.
+    delivery_reports : dict[str, xarray.Dataset]
+        One report per priced decision variable, keyed by name in decision-vector order:
+        ``channel_data_var`` and every ``spend_vars`` name when a ``price_response`` was
+        passed, empty otherwise. Each is over that variable's own ``(date_dim, *dims)``
+        (a spend variable decided over date alone is over ``(date_dim,)``) and holds
+        ``spend``, the money spent per period and cell (``0.0`` outside the mask), beside
+        ``implied_delivery``, ``implied_price`` and ``implied_marginal_price`` with the
+        meanings and the ``nan``-at-zero-money convention above; ``implied_delivery`` is
+        before that variable's scales (``channel_scales`` or ``spend_var_scales``). Per
+        report, masking the ``nan`` cells, ``(r.implied_delivery * r.implied_price).sum(date_dim)``
+        equals ``r.spend.sum(date_dim)``, which is the variable's allocation times
+        ``num_periods``. Kept per variable rather than stacked because variables differ in
+        dims. A spend variable takes no ``cost_per_unit`` and no
+        ``budget_distribution_over_period``: its base price is 1 (at its ``reference_spend``
+        under a power law) and its money is spread evenly over the window. Reports at any
+        labelled plan, on the same maps, come from :meth:`BudgetOptimizer.delivery_reports`.
+        The ``channel_data_var`` entry
+        holds the arrays of the three fields above.
     """
 
     budgets: DataArray
@@ -427,6 +456,7 @@ class BudgetOptimizationResult:
     implied_delivery: DataArray | None = None
     implied_price: DataArray | None = None
     implied_marginal_price: DataArray | None = None
+    delivery_reports: dict[str, xr.Dataset] = field(default_factory=dict)
 
     @property
     def spend_var_allocations(self) -> dict[str, DataArray]:
@@ -491,6 +521,40 @@ class BudgetOptimizationResult:
         """Yield ``(budgets, scipy_result)`` for two-element unpacking."""
         yield self.budgets
         yield self.scipy_result
+
+
+def _media_report_fields(report: xr.Dataset | None) -> dict[str, DataArray | None]:
+    """Read the media fields of :class:`BudgetOptimizationResult` off the media report.
+
+    All three are ``None`` when media has no price response, and so no report.
+    """
+    names = ("implied_delivery", "implied_price", "implied_marginal_price")
+    return {name: None if report is None else report[name] for name in names}
+
+
+@dataclass(frozen=True)
+class MinimizeSettings:
+    """How :meth:`BudgetOptimizer.allocate_budget` runs SciPy's ``minimize``, resolved once from ``minimize_kwargs``.
+
+    Attributes
+    ----------
+    kwargs : dict
+        The keyword arguments for :func:`scipy.optimize.minimize`, defaults merged.
+    slsqp : bool
+        Whether the method is SLSQP, named or SciPy's default under constraints. The exact passes that settle cells
+        on their breakpoints run only then.
+    rescale : bool
+        Whether SLSQP runs with the default tolerance, so each solve divides the objective by its steepest
+        gradient entry.
+    ftol : float
+        ``options["ftol"]``, else ``tol``, else SciPy's SLSQP default of ``1e-6``: what the exact passes' progress
+        rule compares a release's gain with.
+    """
+
+    kwargs: dict[str, Any]
+    slsqp: bool
+    rescale: bool
+    ftol: float
 
 
 @dataclass
@@ -681,7 +745,7 @@ def merge_inference_data(
     idatas: Sequence[DataTree],
     prefixes: Sequence[str] | None = None,
     *,
-    merge_on: str | None = "channel_data",
+    merge_on: str | None = Var.CHANNEL_DATA,
     use_every_n_draw: int = 1,
 ) -> DataTree:
     """Merge multiple :class:`xarray.DataTree` objects with per-model prefixes.
@@ -870,7 +934,7 @@ def merge_models_and_idata(
     idatas: Sequence[DataTree],
     *,
     prefixes: Sequence[str] | None = None,
-    merge_on: str | None = "channel_data",
+    merge_on: str | None = Var.CHANNEL_DATA,
     use_every_n_draw: int = 1,
 ) -> tuple[Model, DataTree]:
     """Merge multiple PyMC models and their DataTree objects in one call.
@@ -1143,7 +1207,7 @@ class BuildMergedModel(OptimizerCompatibleModel):
         self,
         models: list[OptimizerCompatibleModel],
         prefixes: list[str] | None = None,
-        merge_on: str | None = "channel_data",
+        merge_on: str | None = Var.CHANNEL_DATA,
         use_every_n_draw: int = 1,
     ) -> None:
         warnings.warn(
@@ -1387,7 +1451,10 @@ class BudgetOptimizer(BaseModel):
     frozen_deterministics : list of str, optional
         Names of ``Deterministic`` variables to freeze at their posterior values
         instead of recomputing them from the graph. Required for models with HSGP
-        or time-varying components. Defaults to ``None``.
+        or time-varying components. One with the ``date_dim`` dimension is a path
+        over the dates the model was fitted on, which a window cannot evaluate, so
+        construction raises a ``NotImplementedError`` if ``response_variable``
+        reaches it. Defaults to ``None``.
     response_variable : str, optional
         The response variable to optimize. Default is
         ``"total_media_contribution_original_scale"``, which is built from the
@@ -1442,8 +1509,9 @@ class BudgetOptimizer(BaseModel):
         unscaled per-period money before ``channel_scales``. See
         :class:`~pymc_marketing.mmm.price_response.PowerPriceResponse` for the
         precondition (the model must be fitted on delivery units), the
-        attestation it requires, and the three reporting fields it
-        adds to the result. With ``spend_vars`` declared, pass a dict keyed by
+        attestation it requires, the three media reporting fields it
+        adds to the result, and ``delivery_reports``, the same report for every
+        priced variable keyed by name. With ``spend_vars`` declared, pass a dict keyed by
         decision-variable name that names every monetary variable
         (``channel_data_var`` and each spend variable); say constant with
         ``PowerPriceResponse(elasticity=0.0)``.
@@ -1481,6 +1549,7 @@ class BudgetOptimizer(BaseModel):
             # flank effective_carryover_lags() wide; the three must add up to it.
             carry_in_periods=mmm.effective_carryover_lags(),
             adstock_periods=mmm.effective_carryover_lags(),
+            frozen_deterministics=mmm.frozen_deterministics,
             response_variable="total_media_contribution_original_scale",
         )
         optimal, result = optimizer.allocate_budget(total_budget=100_000)
@@ -1620,8 +1689,8 @@ class BudgetOptimizer(BaseModel):
             "Must have dims (date, *budget_dims) where date has length "
             "num_periods. If None, budgets are assumed to already be in "
             "the model's native units (no conversion applied). With "
-            "price_response set this is the base price, applying at "
-            "reference_spend; the effective price then varies with the money spent."
+            "price_response set this is the base price: a power law's price at "
+            "reference_spend, or what a schedule's rate multipliers multiply."
         ),
     )
 
@@ -1638,12 +1707,14 @@ class BudgetOptimizer(BaseModel):
             "partial dict then raises, because a spend variable left at a constant price while media "
             "is not competes for the same pot on different terms, silently. A curved response needs "
             "assume_delivery_units=True on every node, because the fitted model cannot establish the "
-            "units of its data (see PowerPriceResponse for the precondition). The fitted model's "
+            "units of its data (see PowerPriceResponse for the precondition); a TieredPriceResponse "
+            "adds no curvature the fit already holds and needs none. The fitted model's "
             "historical cost_per_unit table anchors reference_spend on the channels it prices on "
             "MMM's channel_data node; a curved spend variable, custom channel_data_var or unpriced "
             "channel needs an explicit reference_spend. Results carry implied_delivery, "
-            "implied_price and implied_marginal_price for the media variable; a spend variable's "
-            "report is available through optimization_variables.variables[i].delivery_report(x_slice)."
+            "implied_price and implied_marginal_price for the media variable, and delivery_reports "
+            "holds the same arrays, with the per-period spend, for every priced variable, keyed "
+            "by name; BudgetOptimizer.delivery_reports gives them at any labelled plan."
         ),
     )
 
@@ -1662,7 +1733,7 @@ class BudgetOptimizer(BaseModel):
     )
 
     channel_data_var: str = Field(
-        default="channel_data",
+        default=Var.CHANNEL_DATA,
         description=(
             "Name of the PyMC Data variable in the model that holds channel spend/media inputs. "
             "Defaults to 'channel_data'. Override if your model uses a different variable name "
@@ -1671,7 +1742,7 @@ class BudgetOptimizer(BaseModel):
     )
 
     channel_contribution_var: str = Field(
-        default="channel_contribution",
+        default=Var.CHANNEL_CONTRIBUTION,
         description=(
             "Name of the per-channel contribution variable in the model's posterior. "
             "Used to automatically detect which channels are non-zero when "
@@ -1989,6 +2060,7 @@ class BudgetOptimizer(BaseModel):
         # of its clone (cloning the intervened model would copy the vector).
         self._frozen_model = freeze_dims_and_data(self.model, data=[])
         self._pymc_model = do(self._frozen_model, self._variables.substitutions())
+        self._warn_breakpoints_far_above_fit()
 
         # 8. Validate that the requested response variable actually exists in
         # the underlying PyMC model.
@@ -2031,12 +2103,70 @@ class BudgetOptimizer(BaseModel):
                     "response variable that includes their contribution."
                 )
 
+        # 8c. A frozen path over the date dim holds its posterior draws on the
+        # fitted dates, which do not line up with the window's.
+        if reached := self._frozen_date_paths(self.response_variable):
+            paths = (
+                f"a frozen path over {self.date_dim!r} that exists"
+                if len(reached) == 1
+                else f"frozen paths over {self.date_dim!r} that exist"
+            )
+            message = (
+                f"response_variable {self.response_variable!r} includes "
+                f"{' and '.join(map(repr, reached))}, {paths} only on the dates the "
+                "model was fitted on, so it cannot be optimized on a window."
+            )
+            default = DEFAULT_RESPONSE_VARIABLE
+            if (
+                self.response_variable != default
+                and default in self._pymc_model.named_vars
+                and not self._frozen_date_paths(default)
+            ):
+                message += (
+                    f" The default objective, {default!r}, does not include "
+                    f"{'it' if len(reached) == 1 else 'them'}."
+                )
+            raise NotImplementedError(message)
+
         # 9. Compile objective & gradient
         self._compile_objective_and_grad()
 
         # 10. Build constraints
         self._constraints = {}
         self.set_constraints(constraints=self.constraints)
+
+    def _frozen_date_paths(self, response_variable: str) -> list[str]:
+        """Return the frozen deterministics over ``date_dim`` an objective reaches.
+
+        The traversal stops at every frozen deterministic, as the evaluation does
+        when it substitutes their posterior draws, so a path that enters the
+        objective only through another frozen deterministic is not reached.
+
+        Parameters
+        ----------
+        response_variable : str
+            The objective, a variable of the optimization model.
+
+        Returns
+        -------
+        list of str
+            The names, in the order of ``frozen_deterministics``.
+        """
+        model = self._pymc_model
+        frozen = {
+            name: model[name]
+            for name in self.frozen_deterministics or ()
+            if name in model.named_vars
+        }
+        upstream = set(
+            ancestors([model[response_variable]], blockers=list(frozen.values()))
+        )
+        return [
+            name
+            for name, var in frozen.items()
+            if self.date_dim in (model.named_vars_to_dims.get(name) or ())
+            and var in upstream
+        ]
 
     def __copy__(self) -> "BudgetOptimizer":
         """Return a copy that owns its posterior binding and compiled functions.
@@ -2298,6 +2428,76 @@ class BudgetOptimizer(BaseModel):
             constraint_residuals=residuals,
         )
 
+    def delivery_reports(
+        self, plan: DataArray | Mapping[str, DataArray]
+    ) -> dict[str, xr.Dataset]:
+        """Delivery reports at a labelled plan, one per priced decision variable.
+
+        The same reports :meth:`allocate_budget` puts on
+        :attr:`BudgetOptimizationResult.delivery_reports`, at a plan the caller
+        names rather than at the solution. Kept apart from :meth:`evaluate_plan`
+        because it answers a different question: it reads no posterior, only the
+        price map, and returns a ``Dataset`` per priced variable rather than an
+        objective and its gradient.
+
+        Parameters
+        ----------
+        plan : xarray.DataArray or Mapping[str, xarray.DataArray]
+            The plan, labelled, in the same form :meth:`evaluate_plan` takes.
+
+        Returns
+        -------
+        dict[str, xarray.Dataset]
+            Keyed by variable name in decision-vector order: ``channel_data_var``
+            and every ``spend_vars`` name when a ``price_response`` was passed,
+            empty otherwise. Each report is as described on
+            :attr:`BudgetOptimizationResult.delivery_reports`.
+
+        Raises
+        ------
+        TypeError
+            If ``plan`` is not labelled at all.
+        ValueError
+            If a supplied ``DataArray`` has a dim carrying no coordinates, if
+            ``plan`` omits a decision variable, omits an optimized cell, or
+            carries coordinates the model does not have, or if it spends
+            negative money on a priced variable.
+
+        Notes
+        -----
+        As in :meth:`evaluate_plan`, **bounds are never checked**: a plan above
+        them is reported as given. Negative money is refused rather than
+        reported, because it buys nothing and so breaks the report's identity
+        silently: ``implied_delivery * implied_price`` would sum to zero while
+        ``spend`` sums below it. A cell outside the optimization mask is not part
+        of the decision vector, so its ``spend`` is ``0.0`` whatever the plan
+        holds there.
+
+        The first call compiles the price map once per priced variable; later
+        calls reuse it.
+        """
+        self._require_labelled_plan(plan, "delivery_reports")
+        reports = self._variables.delivery_reports(
+            self._pack_decision_vector(plan), date_coords=self._decision_date_coords()
+        )
+        for variable in self._variables.variables:
+            if (
+                not isinstance(variable, MediaVariable)
+                or variable.price_response is None
+            ):
+                continue
+            spend = reports[variable.name]["spend"]
+            # Mirrors the threshold below which a report calls a cell unspent, so a
+            # plan read off a solution, a rounding error below a bound at zero, passes.
+            floor = -1e-12 * variable.price_response.money_scale
+            if np.any(spend.values < floor):
+                raise ValueError(
+                    f"delivery_reports got a plan spending negative money on "
+                    f"{variable.name!r} (lowest {float(spend.min()):.6g} per period). "
+                    "Money below zero buys nothing, so the report would not add up."
+                )
+        return reports
+
     def set_constraints(self, constraints: Sequence[Constraint]) -> None:
         """Set constraints for the optimizer.
 
@@ -2462,23 +2662,28 @@ class BudgetOptimizer(BaseModel):
         ]
         if not pinned:
             return
-        variable = self._media_variable
-        labels = {
-            dim: variable.mask.coords[dim].values.tolist() for dim in variable.dims
-        }
-        cells = [
-            tuple(
-                labels[dim][int(i)] for dim, i in zip(variable.dims, index, strict=True)
-            )
-            for index in np.argwhere(on)[pinned]
-        ]
+        labels = self._media_variable.flat_labels()
+        cells = [_cell_label_for_message(labels[i]) for i in pinned]
         warnings.warn(
             f"price_response: cells {cells} are held at zero by budget_bounds but carry a non-zero "
             "elasticity. The map is steepest at zero, so the solver is handed its largest gradient on "
             "cells that cannot move; SLSQP rejects that step on some platforms ('Positive directional "
             "derivative for linesearch'). Set their elasticity to 0 or drop them from budgets_to_optimize.",
             UserWarning,
-            stacklevel=3,
+            skip_file_prefixes=(_PKG_PREFIX,),
+        )
+
+    def _priced_without_window_price(self) -> bool:
+        """Whether MMM's channel node is priced by the fitted ``cost_per_unit`` table and no window price was given.
+
+        Such a node holds delivery units, and with no ``cost_per_unit`` for the window the base price is 1, so
+        the optimizer's money reaches it as units.
+        """
+        return (
+            self.channel_data_var == MMM_CHANNEL_DATA_VAR
+            and Dim.CHANNEL in self._budget_dims
+            and self.cost_per_unit is None
+            and self._priced_channels() is not None
         )
 
     def _validate_date_length(self) -> None:
@@ -2540,7 +2745,7 @@ class BudgetOptimizer(BaseModel):
                 "channel_scales must be a scalar or a 1-D array over channels, got "
                 f"an array with shape {scales.shape}."
             )
-        n_channels = len(self.model.coords.get("channel", ()))
+        n_channels = len(self.model.coords.get(Dim.CHANNEL, ()))
         if n_channels and scales.shape[0] != n_channels:
             raise ValueError(
                 f"channel_scales has length {scales.shape[0]} but the model has "
@@ -2693,7 +2898,9 @@ class BudgetOptimizer(BaseModel):
         :meth:`_media_price_reference`.
         """
         if name == self.channel_data_var:
-            return self._media_price_reference(response)
+            reference = self._media_price_reference(response)
+            self._warn_without_window_price()
+            return reference
         if not response.adds_curvature:
             return None
         self._require_units_attestation(
@@ -2759,7 +2966,7 @@ class BudgetOptimizer(BaseModel):
         is not usable for this: ``_parse_cost_per_unit_df`` fills absent channels with 1.0 and so
         writes spend for every channel.
         """
-        raw = self.idata.attrs.get("cost_per_unit")
+        raw = self.idata.attrs.get(Attr.COST_PER_UNIT)
         try:
             table = json.loads(raw) if isinstance(raw, str) else None
             columns = {str(column) for column in table["columns"]} if table else None
@@ -2769,7 +2976,24 @@ class BudgetOptimizer(BaseModel):
         if columns is None:
             return None
         # "channel" is the axis itself, so a channel named "channel" stays priced.
-        return columns - {"date"} - (set(self._budget_dims) - {"channel"}) or None
+        return columns - {"date"} - (set(self._budget_dims) - {Dim.CHANNEL}) or None
+
+    def _warn_without_window_price(self) -> None:
+        """Warn that money reaches a table-priced model as units when no window ``cost_per_unit`` is given.
+
+        Any response, curved or not: a schedule's multipliers and a power law's base price both multiply
+        ``cost_per_unit``, which is then 1 on a model fitted in money. Called once the media response has passed
+        its checks, so a response that is refused gets the error alone.
+        """
+        if self._priced_without_window_price():
+            warnings.warn(
+                "price_response: the fitted model prices its channels (channel_spend is money) "
+                "but there is no cost_per_unit for the window, so the base price is 1 and the "
+                "optimizer's money reaches the model as units. Pass cost_per_unit for the "
+                "optimization window.",
+                UserWarning,
+                skip_file_prefixes=_VALIDATION_WARNING_SKIP,
+            )
 
     def _media_price_reference(self, response: PriceResponse) -> DataArray | None:
         """Require attestation for a curved media response and derive its reference spend.
@@ -2797,7 +3021,7 @@ class BudgetOptimizer(BaseModel):
         if not curved.any():
             return None
         name = self.channel_data_var
-        has_channel_dim = "channel" in self._budget_dims
+        has_channel_dim = Dim.CHANNEL in self._budget_dims
         who = (
             f"channels {self._curved_channels(curved)}"
             if has_channel_dim
@@ -2847,9 +3071,9 @@ class BudgetOptimizer(BaseModel):
 
     def _curved_channels(self, curved: np.ndarray) -> list[str]:
         """Channels holding a curved cell: the per-cell array projected onto the ``channel`` dim."""
-        axis = self._budget_dims.index("channel")
+        axis = self._budget_dims.index(Dim.CHANNEL)
         flags = curved.any(axis=tuple(i for i in range(curved.ndim) if i != axis))
-        channels = self._budget_coords["channel"]
+        channels = self._budget_coords[Dim.CHANNEL]
         return [
             str(channel) for channel, flag in zip(channels, flags, strict=True) if flag
         ]
@@ -2864,7 +3088,7 @@ class BudgetOptimizer(BaseModel):
         a missing or malformed spend array asks for a reference, not for the attestation.
         """
         try:
-            spend = _extract_dataset(self.idata, "constant_data")["channel_spend"]
+            spend = _extract_dataset(self.idata, "constant_data")[Var.CHANNEL_SPEND]
         except KeyError:
             problem = "is missing"
             spend = None
@@ -2898,20 +3122,14 @@ class BudgetOptimizer(BaseModel):
                 "optimization's model disagree on the cell layout; re-run mmm.set_cost_per_unit(...) on the "
                 "fitted model, or pass reference_spend explicitly (per-period money per cell)."
             )
-        if self.cost_per_unit is None:
-            warnings.warn(
-                "price_response: the fitted model prices its channels (channel_spend is money) "
-                "but there is no cost_per_unit for the window, so the base price is 1 and the "
-                "optimizer's money reaches the model as units. Pass cost_per_unit for the "
-                "optimization window.",
-                UserWarning,
-                stacklevel=2,
-            )
         reference = spend.where(spend > 0).mean(self.date_dim)
         priced_mask = DataArray(
-            [str(channel) in priced for channel in reference.coords["channel"].values],
-            dims=("channel",),
-            coords={"channel": reference.coords["channel"].values},
+            [
+                str(channel) in priced
+                for channel in reference.coords[Dim.CHANNEL].values
+            ],
+            dims=(Dim.CHANNEL,),
+            coords={Dim.CHANNEL: reference.coords[Dim.CHANNEL].values},
         )
         return (
             reference.where(priced_mask)
@@ -3333,19 +3551,24 @@ class BudgetOptimizer(BaseModel):
 
         self._objective_and_grad = objective_and_grad_func
 
-    def _resolve_minimize_kwargs(
+    def _resolve_minimize_settings(
         self, minimize_kwargs: dict[str, Any] | None
-    ) -> tuple[dict[str, Any], bool]:
-        """Merge user ``minimize_kwargs`` into :attr:`DEFAULT_MINIMIZE_KWARGS`.
+    ) -> MinimizeSettings:
+        """Merge user ``minimize_kwargs`` into :attr:`DEFAULT_MINIMIZE_KWARGS` and resolve how the solves run.
 
         ``options`` are merged key by key, and only for the default method:
         another method does not get the SLSQP options.
 
+        Parameters
+        ----------
+        minimize_kwargs : dict or None
+            The caller's keyword arguments for :func:`scipy.optimize.minimize`.
+
         Returns
         -------
-        tuple of (dict, bool)
-            The keyword arguments for :func:`scipy.optimize.minimize`, and whether
-            SLSQP runs with the default tolerance, so that the objective is rescaled.
+        MinimizeSettings
+            The merged keyword arguments, whether the solves run SLSQP, whether they rescale the objective, and
+            the ``ftol`` the exact passes measure progress with.
         """
         defaults = self.DEFAULT_MINIMIZE_KWARGS
         user_kwargs = dict(minimize_kwargs or {})
@@ -3364,18 +3587,400 @@ class BudgetOptimizer(BaseModel):
         kwargs["options"] = (
             {**default_options, **user_options} if uses_default_method else user_options
         )
-        rescale = (
-            isinstance(method, str)
-            and method.lower() == "slsqp"
-            and not user_set_tolerance
+        named_slsqp = isinstance(method, str) and method.lower() == "slsqp"
+        default_slsqp = method is None and bool(self._compiled_constraints)
+        merged_ftol = kwargs["options"].get("ftol", kwargs.get("tol"))
+        return MinimizeSettings(
+            kwargs=kwargs,
+            slsqp=named_slsqp or default_slsqp,
+            rescale=named_slsqp and not user_set_tolerance,
+            ftol=1e-6 if merged_ftol is None else float(merged_ftol),
         )
-        return kwargs, rescale
+
+    def _priced_media_variables(self) -> Iterator[MediaVariable]:
+        """Yield the media-path variables that carry a price map, in decision-vector order."""
+        for variable in self._variables.variables:
+            if (
+                isinstance(variable, MediaVariable)
+                and variable.price_response is not None
+            ):
+                yield variable
 
     @staticmethod
-    def _gradient_scale(grad: np.ndarray) -> float:
-        """Return the largest absolute entry of ``grad``, or one if it is not larger than one."""
-        steepest = float(np.max(np.abs(grad), initial=0.0))
-        return steepest if np.isfinite(steepest) and steepest > 1.0 else 1.0
+    def _first_breakpoint_above(
+        variable: MediaVariable, level: np.ndarray
+    ) -> np.ndarray:
+        """Return each flat entry's first breakpoint where every breakpoint is above ``level``, ``nan`` elsewhere."""
+        first_low, first_above = variable.linear_piece_bounds(
+            level, np.zeros_like(level), np.full_like(level, np.inf)
+        )
+        return np.where(
+            (first_low <= 0.0) & np.isfinite(first_above), first_above, np.nan
+        )
+
+    @staticmethod
+    def _describe_cells(variable: MediaVariable, notes: dict[int, str]) -> str:
+        """Name the first five flat entries of ``notes`` by their labels, each with its note."""
+        labels = variable.flat_labels()
+        named = [
+            f"{_cell_label_for_message(labels[i])} ({note})"
+            for i, note in list(notes.items())[:5]
+        ]
+        return ", ".join(named) + (", ..." if len(notes) > 5 else "")
+
+    def _warn_breakpoints_above_bounds(self, high: np.ndarray) -> None:
+        """Name the cells whose every breakpoint is above their upper bound, per variable.
+
+        All of such a cell's money is priced in the first bracket, which is what a breakpoint typed as a window
+        total, or as a national commitment on a per-geo cell, does. A cell held at zero is left out.
+        """
+        for variable in self._priced_media_variables():
+            top = high[self._variables.slices[variable.name]]
+            open_top = np.isfinite(top) & (top > 0.0)
+            first = self._first_breakpoint_above(variable, np.where(open_top, top, 0.0))
+            above = np.flatnonzero(open_top & np.isfinite(first))
+            if above.size == 0:
+                continue
+            notes = {
+                int(i): f"breakpoint {first[i]:.4g}, upper bound {top[i]:.4g}"
+                for i in above
+            }
+            warnings.warn(
+                f"{variable.name}: every breakpoint is above the upper bound of cells "
+                f"{self._describe_cells(variable, notes)}, so all of their money is priced in the first bracket. "
+                "Breakpoints are per-period budget levels, like budget_bounds and total_budget: a "
+                f"commitment over the window of num_periods={self.num_periods} is that total divided by "
+                "num_periods, and a national commitment on a per-geo layout is split across the geos.",
+                UserWarning,
+                skip_file_prefixes=(_PKG_PREFIX,),
+            )
+
+    def _warn_breakpoints_far_above_fit(self) -> None:
+        """Name the cells whose first breakpoint is far above the level the model was fitted at.
+
+        A breakpoint is a per-period budget level. One that is more than three times a cell's on-air mean in the fitted
+        data, and above its peak, is more likely a window total, or a national commitment on a per-geo cell, than
+        a level. A variable whose fitted data cannot be read in money gives no warning (see
+        :meth:`_fitted_level_and_peak`).
+        """
+        for variable in self._priced_media_variables():
+            fitted = self._fitted_level_and_peak(variable)
+            if fitted is None:
+                continue
+            level, peak = fitted
+            first = self._first_breakpoint_above(variable, np.nan_to_num(level))
+            far = np.flatnonzero((first > 3.0 * level) & (first > peak))
+            if far.size == 0:
+                continue
+            notes = {int(i): f"{first[i] / level[i]:.3g} times" for i in far}
+            warnings.warn(
+                f"{variable.name}: price_response: the first breakpoint of cells "
+                f"{self._describe_cells(variable, notes)} is that many times the level the model was fitted at "
+                "(the on-air mean per period) and above its peak. Breakpoints are per-period budget levels: a "
+                f"commitment over the window is its total divided by num_periods={self.num_periods}, and a "
+                "schedule given as a sequence or keyed by channel applies the same breakpoint to the channel in "
+                "every geo, so a national commitment typed that way is counted once per geo.",
+                UserWarning,
+                skip_file_prefixes=_VALIDATION_WARNING_SKIP,
+            )
+
+    def _fitted_level_and_peak(
+        self, variable: MediaVariable
+    ) -> tuple[np.ndarray, np.ndarray] | None:
+        """Return the on-air mean and the peak of a variable's fitted data in money, per flat entry.
+
+        Read off ``constant_data[name]`` times the variable's scales and, for the media variable, the window's
+        mean ``cost_per_unit``; the mean is ``nan`` for an entry never on air. With no window ``cost_per_unit``
+        on a model whose fitted table prices its channels, the data of those channels are units, so the media
+        variable's level is read off ``constant_data["channel_spend"]`` instead: the table's prices times the
+        data, and every other channel's data as they are. ``None`` when the node is missing or does not cover the
+        variable's cells.
+        """
+        from_spend = (
+            variable is self._media_variable and self._priced_without_window_price()
+        )
+        try:
+            node = _extract_dataset(self.idata, "constant_data")[
+                Var.CHANNEL_SPEND if from_spend else variable.name
+            ]
+        except (KeyError, AttributeError, TypeError):
+            return None
+        if not self._node_covers_variable(node, variable):
+            return None
+        money = node if from_spend else node * self._money_per_node_unit(variable)
+        coords = {dim: variable.coords[dim] for dim in variable.dims}
+        level, peak = (
+            stat.reindex(coords).transpose(*variable.dims).values[variable._bool_mask]
+            for stat in (
+                money.where(money > 0).mean(self.date_dim),
+                money.max(self.date_dim),
+            )
+        )
+        return level, peak
+
+    def _node_covers_variable(self, node: DataArray, variable: MediaVariable) -> bool:
+        """Return whether a fitted node is over the date and the variable's dims, with a coordinate on each.
+
+        Cells the node has no label for read as ``nan`` and give no warning; the others are still checked.
+        """
+        if set(node.dims) != {self.date_dim, *variable.dims}:
+            return False
+        return all(dim in node.coords for dim in variable.dims)
+
+    def _money_per_node_unit(self, variable: MediaVariable) -> DataArray | float:
+        """Return what one unit of a node's fitted data cost: its scales, times the window base price for media."""
+        scales = np.asarray(variable.channel_scales, dtype="float64")
+        factor: DataArray | float = (
+            float(scales)
+            if scales.ndim == 0
+            else DataArray(
+                scales,
+                dims=variable.scales_dims,
+                coords={dim: variable.coords[dim] for dim in variable.scales_dims},
+            )
+        )
+        if variable is self._media_variable and self.cost_per_unit is not None:
+            factor = factor * self.cost_per_unit.mean(self.date_dim)
+        return factor
+
+    def _settle_on_breakpoints(
+        self,
+        result: OptimizeResult,
+        solve: Callable[[np.ndarray, Bounds, int], OptimizeResult],
+        *,
+        settings: MinimizeSettings,
+        low: np.ndarray,
+        high: np.ndarray,
+        total_budget: float,
+    ) -> OptimizeResult:
+        """Run the exact passes of the breakpoint settler on the first solve.
+
+        They run under SLSQP only; with another method the settler hands the first solve's plan back with a warning
+        and the status ``"skipped"``. Either way ``fun`` and ``jac`` are taken from the exact map at the returned
+        plan.
+        """
+        settler = BreakpointSettler(
+            variables=self._variables,
+            objective_and_grad=self._objective_and_grad,
+            constraints=self._compiled_constraints,
+            solve=solve,
+            low=low,
+            high=high,
+            total_budget=total_budget,
+            ftol=settings.ftol,
+            rescale=settings.rescale,
+        )
+        result = (
+            settler.settle(result)
+            if settings.slsqp
+            else settler.record_skipped_passes(result, settings.kwargs.get("method"))
+        )
+        # The returned solve may have seen a blended or a conditioned map; report the exact one.
+        objective, grad = self._objective_and_grad(result.x)
+        result.fun = float(objective)
+        result.jac = np.asarray(grad)
+        return result
+
+    def _flat_bounds(
+        self,
+        total_budget: float,
+        budget_bounds: DataArray | dict[str, tuple[float, float]] | None,
+    ) -> Bounds:
+        """Return the bounds of every flat entry: the media cells' from ``budget_bounds``, the rest their defaults."""
+        overrides: dict[str, Bounds] = {}
+        if budget_bounds is None:
+            warnings.warn(
+                "No budget bounds provided. Using default bounds (0, total_budget) for each channel.",
+                UserWarning,
+                skip_file_prefixes=(_PKG_PREFIX,),
+            )
+        else:
+            per_cell = self._budget_bounds_array(budget_bounds)
+            overrides[self.channel_data_var] = [
+                (low, high)
+                for (low, high) in per_cell[self.budgets_to_optimize.values]  # type: ignore
+            ]
+        self._warn_priced_cells_pinned_at_zero(overrides.get(self.channel_data_var))
+        return self._variables.bounds(total_budget, overrides=overrides)
+
+    def _budget_bounds_array(
+        self, budget_bounds: DataArray | dict[str, tuple[float, float]]
+    ) -> np.ndarray:
+        """Return ``budget_bounds`` as an array of shape ``(*budget_shape, 2)`` in the budget dims' order."""
+        if isinstance(budget_bounds, dict):
+            if len(self._budget_dims) > 1:
+                raise ValueError(
+                    f"Dict approach to budget_bounds is not supported for multi-dimensional budgets. "
+                    f"budget_dims = {self._budget_dims}. Pass an xarray.DataArray instead."
+                )
+            return np.broadcast_to(
+                [
+                    np.asarray(budget_bounds[channel])
+                    for channel in self._budget_coords[self._budget_dims[0]]
+                ],
+                (*self._budget_shape, 2),
+            )
+        if isinstance(budget_bounds, DataArray):
+            if set(budget_bounds.dims) != set([*self._budget_dims, "bound"]):
+                raise ValueError(
+                    f"budget_bounds must be a DataArray with dims {(*self._budget_dims, 'bound')}"
+                )
+            return (
+                align_to_model_coords(
+                    budget_bounds, self._budget_coords, label="budget_bounds"
+                )
+                .transpose(*self._budget_dims, "bound")
+                .values
+            )
+        raise ValueError("budget_bounds must be a dictionary or an xarray.DataArray")
+
+    def _record_iteration(
+        self,
+        callback_info: list[OptimizationIterationInfo],
+        solve: int,
+        xk: np.ndarray,
+    ) -> None:
+        """Append the objective, gradient and constraints at ``xk`` to ``callback_info``, tagged with its solve."""
+        objective, grad = self._objective_and_grad(xk)
+        info: OptimizationIterationInfo = {
+            "x": np.array(xk),
+            "fun": float(objective),
+            "jac": np.array(grad),
+        }
+        if self._compiled_constraints:
+            info["constraint_info"] = [
+                self._constraint_state(constraint, xk)
+                for constraint in self._compiled_constraints
+            ]
+        info["solve"] = solve
+        callback_info.append(info)
+
+    @staticmethod
+    def _constraint_state(constraint: dict, x: np.ndarray) -> ConstraintIterationInfo:
+        """Return one compiled constraint's value and Jacobian at ``x``."""
+        value = constraint["fun"](x)
+        jac = constraint["jac"](x)
+        return {
+            "key": constraint["key"],
+            "type": constraint["type"],
+            "value": float(value) if np.ndim(value) == 0 else np.array(value),
+            "jac": np.array(jac) if jac is not None else None,
+        }
+
+    def _solve_with_rescaling(
+        self,
+        start: np.ndarray,
+        bounds: Bounds,
+        *,
+        settings: MinimizeSettings,
+        callback: Callable[[np.ndarray], None] | None,
+    ) -> OptimizeResult:
+        """Run one solve over ``bounds``: SLSQP on the rescaled objective, then a polish when the scale moved.
+
+        The default SLSQP tolerance is absolute, so the objective is divided by its steepest gradient entry (see
+        :meth:`allocate_budget` Notes). SciPy clips the start to the bounds before its first evaluation, so the
+        scale is taken there too.
+        """
+        kwargs = settings.kwargs
+        if not settings.rescale:
+            return self._minimize_scaled(start, bounds, 1.0, kwargs, callback)
+        lower = [-np.inf if lo is None else lo for lo, _ in bounds]
+        upper = [np.inf if hi is None else hi for _, hi in bounds]
+        _, grad = self._objective_and_grad(np.clip(start, lower, upper))
+        scale = objective_scale_from_gradient(grad)
+        result = self._minimize_scaled(start, bounds, scale, kwargs, callback)
+        if scale == 1.0:
+            return result
+        return self._polish_with_solution_scale(result, bounds, scale, kwargs, callback)
+
+    def _minimize_scaled(
+        self,
+        start: np.ndarray,
+        bounds: Bounds,
+        scale: float,
+        minimize_kwargs: dict[str, Any],
+        callback: Callable[[np.ndarray], None] | None,
+    ) -> OptimizeResult:
+        """Run :func:`scipy.optimize.minimize` on the objective divided by ``scale``."""
+
+        def scaled_objective_and_grad(x):
+            objective, grad = self._objective_and_grad(x)
+            return objective / scale, grad / scale
+
+        return minimize(
+            fun=scaled_objective_and_grad,
+            x0=start,
+            jac=True,
+            bounds=bounds,
+            constraints=self._compiled_constraints,
+            callback=callback,
+            **minimize_kwargs,
+        )
+
+    def _polish_with_solution_scale(
+        self,
+        result: OptimizeResult,
+        bounds: Bounds,
+        scale: float,
+        minimize_kwargs: dict[str, Any],
+        callback: Callable[[np.ndarray], None] | None,
+    ) -> OptimizeResult:
+        """Solve once more from a solution whose steepest gradient entry fell well below the scale, and report it.
+
+        The steepest cells at the start flattened on the way to the solution, so the scale from the start can
+        stop SLSQP early in the flatter cells: solve again with the scale taken at the solution, and keep that
+        solve only if it succeeds. ``fun``, ``jac`` and ``multipliers`` come back in objective units, and the
+        counts cover both solves.
+        """
+        objective, grad = self._objective_and_grad(result.x)
+        solution_scale = objective_scale_from_gradient(grad)
+        if result.success and solution_scale * 10.0 < scale:
+            polish = self._minimize_scaled(
+                result.x, bounds, solution_scale, minimize_kwargs, callback
+            )
+            if polish.success:
+                self._accumulate_solver_counts(polish, result)
+                result, scale = polish, solution_scale
+                objective, grad = self._objective_and_grad(result.x)
+            else:
+                self._accumulate_solver_counts(result, polish)
+        result.fun = float(objective)
+        result.jac = np.asarray(grad)
+        if "multipliers" in result:
+            result.multipliers = result.multipliers * scale
+        return result
+
+    @staticmethod
+    def _accumulate_solver_counts(into: OptimizeResult, other: OptimizeResult) -> None:
+        """Add ``other``'s iteration and evaluation counts to ``into``'s."""
+        for key in ("nit", "nfev", "njev"):
+            into[key] += other[key]
+
+    def _build_optimization_result(
+        self,
+        result: OptimizeResult,
+        callback_info: list[OptimizationIterationInfo] | None,
+        return_if_fail: bool,
+    ) -> BudgetOptimizationResult:
+        """Unpack a solve into the result, or raise when it failed and ``return_if_fail`` is False."""
+        if not (result.success or return_if_fail):
+            raise MinimizeException(f"Optimization failed: {result.message}")
+        # Media is the named output; every other optimization variable travels in `optimized_vars`.
+        unpacked = self._variables.unpack(result.x)
+        optimal_budgets = unpacked.pop(self.channel_data_var)
+        optimal_budgets.attrs["pymc_marketing_version"] = __version__
+        reports = self._variables.delivery_reports(
+            result.x, date_coords=self._decision_date_coords()
+        )
+        return BudgetOptimizationResult(
+            budgets=optimal_budgets,
+            scipy_result=result,
+            optimized_vars=unpacked,
+            spend_var_names=list(self.spend_vars),
+            callback_info=callback_info,
+            delivery_reports=reports,
+            **_media_report_fields(reports.get(self.channel_data_var)),
+        )
 
     def allocate_budget(
         self,
@@ -3433,10 +4038,16 @@ class BudgetOptimizer(BaseModel):
             Result object with ``budgets`` (the optimized allocation across
             channels, monetary units), ``scipy_result`` (the raw scipy
             optimization result, with ``fun``, ``jac`` and, from SciPy 1.16,
-            ``multipliers`` in objective units), ``optimized_vars`` (empty for now), and
+            ``multipliers`` in objective units), ``optimized_vars`` (every
+            ``spend_vars`` and ``optimizable_vars`` allocation by name, empty when
+            neither is declared), and
             ``callback_info`` (per-iteration diagnostics when ``callback=True``, else
-            ``None``) and, when a ``price_response`` was passed, ``implied_delivery``,
-            ``implied_price`` and ``implied_marginal_price``. Iterating the result yields
+            ``None``; each entry's ``solve`` is 0 for the first solve and ``k`` for
+            exact pass ``k``, and its ``fun`` and ``jac`` are on the map that solve saw,
+            see Notes) and, when a ``price_response`` was passed, ``implied_delivery``,
+            ``implied_price`` and ``implied_marginal_price`` for media, plus
+            ``delivery_reports`` with the same arrays and the per-period ``spend``
+            for every priced variable, keyed by name. Iterating the result yields
             ``(budgets, scipy_result)``, so ``optimal, res = optimizer.allocate_budget(...)``
             keeps working.
 
@@ -3483,195 +4094,85 @@ class BudgetOptimizer(BaseModel):
         - With a ``ftol`` or ``tol`` that you pass, the objective is not rescaled.
         - ``scipy_result.fun``, ``scipy_result.jac``, ``callback_info`` and, from
           SciPy 1.16, ``scipy_result.multipliers`` are always in objective units.
+
+        **Breakpoints** (a ``price_response`` such as
+        :class:`~pymc_marketing.mmm.price_response.TieredPriceResponse` whose map changes
+        slope at points of the budget):
+
+        - When some cell has a breakpoint strictly inside its bounds, or one of its
+          bounds is a breakpoint, the first solve blends each breakpoint inside the
+          bounds and is used only to find the linear piece of the map each cell is on.
+          Exact passes then solve on those pieces, where no breakpoint is left to
+          cross, until no cell on a breakpoint would gain by leaving it (a linear
+          program over first-order directions decides). A cell whose best budget is a
+          breakpoint comes back equal to it, unless the plan comes back unsettled.
+        - ``scipy_result["breakpoint_status"]`` says how the passes ended:
+          ``"certified"`` (no cell on a breakpoint would gain by leaving it),
+          ``"settled"`` (letting cells go stopped buying anything), ``"unsettled"`` (a
+          pass failed, the check could not be solved, the passes ran out, a plan held on
+          every breakpoint breaks a constraint there, or no solve succeeded) or
+          ``"skipped"`` (a ``method`` other than SLSQP, under which the passes do not
+          run). The last two warn that the plan was not settled on its breakpoints, and
+          an unsettled plan is the best successful pass, else the first solve. A settled
+          plan is the best pass held on its breakpoints by closing solves, so its
+          objective can sit a hair above that pass's. When no solve succeeds, the first
+          solve's failure is the one reported. With no breakpoint in reach the key is
+          absent.
+        - ``scipy_result`` is the returned solve's, with ``fun`` and ``jac`` taken from
+          the exact map at its ``x`` and ``nit``, ``nfev`` and ``njev`` summed over every
+          solve. ``callback_info`` entries keep the ``fun`` and ``jac`` of the map their
+          solve saw: blended for solve 0, conditioned on the linear pieces for a pass.
+        - Each solve has its own ``maxiter`` and polish, and there are at most 22: the
+          first, 20 passes with their closing passes, and one more closing pass when
+          the last pass leaves new cells on a breakpoint or letting cells go stops
+          buying anything there.
+        - A cell whose every breakpoint is above its upper bound is warned about: all
+          its money is priced in the first bracket.
+        - The price maps hold the state of the solve in progress, so one optimizer must
+          not run two solves at once, from two threads for example.
         """
-        # set total budget
         self._total_budget.set_value(np.asarray(total_budget, dtype="float64"))
-
-        minimize_kwargs, rescale = self._resolve_minimize_kwargs(minimize_kwargs)
-
-        # 1. Process budget bounds
-        bounds_overrides: dict[str, list[tuple[float | None, float | None]]] = {}
-        if budget_bounds is None:
-            warnings.warn(
-                "No budget bounds provided. Using default bounds (0, total_budget) for each channel.",
-                UserWarning,
-                stacklevel=2,
-            )
-            budget_bounds_array = None
-        elif isinstance(budget_bounds, dict):
-            if len(self._budget_dims) > 1:
-                raise ValueError(
-                    f"Dict approach to budget_bounds is not supported for multi-dimensional budgets. "
-                    f"budget_dims = {self._budget_dims}. Pass an xarray.DataArray instead."
-                )
-
-            # Flatten each channel's bounds into an array
-
-            budget_bounds_array = np.broadcast_to(
-                [
-                    np.asarray(budget_bounds[channel])
-                    for channel in self._budget_coords[self._budget_dims[0]]
-                ],
-                (*self._budget_shape, 2),
-            )
-        elif isinstance(budget_bounds, DataArray):
-            # Must have dims (*self._budget_dims, "bound")
-            if set(budget_bounds.dims) != set([*self._budget_dims, "bound"]):
-                raise ValueError(
-                    f"budget_bounds must be a DataArray with dims {(*self._budget_dims, 'bound')}"
-                )
-            budget_bounds_array = (
-                align_to_model_coords(
-                    budget_bounds, self._budget_coords, label="budget_bounds"
-                )
-                .transpose(*self._budget_dims, "bound")
-                .values
-            )
-        else:
-            raise ValueError(
-                "budget_bounds must be a dictionary or an xarray.DataArray"
-            )
-
-        # 2. Build the final bounds list, variable by variable. With no
-        # user-supplied bounds the media variable's own defaults apply.
-        if budget_bounds_array is not None:
-            bounds_overrides[self.channel_data_var] = [
-                (low, high)
-                for (low, high) in budget_bounds_array[self.budgets_to_optimize.values]  # type: ignore
-            ]
-        bounds = self._variables.bounds(total_budget, overrides=bounds_overrides)
-        self._warn_priced_cells_pinned_at_zero(
-            bounds_overrides.get(self.channel_data_var)
-        )
-
-        # 3. Construct the initial guess (x0) if not provided; labelled values
-        # are packed into flat order by the optimization variables, cast and
-        # filtered through the compiled input's type, which raises a TypeError
-        # naming the shape when x0 does not fit.
-        if x0 is None:
-            x0 = self._variables.x0(total_budget)
-        x0 = self._pack_decision_vector(x0)
-
-        # 5. Set up callback tracking if requested
+        settings = self._resolve_minimize_settings(minimize_kwargs)
+        bounds = self._flat_bounds(total_budget, budget_bounds)
+        low = np.array([-np.inf if lo is None else lo for lo, _ in bounds], dtype=float)
+        high = np.array([np.inf if hi is None else hi for _, hi in bounds], dtype=float)
+        self._warn_breakpoints_above_bounds(high)
         callback_info: list[OptimizationIterationInfo] = []
 
-        def track_progress(xk):
-            """Track optimization progress at each iteration."""
-            # Evaluate objective and gradient
-            obj_val, grad_val = self._objective_and_grad(xk)
-
-            # Store iteration info
-            iter_info: OptimizationIterationInfo = {
-                "x": np.array(xk),  # Current parameter values
-                "fun": float(obj_val),  # Objective function value (scalar)
-                "jac": np.array(grad_val),  # Gradient values
-            }
-
-            # Evaluate constraint values and gradients if available
-            if self._compiled_constraints:
-                constraint_info: list[ConstraintIterationInfo] = []
-
-                for constraint in self._compiled_constraints:
-                    # Evaluate constraint function
-                    c_val = constraint["fun"](xk)
-                    # Evaluate constraint gradient
-                    c_jac = constraint["jac"](xk)
-
-                    constraint_info.append(
-                        {
-                            "key": constraint["key"],
-                            "type": constraint["type"],
-                            "value": float(c_val)
-                            if np.ndim(c_val) == 0
-                            else np.array(c_val),
-                            "jac": np.array(c_jac) if c_jac is not None else None,
-                        }
-                    )
-
-                iter_info["constraint_info"] = constraint_info
-
-            callback_info.append(iter_info)
-
-        # 5. Run the SciPy optimizer
-        scipy_callback = track_progress if callback else None
-
-        def run_minimize(start: np.ndarray, scale: float) -> OptimizeResult:
-            def scaled_objective_and_grad(x):
-                objective, grad = self._objective_and_grad(x)
-                return objective / scale, grad / scale
-
-            return minimize(
-                fun=scaled_objective_and_grad,
-                x0=start,
-                jac=True,
-                bounds=bounds,
-                constraints=self._compiled_constraints,
-                callback=scipy_callback,
-                **minimize_kwargs,
+        def solve(
+            start: np.ndarray | DataArray | dict[str, DataArray],
+            solve_bounds: Bounds,
+            index: int,
+        ) -> OptimizeResult:
+            # Packing casts the start through the compiled input's type, which raises a TypeError naming the
+            # shape when it does not fit.
+            return self._solve_with_rescaling(
+                self._pack_decision_vector(start),
+                solve_bounds,
+                settings=settings,
+                callback=partial(self._record_iteration, callback_info, index)
+                if callback
+                else None,
             )
 
-        # The default SLSQP tolerance is absolute, so the objective is divided by
-        # its steepest gradient entry (see Notes). SciPy clips x0 to the bounds
-        # before the first evaluation, so the scale is taken there too.
-        scale = 1.0
-        if rescale:
-            lower = [-np.inf if low is None else low for low, _ in bounds]
-            upper = [np.inf if high is None else high for _, high in bounds]
-            _, grad = self._objective_and_grad(np.clip(x0, lower, upper))
-            scale = self._gradient_scale(grad)
-
-        result = run_minimize(x0, scale)
-
-        if scale != 1.0:
-            objective, grad = self._objective_and_grad(result.x)
-            solution_scale = self._gradient_scale(grad)
-            if result.success and solution_scale * 10.0 < scale:
-                # The steepest cells at x0 flattened on the way to the solution, so
-                # the scale from x0 can stop SLSQP early in the flatter cells. Solve
-                # once more from the solution with the scale taken there, and keep
-                # that solve only if it succeeds.
-                polish = run_minimize(result.x, solution_scale)
-                if polish.success:
-                    polish.nit += result.nit
-                    polish.nfev += result.nfev
-                    polish.njev += result.njev
-                    result, scale = polish, solution_scale
-                    objective, grad = self._objective_and_grad(result.x)
-                else:
-                    result.nit += polish.nit
-                    result.nfev += polish.nfev
-                    result.njev += polish.njev
-            # Report the result in objective units.
-            result.fun = float(objective)
-            result.jac = np.asarray(grad)
-            if "multipliers" in result:
-                result.multipliers = result.multipliers * scale
-
-        # 6. Process results
-        if result.success or return_if_fail:
-            # Media is the named output; every other optimization variable
-            # travels in `optimized_vars`. This is already the general form, so
-            # registering further variables needs no change here: with media
-            # alone the remainder is simply empty.
-            unpacked = self._variables.unpack(result.x)
-            optimal_budgets = unpacked.pop(self.channel_data_var)
-            optimal_budgets.attrs["pymc_marketing_version"] = __version__
-
-            report = self._media_variable.delivery_report(
-                result.x[self._variables.slices[self.channel_data_var]],
-                date_coords=self._decision_date_coords(),
+        with self._variables.conditioned_on(low, high):
+            result = solve(
+                self._variables.x0(total_budget) if x0 is None else x0, bounds, 0
             )
-            return BudgetOptimizationResult(
-                budgets=optimal_budgets,
-                scipy_result=result,
-                optimized_vars=unpacked,
-                spend_var_names=list(self.spend_vars),
-                callback_info=callback_info if callback else None,
-                **report,
+        # Decided from the bounds alone, so a model with nothing to settle runs exactly as it did before
+        # schedules existed: the same minimize calls, nothing read off result.x.
+        if self._variables.breakpoints_in_reach(low, high):
+            result = self._settle_on_breakpoints(
+                result,
+                solve,
+                settings=settings,
+                low=low,
+                high=high,
+                total_budget=total_budget,
             )
-
-        else:
-            raise MinimizeException(f"Optimization failed: {result.message}")
+        return self._build_optimization_result(
+            result, callback_info if callback else None, return_if_fail
+        )
 
 
 class CustomModelWrapper(BaseModel):
@@ -3768,7 +4269,7 @@ class CustomModelWrapper(BaseModel):
         ),
     )
     channel_data_var: str = Field(
-        default="channel_data",
+        default=Var.CHANNEL_DATA,
         description=(
             "Name of the shared channel-data variable inside ``base_model``. "
             "Defaults to ``'channel_data'``."
@@ -3799,7 +4300,7 @@ class CustomModelWrapper(BaseModel):
         idata: Any,
         channels: Sequence[str],
         adstock_periods: int = 0,
-        channel_data_var: str = "channel_data",
+        channel_data_var: str = Var.CHANNEL_DATA,
         adstock: Any = None,
         **kwargs,
     ) -> None:
@@ -3855,8 +4356,8 @@ class CustomModelWrapper(BaseModel):
         """
         total_periods = num_periods + self.adstock_periods
         coords = {
-            "date": np.arange(total_periods),
-            "channel": self.channel_columns,
+            Dim.DATE: np.arange(total_periods),
+            Dim.CHANNEL: self.channel_columns,
         }
         model_clone = clone_model(self.base_model)
         pm.set_data(

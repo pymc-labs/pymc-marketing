@@ -18,6 +18,8 @@ from typing import Literal
 import xarray as xr
 from pydantic import BaseModel, Field
 
+from pymc_marketing.names.mmm import Dim, Group, Var
+
 Frequency = Literal["original", "weekly", "monthly", "quarterly", "yearly", "all_time"]
 
 
@@ -257,29 +259,29 @@ class MMMIdataSchema(BaseModel):
         groups = {}
 
         constant_data_vars = {
-            "channel_data": VariableSchema(
-                name="channel_data",
-                dims=("date", *custom_dims, "channel"),
+            Var.CHANNEL_DATA: VariableSchema(
+                name=Var.CHANNEL_DATA,
+                dims=(Dim.DATE, *custom_dims, Dim.CHANNEL),
                 dtype=("float64", "float32", "int64", "int32"),
                 description="Raw channel spend/impressions data",
                 required=True,
             ),
-            "target_data": VariableSchema(
-                name="target_data",
-                dims=("date", *custom_dims),
+            Var.TARGET_DATA: VariableSchema(
+                name=Var.TARGET_DATA,
+                dims=(Dim.DATE, *custom_dims),
                 dtype=("float64", "float32", "int64", "int32"),
                 description="Raw target variable",
                 required=True,
             ),
-            "channel_scale": VariableSchema(
-                name="channel_scale",
+            Var.CHANNEL_SCALE: VariableSchema(
+                name=Var.CHANNEL_SCALE,
                 dims="*",
                 dtype=("float64", "float32", "int64", "int32"),
                 description="Scaling factors for channels",
                 required=True,
             ),
-            "target_scale": VariableSchema(
-                name="target_scale",
+            Var.TARGET_SCALE: VariableSchema(
+                name=Var.TARGET_SCALE,
                 dims="*",
                 dtype=("float64", "float32", "int64", "int32"),
                 description="Scaling factor for target",
@@ -287,9 +289,9 @@ class MMMIdataSchema(BaseModel):
             ),
         }
 
-        constant_data_vars["channel_spend"] = VariableSchema(
-            name="channel_spend",
-            dims=("date", *custom_dims, "channel"),
+        constant_data_vars[Var.CHANNEL_SPEND] = VariableSchema(
+            name=Var.CHANNEL_SPEND,
+            dims=(Dim.DATE, *custom_dims, Dim.CHANNEL),
             dtype=("float64", "float32", "int64", "int32"),
             description=(
                 "Channel spend in monetary units. Precomputed as "
@@ -300,27 +302,27 @@ class MMMIdataSchema(BaseModel):
         )
 
         if has_controls:
-            constant_data_vars["control_data_"] = VariableSchema(
-                name="control_data_",
-                dims=("date", *custom_dims, "control"),
+            constant_data_vars[Var.CONTROL_DATA] = VariableSchema(
+                name=Var.CONTROL_DATA,
+                dims=(Dim.DATE, *custom_dims, Dim.CONTROL),
                 dtype=("float64", "float32", "int64", "int32"),
                 description="Control variable data",
-                required=False,
+                required=True,
             )
 
         if time_varying:
-            constant_data_vars["time_index"] = VariableSchema(
-                name="time_index",
-                dims=("date",),
+            constant_data_vars[Var.TIME_INDEX] = VariableSchema(
+                name=Var.TIME_INDEX,
+                dims=(Dim.DATE,),
                 dtype=("float64", "float32", "int64", "int32"),
                 description="Integer time index",
                 required=True,
             )
 
         if has_seasonality:
-            constant_data_vars["dayofyear"] = VariableSchema(
-                name="dayofyear",
-                dims=("date",),
+            constant_data_vars[Var.DAYOFYEAR] = VariableSchema(
+                name=Var.DAYOFYEAR,
+                dims=(Dim.DATE,),
                 dtype=("int64", "int32"),
                 description="Day of year (1-365)",
                 required=True,
@@ -331,9 +333,9 @@ class MMMIdataSchema(BaseModel):
         )
 
         posterior_vars = {
-            "channel_contribution": VariableSchema(
-                name="channel_contribution",
-                dims=("chain", "draw", "date", *custom_dims, "channel"),
+            Var.CHANNEL_CONTRIBUTION: VariableSchema(
+                name=Var.CHANNEL_CONTRIBUTION,
+                dims=("chain", "draw", Dim.DATE, *custom_dims, Dim.CHANNEL),
                 dtype="float64",
                 description="Channel contributions (scaled)",
                 required=True,
@@ -345,9 +347,9 @@ class MMMIdataSchema(BaseModel):
             # (chain, draw, country, date). Only the dim *set* is contractual,
             # which is what validate_variable compares. Still optional,
             # because idata saved before identity registered it has no 'mu'.
-            "mu": VariableSchema(
-                name="mu",
-                dims=("chain", "draw", "date", *custom_dims),
+            Var.MU: VariableSchema(
+                name=Var.MU,
+                dims=("chain", "draw", Dim.DATE, *custom_dims),
                 dtype="float64",
                 description=(
                     "Total predicted mean (scaled). Dim order is "
@@ -358,18 +360,18 @@ class MMMIdataSchema(BaseModel):
         }
 
         if has_controls:
-            posterior_vars["control_contribution"] = VariableSchema(
-                name="control_contribution",
-                dims=("chain", "draw", "date", *custom_dims, "control"),
+            posterior_vars[Var.CONTROL_CONTRIBUTION] = VariableSchema(
+                name=Var.CONTROL_CONTRIBUTION,
+                dims=("chain", "draw", Dim.DATE, *custom_dims, Dim.CONTROL),
                 dtype="float64",
                 description="Control variable contributions",
                 required=True,
             )
 
         if has_seasonality:
-            posterior_vars["yearly_seasonality_contribution"] = VariableSchema(
-                name="yearly_seasonality_contribution",
-                dims=("chain", "draw", "date", *custom_dims),
+            posterior_vars[Var.YEARLY_SEASONALITY_CONTRIBUTION] = VariableSchema(
+                name=Var.YEARLY_SEASONALITY_CONTRIBUTION,
+                dims=("chain", "draw", Dim.DATE, *custom_dims),
                 dtype="float64",
                 description="Yearly seasonality contribution",
                 required=True,
@@ -379,8 +381,8 @@ class MMMIdataSchema(BaseModel):
             name="posterior", required=False, variables=posterior_vars
         )
 
-        groups["fit_data"] = InferenceDataGroupSchema(
-            name="fit_data",
+        groups[Group.FIT_DATA] = InferenceDataGroupSchema(
+            name=Group.FIT_DATA,
             required=False,
             variables={},
         )
@@ -389,9 +391,9 @@ class MMMIdataSchema(BaseModel):
             name="posterior_predictive",
             required=False,
             variables={
-                "y": VariableSchema(
-                    name="y",
-                    dims=("chain", "draw", "date", *custom_dims),
+                Var.Y: VariableSchema(
+                    name=Var.Y,
+                    dims=("chain", "draw", Dim.DATE, *custom_dims),
                     dtype="float64",
                     description="Posterior predictive samples",
                     required=True,

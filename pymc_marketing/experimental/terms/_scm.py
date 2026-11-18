@@ -38,6 +38,8 @@ from pymc_marketing.experimental.terms._graph import (
     walk,
 )
 from pymc_marketing.experimental.terms._serialize import spec_from_dict, spec_to_dict
+from pymc_marketing.names import Group
+from pymc_marketing.names.mmm import Dim
 from pymc_marketing.version import __version__
 
 _LOGP_DRAWS = 3
@@ -302,7 +304,9 @@ class SCM:
         idata = cast(xr.DataTree, self.idata)
         tree = xr.DataTree.from_dict(
             {
-                "/fit_data": _portable_strings(cast(xr.Dataset, self._training_data)),
+                f"/{Group.FIT_DATA}": _portable_strings(
+                    cast(xr.Dataset, self._training_data)
+                ),
                 **{
                     f"/{name}": _portable_strings(node.to_dataset())
                     for name, node in idata.children.items()
@@ -359,15 +363,15 @@ class SCM:
             engine="zarr",
             consolidated=False,
         )
-        if "spec" not in tree.attrs or "fit_data" not in tree.children:
+        if "spec" not in tree.attrs or Group.FIT_DATA not in tree.children:
             raise ValueError(f"{str(path)!r} is not a model saved by SCM.save.")
         scm = cls(*spec_from_dict(tree.attrs["spec"]))
-        model = scm.build_model(_native_strings(tree["fit_data"].to_dataset()))
+        model = scm.build_model(_native_strings(tree[Group.FIT_DATA].to_dataset()))
         scm.idata = xr.DataTree.from_dict(
             {
                 f"/{name}": _native_strings(node.to_dataset())
                 for name, node in tree.children.items()
-                if name != "fit_data"
+                if name != Group.FIT_DATA
             }
         )
         scm._fitted_key = scm._key()
@@ -430,7 +434,7 @@ class SCM:
         fitted = {
             dim: pd.Index(labels, name=dim, tupleize_cols=False)
             for dim, labels in self._context.model.coords.items()
-            if dim != "date" and labels is not None
+            if dim != Dim.DATE and labels is not None
         }
         for dim, labels in fitted.items():
             if dim in data.coords and data.coords[dim].dims != (dim,):
@@ -469,12 +473,12 @@ class SCM:
         training = self._training_data
         if training is None:
             raise RuntimeError("Call fit before posterior prediction.")
-        if "date" not in training.dims or "date" not in data.dims:
+        if Dim.DATE not in training.dims or Dim.DATE not in data.dims:
             raise ValueError(
                 "Temporal history requires a date dimension in training and prediction data."
             )
-        old_dates = pd.DatetimeIndex(training["date"].values)
-        new_dates = pd.DatetimeIndex(data["date"].values)
+        old_dates = pd.DatetimeIndex(training[Dim.DATE].values)
+        new_dates = pd.DatetimeIndex(data[Dim.DATE].values)
         if len(old_dates) < 2:
             raise ValueError(
                 "At least two training dates are needed to infer a prediction cadence."
@@ -502,12 +506,12 @@ class SCM:
             [
                 name
                 for name, value in history.data_vars.items()
-                if "date" not in value.dims
+                if Dim.DATE not in value.dims
             ]
         )
         combined = xr.concat(
             [history, data],
-            dim="date",
+            dim=Dim.DATE,
             data_vars="minimal",
             coords="minimal",
             compat="override",
@@ -585,7 +589,7 @@ class SCM:
             if context.binding(equation).name not in condition
             and (
                 context.binding(equation).observed is not None
-                or "date" in context.binding(equation).dims
+                or Dim.DATE in context.binding(equation).dims
             )
         ]
         keep = [str(rv.name) for rv in model.free_RVs if rv.name not in resample]
@@ -597,9 +601,9 @@ class SCM:
                 f"Fitted parameters are absent from the posterior: {sorted(missing)}. Refit including them."
             )
         for name in keep:
-            if "date" in posterior[name].dims:
-                dates = data.get_index("date")
-                fitted_dates = posterior.get_index("date")
+            if Dim.DATE in posterior[name].dims:
+                dates = data.get_index(Dim.DATE)
+                fitted_dates = posterior.get_index(Dim.DATE)
                 if not dates.isin(fitted_dates).all():
                     raise ValueError(
                         f"Parameter {name!r} needs an Equation to predict new dates."
@@ -616,7 +620,7 @@ class SCM:
             predictions=True,
             **kwargs,
         )["predictions"].to_dataset()
-        if history_length and "date" in result.dims:
+        if history_length and Dim.DATE in result.dims:
             result = result.isel(date=slice(history_length, None))
         return result
 

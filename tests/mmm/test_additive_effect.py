@@ -18,6 +18,7 @@ import pymc.dims as pmd
 import pytensor.tensor as pt
 import pytest
 import xarray as xr
+from pydantic import ValidationError
 from pymc_extras.prior import Prior
 from pytensor.graph.traversal import ancestors
 
@@ -25,8 +26,10 @@ from pymc_marketing.mmm.additive_effect import (
     ControlMuEffect,
     DataVarMuEffect,
     FourierEffect,
+    IncrementalitySpec,
     LinearTrendEffect,
     MediaMuEffect,
+    MediatorSpec,
 )
 from pymc_marketing.mmm.components.adstock import GeometricAdstock
 from pymc_marketing.mmm.components.saturation import LogisticSaturation
@@ -306,6 +309,52 @@ def test_linear_trend_effect(
     effect_predictions = idata.posterior_predictive.effect
     np.testing.assert_allclose(effect_predictions.notnull().mean().item(), 1.0)
     pd.testing.assert_index_equal(effect_predictions.date.to_index(), new_dates)
+
+
+def test_linear_trend_effect_extrapolates_out_of_sample(
+    create_mock_mmm, dates, linear_trend_model
+) -> None:
+    """Out of sample, the trend continues from the changepoints fit in sample.
+
+    Regression test for #1569 and #3298: the prediction dates must not be
+    rescaled into the training period.
+    """
+    n_changepoints = 8
+    effect = LinearTrendEffect(
+        trend=LinearTrend(n_changepoints=n_changepoints, include_intercept=True),
+        prefix="trend",
+    )
+    mmm = create_mock_mmm(dims=(), model=linear_trend_model)
+    name = "trend_effect_contribution"
+
+    with mmm.model:
+        effect.create_data(mmm)
+        effect.create_effect(mmm)
+        prior = pm.sample_prior_predictive(draws=20, random_seed=1).prior
+
+    def expected_trend(new_dates: pd.DatetimeIndex) -> xr.DataArray:
+        span = (dates.max() - dates[0]).days
+        t = xr.DataArray(
+            ((new_dates - dates[0]).days / span).to_numpy(),
+            dims="date",
+            coords={"date": new_dates},
+        )
+        s = xr.DataArray(np.linspace(0, 1, n_changepoints), dims="changepoint")
+        slopes = ((t > s) * prior["delta"] * (t - s)).sum("changepoint")
+        return (prior["k"] + slopes).transpose("chain", "draw", "date")
+
+    xr.testing.assert_allclose(prior[name], expected_trend(dates))
+
+    # Start at the last training date, so the forecast overlaps the fitted trend.
+    future_dates = pd.date_range(dates.max(), periods=12, freq="W-MON", name="date")
+    with mmm.model:
+        set_new_model_dates(future_dates)
+        effect.set_data(mmm, mmm.model, None)
+        predictions = pm.sample_posterior_predictive(
+            prior, var_names=[name], random_seed=1
+        ).posterior_predictive[name]
+
+    xr.testing.assert_allclose(predictions, expected_trend(future_dates))
 
 
 class TestMuEffectRoundtrips:
@@ -1265,3 +1314,90 @@ class TestControlMuEffect:
         assert restored.data_vars == ["ctrl_national"]
         assert restored.prefix == "test_ctrl"
         assert restored == original
+
+
+class TestMediatorSpec:
+    """What a declared node may be called, and what its reporting fields need."""
+
+    @pytest.mark.parametrize("name", ["mediated", "complete", "date"])
+    def test_a_name_a_result_already_uses_is_refused(self, name):
+        """A mediator's name becomes a variable of a ``Dataset`` next to these."""
+        with pytest.raises(ValidationError, match="reserved"):
+            MediatorSpec(name=name, variable="funnel_hub")
+
+    @pytest.mark.parametrize("name", ["lf spend", "2nd_hub"])
+    def test_a_name_that_is_not_an_identifier_is_refused(self, name):
+        """The name is what a user types after ``result.``."""
+        with pytest.raises(ValidationError, match="name"):
+            MediatorSpec(name=name, variable="funnel_hub")
+
+    @pytest.mark.parametrize(
+        "fields",
+        [
+            pytest.param({"is_spend": True}, id="spend without a currency"),
+            pytest.param({"scale": 2.5}, id="rescaled without units"),
+        ],
+    )
+    def test_a_reported_quantity_names_its_units(self, fields):
+        """Money and a rescaled movement both say what they are counted in."""
+        with pytest.raises(ValidationError, match="units"):
+            MediatorSpec(name="lf_spend", variable="funnel_spend", **fields)
+
+    @pytest.mark.parametrize("scale", [0.0, float("inf"), True])
+    def test_a_scale_is_a_positive_finite_number(self, scale):
+        """A scale multiplies a movement, so zero, ``inf`` and a flag are mistakes."""
+        with pytest.raises(ValidationError, match="scale"):
+            MediatorSpec(
+                name="lf_spend", variable="funnel_spend", units="USD", scale=scale
+            )
+
+
+class TestRoleAndMediators:
+    """The two fields a path request reads off an ``IncrementalitySpec``."""
+
+    def test_a_mediator_role_names_at_least_one_node(self):
+        """The claim is that spend reaches the term only through declared nodes."""
+        with pytest.raises(ValidationError, match="at least one"):
+            IncrementalitySpec(role="mediator")
+
+    @pytest.mark.parametrize(
+        "second, complaint",
+        [
+            pytest.param(
+                {"name": "hub", "variable": "funnel_spend"},
+                "distinct names",
+                id="one name for two variables",
+            ),
+            pytest.param(
+                {"name": "spend", "variable": "funnel_hub"},
+                "distinct variables",
+                id="one variable under two names",
+            ),
+            pytest.param(
+                {"name": "funnel_hub", "variable": "funnel_spend"},
+                "another mediator's variable",
+                id="a name that is another node's variable",
+            ),
+        ],
+    )
+    def test_names_and_variables_do_not_collide(self, second, complaint):
+        """A result is keyed by name and the graph by variable; neither may repeat."""
+        first = MediatorSpec(name="hub", variable="funnel_hub")
+
+        with pytest.raises(ValidationError, match=complaint):
+            IncrementalitySpec(
+                role="mediator", mediators=(first, MediatorSpec(**second))
+            )
+
+    def test_the_order_of_declaration_carries_no_meaning(self):
+        """Two specs that declare the same nodes are equal, whatever their order."""
+        hub = MediatorSpec(name="hub", variable="funnel_hub")
+        spend = MediatorSpec(
+            name="lf_spend", variable="funnel_spend", units="USD", is_spend=True
+        )
+
+        forward = IncrementalitySpec(role="mediator", mediators=(hub, spend))
+        backward = IncrementalitySpec(role="mediator", mediators=(spend, hub))
+
+        assert forward == backward
+        assert [mediator.name for mediator in backward.mediators] == ["hub", "lf_spend"]

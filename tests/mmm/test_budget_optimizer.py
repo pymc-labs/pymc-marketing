@@ -14,6 +14,7 @@
 import ast
 import inspect
 import warnings
+from functools import partial
 from unittest.mock import patch
 
 import numpy as np
@@ -21,6 +22,7 @@ import pandas as pd
 import pymc as pm
 import pymc.dims as pmd
 import pytensor
+import pytensor.xtensor as ptx
 import pytest
 import xarray as xr
 from pydantic import ValidationError
@@ -30,6 +32,7 @@ from scipy.optimize import OptimizeResult
 from xarray import DataArray
 
 import pymc_marketing.mmm.budget_optimizer as budget_optimizer_module
+import pymc_marketing.mmm.price_schedule as price_schedule_module
 from pymc_marketing.mmm import MMM
 from pymc_marketing.mmm.additive_effect import MuEffect
 from pymc_marketing.mmm.budget_optimizer import (
@@ -43,6 +46,15 @@ from pymc_marketing.mmm.components.adstock import GeometricAdstock
 from pymc_marketing.mmm.components.saturation import LogisticSaturation
 from pymc_marketing.mmm.constraints import Constraint, build_default_sum_constraint
 from pymc_marketing.mmm.optimization_variables import FLAT_DIM
+from pymc_marketing.mmm.price_response import (
+    PriceResponse,
+    ResolvedPriceResponse,
+    TieredPriceResponse,
+)
+from pymc_marketing.mmm.price_schedule import (
+    BreakpointSettler,
+    entries_leaving_breakpoints,
+)
 from pymc_marketing.mmm.utility import (
     _check_samples_dimensionality,
     diversification_ratio,
@@ -1050,6 +1062,9 @@ class TestEvaluatePlan:
 
         with pytest.raises(ValueError, match="carry no coordinates"):
             optimizer.evaluate_response_distribution(coordless)
+
+        with pytest.raises(ValueError, match="carry no coordinates"):
+            optimizer.delivery_reports(coordless)
 
         # Named entries say which one is at fault, since a mapping may carry
         # several and only one of them be unlabelled.
@@ -2269,6 +2284,68 @@ def _channel_model(channels, n_dates=6, node="channel_data"):
     return model, prior.prior
 
 
+def _frozen_path_optimizer(response_variable: str) -> BudgetOptimizer:
+    """An optimizer on ``_channel_model``'s graph plus two frozen deterministics.
+
+    ``path`` is a random walk over ``date``, as a latent path over the fitted dates
+    is, and ``total_response_original_scale`` adds it to the media contribution.
+    ``level`` is the walk's mean over ``date``, without a ``date`` dim as an HSGP's
+    frozen mean is, and ``response_with_level`` adds that instead.
+    """
+    channels, n_dates = ["a", "b"], 6
+    with pm.Model(coords={"channel": channels}) as model:
+        model.add_coord("date", length=n_dates)
+        channel_data = pmd.Data(
+            "channel_data", np.ones((n_dates, len(channels))), dims=("date", "channel")
+        )
+        beta = pmd.Normal("beta", 1.0, 0.1, dims="channel")
+        media = pmd.Deterministic(
+            "total_media_contribution_original_scale", (channel_data * beta).sum()
+        )
+        steps = pmd.Normal("steps", sigma=0.1, dims="date")
+        path = pmd.Deterministic("path", steps.cumsum("date"))
+        level = pmd.Deterministic("level", path.mean("date"))
+        pmd.Deterministic("total_response_original_scale", media + path.sum("date"))
+        pmd.Deterministic("response_with_level", media + level)
+    prior = pm.sample_prior_predictive(draws=4, model=model, random_seed=1).prior
+    return BudgetOptimizer(
+        model=model,
+        idata=xr.DataTree.from_dict({"posterior": prior}),
+        num_periods=4,
+        adstock_periods=2,
+        frozen_deterministics=["path", "level"],
+        response_variable=response_variable,
+    )
+
+
+def test_objective_reaching_a_frozen_path_over_date_raises():
+    """The path's draws are on the fitted dates, which no window lines up with."""
+    with pytest.raises(
+        NotImplementedError,
+        match=r"^response_variable 'total_response_original_scale' includes 'path', "
+        r"a frozen path over 'date' that exists only on the dates the model was "
+        r"fitted on, so it cannot be optimized on a window\. The default objective, "
+        r"'total_media_contribution_original_scale', does not include it\.$",
+    ):
+        _frozen_path_optimizer("total_response_original_scale")
+
+
+@pytest.mark.parametrize(
+    "response_variable",
+    [
+        pytest.param("total_media_contribution_original_scale", id="clear-of-path"),
+        pytest.param("response_with_level", id="frozen-without-date"),
+    ],
+)
+def test_objective_clear_of_frozen_paths_over_date_is_optimized(response_variable):
+    """Only a frozen path over ``date`` is refused, not a frozen mean without one."""
+    optimizer = _frozen_path_optimizer(response_variable)
+
+    result = optimizer.allocate_budget(total_budget=10.0)
+
+    np.testing.assert_allclose(result.budgets.sum(), 10.0)
+
+
 def _split_json_table(prices: dict) -> str:
     """A historical cost_per_unit table as MMM stores it in ``idata.attrs``."""
     dates = pd.date_range("2025-01-05", periods=3, freq="7D")
@@ -2277,53 +2354,50 @@ def _split_json_table(prices: dict) -> str:
     )
 
 
+class ResolvedHalfPrice(ResolvedPriceResponse):
+    """Delivers two units per unit of money: linear, no breakpoints, the ABC's default hooks."""
+
+    def __init__(self, dims, shape):
+        self.dims = dims
+        self.is_identity = False
+        self.money_scale = np.ones(shape)
+        self.curved = np.zeros(shape, dtype=bool)
+
+    def to_delivery(self, spend, base_price=None):
+        units = 2.0 * ptx.math.maximum(spend, 0.0)
+        return units if base_price is None else units / base_price
+
+    def implied_marginal_price(self, spend, base_price=None):
+        price = 0.0 * spend + 0.5
+        return price if base_price is None else price * base_price
+
+
+class HalfPrice(PriceResponse):
+    @property
+    def adds_curvature(self) -> bool:
+        return False
+
+    def resolve(
+        self,
+        *,
+        dims,
+        coords,
+        mask,
+        date_dim,
+        derived_reference,
+        label,
+        num_periods=None,
+    ):
+        template, _ = self._layout(dims, coords, mask)
+        return ResolvedHalfPrice(tuple(dims), template.shape)
+
+
 def test_price_gate_does_not_refuse_a_map_that_adds_no_curvature():
     """The gate keys on curvature, not on identity: a family that is linear in money
     (#3067's bracket schedule) rescales the axis without bending it, so it needs no
     attestation. Written against the ABC alone, with its default curved_cells and the
     base implied_price, on an idata with no table at all, so nothing could anchor a
     reference either."""
-    import pytensor.xtensor as ptx
-
-    from pymc_marketing.mmm.price_response import (
-        PriceResponse,
-        ResolvedPriceResponse,
-    )
-
-    class ResolvedHalfPrice(ResolvedPriceResponse):
-        def __init__(self, dims, shape):
-            self.dims = dims
-            self.is_identity = False
-            self.money_scale = np.ones(shape)
-            self.curved = np.zeros(shape, dtype=bool)
-
-        def to_delivery(self, spend, base_price=None):
-            units = 2.0 * ptx.math.maximum(spend, 0.0)
-            return units if base_price is None else units / base_price
-
-        def implied_marginal_price(self, spend, base_price=None):
-            price = 0.0 * spend + 0.5
-            return price if base_price is None else price * base_price
-
-    class HalfPrice(PriceResponse):
-        @property
-        def adds_curvature(self) -> bool:
-            return False
-
-        def resolve(
-            self,
-            *,
-            dims,
-            coords,
-            mask,
-            date_dim,
-            derived_reference,
-            label,
-            num_periods=None,
-        ):
-            template, _ = self._layout(dims, coords, mask)
-            return ResolvedHalfPrice(tuple(dims), template.shape)
-
     model, posterior = _channel_model(["a", "b"])
     optimizer = BudgetOptimizer(
         model=model,
@@ -2691,14 +2765,24 @@ def _steep_channel_optimizer() -> tuple[BudgetOptimizer, list[str]]:
     return optimizer, channels
 
 
-def test_allocate_budget_converges_when_one_channel_is_far_steeper_at_x0():
+def test_allocate_budget_converges_when_one_channel_is_far_steeper_at_x0(monkeypatch):
     """The default rescaling does not stop early in the flatter channels.
 
     A scale fixed at ``x0`` would stop SLSQP before it splits the rest of the
     budget between ``c2`` and ``c3``. At the optimum, ``c1`` and ``c3`` have
-    equal marginal responses and ``c2`` gets nothing.
+    equal marginal responses and ``c2`` gets nothing. The second solve is kept,
+    and the iteration and evaluation counts include both solves.
     """
     optimizer, channels = _steep_channel_optimizer()
+    real_minimize = budget_optimizer_module.minimize
+    solves: list[OptimizeResult] = []
+
+    def recorded_minimize(*args, **kwargs):
+        solve = real_minimize(*args, **kwargs)
+        solves.append(OptimizeResult(solve))
+        return solve
+
+    monkeypatch.setattr(budget_optimizer_module, "minimize", recorded_minimize)
 
     result = optimizer.allocate_budget(
         total_budget=60.0,
@@ -2707,6 +2791,11 @@ def test_allocate_budget_converges_when_one_channel_is_far_steeper_at_x0():
 
     assert result.scipy_result.success
     np.testing.assert_allclose(result.budgets.values, [42.141, 0.0, 17.859], atol=1e-2)
+    assert len(solves) == 2
+    first, polish = solves
+    assert result.scipy_result.nit == first.nit + polish.nit
+    assert result.scipy_result.nfev == first.nfev + polish.nfev
+    assert result.scipy_result.njev == first.njev + polish.njev
 
 
 def test_allocate_budget_keeps_the_first_solve_when_the_second_fails(monkeypatch):
@@ -3554,3 +3643,600 @@ def test_set_posterior_first_call_is_validated_like_later_calls(
     assert with_mask._objective_and_grad is constant_objective
     after, _ = with_mask.allocate_budget(total_budget=total_budget)
     np.testing.assert_allclose(after.values, reference.values)
+
+
+def _check(
+    right,
+    left=None,
+    *,
+    x=(5.0, 3.0, 2.0),
+    low=(0.0, 0.0, 0.0),
+    high=(10.0, 10.0, 10.0),
+    pinned=(True, False, False),
+    equalities=((1.0, 1.0, 1.0),),
+    active=(),
+    size=(10.0, 10.0, 10.0),
+):
+    right = np.asarray(right, dtype=float)
+    return entries_leaving_breakpoints(
+        right=right,
+        left=right if left is None else np.asarray(left, dtype=float),
+        x=np.asarray(x, dtype=float),
+        low=np.asarray(low, dtype=float),
+        high=np.asarray(high, dtype=float),
+        pinned=np.asarray(pinned),
+        equalities=[np.asarray(row, dtype=float) for row in equalities],
+        active_inequalities=[np.asarray(row, dtype=float) for row in active],
+        size=np.asarray(size, dtype=float),
+    )
+
+
+@pytest.mark.parametrize(
+    "kwargs, up, down",
+    [
+        pytest.param(
+            dict(right=[-0.5, -1.0, -1.0], left=[-1.5, -1.0, -1.0]),
+            False,
+            False,
+            id="belongs-on-it",
+        ),
+        pytest.param(
+            dict(right=[-1.2, -1.0, -1.0], left=[-1.5, -1.0, -1.0]),
+            True,
+            False,
+            id="next-unit-gains-20-percent",
+        ),
+        pytest.param(
+            dict(right=[-0.5, -1.0, -1.0], left=[-0.8, -1.0, -1.0]),
+            False,
+            True,
+            id="last-unit-loses",
+        ),
+        pytest.param(
+            dict(
+                right=[-0.5, -1.0, -1.0],
+                left=[-0.8, -1.0, -1.0],
+                active=((1.0, 0.0, 0.0),),
+            ),
+            False,
+            False,
+            id="held-by-a-constraint",
+        ),
+        pytest.param(
+            dict(right=[-1.00005, -1.0, -1.0], left=[-1.5, -1.0, -1.0]),
+            False,
+            False,
+            id="gain-below-the-tolerance",
+        ),
+        pytest.param(
+            dict(
+                right=[-1.2, -1.0, -1.0],
+                left=[-1.5, -1.0, -1.0],
+                low=(0.0, 0.0, -np.inf),
+                high=(10.0, 10.0, np.inf),
+                size=(10.0, 10.0, 1.0),
+            ),
+            True,
+            False,
+            id="unbounded-lever",
+        ),
+        pytest.param(
+            dict(
+                right=[-1.2, -1.0, -1.0],
+                left=[-1.5, -1.0, -1.0],
+                active=((-1.0, 0.01, 0.0),),
+            ),
+            True,
+            False,
+            id="partial-move-under-a-ratio",
+        ),
+        pytest.param(
+            dict(
+                right=[-1.2, -1.0, -1e12],
+                left=[-1.5, -1.0, -1e12],
+                x=(5.0, 3.0, 1.0),
+                high=(10.0, 10.0, 1.0),
+                equalities=((1.0, 1.0, 0.0),),
+                size=(10.0, 10.0, 1.0),
+            ),
+            True,
+            False,
+            id="steep-lever-on-its-bound",
+        ),
+        pytest.param(
+            dict(right=[0.0, 0.0, 0.0], left=[0.0, 0.0, 0.0]),
+            False,
+            False,
+            id="every-slope-zero",
+        ),
+    ],
+)
+def test_leaving_breakpoints(kwargs, up, down):
+    """A cell on a breakpoint belongs there when the free entries' common marginal return
+    lies between its two slopes; the linear program answers that under any active
+    constraints. A steep lever held on its bound must not shrink the media cells' costs
+    below the solver's tolerances, and a partial move under a ratio still counts."""
+    leaving = _check(**kwargs)
+    assert leaving is not None
+    released_up, released_down = leaving
+    assert bool(released_up[0]) is up
+    assert bool(released_down[0]) is down
+    assert not released_up[1:].any() and not released_down[1:].any()
+
+
+HAND_CHANNELS = ["a", "b"]
+
+
+def _hand_optimizer(price_response=None, beta=(100.0, 100.0), **kwargs):
+    """Two channels small enough to solve by hand.
+
+    The response is ``beta * (1 - exp(-0.1 * channel_data))`` summed over 6 dates, with one
+    posterior draw, ``num_periods=4`` and ``adstock_periods=2``, so the objective is
+    ``-400 * sum_c (1 - exp(-0.1 * u_c))``. With ``a`` priced 1 then 2 above 4: at a total of
+    9, ``a``'s slope below the breakpoint, ``0.1 exp(-0.4) = 0.0670``, beats ``b``'s ``0.0607``
+    at 5, which beats ``a``'s slope above, ``0.0335``, so ``a`` belongs on 4; at 20 it belongs
+    above, at 7.37902.
+    """
+    with pm.Model(coords={"channel": HAND_CHANNELS}) as model:
+        model.add_coord("date", length=6)
+        data = pmd.Data("channel_data", np.ones((6, 2)), dims=("date", "channel"))
+        beta_rv = pmd.Normal("beta", 1.0, 0.1, dims="channel")
+        pmd.Deterministic(
+            "total_media_contribution_original_scale",
+            (beta_rv * (1 - pmd.math.exp(-0.1 * data))).sum(),
+            dims=(),
+        )
+    posterior = xr.Dataset(
+        {
+            "beta": xr.DataArray(
+                np.array(beta)[None, None, :],
+                dims=("chain", "draw", "channel"),
+                coords={"chain": [0], "draw": [0], "channel": HAND_CHANNELS},
+            )
+        }
+    )
+    return BudgetOptimizer(
+        model=model,
+        idata=xr.DataTree.from_dict({"posterior": posterior}),
+        num_periods=4,
+        adstock_periods=2,
+        price_response=price_response,
+        **kwargs,
+    )
+
+
+A_ON_FOUR = TieredPriceResponse(
+    breakpoints={"a": [4.0]}, rate_multipliers={"a": [1.0, 2.0]}
+)
+OPTIMUM_AT_20 = (2.0 - 0.2 + np.log(0.5)) / 0.15
+
+
+def _hand_bounds(low, high):
+    return xr.DataArray(
+        np.column_stack([low, high]),
+        dims=("channel", "bound"),
+        coords={"channel": HAND_CHANNELS, "bound": ["lower", "upper"]},
+    )
+
+
+def _record_minimize(monkeypatch, fail=None, edit=None):
+    """Wrap scipy's minimize: record each call's bounds and result, and fail or edit chosen calls.
+
+    ``fail(index, bounds)`` marks a call failed, with a message naming its index.
+    """
+    real = budget_optimizer_module.minimize
+    calls: list[tuple[list, OptimizeResult]] = []
+
+    def recorded(*args, **kwargs):
+        result = real(*args, **kwargs)
+        index = len(calls)
+        if fail is not None and fail(index, kwargs["bounds"]):
+            result.success = False
+            result.message = f"forced at call {index}"
+        if edit is not None:
+            edit(index, result)
+        calls.append((list(kwargs["bounds"]), OptimizeResult(result)))
+        return result
+
+    monkeypatch.setattr(budget_optimizer_module, "minimize", recorded)
+    return calls
+
+
+def _not_the_callers(total):
+    """A failure rule for the first call whose bounds are not the caller's: the first pass."""
+    caller = [(0.0, float(total))] * 2
+
+    def fail(index, bounds):
+        return [tuple(map(float, b)) for b in bounds] != caller and not fail.done
+
+    fail.done = False
+
+    def once(index, bounds):
+        hit = fail(index, bounds)
+        fail.done = fail.done or hit
+        return hit
+
+    return once
+
+
+def _caller_bounds(total):
+    caller = [(0.0, float(total))] * 2
+    return lambda index, bounds: [tuple(map(float, b)) for b in bounds] == caller
+
+
+def _always_up(**kwargs):
+    """A check that always lets the first entry go up, whatever it is shown."""
+    up = np.zeros(kwargs["x"].size, dtype=bool)
+    up[0] = True
+    return up, np.zeros_like(up)
+
+
+class TestExactPasses:
+    def test_a_cell_that_belongs_on_its_breakpoint_is_returned_on_it(self, monkeypatch):
+        optimizer = _hand_optimizer(A_ON_FOUR)
+        calls = _record_minimize(monkeypatch)
+        result = optimizer.allocate_budget(total_budget=9.0, callback=True)
+
+        assert result.scipy_result.success
+        assert result.scipy_result["breakpoint_status"] == "certified"
+        assert result.budgets.sel(channel="a").item() == 4.0
+        np.testing.assert_allclose(
+            result.budgets.sel(channel="b").item(), 5.0, atol=1e-8
+        )
+        tags = [entry["solve"] for entry in result.callback_info]
+        assert list(dict.fromkeys(tags)) == [0, 1, 2]
+        assert result.scipy_result.nit == sum(r.nit for _, r in calls)
+        np.testing.assert_allclose(
+            result.scipy_result.jac,
+            [-400 * 0.1 * np.exp(-0.4) / 2, -400 * 0.1 * np.exp(-0.5)],
+            rtol=1e-6,
+        )
+        assert (
+            result.scipy_result.fun == optimizer.evaluate_plan(result.budgets).objective
+        )
+        report = result.delivery_reports["channel_data"]
+        xr.testing.assert_identical(
+            report, optimizer.delivery_reports(result.budgets)["channel_data"]
+        )
+        np.testing.assert_allclose(
+            report["implied_marginal_price"].sel(channel="a").values, 2.0
+        )
+
+    def test_a_time_shaped_plan_settles_on_its_breakpoint(self):
+        """Under a budget_distribution_over_period each period's knot is the breakpoint
+        times that period's share of the plan, while the passes cut pieces in budget
+        units; the two agree, so the cell comes back on its breakpoint and its next unit
+        costs the incremental rate in every period it spends."""
+        shape = xr.DataArray(
+            [[0.4, 0.3, 0.2, 0.1], [0.25, 0.25, 0.25, 0.25]],
+            dims=("channel", "date"),
+            coords={"channel": HAND_CHANNELS, "date": list(range(4))},
+        )
+        result = _hand_optimizer(
+            A_ON_FOUR, budget_distribution_over_period=shape
+        ).allocate_budget(total_budget=9.0)
+        assert result.scipy_result["breakpoint_status"] == "certified"
+        assert result.budgets.sel(channel="a").item() == 4.0
+        np.testing.assert_allclose(
+            result.implied_marginal_price.sel(channel="a").values, 2.0, rtol=1e-12
+        )
+
+    def test_a_cell_that_belongs_above_its_breakpoint(self):
+        result = _hand_optimizer(A_ON_FOUR).allocate_budget(
+            total_budget=20.0, callback=True
+        )
+        assert result.scipy_result.success
+        np.testing.assert_allclose(
+            result.budgets.values, [OPTIMUM_AT_20, 20.0 - OPTIMUM_AT_20], atol=1e-4
+        )
+        assert {entry["solve"] for entry in result.callback_info} == {0, 1}
+
+    def test_a_cell_started_on_the_wrong_piece_is_let_go(self, monkeypatch):
+        """The check lets a pinned cell go to the piece on the side that gains, once: the
+        pass after the release finds the optimum off the breakpoint, so no closing pass
+        follows."""
+
+        def misplace(index, result):
+            if index == 0:
+                result.x = np.array([3.0, 17.0])
+
+        _record_minimize(monkeypatch, edit=misplace)
+        result = _hand_optimizer(A_ON_FOUR).allocate_budget(
+            total_budget=20.0, callback=True
+        )
+        assert result.scipy_result.success
+        np.testing.assert_allclose(
+            result.budgets.values, [OPTIMUM_AT_20, 20.0 - OPTIMUM_AT_20], atol=1e-4
+        )
+        assert {entry["solve"] for entry in result.callback_info} == {0, 1, 2}
+
+    @pytest.mark.parametrize(
+        "minimize_kwargs",
+        [None, {"options": {"ftol": 1e-12}}],
+        ids=["rescaled", "ftol"],
+    )
+    def test_a_failed_pass_returns_the_first_solve_with_a_warning(
+        self, monkeypatch, minimize_kwargs
+    ):
+        """The first solve's plan sits on the blended map; scipy_result reports the exact
+        objective at it, which is what makes fun and evaluate_plan agree."""
+        optimizer = _hand_optimizer(A_ON_FOUR)
+        calls = _record_minimize(monkeypatch, fail=_not_the_callers(9.0))
+        with pytest.warns(UserWarning, match="was not settled on its breakpoints"):
+            result = optimizer.allocate_budget(
+                total_budget=9.0, minimize_kwargs=minimize_kwargs
+            )
+        first = calls[0][1]
+        assert result.scipy_result.success
+        assert result.scipy_result["breakpoint_status"] == "unsettled"
+        np.testing.assert_array_equal(result.budgets.values, first.x)
+        exact = optimizer.evaluate_plan(result.budgets).objective
+        assert result.scipy_result.fun == exact
+        variables = optimizer.optimization_variables
+        with variables.conditioned_on(np.zeros(2), np.full(2, 9.0)):
+            blended = optimizer.evaluate_plan(result.budgets).objective
+        assert abs(blended - exact) > 1e-3
+
+    def test_a_release_that_buys_nothing_stops(self, monkeypatch):
+        """A check that keeps letting the same cell go is stopped by the progress rule:
+        a settled plan, not a failure, held on its breakpoint by a closing solve."""
+        monkeypatch.setattr(
+            price_schedule_module, "entries_leaving_breakpoints", _always_up
+        )
+        with warnings.catch_warnings():
+            warnings.filterwarnings("error", message=".*not settled.*")
+            result = _hand_optimizer(A_ON_FOUR).allocate_budget(
+                total_budget=9.0, callback=True
+            )
+        assert result.scipy_result.success
+        assert result.scipy_result["breakpoint_status"] == "settled"
+        assert len({entry["solve"] for entry in result.callback_info}) <= 4
+        assert result.budgets.sel(channel="a").item() == 4.0
+
+    def test_a_release_that_buys_nothing_on_the_last_pass_still_closes(
+        self, monkeypatch
+    ):
+        """The progress rule may fire on the last pass the limit allows; the closing solve
+        that holds the new arrivals still runs, so the plan is settled, not unsettled."""
+        monkeypatch.setattr(
+            price_schedule_module, "entries_leaving_breakpoints", _always_up
+        )
+        monkeypatch.setattr(
+            budget_optimizer_module,
+            "BreakpointSettler",
+            partial(BreakpointSettler, max_passes=2),
+        )
+        with warnings.catch_warnings():
+            warnings.filterwarnings("error", message=".*not settled.*")
+            result = _hand_optimizer(A_ON_FOUR).allocate_budget(total_budget=9.0)
+        assert result.scipy_result["breakpoint_status"] == "settled"
+        assert result.budgets.sel(channel="a").item() == 4.0
+
+    def test_arrivals_on_the_last_pass_are_still_held(self, monkeypatch):
+        """A pass that leaves a cell at its breakpoint, with nothing that would gain by
+        leaving, needs one more solve to hold it there. On the last pass the limit allows
+        that solve still runs, so the plan is certified with the cell on its breakpoint."""
+        monkeypatch.setattr(
+            budget_optimizer_module,
+            "BreakpointSettler",
+            partial(BreakpointSettler, max_passes=1),
+        )
+        with warnings.catch_warnings():
+            warnings.filterwarnings("error", message=".*not settled.*")
+            result = _hand_optimizer(A_ON_FOUR).allocate_budget(total_budget=9.0)
+        assert result.scipy_result["breakpoint_status"] == "certified"
+        assert result.budgets.sel(channel="a").item() == 4.0
+
+    def test_knots_that_break_a_constraint_leave_the_plan_unsettled(self):
+        """Every entry is held, but a constraint fails at the knots: they are neither
+        returned nor certified, and the run ends unsettled on the last solve's plan."""
+        both = TieredPriceResponse(
+            breakpoints={"a": [4.0], "b": [5.0]},
+            rate_multipliers={"a": [1.0, 2.0], "b": [1.0, 2.0]},
+        )
+        optimizer = _hand_optimizer(both)
+        first = OptimizeResult(
+            x=np.array([4.0, 5.0]) * (1.0 + 1e-12),
+            success=True,
+            nit=1,
+            nfev=1,
+            njev=1,
+        )
+        broken = {"type": "ineq", "fun": lambda x: -1.0, "jac": lambda x: np.zeros(2)}
+
+        def no_solve(*args):
+            pytest.fail("every entry is held, so no solve is left to run")
+
+        settler = BreakpointSettler(
+            variables=optimizer.optimization_variables,
+            objective_and_grad=optimizer._objective_and_grad,
+            constraints=[broken],
+            solve=no_solve,
+            low=np.array([4.0, 5.0]),
+            high=np.array([9.0, 9.0]),
+            total_budget=9.0,
+            ftol=1e-6,
+            rescale=False,
+        )
+        with pytest.warns(UserWarning, match="not settled on its breakpoints"):
+            result = settler.settle(first)
+        assert result["breakpoint_status"] == "unsettled"
+        np.testing.assert_array_equal(result.x, first.x)
+
+    def test_a_failed_first_solve_is_recovered_by_the_passes(self, monkeypatch):
+        _record_minimize(monkeypatch, fail=_caller_bounds(9.0))
+        result = _hand_optimizer(A_ON_FOUR).allocate_budget(total_budget=9.0)
+        assert result.scipy_result.success
+        assert result.budgets.sel(channel="a").item() == 4.0
+
+    @pytest.mark.parametrize("which", ["every-call", "first-and-first-pass"])
+    def test_when_no_solve_succeeds_the_first_solve_is_the_failure_reported(
+        self, monkeypatch, which
+    ):
+        def fail_rule():
+            if which == "every-call":
+                return lambda index, bounds: True
+            pass_failed = _not_the_callers(9.0)
+            return lambda index, bounds: index == 0 or pass_failed(index, bounds)
+
+        _record_minimize(monkeypatch, fail=fail_rule())
+        with pytest.raises(MinimizeException, match="forced at call 0"):
+            _hand_optimizer(A_ON_FOUR).allocate_budget(total_budget=9.0)
+        monkeypatch.undo()
+        calls = _record_minimize(monkeypatch, fail=fail_rule())
+        result = _hand_optimizer(A_ON_FOUR).allocate_budget(
+            total_budget=9.0, return_if_fail=True
+        )
+        assert not result.scipy_result.success
+        assert result.scipy_result.message == "forced at call 0"
+        np.testing.assert_array_equal(result.budgets.values, calls[0][1].x)
+
+    def test_every_entry_held_is_not_solved_again(self, monkeypatch):
+        """With every cell held on its breakpoint by its lower bound and the breakpoints
+        adding up to the total, no solve is left: the plan comes back on the breakpoints
+        exactly, and no call fixes every variable."""
+        both = TieredPriceResponse(
+            breakpoints={"a": [4.0], "b": [5.0]},
+            rate_multipliers={"a": [1.0, 2.0], "b": [1.0, 2.0]},
+        )
+        bounds = _hand_bounds([4.0, 5.0], [9.0, 9.0])
+        calls = _record_minimize(monkeypatch)
+        result = _hand_optimizer(both).allocate_budget(
+            total_budget=9.0, budget_bounds=bounds
+        )
+        assert result.scipy_result.success
+        np.testing.assert_array_equal(result.budgets.values, [4.0, 5.0])
+        assert result.scipy_result["breakpoint_status"] == "certified"
+        assert all(
+            [tuple(map(float, b)) for b in call_bounds] == [(4.0, 9.0), (5.0, 9.0)]
+            for call_bounds, _ in calls
+        )
+        monkeypatch.undo()
+        _record_minimize(monkeypatch, fail=lambda index, bounds: True)
+        with pytest.raises(MinimizeException):
+            _hand_optimizer(both).allocate_budget(
+                total_budget=9.0, budget_bounds=bounds
+            )
+        failed = _hand_optimizer(both).allocate_budget(
+            total_budget=9.0, budget_bounds=bounds, return_if_fail=True
+        )
+        assert not failed.scipy_result.success
+
+    def test_breakpoints_out_of_reach_change_nothing(self, monkeypatch):
+        """Nothing in reach: the run is today's, down to scipy_result and the number of
+        times the objective is evaluated."""
+
+        def counted(optimizer):
+            evaluations = []
+            objective = optimizer._objective_and_grad
+
+            def count(x):
+                evaluations.append(1)
+                return objective(x)
+
+            optimizer._objective_and_grad = count
+            return optimizer, evaluations
+
+        far = TieredPriceResponse(
+            breakpoints={"a": [50.0]}, rate_multipliers={"a": [1.0, 2.0]}
+        )
+        calls = _record_minimize(monkeypatch)
+        optimizer, scheduled_evaluations = counted(_hand_optimizer(far))
+        with pytest.warns(
+            UserWarning, match="every breakpoint is above the upper bound"
+        ):
+            scheduled = optimizer.allocate_budget(total_budget=9.0)
+        scheduled_calls = list(calls)
+        calls.clear()
+        optimizer, plain_evaluations = counted(_hand_optimizer())
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            plain = optimizer.allocate_budget(total_budget=9.0)
+        assert [b for b, _ in scheduled_calls] == [b for b, _ in calls]
+        assert len(scheduled_evaluations) == len(plain_evaluations)
+        np.testing.assert_array_equal(scheduled.budgets.values, plain.budgets.values)
+        assert "breakpoint_status" not in scheduled.scipy_result
+        np.testing.assert_allclose(
+            scheduled.scipy_result.fun, plain.scipy_result.fun, rtol=1e-14
+        )
+        np.testing.assert_allclose(
+            scheduled.scipy_result.jac, plain.scipy_result.jac, rtol=1e-14
+        )
+
+    def test_breakpoints_above_the_bounds_warn_per_cell(self):
+        """A breakpoint above a cell's upper bound is named; one on the bound is not, and
+        neither is a channel held at zero on purpose."""
+        schedule = TieredPriceResponse(
+            breakpoints={"a": [50.0], "b": [5.0]},
+            rate_multipliers={"a": [1.0, 2.0], "b": [1.0, 2.0]},
+        )
+        with pytest.warns(UserWarning, match="every breakpoint is above") as record:
+            _hand_optimizer(schedule).allocate_budget(total_budget=9.0)
+        message = next(
+            str(w.message) for w in record if "every breakpoint" in str(w.message)
+        )
+        assert "cells a (breakpoint 50" in message and "b (" not in message
+        assert "50" in message and "upper bound 9" in message
+        assert "num_periods=4" in message
+        on_the_bound = _hand_bounds([0.0, 0.0], [4.0, 9.0])
+        with warnings.catch_warnings():
+            warnings.filterwarnings("error", message=".*every breakpoint.*")
+            _hand_optimizer(A_ON_FOUR).allocate_budget(
+                total_budget=9.0, budget_bounds=on_the_bound
+            )
+            _hand_optimizer(schedule).allocate_budget(
+                total_budget=9.0,
+                budget_bounds=_hand_bounds([0.0, 0.0], [50.0, 0.0]),
+            )
+
+    def test_another_method_returns_the_first_solve_with_a_warning(self, monkeypatch):
+        calls = _record_minimize(monkeypatch)
+        with pytest.warns(UserWarning, match="method='trust-constr'"):
+            result = _hand_optimizer(A_ON_FOUR).allocate_budget(
+                total_budget=9.0, minimize_kwargs={"method": "trust-constr"}
+            )
+        assert result.scipy_result.success
+        assert result.scipy_result["breakpoint_status"] == "skipped"
+        assert all(
+            [tuple(map(float, b)) for b in call_bounds] == [(0.0, 9.0)] * 2
+            for call_bounds, _ in calls
+        )
+        np.testing.assert_allclose(
+            result.budgets.sel(channel="a").item(), 4.0, rtol=1e-2
+        )
+
+    def test_exact_passes_after_set_posterior(self):
+        """The rebuilt graphs read the same per-solve state the map's hooks set."""
+        optimizer = _hand_optimizer(A_ON_FOUR)
+        optimizer.set_posterior(_hand_optimizer(beta=(50.0, 50.0)).idata)
+        result = optimizer.allocate_budget(total_budget=9.0)
+        assert result.scipy_result.success
+        assert result.budgets.sel(channel="a").item() == 4.0
+
+
+def test_exact_passes_with_a_lever(mock_pymc_sample):
+    """A lever has no map: its entries are free entries of the check, sized in its own
+    units. The media cell that belongs on its breakpoint still comes back on it."""
+    mmm, date_range = _fit_mmm_with_lever(mock_pymc_sample)
+    window = dict(
+        start_date=date_range[-1] + pd.Timedelta(weeks=1),
+        end_date=date_range[-1] + pd.Timedelta(weeks=4),
+        optimizable_vars={"promo_data": [(0.0, 1.0), (0.0, 1.0)]},
+        response_variable="joint_objective",
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        base = mmm.budget_optimizer(**window).allocate_budget(total_budget=100.0)
+    breakpoint_ = 0.9 * float(base.budgets.sel(channel="ch1"))
+    schedule = TieredPriceResponse(
+        breakpoints={"ch1": [breakpoint_]}, rate_multipliers={"ch1": [1.0, 1.6]}
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        result = mmm.budget_optimizer(
+            **window, price_response=schedule
+        ).allocate_budget(total_budget=100.0)
+    assert result.scipy_result.success
+    assert float(result.budgets.sel(channel="ch1")) == breakpoint_, "fixture drifted"
+    promo = result.optimized_vars["promo_data"].values
+    assert ((promo >= 0.0) & (promo <= 1.0)).all()

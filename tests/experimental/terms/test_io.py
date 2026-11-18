@@ -281,6 +281,20 @@ def test_spec_rejects_a_registered_non_term_class():
         spec_from_dict(spec)
 
 
+def test_spec_round_trips_a_term_registered_under_a_string_key():
+    class StableParameter(Parameter):
+        pass
+
+    serialization.register("tests.experimental.StableParameter", StableParameter)
+    spec = spec_to_dict((Equation(observed="y", mu=StableParameter("location")),))
+    root = spec["nodes"][spec["roots"][0]]
+    mu_node = spec["nodes"][root["fields"]["parameters"]["$map"]["mu"]["$ref"]]
+
+    assert mu_node["__type__"] == "tests.experimental.StableParameter"
+    (restored,) = spec_from_dict(json.loads(json.dumps(spec)))
+    assert type(restored.mu) is StableParameter
+
+
 def test_spec_rejects_a_non_equation_root():
     spec = spec_to_dict((Equation(observed="y", mu=Data("x")),))
     root = spec["nodes"][spec["roots"][0]]

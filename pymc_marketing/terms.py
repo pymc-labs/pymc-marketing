@@ -291,6 +291,7 @@ from pymc_extras.prior import (
 )
 from pytensor.xtensor.type import as_xtensor
 
+from pymc_marketing.names import Key
 from pymc_marketing.serialization import (
     DeferredFactory,
     SerializationError,
@@ -387,11 +388,11 @@ def _serialize_child(value: Any) -> Any:
     serialize via their own ``to_dict``.
     """
     if isinstance(value, (bool, int, float)):
-        return {"__literal__": value}
+        return {Key.LITERAL: value}
     if isinstance(value, np.bool_):
-        return {"__literal__": bool(value)}
+        return {Key.LITERAL: bool(value)}
     if isinstance(value, np.number):
-        return {"__literal__": value.item()}
+        return {Key.LITERAL: value.item()}
     if serialization.is_registered(value):
         return serialization.serialize(value)
     if isinstance(value, (VariableFactory, xr.DataArray, DeferredFactory)):
@@ -407,9 +408,9 @@ def _serialize_child(value: Any) -> Any:
 def _deserialize_child(value: Any) -> Any:
     """Deserialize a serialized term child back to a live object."""
     if isinstance(value, dict):
-        if "__literal__" in value:
-            return value["__literal__"]
-        if value.get("__deferred__") or "__type__" in value:
+        if Key.LITERAL in value:
+            return value[Key.LITERAL]
+        if value.get(Key.DEFERRED) or Key.TYPE in value:
             return serialization.deserialize(value)
         try:
             return pymc_extras_deserialize(value)

@@ -14,6 +14,7 @@
 
 import logging
 import warnings
+from itertools import permutations
 
 import numpy as np
 import pandas as pd
@@ -192,6 +193,33 @@ def test_add_noise_to_channel_allocation():
 
     # Test no negative values
     assert (result[channels] >= 0).all().all(), "No negative values in channels"
+
+
+@pytest.mark.parametrize("dims", list(permutations(("date", "geo", "channel"))))
+@pytest.mark.parametrize("n_dates", [2, 3])
+def test_add_noise_to_channel_allocation_dataset_dimension_order(dims, n_dates):
+    """Each channel keeps its own noise scale regardless of axis position."""
+    channel_values = xr.DataArray(
+        [10.0, 100.0], dims="channel", coords={"channel": ["search", "video"]}
+    )
+    allocation = channel_values.expand_dims(
+        date=pd.date_range("2025-01-01", periods=n_dates),
+        geo=["north", "south", "east", "west"],
+    ).transpose(*dims)
+    data = allocation.to_dataset(name="_channel")
+    data["target"] = ("date", np.arange(n_dates, dtype=float))
+    original = data.copy(deep=True)
+
+    result = add_noise_to_channel_allocation(
+        data, ["search", "video"], rel_std=0.1, seed=42
+    )
+
+    relative_noise = (result["_channel"] - allocation) / channel_values
+    expected = 0.1 * np.random.default_rng(42).standard_normal(allocation.shape)
+    np.testing.assert_allclose(relative_noise.values, expected)
+    assert result["_channel"].dims == dims
+    xr.testing.assert_identical(result["target"], data["target"])
+    xr.testing.assert_identical(data, original)
 
 
 class FakeMMM:
