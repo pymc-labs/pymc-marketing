@@ -136,6 +136,11 @@ class TestInitFromMMM:
         with pytest.raises(NotImplementedError, match="adstock_first"):
             ExperimentDesigner(fitted_mmm)
 
+    def test_time_varying_media_rejected_at_construction(self, fitted_mmm, monkeypatch):
+        monkeypatch.setattr(fitted_mmm, "time_varying_media", True)
+        with pytest.raises(NotImplementedError, match="time-invariant media"):
+            ExperimentDesigner(fitted_mmm)
+
     def test_mismatched_observations_raise(self, fitted_mmm, monkeypatch):
         idata = fitted_mmm.idata.copy()
         idata["observed_data"] = idata.observed_data.dataset.isel(date=slice(1, None))

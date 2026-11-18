@@ -86,9 +86,9 @@ class ExperimentDesigner:
     Parameters
     ----------
     mmm : MMM
-        A fitted national-level MMM with an identity link. Spend changes and
-        costs are in the units supplied to the MMM. Lift and measurement noise
-        are in the MMM's scaled target units.
+        A fitted national-level MMM with an identity link and time-invariant
+        media effects. Spend changes and costs use the units supplied to the
+        MMM. Lift and measurement noise use the MMM's scaled target units.
     spend_lookback : int
         Number of most recent observations used to estimate current spend.
         If the fit has fewer observations, all are used.
@@ -98,7 +98,8 @@ class ExperimentDesigner:
     ValueError
         If the MMM has not been fitted.
     NotImplementedError
-        If ``adstock_first=False`` (not supported in v1).
+        If the model includes panel dimensions, a non-identity link,
+        time-varying media effects, or ``adstock_first=False``.
 
     Examples
     --------
@@ -128,6 +129,10 @@ class ExperimentDesigner:
         if mmm.dims or mmm.link != "identity":
             raise NotImplementedError(
                 "ExperimentDesigner requires a national-level MMM with an identity link."
+            )
+        if mmm.time_varying_media:
+            raise NotImplementedError(
+                "ExperimentDesigner requires time-invariant media effects."
             )
         if spend_lookback < 1:
             raise ValueError("spend_lookback must be positive.")
@@ -1100,18 +1105,17 @@ class ExperimentDesigner:
         x_grid = np.linspace(0, x_max, n_grid)
 
         baseline = self._make_spend_array(self.l_max + 1)
-        curves = []
-        # Bound the graph's intermediate tensors as the draw count grows.
+        y_mean, y_lo, y_hi = np.empty((3, len(x_grid)))
+        # Reduce each batch before evaluating the next spend range.
         batch_size = 32
         for start in range(0, len(x_grid), batch_size):
-            levels = x_grid[start : start + batch_size]
+            batch = slice(start, start + batch_size)
+            levels = x_grid[batch]
             spend = np.repeat(baseline[None, :, :], len(levels), axis=0)
             spend[:, :, ch_idx] = levels[:, None]
-            curves.append(self._eval_fn.steady_responses(spend)[:, :, ch_idx])
-        response = np.concatenate(curves, axis=1)
-
-        y_mean = response.mean(axis=0)
-        y_lo, y_hi = np.percentile(response, [3.0, 97.0], axis=0)
+            response = self._eval_fn.steady_responses(spend)[:, :, ch_idx]
+            y_mean[batch] = response.mean(axis=0)
+            y_lo[batch], y_hi[batch] = np.percentile(response, [3.0, 97.0], axis=0)
 
         ax.fill_between(x_grid, y_lo, y_hi, color=color, alpha=0.15)
         ax.plot(x_grid, y_mean, color=color, linewidth=2, label="Posterior mean")
