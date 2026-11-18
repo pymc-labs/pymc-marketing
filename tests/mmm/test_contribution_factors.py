@@ -793,3 +793,46 @@ def test_fixed_amplitude_support_is_captured_at_build(data, amplitude):
             "belief", ["search"], "share", Prior("HalfNormal", sigma=0.1)
         )
         assert np.isfinite(m.model.compile_logp()(m.model.initial_point()))
+
+
+@pytest.mark.parametrize("family", ["LogNormal", "HalfNormal"])
+@pytest.mark.parametrize("response", ["amplitude", "slope", "linear", "michaelis"])
+def test_fixed_zero_response_support_is_validated_before_mutation(
+    data, family, response
+):
+    from pymc_marketing.mmm import (
+        LogisticSaturation,
+        MichaelisMentenSaturation,
+        NoSaturation,
+    )
+
+    saturation = {
+        "amplitude": LogisticSaturation(priors={"beta": 0.0}),
+        "slope": LogisticSaturation(priors={"lam": 0.0}),
+        "linear": NoSaturation(priors={"beta": 0.0}),
+        "michaelis": MichaelisMentenSaturation(priors={"alpha": 0.0}),
+    }[response]
+    m = MMM(
+        date_column="date",
+        channel_columns=["search", "tiktok"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=saturation,
+    )
+    m.build_model(*data)
+    assert np.isfinite(m.model.compile_logp()(m.model.initial_point()))
+    names = set(m.model.named_vars)
+    specs = copy.deepcopy(m._contribution_factors.specs)
+    if family == "LogNormal":
+        with pytest.raises(ValueError, match="identically zero"):
+            m.add_contribution_factor(
+                "belief", ["search"], "share", Prior(family, sigma=0.1)
+            )
+        assert set(m.model.named_vars) == names
+        assert m._contribution_factors.specs == specs
+        assert m._contribution_factors.frozen_graph is None
+    else:
+        m.add_contribution_factor(
+            "belief", ["search"], "share", Prior(family, sigma=0.1)
+        )
+        assert evaluate(m.model, [m.model["belief"]])[0] == 0
+        assert np.isfinite(m.model.compile_logp()(m.model.initial_point()))

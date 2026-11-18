@@ -22,8 +22,10 @@ import numpy as np
 import xarray as xr
 from pymc.distributions.transforms import _default_transform
 from pymc.logprob.transforms import IntervalTransform, LogOddsTransform, LogTransform
+from pymc.pytensorf import constant_fold
 from pytensor.compile.ops import ViewOp
 from pytensor.graph.basic import Constant
+from pytensor.graph.rewriting import rewrite_graph
 from pytensor.graph.traversal import graph_inputs
 from pytensor.scalar.basic import Exp
 from pytensor.scalar.math import Sigmoid, Softplus
@@ -215,3 +217,20 @@ class ContributionSupport:
     def has_positive_target(self, channels: list[str], mask: xr.DataArray) -> bool:
         """Use the same labeled observed cells as the contribution aggregate."""
         return bool((self.positive_reach.sel({Dim.CHANNEL: channels}) & mask).any())
+
+
+def is_identically_zero(value: Any) -> bool:
+    """Prove a target is zero using the actual graph, without evaluating RVs.
+
+    Work on a clone: these optimizations must not rewrite the model's graph or
+    its value-variable identities. Only a fully constant result establishes zero;
+    a numerical value at one parameter point would not establish infeasibility.
+    """
+    simplified = rewrite_graph(
+        value,
+        include=("lower_xtensor", "fast_run"),
+        exclude=("inplace",),
+        clone=True,
+    )
+    folded = constant_fold([simplified], raise_not_constant=False)[0]
+    return isinstance(folded, np.ndarray) and bool(np.all(folded == 0))

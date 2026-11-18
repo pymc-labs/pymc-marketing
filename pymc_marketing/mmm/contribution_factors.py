@@ -38,7 +38,10 @@ from pytensor.graph.rewriting import rewrite_graph
 from pytensor.graph.traversal import ancestors
 from pytensor.xtensor import as_xtensor
 
-from pymc_marketing.mmm._contribution_support import ContributionSupport
+from pymc_marketing.mmm._contribution_support import (
+    ContributionSupport,
+    is_identically_zero,
+)
 from pymc_marketing.mmm.data_conversion import to_mmm_dataset
 from pymc_marketing.mmm.hsgp import HSGPBase
 from pymc_marketing.mmm.spend_reach import resolve_channel_dependent_effects
@@ -405,6 +408,13 @@ class ContributionFactorState:
         denominator = float(mmm.xarray_dataset[DatasetVar.TARGET].where(mask, 0).sum())
         value = total / denominator if spec["quantity"] == "share" else total
         value_aggregate = mmm.model.replace_rvs_by_values([value])[0]
+        if prior.distribution == "LogNormal" and is_identically_zero(
+            value_aggregate.values
+        ):
+            raise ValueError(
+                "LogNormal factors require a positive historical contribution; "
+                "the fixed response is identically zero"
+            )
         # XTensor Potential logp is not lowered by conditional_logp. Keep
         # this explicit lowering until upstream supports its pullbacks.
         # https://github.com/pymc-devs/pymc/issues/8506
