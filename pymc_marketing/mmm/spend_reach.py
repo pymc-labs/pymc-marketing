@@ -600,8 +600,10 @@ class SpendReach:
         a windowed reach always carries a horizon.
     uncut_date_paths : tuple of str, default=()
         Posterior variables with a ``date`` dimension that the evaluator does not
-        cut to windows and whose ``date`` axis meets a windowed one; see
-        :attr:`~pymc_marketing.mmm.counterfactual.CounterfactualEvaluator.uncut_date_paths`.
+        cut to windows and whose ``date`` axis meets a windowed one in a term
+        the request reads on each window (the linear predictor only for a path
+        request); see
+        :meth:`~pymc_marketing.mmm.counterfactual.CounterfactualEvaluator.uncut_date_paths`.
         When there are any, every period is evaluated on the full date axis,
         where they line up with the dates they were fitted on.  The reach and
         ``max_lag`` stay as measured: the probe evaluates on the full axis.

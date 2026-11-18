@@ -1402,6 +1402,9 @@ class ProbedReach:
         predictor.  ``False`` when it had no date to probe or no predictor.
     has_predictor : bool
         Whether the evaluator computes the linear predictor.
+    windowed_outputs : tuple of str
+        The response variables evaluated on each window: all of them but the
+        linear predictor, which only a path request reads there.
     """
 
     lease: EvaluatorLease
@@ -1412,6 +1415,7 @@ class ProbedReach:
     effect_names: tuple[str, ...]
     trailing_lags: int
     channel_data_dims: list[str]
+    windowed_outputs: tuple[str, ...]
     compared: bool = False
     has_predictor: bool = False
 
@@ -1942,6 +1946,12 @@ class Incrementality:
             which is correct but slower, and the completeness check above is
             skipped for lack of anything to compare it against.  See
             :meth:`~pymc_marketing.mmm.spend_reach.SpendProbe.measure`.
+
+            If a date-indexed posterior variable that is not cut to windows
+            meets a windowed ``date`` axis in a term the request reads on each
+            window, every period is evaluated on the full date axis, which is
+            correct but slower.  The message names the variables; see
+            :attr:`~pymc_marketing.mmm.additive_effect.MuEffect.frozen_deterministics`.
 
         See Also
         --------
@@ -2662,7 +2672,8 @@ class Incrementality:
             the period's spend moves, so these are zero by construction.  When
             the probe could not bound the reach, when ``adstock.mode`` is not
             ``ConvMode.After``, or when a date-indexed posterior variable that
-            is not cut to windows meets a windowed ``date`` axis in the graph
+            is not cut to windows meets a windowed ``date`` axis in a term the
+            request reads on each window
             (see :attr:`~pymc_marketing.mmm.additive_effect.MuEffect.frozen_deterministics`),
             every period is evaluated on the full date axis
             (``assumptions["evaluation"] == "full_axis"``), and two things
@@ -2742,6 +2753,10 @@ class Incrementality:
             If ``adstock.mode`` is not ``ConvMode.After``.  The entries remain
             correct, and dates before the spend period carry the kernel's
             leading mass, but "realized now vs later" does not describe them.
+
+            If a date-indexed posterior variable that is not cut to windows
+            meets a windowed ``date`` axis in a term the request reads on each
+            window; see :meth:`compute_incremental_contribution`.
 
         Notes
         -----
@@ -5020,9 +5035,9 @@ class Incrementality:
         adstock is not ``ConvMode.After`` always gets it: its windowed sum ends
         at most ``l_max // 2`` dates past the period, which cuts the forward
         carryover of an effect with its own adstock, even when the probe
-        measured that carryover.  So does a graph in which a date-indexed
+        measured that carryover.  So does a request in which a date-indexed
         posterior variable the evaluator does not cut to windows meets a
-        windowed ``date`` axis
+        windowed ``date`` axis in a term read on each window
         (:attr:`~pymc_marketing.mmm.spend_reach.SpendReach.uncut_date_paths`):
         only on the full axis does it line up with the other inputs' dates.
 
@@ -5301,6 +5316,9 @@ class Incrementality:
             # increment.
             accounting_rests_on_probe=bool(reads.wanted) and not reads.is_path,
             mediators_need_full_axis=any(mediator.full_axis for mediator in mediators),
+            # A path request checks its rows against the predictor on each
+            # window; a total reads the predictor only through the probe.
+            predictor_on_windows=reads.is_path,
         )
 
         # The stretch of dates each period is evaluated over, which of them enter
@@ -5308,6 +5326,25 @@ class Incrementality:
         # return the leased evaluator; the caller only releases once it has a
         # prepared evaluation.
         try:
+            reach = probed.reach
+            if (
+                reach.uncut_date_paths
+                and not reach.requires_full_axis
+                and self.model.adstock.mode == ConvMode.After
+            ):
+                listing = ", ".join(repr(name) for name in reach.uncut_date_paths)
+                warnings.warn(
+                    f"The posterior variables {listing} have a 'date' dimension, "
+                    "are not cut to evaluation windows, and meet a windowed "
+                    "'date' axis in a term this request reads on each window, so "
+                    "every period is evaluated on the full date axis.  The result "
+                    "is correct but slower than a window.  To keep the windows, "
+                    "list a Deterministic of each variable's own path in its mu "
+                    "effect's frozen_deterministics; see "
+                    "MuEffect.frozen_deterministics.",
+                    UserWarning,
+                    skip_file_prefixes=(_PKG_PREFIX,),
+                )
             windows = EvaluationWindows.build(
                 periods=periods,
                 dates=self.data.dates,
@@ -5391,6 +5428,7 @@ class Incrementality:
         mediators: Sequence[str] = (),
         accounting_rests_on_probe: bool = True,
         mediators_need_full_axis: bool = False,
+        predictor_on_windows: bool = False,
     ) -> ProbedReach:
         """Compile the batched evaluator, evaluate the baseline and probe the reach.
 
@@ -5423,6 +5461,11 @@ class Incrementality:
             Whether an effect that declares a node in *mediators* asks for
             ``evaluation_mode="full"``; see
             :meth:`~pymc_marketing.mmm.spend_reach.SpendProbe.measure`.
+        predictor_on_windows : bool, default=False
+            Whether the request reads the linear predictor on each window, as a
+            path request does to check its rows.  Otherwise the predictor is
+            left out of the windowed evaluation, and an uncut date path only it
+            reads does not send the periods to the full date axis.
 
         Returns
         -------
@@ -5565,8 +5608,17 @@ class Incrementality:
             )
             # A date-indexed posterior variable the evaluator does not cut lines
             # up with the other inputs only on the full date axis; the reach the
-            # probe measured there stands.
-            reach = replace(reach, uncut_date_paths=evaluator.uncut_date_paths)
+            # probe measured there stands.  Only the responses evaluated on
+            # windows count: a total reads the predictor through the probe alone.
+            windowed_outputs = tuple(
+                name
+                for name in evaluator.response_vars
+                if predictor is None or predictor_on_windows or name != predictor.name
+            )
+            reach = replace(
+                reach,
+                uncut_date_paths=evaluator.uncut_date_paths(windowed_outputs),
+            )
             if validate_reach is not None:
                 validate_reach(reach)
         except BaseException:
@@ -5584,6 +5636,7 @@ class Incrementality:
             effect_names=effect_names,
             trailing_lags=trailing_lags,
             channel_data_dims=channel_data_dims,
+            windowed_outputs=windowed_outputs,
             compared=compared,
             has_predictor=predictor is not None,
         )
@@ -5929,7 +5982,9 @@ class Incrementality:
             name: [[] for _ in windows.windows] for name in reduction.result_names
         }
         with closing(
-            probed.evaluator.iter_counterfactual(scenarios, windows=windows)
+            probed.evaluator.iter_counterfactual(
+                scenarios, windows=windows, outputs=probed.windowed_outputs
+            )
         ) as blocks:
             for block in blocks:
                 # A slice, so the baseline's share of the block is a view.

@@ -645,7 +645,7 @@ class TestDateIndexedInputs:
         happens on plain tensors, which carry no dims.
         """
         evaluator, _ = self._level_evaluator(reduce=False, in_tensors=in_tensors)
-        assert evaluator.uncut_date_paths == ("level",)
+        assert evaluator.uncut_date_paths() == ("level",)
         n_dates = len(self.dates)
         windows = self._windows(
             slice(0, n_dates), slice(2, n_dates), max_window=n_dates
@@ -682,7 +682,7 @@ class TestDateIndexedInputs:
     def test_an_uncut_variable_reduced_over_date_evaluates_on_short_windows(self):
         """Reduced over date first, the variable never meets a window's date axis."""
         evaluator, values = self._level_evaluator(reduce=True)
-        assert evaluator.uncut_date_paths == ()
+        assert evaluator.uncut_date_paths() == ()
         n_dates = len(self.dates)
         windows = self._windows(
             slice(0, n_dates), slice(2, n_dates), max_window=n_dates
@@ -755,6 +755,60 @@ class TestDateIndexedInputs:
         else:
             cut = evaluator.evaluate_counterfactual(scenarios, windows=windows)
             np.testing.assert_allclose(cut["channel_contribution"], 1.0)
+
+    @pytest.mark.parametrize(
+        "entry", ["evaluate_counterfactual", "iter_counterfactual"]
+    )
+    def test_outputs_leave_out_a_node_an_uncut_variable_meets(self, entry):
+        """Evaluating some of the nodes leaves out an uncut variable another one reads.
+
+        ``mu`` adds ``level`` to spend, so it cannot be computed on windows shorter
+        than the fitted dates.  ``channel_contribution`` alone can.
+        """
+        n_dates = len(self.dates)
+        with pm.Model(coords={"date": range(n_dates), "channel": ["c"]}) as model:
+            channel_data = pmd.Data(
+                "channel_data", np.ones((n_dates, 1)), dims=("date", "channel")
+            )
+            level = pmd.Normal("level", dims="date")
+            contribution = pmd.Deterministic("channel_contribution", 2.0 * channel_data)
+            pmd.Deterministic("mu", contribution.sum("channel") + level)
+        posterior = xr.Dataset(
+            {"level": (("chain", "draw", "date"), np.ones((1, 1, n_dates)))},
+            coords={"chain": [0], "draw": [0]},
+        )
+        evaluator = CounterfactualEvaluator(
+            pymc_model=model,
+            posterior=posterior,
+            response_vars=["channel_contribution", "mu"],
+            frozen_deterministics=[],
+            dates=self.dates,
+        )
+        windows = self._windows(slice(0, 4), slice(2, 6), max_window=4)
+        spend = np.arange(1.0, 9.0).reshape(2, 4, 1)
+        scenarios = CounterfactualScenarios(
+            spend=spend,
+            period_index=np.array([0, 1]),
+            rows={(0, None): 0, (1, None): 1},
+        )
+
+        def evaluate(**kwargs):
+            if entry == "evaluate_counterfactual":
+                return evaluator.evaluate_counterfactual(
+                    scenarios, windows=windows, **kwargs
+                )
+            (block,) = evaluator.iter_counterfactual(
+                scenarios, windows=windows, **kwargs
+            )
+            return block.outputs
+
+        assert evaluator.uncut_date_paths() == ("level",)
+        assert evaluator.uncut_date_paths(["channel_contribution"]) == ()
+        cut = evaluate(outputs=["channel_contribution"])
+        assert cut.keys() == {"channel_contribution"}
+        np.testing.assert_allclose(cut["channel_contribution"][:, 0], 2.0 * spend)
+        with pytest.raises(ValueError, match=r"in the graph: 'level'\."):
+            evaluate()
 
     @pytest.mark.parametrize(
         "max_elements",
