@@ -26,12 +26,34 @@ from pytensor import function
 from pytensor.graph.replace import clone_replace
 from pytensor.xtensor.vectorization import vectorize_graph
 
+from pymc_marketing.mmm.link import RESPONSE_SCALE_LIKELIHOODS, _distribution_name
 from pymc_marketing.names.mmm import Dim, Var
 from pymc_marketing.pytensor_utils import extract_response_distribution
 
 if TYPE_CHECKING:
     from pymc import Model
     from xarray import Dataset
+
+    from pymc_marketing.mmm.mmm import MMM
+
+
+def validate_observed_mean(mmm: MMM, posterior: Dataset) -> None:
+    """Require the identity predictor to be the conditional target mean."""
+    likelihood = mmm.model_config["likelihood"]
+    distribution = _distribution_name(likelihood)
+    if distribution not in RESPONSE_SCALE_LIKELIHOODS:
+        raise ValueError(
+            f"ExperimentDesigner does not know the conditional mean of {distribution!r}."
+        )
+    try:
+        # On the identity link, the factor is 1 for a supported mean. The
+        # validator refuses likelihoods with an offset or an undefined mean.
+        mmm._link_spec.mean_scale_factor(posterior, likelihood, mmm.output_var)
+    except ValueError as error:
+        raise ValueError(
+            f"ExperimentDesigner requires a defined conditional mean equal to mu. "
+            f"The fitted {distribution!r} likelihood does not meet this requirement."
+        ) from error
 
 
 class ContributionGraph:

@@ -189,6 +189,12 @@ class TestInitFromMMM:
         with pytest.raises(NotImplementedError, match="additional mu_effects"):
             ExperimentDesigner(mmm)
 
+    def test_likelihood_with_mean_offset_rejected(self, truncated_normal_fitted_mmm):
+        with pytest.raises(
+            ValueError, match=r"conditional mean equal to mu.*TruncatedNormal"
+        ):
+            ExperimentDesigner(truncated_normal_fitted_mmm)
+
     @pytest.mark.parametrize("mode", ["Before", "Overlap"])
     def test_nontrailing_adstock_rejected(self, fitted_mmm, monkeypatch, mode):
         from pymc_marketing.mmm.transformers import ConvMode

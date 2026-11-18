@@ -39,7 +39,10 @@ from matplotlib.figure import Figure
 from scipy.stats import norm
 from xarray import DataTree
 
-from pymc_marketing.mmm.experiment_design._evaluation import ContributionGraph
+from pymc_marketing.mmm.experiment_design._evaluation import (
+    ContributionGraph,
+    validate_observed_mean,
+)
 from pymc_marketing.mmm.experiment_design._statistics import residual_statistics
 from pymc_marketing.mmm.experiment_design.fixture import _validate_transformations
 from pymc_marketing.mmm.experiment_design.recommendation import (
@@ -88,9 +91,10 @@ class ExperimentDesigner:
     ----------
     mmm : MMM
         A fitted national-level MMM with regular weekly observations, an
-        identity link, time-invariant media effects, and trailing adstock.
-        The lift calculation covers the model's direct channel contributions.
-        Spend changes and costs use the units supplied to the MMM. Lift and
+        identity link, time-invariant media effects, trailing adstock, and
+        a likelihood whose conditional mean equals ``mu``. The lift
+        calculation covers the model's direct channel contributions. Spend
+        changes and costs use the units supplied to the MMM. Lift and
         measurement noise use the MMM's scaled target units.
     spend_lookback : int
         Number of most recent observations used to estimate current spend.
@@ -99,7 +103,8 @@ class ExperimentDesigner:
     Raises
     ------
     ValueError
-        If the MMM has not been fitted or its observations are not weekly.
+        If the MMM has not been fitted, its observations are not weekly, or
+        its likelihood has no supported conditional mean equal to ``mu``.
     NotImplementedError
         If the model includes panel dimensions, a non-identity link,
         time-varying media effects, additional ``mu_effects``, non-trailing
@@ -159,6 +164,7 @@ class ExperimentDesigner:
         # A reloaded model follows the posterior's coordinate order.
         channel_columns = list(mmm.model.coords[Dim.CHANNEL])
         posterior = idata.posterior.dataset.sel({Dim.CHANNEL: channel_columns})
+        validate_observed_mean(mmm, posterior)
 
         spend = idata.constant_data[Var.CHANNEL_DATA].sel(
             {Dim.CHANNEL: channel_columns}
