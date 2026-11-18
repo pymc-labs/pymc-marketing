@@ -19,9 +19,8 @@ level, for how long — based on a fitted MMM's posterior uncertainty about
 channel response functions. The v1 scope is national-level experiments on
 multiple spend channels, analysed via Interrupted Time Series (ITS).
 
-The designer uses the MMM's own computational graph to evaluate channel
-contributions, so it automatically supports any adstock/saturation
-combination without reimplementing the transformation formulas.
+The designer evaluates the fitted MMM's channel contributions directly from
+its computational graph using trailing adstock followed by saturation.
 """
 
 from __future__ import annotations
@@ -88,9 +87,10 @@ class ExperimentDesigner:
     ----------
     mmm : MMM
         A fitted national-level MMM with regular weekly observations, an
-        identity link, time-invariant media effects, and trailing adstock. Spend changes and costs use the
-        units supplied to the MMM. Lift and measurement noise use the MMM's
-        scaled target units.
+        identity link, time-invariant media effects, and trailing adstock.
+        The lift calculation covers the model's direct channel contributions.
+        Spend changes and costs use the units supplied to the MMM. Lift and
+        measurement noise use the MMM's scaled target units.
     spend_lookback : int
         Number of most recent observations used to estimate current spend.
         If the fit has fewer observations, all are used.
@@ -101,8 +101,8 @@ class ExperimentDesigner:
         If the MMM has not been fitted or its observations are not weekly.
     NotImplementedError
         If the model includes panel dimensions, a non-identity link,
-        time-varying media effects, non-trailing adstock, or
-        ``adstock_first=False``.
+        time-varying media effects, additional ``mu_effects``, non-trailing
+        adstock, or ``adstock_first=False``.
 
     Examples
     --------
@@ -136,6 +136,11 @@ class ExperimentDesigner:
         if mmm.time_varying_media:
             raise NotImplementedError(
                 "ExperimentDesigner requires time-invariant media effects."
+            )
+        if mmm.mu_effects:
+            raise NotImplementedError(
+                "ExperimentDesigner cannot evaluate additional mu_effects. "
+                "Its counterfactual covers direct channel contributions only."
             )
         if mmm.adstock.mode != ConvMode.After:
             raise NotImplementedError(

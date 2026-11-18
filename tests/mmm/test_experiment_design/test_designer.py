@@ -171,6 +171,24 @@ class TestInitFromMMM:
         with pytest.raises(NotImplementedError, match="time-invariant media"):
             ExperimentDesigner(fitted_mmm)
 
+    def test_additive_spend_path_rejected_at_construction(self, simple_mmm_data):
+        from pymc_marketing.mmm import MMM, GeometricAdstock, LogisticSaturation
+        from tests.mmm.conftest import mock_fit
+        from tests.mmm.test_budget_optimizer_mmm import _MediatedEffect
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.add_mu_effect(_MediatedEffect())
+        mock_fit(mmm, **simple_mmm_data, draws=10, random_seed=42)
+
+        with pytest.raises(NotImplementedError, match="additional mu_effects"):
+            ExperimentDesigner(mmm)
+
     @pytest.mark.parametrize("mode", ["Before", "Overlap"])
     def test_nontrailing_adstock_rejected(self, fitted_mmm, monkeypatch, mode):
         from pymc_marketing.mmm.transformers import ConvMode
