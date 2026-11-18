@@ -807,10 +807,9 @@ class MuEffect(SerializableBaseModel, ABC):
         as the cumulative sum of a random walk's steps. A listed path is cut to
         each window before the graph reads it, so a sum, cumulative sum or mean
         over ``date`` taken after it covers only the window: list the variable
-        itself only when the graph reads it date by date up to that point. Listing
-        a deterministic that only renames the variable, such as
-        ``Deterministic(name, rv)``, currently raises a ``KeyError`` in
-        incrementality. Only a dimension named ``date`` counts: incrementality does
+        itself only when the graph reads it date by date up to that point. The MMM
+        freezes a deterministic that only renames the variable, such as
+        ``Deterministic(name, rv)``, as the variable itself. Only a dimension named ``date`` counts: incrementality does
         not notice a variable over the fitted dates declared under another
         dimension name and can read it at the wrong dates, so declare such a
         variable over ``date`` or list its path here.

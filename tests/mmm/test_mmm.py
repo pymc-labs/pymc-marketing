@@ -3394,6 +3394,59 @@ def test_monthly_incrementality_on_a_date_variable(
     assert json.loads(split.attrs["assumptions"])["evaluation"] == "window"
 
 
+class _FrozenRenamedDateLevelEffect(_DateLevelEffect):
+    """``_DateLevelEffect`` with its contribution frozen.
+
+    The contribution is a Deterministic that only renames the free variable.
+    """
+
+    @property
+    def frozen_deterministics(self) -> list[str]:
+        """The contribution, a view of the free random variable."""
+        return [self.contribution_var_name]
+
+
+def test_frozen_renaming_deterministic_resolves_to_its_variable(fit_mmm_with_effect):
+    """Once built, the MMM freezes the variable the Deterministic renames."""
+    effect = _FrozenRenamedDateLevelEffect()
+    unbuilt = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        adstock=GeometricAdstock(l_max=1),
+        saturation=LogisticSaturation(),
+    ).add_mu_effect(effect)
+    assert unbuilt.frozen_deterministics == [effect.contribution_var_name]
+
+    mmm = fit_mmm_with_effect(_FrozenRenamedDateLevelEffect())
+
+    assert mmm.frozen_deterministics == ["level_draws"]
+
+
+def test_monthly_incrementality_on_a_frozen_renaming_deterministic(
+    fit_mmm_with_effect,
+):
+    """Freezing a Deterministic that only renames the variable gives each month's contribution.
+
+    PyMC drops the renaming view when it clones the model, so the evaluator reads
+    the variable; freezing the Deterministic used to raise ``KeyError``.
+    """
+    mmm = fit_mmm_with_effect(_FrozenRenamedDateLevelEffect())
+
+    incremental = mmm.incrementality.compute_incremental_contribution(
+        frequency="monthly"
+    )
+
+    contribution = (
+        mmm.idata.posterior["channel_contribution"]
+        * mmm.idata.constant_data["target_scale"]
+    )
+    month_ends = contribution.indexes["date"].to_period("M").end_time.normalize()
+    expected = contribution.assign_coords(date=month_ends).groupby("date").sum()
+    assert incremental.indexes["date"].equals(expected.indexes["date"])
+    np.testing.assert_allclose(incremental, expected.transpose(*incremental.dims))
+
+
 def test_monthly_incrementality_evaluates_a_reduced_date_variable(
     fit_mmm_with_effect,
 ):
