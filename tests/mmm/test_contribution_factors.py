@@ -25,41 +25,14 @@ import xarray as xr
 from pymc_extras.prior import Prior
 from scipy.stats import norm
 
-from pymc_marketing.mmm import MMM, GeometricAdstock, LogisticSaturation
+from pymc_marketing.mmm import MMM, GeometricAdstock
 from pymc_marketing.mmm.scaling import DataDerivedScaling, Scaling
-
-
-def make_model(dims=(), **kwargs):
-    return MMM(
-        date_column="date",
-        channel_columns=["search", "tiktok"],
-        adstock=GeometricAdstock(l_max=2),
-        saturation=LogisticSaturation(),
-        dims=dims,
-        **kwargs,
-    )
-
-
-@pytest.fixture
-def data():
-    X = pd.DataFrame(
-        {
-            "date": pd.date_range("2025-01-01", periods=5),
-            "search": [1.0, 3.0, 2.0, 4.0, 5.0],
-            "tiktok": [2.0, 4.0, 3.0, 5.0, 6.0],
-        }
-    )
-    return X, pd.Series([10.0, 20.0, np.nan, 30.0, 40.0])
-
-
-def evaluate(model, expressions, point=None):
-    expressions = [v.values if hasattr(v, "values") else v for v in expressions]
-    fn = model.compile_fn(
-        model.replace_rvs_by_values(expressions),
-        inputs=model.value_vars,
-        on_unused_input="ignore",
-    )
-    return fn(model.initial_point() if point is None else point)
+from tests.mmm.contribution_factors_helpers import data as data
+from tests.mmm.contribution_factors_helpers import (
+    evaluate,
+    make_model,
+)
+from tests.mmm.contribution_factors_helpers import labeled_panel as labeled_panel
 
 
 @pytest.mark.parametrize("panel", [False, True])
@@ -282,68 +255,6 @@ def test_save_load_restore_original_missingness(data, tmp_path, prior):
     assert not bool(loaded.idata.contribution_factor_data.observed_mask.isel(date=2))
 
 
-def test_effective_prior_removes_sales_likelihood_retains_factors(data):
-    m = make_model()
-    m.build_model(*data)
-    m.add_contribution_factor(
-        "belief", ["search"], "share", Prior("Normal", mu=0.3, sigma=0.1)
-    )
-    from unittest.mock import patch
-
-    def inspect_model(**kwargs):
-        prior_model = pm.modelcontext(None)
-        assert not prior_model.observed_RVs
-        point = prior_model.initial_point()
-        assert np.isfinite(prior_model.compile_dlogp()(point)).all()
-        actual = prior_model.compile_logp()(point)
-        parameter_logp = evaluate(
-            prior_model, [prior_model.logp(vars=prior_model.free_RVs)], point
-        )[0]
-        share = evaluate(prior_model, [prior_model["belief"]], point)[0]
-        np.testing.assert_allclose(
-            actual - parameter_logp, norm.logpdf(share, 0.3, 0.1)
-        )
-        return xr.DataTree.from_dict(
-            {"posterior": xr.Dataset({"belief": (("chain", "draw"), [[share]])})}
-        )
-
-    with patch("pymc.sample", side_effect=inspect_model):
-        result = m.sample_effective_prior()
-    assert "prior" in result and "posterior" not in result
-    with pytest.warns(UserWarning, match="not the effective prior"):
-        m.sample_prior_predictive(*data, samples=2, random_seed=123)
-
-
-@pytest.fixture
-def labeled_panel():
-    dates = pd.date_range("2025-01-01", periods=5)
-    coords = {
-        "date": dates,
-        "region": ["A", "B"],
-        "product": ["p", "q"],
-        "channel": ["tiktok", "search"],
-    }
-    ds = xr.Dataset(
-        {
-            "_channel": xr.DataArray(
-                np.arange(40).reshape(2, 2, 5, 2) + 1.0,
-                dims=("channel", "product", "date", "region"),
-                coords=coords,
-            ),
-            "_target": xr.DataArray(
-                np.arange(20).reshape(2, 5, 2) + 20.0,
-                dims=("region", "date", "product"),
-                coords={d: coords[d] for d in ["region", "date", "product"]},
-            ),
-        }
-    )
-    ds["_target"].loc[{"region": "B", "product": "q", "date": dates[2]}] = np.nan
-    channels = ds["_channel"].to_series().unstack("channel").reset_index()
-    targets = ds["_target"].to_series().rename("y").reset_index()
-    frame = channels.merge(targets, on=["date", "region", "product"])
-    return ds, frame.drop(columns="y"), frame["y"]
-
-
 def test_xarray_two_dimensions_and_missing_cells(labeled_panel):
     """Label alignment, rather than axis position, defines pooled training cells."""
     ds, _, _ = labeled_panel
@@ -393,11 +304,7 @@ def test_equivalent_named_axes_rebuild_fit_and_persist(
     expected = evaluate(
         m.model, [m.model["belief"], m.model.logp(vars=m.model.potentials)]
     )
-    m.build_model(
-        original.sortby(["region", "product"]).transpose(
-            "product", "date", "region", "channel"
-        )
-    )
+    m.build_model(original.transpose("product", "date", "region", "channel"))
     assert m._contribution_factors.fingerprint == reference
     np.testing.assert_allclose(
         evaluate(m.model, [m.model["belief"], m.model.logp(vars=m.model.potentials)]),
@@ -646,52 +553,6 @@ def test_incompatible_belief_warning(data):
         )
 
 
-def test_public_prediction_optimizer_and_effective_prior(data, mock_pymc_sample):
-    m = make_model()
-    m.build_model(*data)
-    m.add_contribution_factor(
-        "belief", ["search"], "share", Prior("Normal", mu=0.3, sigma=0.1)
-    )
-    m.fit(*data)
-    point = m.model.initial_point()
-    before = evaluate(
-        m.model, [m.model["belief"], m.model.logp(vars=m.model.potentials)], point
-    )
-    posterior = m.idata.posterior.dataset.copy(deep=True)
-    future = data[0].assign(
-        date=pd.date_range("2026-01-01", periods=5), search=100.0, tiktok=200.0
-    )
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", UserWarning)
-        m.sample_posterior_predictive(future, extend_idata=False, random_seed=123)
-        result = m.budget_optimizer("2026-01-01", "2026-01-03").allocate_budget(
-            total_budget=30.0
-        )
-    assert result is not None
-    np.testing.assert_allclose(
-        evaluate(
-            m.model, [m.model["belief"], m.model.logp(vars=m.model.potentials)], point
-        ),
-        before,
-    )
-    posterior = m.idata.posterior.dataset.copy(deep=True)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        draws = m.sample_effective_prior(
-            draws=3,
-            tune=3,
-            chains=1,
-            cores=1,
-            random_seed=123,
-            progressbar=False,
-            compute_convergence_checks=False,
-        )
-    assert "prior" in draws
-    xr.testing.assert_equal(
-        m.idata.posterior.dataset[list(posterior.data_vars)], posterior
-    )
-
-
 def test_time_slice_cv_rejects_rebinding_historical_factors(data):
     from pymc_marketing.mmm import TimeSliceCrossValidator
 
@@ -704,57 +565,6 @@ def test_time_slice_cv_rejects_rebinding_historical_factors(data):
     assert "belief" in m.model.named_vars
 
 
-def test_effective_prior_panel_target_and_predictive_parameter_preservation(
-    labeled_panel,
-):
-    from unittest.mock import patch
-
-    ds, _, _ = labeled_panel
-    m = make_model(dims=("region", "product"))
-    m.build_model(ds)
-    m.add_original_scale_contribution_variable(["channel_contribution"])
-    m.add_contribution_factor("belief", ["search"], "share", Prior("Normal"))
-    point = m.model.initial_point()
-    before = evaluate(
-        m.model, [m.model["belief"], m.model.logp(vars=m.model.potentials)], point
-    )
-
-    def check_sampling_target(**kwargs):
-        sampling = pm.modelcontext(None)
-        assert not sampling.observed_RVs
-        np.testing.assert_allclose(
-            evaluate(
-                sampling,
-                [sampling["belief"], sampling.logp(vars=sampling.potentials)],
-                point,
-            ),
-            before,
-        )
-        # Forward draws here supply test values, not an effective-prior approximation.
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", UserWarning)
-            prior = pm.sample_prior_predictive(draws=4, random_seed=123).prior.dataset
-        return xr.DataTree.from_dict({"posterior": prior})
-
-    with patch("pymc.sample", side_effect=check_sampling_target):
-        result = m.sample_effective_prior()
-    with m.model, warnings.catch_warnings():
-        warnings.simplefilter("ignore", UserWarning)
-        predictive = pm.sample_posterior_predictive(
-            result.prior.dataset, var_names=["y", "belief"], random_seed=123
-        )
-    xr.testing.assert_allclose(
-        predictive.posterior_predictive.belief, result.prior.belief
-    )
-
-
-def test_effective_prior_rejects_target_override(data):
-    m = make_model()
-    m.build_model(*data)
-    with pytest.raises(ValueError, match="controls its model"):
-        m.sample_effective_prior(model=m.model)
-
-
 def test_spend_dependent_effect_rejected(funnel_identity_fitted_mmm):
     m = copy.deepcopy(funnel_identity_fitted_mmm)
     m.idata = None
@@ -762,29 +572,6 @@ def test_spend_dependent_effect_rejected(funnel_identity_fitted_mmm):
     with pytest.raises(ValueError, match="spend-dependent"):
         m.add_contribution_factor("belief", ["channel_1"], "share", Prior("Normal"))
     assert set(m.model.named_vars) == names
-
-
-def test_effective_prior_preserves_user_parameters_and_deterministics(data):
-    from unittest.mock import patch
-
-    import pymc.dims as pmd
-
-    m = make_model()
-    m.build_model(*data)
-    with m.model:
-        extra = pmd.Normal("extra_parameter", mu=1, sigma=2)
-        pmd.Deterministic("extra_squared", extra**2)
-    m.add_contribution_factor("belief", ["search"], "share", Prior("Normal"))
-
-    def inspect(**kwargs):
-        sampling = pm.modelcontext(None)
-        assert "extra_parameter" in {v.name for v in sampling.free_RVs}
-        assert "extra_squared" in sampling.named_vars
-        assert not sampling.observed_RVs
-        return xr.DataTree.from_dict({"posterior": xr.Dataset()})
-
-    with patch("pymc.sample", side_effect=inspect):
-        m.sample_effective_prior()
 
 
 @pytest.mark.parametrize("corruption", ["missing_mask", "unknown_version"])
@@ -813,63 +600,6 @@ def test_failed_load_restoration_preserves_existing_model(data, corruption):
     np.testing.assert_allclose(
         evaluate(m.model, [m.model["belief"], m.model.logp()]), before
     )
-
-
-@pytest.mark.parametrize("extra_term", ["potential", "observation"])
-def test_effective_prior_rejects_additional_calibration_terms(data, extra_term):
-    m = make_model()
-    m.build_model(*data)
-    m.add_contribution_factor("belief", ["search"], "share", Prior("Normal"))
-    with m.model:
-        if extra_term == "potential":
-            pm.Potential("external_calibration", pm.math.constant(0.0))
-        else:
-            pm.Normal("external_observation", observed=0.0)
-    model = m.model
-    names = set(model.named_vars)
-    with pytest.raises(ValueError, match="additional likelihoods/Potentials"):
-        m.sample_effective_prior()
-    assert m.model is model
-    assert set(model.named_vars) == names
-    assert m.idata is None
-
-
-@pytest.mark.parametrize(
-    "prior",
-    [
-        Prior("Normal"),
-        Prior("LogNormal", mu=-1, sigma=0.5),
-        Prior("HalfNormal", sigma=0.5),
-    ],
-)
-def test_effective_prior_returns_prior_sampling_diagnostics(data, monkeypatch, prior):
-    from pymc.sampling.mcmc import sample
-
-    # Other tests use a module-scoped mock; this contract needs actual MCMC stats.
-    monkeypatch.setattr(pm, "sample", sample)
-    m = make_model()
-    m.build_model(*data)
-    m.add_contribution_factor("belief", ["search"], "share", prior)
-    # A short real chain checks the sampling result contract, not convergence.
-    result = m.sample_effective_prior(
-        draws=8,
-        tune=8,
-        chains=1,
-        cores=1,
-        progressbar=False,
-        compute_convergence_checks=False,
-        random_seed=123,
-    )
-    assert "posterior" not in result
-    # The positive channel-effect priors also exclude negative shares when
-    # the additional weighting density itself has real-line support.
-    assert bool((result.prior.belief >= 0).all())
-    assert "sample_stats" not in result
-    assert result.prior.sizes["draw"] == 8
-    assert result.sample_stats_prior.sizes["draw"] == 8
-    assert "diverging" in result.sample_stats_prior
-    assert np.isfinite(result.prior.belief).all()
-    assert m.idata is None
 
 
 @pytest.mark.parametrize("family", ["LogNormal", "HalfNormal"])
@@ -926,21 +656,6 @@ def test_factor_rejects_positive_placeholder_target(data):
         m.add_contribution_factor("total", ["search"], "total", Prior("Normal"))
 
 
-def test_effective_prior_merges_sampler_defaults(data):
-    from unittest.mock import patch
-
-    config = {"nuts_sampler": "numpyro", "draws": 777, "target_accept": 0.99}
-    m = make_model(sampler_config=config)
-    m.build_model(*data)
-    m.add_contribution_factor("belief", ["search"], "share", Prior("Normal"))
-    with patch(
-        "pymc.sample", return_value=xr.DataTree.from_dict({"posterior": xr.Dataset()})
-    ) as sample:
-        m.sample_effective_prior(draws=12, random_seed=42)
-    assert sample.call_args.kwargs == {**config, "draws": 12, "random_seed": 42}
-    assert m.sampler_config == config
-
-
 @pytest.mark.parametrize("extra_potential", [False, True])
 def test_predictive_warning_is_specific_to_unclassified_potentials(
     data, mock_pymc_sample, extra_potential
@@ -991,44 +706,6 @@ def test_failed_factor_rebuild_isolates_mutable_configuration(data, monkeypatch)
     assert m.model_config == configuration
 
 
-@pytest.mark.slow
-def test_effective_prior_matches_independent_importance_weighting(data, monkeypatch):
-    """Prior-only MCMC agrees with forward draws weighted by the supplied density."""
-    from pymc.sampling.mcmc import sample
-
-    monkeypatch.setattr(pm, "sample", sample)
-    m = make_model()
-    m.build_model(*data)
-    m.add_contribution_factor(
-        "belief", ["search"], "share", Prior("Normal", mu=0.1, sigma=0.015)
-    )
-    with m.model, warnings.catch_warnings():
-        warnings.filterwarnings("ignore", message="The effect of Potentials.*")
-        forward = pm.sample_prior_predictive(
-            draws=200_000, var_names=["belief"], random_seed=731
-        )
-    shares = forward.prior.belief.values.ravel()
-    order = np.argsort(shares)
-    weights = norm.pdf(shares[order], loc=0.1, scale=0.015)
-    cdf = (weights.cumsum() - 0.5 * weights) / weights.sum()
-    probabilities = [0.05, 0.25, 0.5, 0.75, 0.95]
-    expected = np.interp(probabilities, cdf, shares[order])
-    effective = m.sample_effective_prior(
-        draws=1000,
-        tune=1000,
-        chains=2,
-        cores=1,
-        target_accept=0.95,
-        random_seed=732,
-        progressbar=False,
-    )
-    actual = np.quantile(effective.prior.belief.values, probabilities)
-    # This tolerance accommodates Monte Carlo error while excluding unweighted
-    # parameter-prior draws and sales-conditioned posterior draws.
-    np.testing.assert_allclose(actual, expected, atol=0.01, rtol=0)
-    assert not effective.sample_stats_prior.diverging.any()
-
-
 @pytest.mark.parametrize("family", ["LogNormal", "HalfNormal"])
 def test_positive_factor_rebuild_rejects_new_signed_effects(data, family):
     m = make_model()
@@ -1044,43 +721,272 @@ def test_positive_factor_rebuild_rejects_new_signed_effects(data, family):
     assert len(m._contribution_factors.specs) == 1
 
 
-def test_effective_prior_restores_historical_inputs_after_public_prediction(
-    data, mock_pymc_sample
-):
-    from unittest.mock import patch
+@pytest.mark.parametrize("family", ["LogNormal", "HalfNormal"])
+@pytest.mark.parametrize("parameter", ["saturation_lam", "adstock_alpha"])
+def test_positive_factor_rejects_signed_shape_parameters(data, family, parameter):
+    m = make_model(
+        model_config={parameter: Prior("Normal", mu=0.5, sigma=1, dims="channel")}
+    )
+    m.build_model(*data)
+    names = set(m.model.named_vars)
+    with pytest.raises(ValueError, match=r"nonnegative|sign"):
+        m.add_contribution_factor(
+            "belief", ["search"], "share", Prior(family, sigma=0.1)
+        )
+    assert set(m.model.named_vars) == names
+    assert not m._contribution_factors.specs
 
-    import pymc.dims as pmd
+
+@pytest.mark.parametrize("family", ["Normal", "HalfNormal"])
+def test_hierarchical_positive_effect_prior_accepts_factor(data, family):
+    m = make_model(
+        model_config={
+            "saturation_beta": Prior(
+                "HalfNormal", sigma=Prior("HalfNormal", sigma=1), dims="channel"
+            )
+        }
+    )
+    m.build_model(*data)
+    m.add_contribution_factor("belief", ["search"], "share", Prior(family, sigma=0.1))
+    assert np.isfinite(m.model.compile_dlogp()(m.model.initial_point())).all()
+
+
+@pytest.mark.parametrize("effect_prior", ["special", "michaelis_menten"])
+def test_positive_factor_accepts_supported_positive_amplitudes(data, effect_prior):
+    from pymc_marketing.mmm import MichaelisMentenSaturation
+    from pymc_marketing.special_priors import LogNormalPrior
+
+    if effect_prior == "special":
+        m = make_model(
+            model_config={
+                "saturation_beta": LogNormalPrior(mean=0.5, std=0.2, dims="channel")
+            }
+        )
+    else:
+        m = MMM(
+            date_column="date",
+            channel_columns=["search", "tiktok"],
+            adstock=GeometricAdstock(l_max=2),
+            saturation=MichaelisMentenSaturation(),
+        )
+    m.build_model(*data)
+    m.add_contribution_factor(
+        "belief", ["search"], "share", Prior("HalfNormal", sigma=0.1)
+    )
+    assert np.isfinite(m.model.compile_dlogp()(m.model.initial_point())).all()
+
+
+def test_positive_factor_rejects_signed_media_multiplier(data):
+    from pymc_marketing.mmm.hsgp import HSGP
+
+    m = make_model(time_varying_media=HSGP(m=3, L=5, dims="date", eta=1, ls=2))
+    m.build_model(*data)
+    names = set(m.model.named_vars)
+    with pytest.raises(ValueError, match=r"nonnegative|multiplier|sign"):
+        m.add_contribution_factor(
+            "belief", ["search"], "share", Prior("HalfNormal", sigma=0.1)
+        )
+    assert set(m.model.named_vars) == names
+
+
+@pytest.mark.parametrize("locked", [False, True])
+def test_factor_rebuild_preserves_user_components(data, locked):
+    from threading import Lock
+    from typing import Any
+
+    from pydantic import Field
+
+    from pymc_marketing.mmm import LinearTrend
+    from pymc_marketing.mmm.additive_effect import LinearTrendEffect
+
+    class ResourceTrend(LinearTrendEffect):
+        resource: Any = Field(default=None, exclude=True)
+
+    effect = ResourceTrend(
+        trend=LinearTrend(n_changepoints=2),
+        prefix="trend",
+        resource=Lock() if locked else None,
+    )
+    m = make_model()
+    m.add_mu_effect(effect)
+    m.build_model(*data)
+    config, effects = m.model_config, m.mu_effects
+    m.add_contribution_factor("belief", ["search"], "share", Prior("Normal"))
+    m.build_model(*data)
+    assert m.mu_effects is effects
+    assert m.mu_effects[0] is effect
+    assert m.model_config is config
+    assert np.isfinite(m.model.compile_dlogp()(m.model.initial_point())).all()
+
+
+def test_factor_mask_order_matches_denominator_on_load(
+    labeled_panel, tmp_path, mock_pymc_sample
+):
+    ds, X, y = labeled_panel
+    m = make_model(dims=("region", "product"))
+    m.build_model(ds.sel(region=["B", "A"], product=["q", "p"]))
+    m.add_contribution_factor("belief", ["search"], "share", Prior("Normal"))
+    expected = evaluate(m.model, [m.model["belief"]])[0]
+    m.fit(X, y)
+    path = tmp_path / "without-posterior.nc"
+    m.save(str(path), groups=["fit_data", "contribution_factor_data"])
+    loaded = MMM.load(str(path))
+    np.testing.assert_allclose(
+        evaluate(loaded.model, [loaded.model["belief"]])[0], expected
+    )
+
+
+@pytest.mark.parametrize("inspection", ["graphviz", "table", "networkx"])
+def test_documented_xtensor_potential_inspection_limitation(data, inspection):
+    from pytensor.graph.utils import MissingInputError
 
     m = make_model()
     m.build_model(*data)
     m.add_contribution_factor("belief", ["search"], "share", Prior("Normal"))
-    with m.model:
-        extra_data = pmd.Data("user_data", np.array(3.0))
-        pmd.Deterministic(
-            "historical_user_sum", m.model["channel_data"].sum() + extra_data
-        )
-    expected = data[0][["search", "tiktok"]].to_numpy().sum() + 3.0
-    m.fit(*data)
-    future = pd.DataFrame(
-        {
-            "date": pd.date_range("2026-01-01", periods=8),
-            "search": 100.0,
-            "tiktok": 200.0,
-        }
-    )
-    m.sample_posterior_predictive(
-        future, clone_model=False, extend_idata=False, random_seed=123
-    )
+    inspect = {
+        "graphviz": m.graphviz,
+        "table": m.table,
+        "networkx": lambda: pm.model_to_networkx(m.model),
+    }
+    with pytest.raises(MissingInputError):
+        inspect[inspection]()
+    point = m.model.initial_point()
+    m.model.check_start_vals(point)
+    assert np.isfinite(m.model.compile_logp()(point))
+    assert np.isfinite(m.model.compile_dlogp()(point)).all()
 
-    def inspect(**kwargs):
-        sampling = pm.modelcontext(None)
-        assert len(sampling.coords["date"]) == len(data[0])
-        np.testing.assert_allclose(
-            evaluate(sampling, [sampling["historical_user_sum"]])[0], expected
-        )
-        return xr.DataTree.from_dict({"posterior": xr.Dataset()})
 
-    with patch("pymc.sample", side_effect=inspect):
-        m.sample_effective_prior()
-    # Sampling does not undo the caller's prediction data update.
-    assert len(m.model.coords["date"]) == 8
+def test_debug_limitation_also_occurs_with_plain_pymc_potential(data, capsys):
+    with pm.Model() as plain:
+        value = pm.Normal("value")
+        pm.Potential("belief", pm.logp(pm.Normal.dist(), value))
+    with pytest.raises(TypeError, match="does not support iteration"):
+        plain.debug()
+    m = make_model()
+    m.build_model(*data)
+    m.add_contribution_factor("belief", ["search"], "share", Prior("Normal"))
+    with pytest.raises(TypeError, match="does not support iteration"):
+        m.model.debug()
+    capsys.readouterr()
+
+
+def test_positive_factor_rejects_negative_historical_inputs(data):
+    X, y = data
+    m = make_model()
+    m.build_model(X.assign(search=-X.search), y)
+    names = set(m.model.named_vars)
+    with pytest.raises(ValueError, match="nonnegative"):
+        m.add_contribution_factor(
+            "belief", ["search"], "share", Prior("HalfNormal", sigma=0.1)
+        )
+    assert set(m.model.named_vars) == names
+
+
+@pytest.mark.parametrize(
+    "saturation_name",
+    [
+        "LogisticSaturation",
+        "InverseScaledLogisticSaturation",
+        "MichaelisMentenSaturation",
+        "TanhSaturation",
+        "TanhSaturationBaselined",
+        "HillSaturation",
+        "HillSaturationSigmoid",
+        "RootSaturation",
+        "LogSaturation",
+        "NoSaturation",
+    ],
+)
+def test_positive_factor_with_builtin_saturations(data, saturation_name):
+    from pymc_marketing.mmm import components
+
+    saturation = getattr(components.saturation, saturation_name)()
+    m = MMM(
+        date_column="date",
+        channel_columns=["search", "tiktok"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=saturation,
+    )
+    m.build_model(*data)
+    m.add_contribution_factor(
+        "belief", ["search"], "share", Prior("HalfNormal", sigma=0.5)
+    )
+    assert np.isfinite(m.model.compile_dlogp()(m.model.initial_point())).all()
+
+
+@pytest.mark.parametrize(
+    "adstock_name",
+    [
+        "BinomialAdstock",
+        "GeometricAdstock",
+        "DelayedAdstock",
+        "NoAdstock",
+        "WeibullPDFAdstock",
+        "WeibullCDFAdstock",
+    ],
+)
+def test_positive_factor_with_builtin_adstocks(data, adstock_name):
+    from pymc_marketing.mmm import LogisticSaturation, components
+
+    adstock = getattr(components.adstock, adstock_name)(l_max=2)
+    m = MMM(
+        date_column="date",
+        channel_columns=["search", "tiktok"],
+        adstock=adstock,
+        saturation=LogisticSaturation(),
+    )
+    m.build_model(*data)
+    m.add_contribution_factor(
+        "belief", ["search"], "share", Prior("HalfNormal", sigma=0.5)
+    )
+    assert np.isfinite(m.model.compile_dlogp()(m.model.initial_point())).all()
+
+
+def test_positive_factor_rejects_custom_saturation_override(data):
+    from pymc_marketing.mmm import LogisticSaturation
+
+    class SignedSaturation(LogisticSaturation):
+        def function(self, x, lam, beta, *, dim=None):
+            return -super().function(x, lam, beta, dim=dim)
+
+    m = MMM(
+        date_column="date",
+        channel_columns=["search", "tiktok"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=SignedSaturation(),
+    )
+    m.build_model(*data)
+    with pytest.raises(ValueError, match="SignedSaturation"):
+        m.add_contribution_factor(
+            "belief", ["search"], "share", Prior("HalfNormal", sigma=0.5)
+        )
+    m.add_contribution_factor("signed_belief", ["search"], "share", Prior("Normal"))
+    assert np.isfinite(m.model.compile_dlogp()(m.model.initial_point())).all()
+
+
+def test_factor_rebuild_preserves_hsgp_registration_on_failure(data, monkeypatch):
+    from pymc_marketing.mmm.hsgp import SoftPlusHSGP
+
+    factory = SoftPlusHSGP(m=3, L=5, dims="date", eta=1, ls=2)
+    m = make_model(time_varying_media=factory)
+    m.build_model(*data)
+    m.add_contribution_factor(
+        "belief", ["search"], "share", Prior("HalfNormal", sigma=0.5)
+    )
+    old_model, old_data = m.model, factory.X
+    original = MMM._build_graph
+
+    def broken(working, X, y):
+        original(working, X, y)
+        raise RuntimeError("failed staged registration")
+
+    with monkeypatch.context() as context:
+        context.setattr(MMM, "_build_graph", broken)
+        with pytest.raises(RuntimeError, match="failed staged registration"):
+            m.build_model(*data)
+    assert m.model is old_model
+    assert m.time_varying_media is factory
+    assert factory.X is old_data
+    m.build_model(*data)
+    assert m.time_varying_media is factory
+    assert factory.X is m.model["time_index"]

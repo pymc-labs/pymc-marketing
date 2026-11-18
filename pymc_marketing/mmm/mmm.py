@@ -3287,10 +3287,21 @@ class MMM(RegressionModelBuilder):
         original targets are excluded from both aggregates, independently of
         the sales likelihood's existing zero-filling behavior. Shares require a
         finite positive outcome sum. Finite-support densities and hard caps are
-        rejected. LogNormal/HalfNormal components require channel-effect priors
-        with nonnegative support; signed or uninspectable effect-size priors are
-        rejected. LogNormal also requires nonzero historical channel inputs. Shares are not
-        clipped: a contribution divided by observed outcomes can exceed one.
+        rejected. LogNormal/HalfNormal factors require a provably nonnegative
+        direct contribution: nonnegative historical inputs/scales, built-in
+        sign-preserving adstock/saturation functions, and nonnegative support
+        for their parameters. Binomial retention and baselined-tanh overspend
+        parameters must also stay within [0, 1]. Hierarchical positive families
+        and :class:`~pymc_marketing.special_priors.LogNormalPrior` are supported,
+        including Michaelis-Menten's alpha amplitude. Custom transformations or
+        uninspectable parameter supports require a real-line factor. A supplied
+        time-varying media factory must be SoftPlusHSGP. LogNormal also requires
+        nonzero historical channel inputs. Shares are not clipped and can exceed one.
+
+        Rebuilds preserve caller-owned configuration and MuEffect identities.
+        Custom effect hooks run with normal MMM semantics, including any changes
+        they make to external mutable state; the library does not deep-copy their
+        resources or promise to roll back those external side effects.
 
         Factors retain their historical period through prediction and budget
         allocation. Rebuilding with different training data, including time-slice
@@ -3300,6 +3311,15 @@ class MMM(RegressionModelBuilder):
 
         Use :meth:`sample_effective_prior` to inspect the resulting prior.
         Ordinary forward prior-predictive sampling ignores the factors.
+
+        PyMC's XTensor Potential-gradient support requires a value-variable logp
+        representation. After adding factors, :meth:`graphviz`, :meth:`table`,
+        and ``pymc.model_to_networkx`` cannot infer all graph shapes; inspect the
+        base graph before adding factors. ``Model.debug()`` also fails on ordinary
+        PyMC Potentials in the supported version. Use ``model.check_start_vals``
+        and the logp/gradient functions for numerical checks, and inspect named
+        aggregate Deterministics in sampled results. These inspection limitations
+        do not affect logp, gradient evaluation, or the effective-prior sampler.
         """
         self._validate_model_was_built()
         self._contribution_factors.add(self, name, channels, quantity, prior)
@@ -5865,7 +5885,7 @@ class MMM(RegressionModelBuilder):
         )
         working._build_from_idata(idata, factor_state)
         if working is not self:
-            self.__dict__.update(working.__dict__)
+            factor_state.commit_configuration(self, working)
 
     def _build_from_idata(
         self, idata: xr.DataTree, factor_state: ContributionFactorState

@@ -38,7 +38,9 @@ from pytensor.graph.rewriting import rewrite_graph
 from pytensor.graph.traversal import ancestors
 from pytensor.xtensor import as_xtensor
 
+from pymc_marketing.mmm._contribution_support import nonnegative_contribution_error
 from pymc_marketing.mmm.data_conversion import to_mmm_dataset
+from pymc_marketing.mmm.hsgp import HSGPBase
 from pymc_marketing.mmm.spend_reach import resolve_channel_dependent_effects
 from pymc_marketing.names.mmm import ORIGINAL_SCALE_SUFFIX, Attr, DatasetVar, Dim, Var
 from pymc_marketing.serialization import serialization
@@ -161,6 +163,7 @@ class ContributionFactorState:
             dims=mmm.dims,
             channel_columns=mmm.channel_columns,
             control_columns=mmm.control_columns,
+            extra_vars=mmm._effect_extra_vars(X),
             target_column=mmm.target_column,
         )
         mask = (
@@ -177,8 +180,8 @@ class ContributionFactorState:
     def rebuilding(self, mmm: MMM, X: Any, y: Any) -> Iterator[MMM]:
         """Build into fresh state; publish it only after every factor restores."""
         self.validate_reference(mmm, X, y)
-        # Factor rebuilds are staged on an isolated configuration, including
-        # mutable MuEffects/HSGPs. Plain MMM builds retain their existing behavior.
+        # Stage library-owned graph/configuration fields. Effect hooks retain
+        # normal MMM semantics and access the original caller-owned components.
         working = self.isolated_configuration(mmm) if self.specs else mmm
         candidate = ContributionFactorState()
         working._contribution_factors = candidate
@@ -191,15 +194,41 @@ class ContributionFactorState:
             for spec in self.specs:
                 candidate._register_factor(working, spec)
         if working is not mmm:
-            mmm.__dict__.update(working.__dict__)
+            self.commit_configuration(mmm, working)
 
     @staticmethod
     def isolated_configuration(mmm: MMM) -> MMM:
-        """Copy mutable build configuration, sharing the old graph and trace."""
-        memo = {id(mmm.model): mmm.model} if hasattr(mmm, "model") else {}
-        if mmm.idata is not None:
-            memo[id(mmm.idata)] = mmm.idata
-        return copy.deepcopy(mmm, memo)
+        """Stage MMM-owned fields without deep-copying custom factories or resources."""
+        working = copy.copy(mmm)
+        working.model_config = mmm.model_config.copy()
+        working.mu_effects = mmm.mu_effects.copy()
+        # register_data replaces X on these factories; isolate that build-time
+        # registration, while preserving the public factory identity on commit.
+        for attribute in (Attr.TIME_VARYING_INTERCEPT, Attr.TIME_VARYING_MEDIA):
+            factory = getattr(mmm, attribute)
+            if isinstance(factory, HSGPBase):
+                setattr(working, attribute, factory.model_copy())
+        return working
+
+    @staticmethod
+    def commit_configuration(mmm: MMM, working: MMM) -> None:
+        """Publish a staged graph without swapping caller-owned configuration."""
+        config = working.model_config.copy()
+        mmm.model_config.clear()
+        mmm.model_config.update(config)
+        working.model_config = mmm.model_config
+        mmm.mu_effects[:] = working.mu_effects
+        working.mu_effects = mmm.mu_effects
+        for attribute in (Attr.TIME_VARYING_INTERCEPT, Attr.TIME_VARYING_MEDIA):
+            original, staged = getattr(mmm, attribute), getattr(working, attribute)
+            if (
+                isinstance(original, HSGPBase)
+                and type(staged) is type(original)
+                and staged is not original
+            ):
+                original.__dict__.update(staged.__dict__)
+                setattr(working, attribute, original)
+        mmm.__dict__.update(working.__dict__)
 
     @contextmanager
     def predicting(self, mmm: MMM) -> Iterator[None]:
@@ -296,9 +325,7 @@ class ContributionFactorState:
                 "Shares require a finite positive sum of observed training outcomes"
             )
         # Only make a sign claim when this model's amplitude support establishes it.
-        beta = mmm.model_config.get("saturation_beta")
-        nonnegative_effects = isinstance(beta, Prior) and beta.preliz.support[0] >= 0
-        if nonnegative_effects:
+        if nonnegative_contribution_error(mmm, list(channels), self.inputs) is None:
             try:
                 log_negative_mass = pm.logcdf(
                     prior.pymc_distribution.dist(**prior.parameters), 0
@@ -322,11 +349,10 @@ class ContributionFactorState:
     ) -> None:
         """Prevent nonnegative factors from truncating signed channel effects."""
         if prior.distribution in ("LogNormal", "HalfNormal"):
-            beta = mmm.model_config.get("saturation_beta")
-            if not isinstance(beta, Prior) or beta.preliz.support[0] < 0:
+            reason = nonnegative_contribution_error(mmm, list(channels), self.inputs)
+            if reason is not None:
                 raise ValueError(
-                    "LogNormal/HalfNormal factors require channel-effect priors "
-                    "with nonnegative support; signed or unknown effects are unsupported"
+                    f"LogNormal/HalfNormal factors require nonnegative contributions: {reason}"
                 )
             if prior.distribution == "LogNormal":
                 channels_data = xr.DataArray(
@@ -371,9 +397,7 @@ class ContributionFactorState:
             raise ValueError("Contributions require an observed training mask")
         mask = self.mask.reindex({dim: mmm.model_coords[dim] for dim in self.mask.dims})
         total = source.isel(channel=indices).where(as_xtensor(mask), 0).sum()
-        denominator = float(
-            mmm.xarray_dataset[DatasetVar.TARGET].where(self.mask, 0).sum()
-        )
+        denominator = float(mmm.xarray_dataset[DatasetVar.TARGET].where(mask, 0).sum())
         value = total / denominator if spec["quantity"] == "share" else total
         value_aggregate = mmm.model.replace_rvs_by_values([value])[0]
         # XTensor Potential logp is not lowered by conditional_logp. Keep
