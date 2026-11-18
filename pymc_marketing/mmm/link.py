@@ -30,7 +30,8 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pymc.dims as pmd
 import xarray as xr
-from pymc_extras.prior import Censored, Prior, Scaled
+from pymc_extras.prior import Censored, Prior, Scaled, VariableFactory
+from pytensor.graph.basic import Constant
 from pytensor.xtensor import math as ptxm
 from pytensor.xtensor.type import XTensorVariable
 from scipy.special import erfcx
@@ -142,7 +143,7 @@ def _check_studentt_mean_exists(
     if nu is None:
         return
 
-    if isinstance(nu, Prior):
+    if isinstance(nu, VariableFactory):
         nu_name = f"{output_var}_nu"
         # Sampled but absent from the posterior: nothing to check against.
         # This is the pre-sampling path, where the caller has no draws yet.
@@ -158,7 +159,7 @@ def _check_studentt_mean_exists(
         unit = "draws" if sample_dims else "posterior values"
         share = f" {int(below.sum())} of {below.size} {unit} are at or below 1, and the"
     else:
-        smallest = float(np.min(nu))
+        smallest = float(np.min(nu.data if isinstance(nu, Constant) else nu))
         share = " The"
 
     if smallest <= 1:

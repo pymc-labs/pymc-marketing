@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pymc.dims as pmd
+import pytensor.tensor as pt
 import pytest
 import xarray as xr
 from pydantic import ValidationError
@@ -1662,10 +1663,11 @@ class TestMeanScaleFactor:
                 Censored(Prior("LogNormal", sigma=1), upper=1.0),
             )
 
-    def test_studentt_at_or_below_one_refuses(self):
+    @pytest.mark.parametrize("nu", [1, pt.constant(1.0)])
+    def test_studentt_at_or_below_one_refuses(self, nu):
         with pytest.raises(ValueError, match="no mean when nu <= 1"):
             IdentityLinkSpec().mean_scale_factor(
-                self._posterior(), Prior("StudentT", nu=1, sigma=1)
+                self._posterior(), Prior("StudentT", nu=nu, sigma=1)
             )
 
     def test_unknown_likelihood_warns(self):
@@ -1675,14 +1677,29 @@ class TestMeanScaleFactor:
             )
         assert float(factor) == 1.0
 
-    def test_sampled_nu_message_counts_the_offending_draws(self):
+    @pytest.mark.parametrize(
+        "nu",
+        [
+            Prior("Gamma", mu=2, sigma=1),
+            Censored(Prior("Normal", mu=2, sigma=1), lower=0.1),
+        ],
+    )
+    def test_sampled_nu_message_counts_the_offending_draws(self, nu):
         posterior = xr.Dataset(
             {"y_nu": xr.DataArray([[0.4, 0.9, 6.0]], dims=("chain", "draw"))}
         )
         with pytest.raises(ValueError, match="2 of 3 draws are at or below 1"):
             IdentityLinkSpec().mean_scale_factor(
-                posterior, Prior("StudentT", nu=Prior("Gamma", mu=2, sigma=1), sigma=1)
+                posterior, Prior("StudentT", nu=nu, sigma=1)
             )
+
+    def test_sampled_nu_from_factory_with_defined_mean(self):
+        posterior = xr.Dataset({"y_nu": (("chain", "draw"), [[2.0, 3.0]])})
+        likelihood = Prior(
+            "StudentT", nu=Censored(Prior("Normal", mu=3, sigma=1), lower=2), sigma=1
+        )
+        factor = IdentityLinkSpec().mean_scale_factor(posterior, likelihood)
+        assert float(factor) == 1.0
 
     def test_a_hierarchical_nu_is_counted_in_draws_not_in_cells(self):
         # nu per country: 6 cells, but only 2 of the 3 draws are unusable. The
