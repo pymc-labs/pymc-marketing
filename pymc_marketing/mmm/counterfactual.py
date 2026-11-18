@@ -1436,7 +1436,10 @@ class CounterfactualEvaluator:
             windows and whose ``date`` axis meets a windowed one in the graph
             of a response in *outputs*, so that a window shorter than the
             fitted dates would read them at the wrong dates.  Each name once,
-            in the order of the responses.
+            in the order of the responses.  Only a dimension named ``date``
+            is recognized: a variable over the fitted dates declared under
+            another dimension name is not listed, and can be read at the wrong
+            dates.
 
         Raises
         ------
