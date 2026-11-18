@@ -84,6 +84,28 @@ def _apply_and_validate_calibration_steps(
             ) from err
 
 
+_LFS_POINTER_PREFIX = b"version https://git-lfs.github.com/spec/v1"
+
+
+def _raise_if_lfs_pointer(path: Path) -> None:
+    """Raise a clear error when ``path`` is an un-pulled Git LFS pointer file.
+
+    Without this check, xarray fails with a generic "did not find a match in any
+    of xarray's currently installed IO backends" error that does not mention LFS.
+    Directories (Zarr stores) are skipped: an LFS pointer is always a single file.
+    """
+    if not path.is_file():
+        return
+    with open(path, "rb") as f:
+        head = f.read(len(_LFS_POINTER_PREFIX))
+    if head == _LFS_POINTER_PREFIX:
+        raise FileNotFoundError(
+            f"{path} is a Git LFS pointer, not the netCDF file it stands for. "
+            "Install Git LFS and run `git lfs pull` to download it "
+            "(see CONTRIBUTING.md)."
+        )
+
+
 def build_mmm_from_yaml(
     config_path: str | Path,
     *,
@@ -208,6 +230,7 @@ def build_mmm_from_yaml(
     if cfg.idata_path is not None:
         idata_path = Path(cfg.idata_path)
         if os.path.exists(idata_path):
+            _raise_if_lfs_pointer(idata_path)
             model.idata = load_idata(idata_path)
 
     return model

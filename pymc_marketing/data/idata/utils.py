@@ -70,7 +70,7 @@ def filter_idata_by_dates(
     if start_date is None and end_date is None:
         return idata
 
-    date_slice = {"date": slice(start_date, end_date)}
+    date_slice = {Dim.DATE: slice(start_date, end_date)}
 
     filtered_groups = {}
     for name, child in idata.children.items():
@@ -198,9 +198,9 @@ def _aggregate_over_time[XarrayT: (xr.Dataset, xr.DataArray)](
         data if period == "all_time" else data.resample(date=_PERIOD_RULES[period])
     )
     if method == "sum":
-        return reducible.sum(dim="date")
+        return reducible.sum(dim=Dim.DATE)
     if method == "mean":
-        return reducible.mean(dim="date")
+        return reducible.mean(dim=Dim.DATE)
     raise ValueError(f"Unknown aggregation method: {method}")
 
 
@@ -237,7 +237,7 @@ def broadcast_over_date(variable: xr.DataArray, date: xr.DataArray) -> xr.DataAr
         intercept.dims  # ("chain", "draw", "date", ...)
     """
     return variable.expand_dims(date=date).transpose(
-        *[d for d in ("chain", "draw") if d in variable.dims], "date", ...
+        *[d for d in ("chain", "draw") if d in variable.dims], Dim.DATE, ...
     )
 
 
@@ -278,7 +278,7 @@ def sum_contributions_over_time(
     if period == "original" or Dim.DATE not in contributions.dims:
         return contributions
 
-    date = contributions["date"]
+    date = contributions[Dim.DATE]
     per_date = contributions.map(
         lambda component: (
             component

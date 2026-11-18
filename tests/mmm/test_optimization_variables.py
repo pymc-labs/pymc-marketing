@@ -22,9 +22,10 @@ import pytest
 import xarray as xr
 from pytensor import function
 from pytensor.compile.mode import Mode
+from pytensor.graph import rewrite_graph
 from pytensor.xtensor import as_xtensor
 
-from pymc_marketing.mmm import PowerPriceResponse
+from pymc_marketing.mmm import PowerPriceResponse, TieredPriceResponse
 from pymc_marketing.mmm.optimization_variables import (
     FLAT_DIM,
     LeverVariable,
@@ -1078,6 +1079,7 @@ def test_delivery_report_is_labelled_and_nan_where_no_money_is_spent():
     report = variable.delivery_report(x, date_coords=dates)
 
     assert set(report) == {
+        "spend",
         "implied_delivery",
         "implied_price",
         "implied_marginal_price",
@@ -1087,19 +1089,85 @@ def test_delivery_report_is_labelled_and_nan_where_no_money_is_spent():
         np.testing.assert_array_equal(value["date"].values, dates.values)
     delivery, price = report["implied_delivery"], report["implied_price"]
     assert np.all(delivery.sel(channel=["channel_1", "channel_2"]) == 0.0)
+    assert np.all(report["spend"].sel(channel="channel_1") == 0.0)
     assert np.all(np.isnan(price.sel(channel=["channel_1", "channel_2"])))
     assert np.all(np.isfinite(price.sel(channel="channel_0")))
     money = xr.where(np.isnan(price), 0.0, delivery * price).sum("date")
     np.testing.assert_allclose(money.values, variable.unpack(x).values * 4, rtol=1e-12)
+    np.testing.assert_allclose(
+        report["spend"].sum("date").values, variable.unpack(x).values * 4
+    )
 
     tiny = variable.delivery_report(np.array([90.0, 1e-15]))["implied_price"]
     assert np.all(np.isnan(tiny.sel(channel="channel_2")))
     assert np.all(np.isfinite(tiny.sel(channel="channel_0")))
 
 
-def test_delivery_report_is_empty_without_a_price_response():
+def test_delivery_report_is_none_without_a_price_response():
     rng = np.random.default_rng(32)
-    assert make_media_variable(rng).delivery_report(np.ones(3)) == {}
+    assert make_media_variable(rng).delivery_report(np.ones(3)) is None
+
+
+def _priced_spend(elasticity=0.3):
+    """A spend variable decided over date alone, like the funnel's lf_budget."""
+    return MediaVariable(
+        name="lf_budget",
+        mask=xr.DataArray(True),
+        num_periods=4,
+        adstock_periods=2,
+        channel_scales=1.0,
+        scales_dims=(),
+        dtype="float64",
+        price_response=PowerPriceResponse(
+            elasticity=elasticity,
+            reference_spend=xr.DataArray(50.0),
+            assume_delivery_units=True,
+        ),
+    )
+
+
+def test_delivery_reports_are_keyed_by_variable_and_keep_their_own_dims():
+    """Variables differ in dims, so a report per variable rather than a stack. Each
+    report reads its own segment of the flat vector with its own response, levers
+    report nothing, and the money identity holds on each report through ``spend``."""
+    media = _priced_variable(elasticity=0.4, mask_values=[True, False, True])
+    variables = OptimizationVariables([media, _priced_spend(), make_lever_variable()])
+    dates = pd.date_range("2025-01-05", periods=4, freq="7D")
+
+    reports = variables.delivery_reports(
+        np.array([90.0, 30.0, 40.0, 0.3, 0.2]), date_coords=dates
+    )
+
+    assert list(reports) == ["channel_data", "lf_budget"]
+    assert reports["channel_data"].implied_price.dims == ("date", "channel")
+    assert reports["lf_budget"].implied_price.dims == ("date",)
+    np.testing.assert_array_equal(reports["lf_budget"].spend.values, 40.0)
+    for report in reports.values():
+        paid = xr.where(
+            report.implied_price.isnull(),
+            0.0,
+            report.implied_delivery * report.implied_price,
+        )
+        xr.testing.assert_allclose(paid.sum("date"), report.spend.sum("date"))
+    spend = reports["lf_budget"]
+    np.testing.assert_allclose(
+        (spend.implied_marginal_price / spend.implied_price).values, 1 / 0.7
+    )
+
+    at_zero = variables.delivery_reports(np.array([90.0, 30.0, 0.0, 0.3, 0.2]))[
+        "lf_budget"
+    ]
+    assert np.all(at_zero.implied_delivery == 0.0)
+    assert at_zero.implied_price.isnull().all()
+    assert at_zero.implied_marginal_price.isnull().all()
+
+
+def test_delivery_reports_refuse_a_vector_of_the_wrong_length():
+    variables = OptimizationVariables(
+        [_priced_variable(elasticity=0.4), _priced_spend()]
+    )
+    with pytest.raises(ValueError, match=r"expected shape \(4,\), got \(3,\)"):
+        variables.delivery_reports(np.ones(3))
 
 
 def test_delivery_report_compiles_with_the_optimizer_compile_kwargs():
@@ -1153,3 +1221,150 @@ def test_the_node_receives_implied_delivery_over_channel_scales():
     delivery = variable.delivery_report(x)["implied_delivery"].values
     np.testing.assert_allclose(delivery / scales, node_input, rtol=1e-12)
     assert not np.allclose(delivery[:, 1:], node_input[:, 1:])
+
+
+def _tiered_variable(
+    *,
+    breakpoints=(100.0,),
+    multipliers=(1.0, 1.6),
+    distribution=None,
+    mask_values=(True,),
+    dtype="float64",
+):
+    """A one- or three-channel media variable priced by a bracket schedule."""
+    names = CHANNELS[: len(mask_values)]
+    mask = xr.DataArray(
+        np.asarray(mask_values, dtype=bool),
+        dims=("channel",),
+        coords={"channel": names},
+    )
+    return MediaVariable(
+        name="channel_data",
+        mask=mask,
+        num_periods=4,
+        adstock_periods=2,
+        channel_scales=1.0,
+        dtype=dtype,
+        budget_distribution_over_period_tensor=(
+            None
+            if distribution is None
+            else as_xtensor(np.asarray(distribution), dims=("date", FLAT_DIM))
+        ),
+        price_response=TieredPriceResponse(
+            breakpoints=breakpoints
+            if isinstance(breakpoints, dict)
+            else list(breakpoints),
+            rate_multipliers=multipliers
+            if isinstance(multipliers, dict)
+            else list(multipliers),
+        ),
+    )
+
+
+def test_period_weights_scale_the_knots():
+    """Under a budget_distribution_over_period the committed tranche takes the plan's time
+    shape: the breakpoint of period t is the breakpoint times num_periods * f_t, so a
+    budget on its breakpoint buys every period's first bracket and nothing more."""
+    variable = _tiered_variable(
+        multipliers=(1.0, 1.6), distribution=[[0.4], [0.3], [0.3], [0.0]]
+    )
+    expected = {
+        60.0: [96.0, 72.0, 72.0, 0.0],
+        100.0: [160.0, 120.0, 120.0, 0.0],
+        150.0: [210.0, 157.5, 157.5, 0.0],
+    }
+    for budget, delivery in expected.items():
+        report = variable.delivery_report(np.array([budget]))
+        np.testing.assert_allclose(
+            report["implied_delivery"].values[:, 0], delivery, rtol=1e-10
+        )
+    marginal = variable.delivery_report(np.array([100.0]))["implied_marginal_price"]
+    np.testing.assert_allclose(marginal.values[:3, 0], 1.6, rtol=1e-12)
+    assert np.isnan(marginal.values[3, 0])
+    opt_vars = OptimizationVariables([variable])
+    z = opt_vars.variable_slice("channel_data")
+    objective = rewrite_graph(
+        variable.to_model(z).sum().values,
+        include=("lower_xtensor", "canonicalize", "stabilize"),
+    )
+    gradient = function([opt_vars.flat], pt.grad(objective, opt_vars.flat))
+    for budget in (60.0, 100.0, 150.0):
+        assert np.all(np.isfinite(gradient(np.array([budget]))))
+
+
+def test_a_plan_on_its_breakpoint_under_float32():
+    """The knot is snapped for floatX, so a float32 plan equal to its breakpoint reports
+    the incremental rate in every spent period, on the evaluation path."""
+    with pytensor.config.change_flags(floatX="float32"):
+        variable = _tiered_variable(
+            distribution=[[0.4], [0.3], [0.3], [0.0]], dtype="float32"
+        )
+        marginal = variable.delivery_report(np.array([100.0], dtype="float32"))[
+            "implied_marginal_price"
+        ]
+    np.testing.assert_allclose(marginal.values[:3, 0], 1.6, rtol=1e-6)
+
+
+def test_conditioning_reaches_only_the_optimized_cells():
+    """Inside a solve's conditioning the map is blended where the box contains a
+    breakpoint, and a report compiled before the block reads the blended map; after the
+    block it reads the exact schedule again, which is why reports are built outside it.
+    The flat entries of a partial mask find their own cells' pieces."""
+    variable = _tiered_variable(
+        breakpoints={"channel_0": [100.0], "channel_1": [100.0], "channel_2": [200.0]},
+        multipliers={channel: [1.0, 1.6] for channel in CHANNELS},
+        mask_values=(True, False, True),
+    )
+    variables = OptimizationVariables([variable])
+    at_breakpoint = np.array([100.0, 200.0])
+    exact = variable.delivery_report(at_breakpoint)["implied_delivery"].values
+    low, high = np.zeros(2), np.full(2, 300.0)
+    with variables.conditioned_on(low, high):
+        blended = variable.delivery_report(at_breakpoint)["implied_delivery"].values
+        widths = variable.price_response._half_widths.get_value()
+    assert np.all(blended[:, [0, 2]] < exact[:, [0, 2]])
+    np.testing.assert_array_equal(blended[:, 1], 0.0)
+    assert widths[0, 1] == 0.0 and np.all(widths[0, [0, 2]] > 0.0)
+    after = variable.delivery_report(at_breakpoint)["implied_delivery"].values
+    np.testing.assert_array_equal(after, exact)
+    piece_low, piece_high = variables.linear_piece_bounds(np.full(2, 150.0), low, high)
+    np.testing.assert_array_equal(piece_low, [100.0, 0.0])
+    np.testing.assert_array_equal(piece_high, [300.0, 200.0])
+
+
+def test_linear_pieces_cut_scheduled_entries_and_leave_the_rest():
+    """A lever has no map: its entries keep their bounds. Whether a solve has anything to
+    settle is read off the bounds alone, before any solve."""
+    media = _tiered_variable(mask_values=(True, True, True))
+    lever = make_lever_variable(bounds=None)
+    variables = OptimizationVariables([media, lever])
+    x = np.array([50.0, 100.0, 250.0, 0.3, 0.2])
+    low = np.array([0.0, 0.0, 0.0, -np.inf, -np.inf])
+    high = np.array([300.0, 300.0, 300.0, np.inf, np.inf])
+    piece_low, piece_high = variables.linear_piece_bounds(x, low, high)
+    np.testing.assert_array_equal(piece_low, [0.0, 100.0, 100.0, -np.inf, -np.inf])
+    np.testing.assert_array_equal(piece_high, [100.0, 300.0, 300.0, np.inf, np.inf])
+    below = np.array([False, True, False, True, True])
+    piece_low, piece_high = variables.linear_piece_bounds(
+        x, low, high, from_below=below
+    )
+    assert (piece_low[1], piece_high[1]) == (0.0, 100.0)
+    np.testing.assert_array_equal(
+        variables.is_breakpoint(x), [False, True, False, False, False]
+    )
+
+    assert variables.breakpoints_in_reach(low, high)
+    on = np.array([100.0, 100.0, 100.0, -np.inf, -np.inf])
+    assert variables.breakpoints_in_reach(on, high)
+    beneath = np.array([50.0, 50.0, 50.0, np.inf, np.inf])
+    assert not variables.breakpoints_in_reach(low, beneath)
+    no_schedule = OptimizationVariables(
+        [
+            make_media_variable(np.random.default_rng(0)),
+            make_lever_variable(bounds=None),
+        ]
+    )
+    assert not no_schedule.breakpoints_in_reach(
+        np.array([0.0, 0.0, 0.0, -np.inf, -np.inf]),
+        np.array([300.0, 300.0, 300.0, np.inf, np.inf]),
+    )

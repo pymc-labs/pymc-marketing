@@ -442,7 +442,7 @@ class MMMSummaryFactory:
 
         # Add observed values
         observed_df = observed.to_dataframe(name="observed").reset_index()
-        merge_keys = ["date", *data.custom_dims]
+        merge_keys = [Dim.DATE, *data.custom_dims]
         df = df.merge(observed_df, on=merge_keys, how="left")
 
         return self._convert_output(df, output_format)
@@ -1034,7 +1034,7 @@ class MMMSummaryFactory:
         if not all_dfs:
             # Return empty DataFrame with correct schema
             return self._convert_output(
-                pd.DataFrame(columns=["date", "component", "mean", "median"]),
+                pd.DataFrame(columns=[Dim.DATE, "component", "mean", "median"]),
                 output_format,
             )
 
@@ -1109,7 +1109,7 @@ class MMMSummaryFactory:
         # Compute percentage change using xarray operations
         # Formula: (value[t] - value[t-1]) / value[t-1] * 100
         shifted = contributions.shift(date=1)
-        diff = contributions.diff("date")
+        diff = contributions.diff(Dim.DATE)
 
         # Handle division by zero (set to NaN)
         # Use xr.where to replace zeros with NaN before division
@@ -1301,7 +1301,7 @@ class MMMSummaryFactory:
         df = self._compute_summary_stats_with_hdi(pp_samples, hdi_probs)
 
         observed_df = observed.to_dataframe(name="observed").reset_index()
-        merge_keys = ["date", *data.custom_dims]
+        merge_keys = [Dim.DATE, *data.custom_dims]
         df = df.merge(observed_df, on=merge_keys, how="left")
 
         return self._convert_output(df, output_format)
@@ -1398,7 +1398,7 @@ class MMMSummaryFactory:
                         f"Available: {list(residuals.dims)}"
                     )
 
-        sample_dims = ["chain", "draw", "date"] + (aggregation or [])
+        sample_dims = ["chain", "draw", Dim.DATE] + (aggregation or [])
         quantile_da = residuals.quantile(list(quantiles), dim=sample_dims)
         df = quantile_da.to_dataframe(name="value").reset_index()
 
