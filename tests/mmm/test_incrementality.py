@@ -114,6 +114,7 @@ from tests.mmm.conftest import seed as fit_seed
 from tests.mmm.test_counterfactual import eval_mask
 from tests.mmm.test_spend_reach import (
     assert_identical_statistics,
+    build_spend_probe,
     effective_l_max,
     measure_reach,
     measure_spend_reach,
@@ -9411,7 +9412,7 @@ class TestIncrementalMediator:
 
         ``Before`` with ``l_max=3`` moves dates before the spend, so
         ``channel_contribution`` is full-axis and no horizon is reported.  The
-        probe still bounds the funnel effect on a window, 4 lags after the
+        probe still bounds the funnel effect's reach, 4 lags after the
         spend.  The tail past the data is those 4 lags, not the kernel's 0
         trailing lags under ``Before``.
         """
@@ -9443,7 +9444,7 @@ class TestIncrementalMediator:
         assert any("runs past the end" in note for note in notes)
 
     def test_a_full_axis_node_does_not_set_the_tail(self, funnel_mmm_data):
-        """A node the probe could not bound on a window is left out of the tail.
+        """A node whose reach the probe could not bound is left out of the tail.
 
         The global effect normalizes over the whole axis, so its lag only says
         the axis ended first.  The funnel effect stops 4 lags after the spend,
@@ -9486,9 +9487,16 @@ class TestIncrementalMediator:
             GlobalNormalizationEffect(prefix="global"),
             link="identity",
         )
-        reach = measure_reach(mmm)["global_effect_contribution"]
+        probe, _, effects = build_spend_probe(mmm)
+        (probe_index,) = probe.probe_indices
+        reach = probe.measure(
+            effects=effects,
+            l_max=mmm.adstock.l_max,
+            trailing_lags=kernel_trailing_lags(mmm.adstock.l_max, mmm.adstock.mode),
+        ).measured["global_effect_contribution"]
         assert reach.requires_full_axis
-        assert reach.max_lag < len(X_df) - 1 - 1
+        # The last date the effect moves is before the last fitted date.
+        assert probe_index + reach.max_lag < len(X_df) - 1
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
