@@ -693,10 +693,11 @@ class MuEffect(SerializableBaseModel, ABC):
 
         Used by :meth:`MMM.compute_counterfactual_contributions_dataset` to
         locate the effect's linear-predictor contribution and include it in
-        the decomposition.  The default assumes the effect registers
-        ``f"{self.prefix}_effect_contribution"`` (the convention used by
-        :class:`LinearTrendEffect` and :class:`EventEffect`); effects that
-        register a different name must override this property.
+        the decomposition.  The default is
+        :func:`~pymc_marketing.names.mmm.effect_contribution_name`, that is
+        ``f"{self.prefix}_effect_contribution"``.  Effects that register a
+        different name override this property, as :class:`FourierEffect` and
+        :class:`EventAdditiveEffect` do.
 
         Raises
         ------
@@ -1623,9 +1624,14 @@ class EventAdditiveEffect(MuEffect):
         event_effect = self.effect.apply(X, name=self.prefix)
 
         return pmd.Deterministic(
-            f"{self.prefix}_total_effect",
+            self.contribution_var_name,
             event_effect.sum(dim=self.prefix),
         )
+
+    @property
+    def contribution_var_name(self) -> str:
+        """Event effects register ``f"{prefix}_total_effect"``."""
+        return f"{self.prefix}_total_effect"
 
     def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
         """Set the data for new predictions."""

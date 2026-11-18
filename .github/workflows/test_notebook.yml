@@ -10,6 +10,8 @@ on:
      - ".github/workflows/test_notebook.yml"
      - "scripts/run_notebooks/**.py"
      - "docs/source/notebooks/**.ipynb"
+     - "docs/source/notebooks/**.nc"
+     - ".gitattributes"
      - "!docs/source/notebooks/*/dev/**.ipynb"
      - "docs/source/guide/**.ipynb"
   push:
@@ -21,6 +23,8 @@ on:
      - ".github/workflows/test_notebook.yml"
      - "scripts/run_notebooks/**.py"
      - "docs/source/notebooks/**.ipynb"
+     - "docs/source/notebooks/**.nc"
+     - ".gitattributes"
      - "!docs/source/notebooks/*/dev/**.ipynb"
      - "docs/source/guide/**.ipynb"
 
@@ -30,23 +34,63 @@ concurrency:
 
 jobs:
   notebooks:
+    name: notebooks (${{ matrix.split }})
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        split:
+        # `lfs: true` marks splits that run notebooks loading files stored in
+        # Git LFS. All three MMM splits set it because the index ranges shift
+        # as notebooks are added.
+        include:
           # MMM runs in three splits to stay under the 60 min timeout (#3179)
-          - "--notebooks mmm --end-idx 10"
-          - "--notebooks mmm --start-idx 10 --end-idx 30"
-          - "--notebooks mmm --start-idx 30"
-          - "--notebooks clv"
-          - "--notebooks bass"
-          - "--notebooks customer_choice"
-          - "--notebooks general"
-          - "--exclude-dirs mmm clv bass customer_choice general"
+          - split: "--notebooks mmm --end-idx 10"
+            lfs: true
+          - split: "--notebooks mmm --start-idx 10 --end-idx 30"
+            lfs: true
+          - split: "--notebooks mmm --start-idx 30"
+            lfs: true
+          - split: "--notebooks clv"
+          - split: "--notebooks bass"
+          - split: "--notebooks customer_choice"
+          - split: "--notebooks general"
+          - split: "--exclude-dirs mmm clv bass customer_choice general"
     steps:
     - uses: actions/checkout@v7
+
+    # Some MMM notebooks load a fitted posterior stored in Git LFS
+    # (docs/source/notebooks/mmm/multidimensional_model.nc, 95 MB). Pull it
+    # only in the splits that need it, and cache it so runs do not spend LFS
+    # bandwidth.
+    - name: Check and list LFS objects
+      if: matrix.lfs
+      run: |
+        # Fails if a file that .gitattributes routes to LFS was committed as a
+        # regular Git blob.
+        git lfs fsck --pointers
+        git lfs ls-files --long | cut -d ' ' -f1 | sort > .lfs-assets-id
+
+    - name: Restore LFS cache
+      id: lfs-cache
+      if: matrix.lfs
+      uses: actions/cache/restore@v6
+      with:
+        path: .git/lfs
+        key: lfs-${{ hashFiles('.lfs-assets-id') }}
+
+    - name: Pull LFS objects
+      if: matrix.lfs
+      run: git lfs pull
+
+    # Save right after the pull: actions/cache saves only when the whole job
+    # succeeds, so a failing notebook would leave the cache empty.
+    - name: Save LFS cache
+      if: matrix.lfs && steps.lfs-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v6
+      with:
+        path: .git/lfs
+        key: ${{ steps.lfs-cache.outputs.cache-primary-key }}
 
     - name: Install uv
       uses: astral-sh/setup-uv@v8.3.2
@@ -54,7 +98,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get install graphviz graphviz-dev
-        uv venv --python 3.12
+        uv venv --python 3.14
         uv pip install --upgrade pip
         uv pip install -e ".[docs,test,dag]"
         uv pip list

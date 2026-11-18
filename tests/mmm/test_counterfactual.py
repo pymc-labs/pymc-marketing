@@ -13,6 +13,7 @@
 #   limitations under the License.
 """Tests for the counterfactual evaluation machinery: windows, scenarios, inputs."""
 
+import dataclasses
 import gc
 import math
 import warnings
@@ -35,6 +36,18 @@ from pymc_marketing.mmm.counterfactual import (
 )
 from pymc_marketing.mmm.spend_reach import linear_predictor
 from pymc_marketing.mmm.transformers import ConvMode, batched_convolution
+
+
+def eval_mask(window: PeriodWindow, max_window: int) -> np.ndarray:
+    """Positions in the padded window that enter the sum, as a boolean mask.
+
+    The mask a period's dates were read through before they were read through
+    :attr:`PeriodWindow.window_eval_slice`; the tests check the slices against
+    it.
+    """
+    mask = np.zeros(max_window, dtype=bool)
+    mask[np.flatnonzero(window.in_eval[window.in_window])] = True
+    return mask
 
 
 def build_aux_dims_model(aux_dims, n_dates, n_country):
@@ -1048,6 +1061,45 @@ class TestPeriodEdgeCases:
     dates = pd.date_range("2023-01-02", freq="W-MON", periods=8)
     freq_offset = pd.tseries.frequencies.to_offset("W-MON")
 
+    def test_a_window_built_from_its_six_fields_derives_its_slices(self):
+        """``PeriodWindow`` is public, and its constructor takes the same fields as before.
+
+        The slices follow the masks, also after ``dataclasses.replace``.
+        """
+        dates = pd.date_range("2023-01-01", periods=4, freq="W-SUN")
+        in_eval = np.array([False, True, True, False])
+        window = PeriodWindow(
+            start=dates[1],
+            end=dates[2],
+            in_window=np.ones(4, dtype=bool),
+            actual_dates=dates,
+            in_eval=in_eval,
+            eval_dates=dates[in_eval],
+        )
+
+        assert window.eval_slice == slice(1, 3)
+        assert window.window_eval_slice == slice(1, 3)
+        moved = dataclasses.replace(
+            window, in_eval=np.array([True, True, False, False])
+        )
+        assert moved.eval_slice == slice(0, 2)
+
+    def test_a_gap_in_the_evaluation_dates_is_refused(self):
+        """A hand-built window whose evaluation dates are not one run cannot be sliced."""
+        dates = pd.date_range("2023-01-01", periods=4, freq="W-SUN")
+        in_eval = np.array([True, False, True, False])
+        window = PeriodWindow(
+            start=dates[0],
+            end=dates[2],
+            in_window=np.ones(4, dtype=bool),
+            actual_dates=dates,
+            in_eval=in_eval,
+            eval_dates=dates[in_eval],
+        )
+
+        with pytest.raises(ValueError, match="not one contiguous run"):
+            _ = window.eval_slice
+
     def test_a_period_outside_the_data_yields_an_empty_window(self):
         """A period the fitted data does not reach produces no evaluated dates.
 
@@ -1079,7 +1131,7 @@ class TestPeriodEdgeCases:
         )
 
         # The empty period contributes a row of padding and sums to nothing.
-        assert not empty.eval_mask(windows.max_window).any()
+        assert not eval_mask(empty, windows.max_window).any()
         assert len(empty.eval_dates) == 0
         assert (scenarios.spend[scenarios.rows[(1, None)]] == 0).all()
 
@@ -1113,7 +1165,7 @@ class TestPeriodEdgeCases:
 
         # Perturbed on its own date; summed over that date and the two after.
         np.testing.assert_array_equal(
-            window.eval_mask(windows.max_window), [False, False, True, True, True]
+            eval_mask(window, windows.max_window), [False, False, True, True, True]
         )
         np.testing.assert_array_equal(window.eval_dates, self.dates[4:7])
         spend = scenarios.spend[scenarios.rows[(0, None)]]
@@ -1231,9 +1283,85 @@ class TestPeriodEdgeCases:
         (window,) = windows.windows
         assert window.n_actual == 5
         np.testing.assert_array_equal(
-            window.eval_mask(windows.max_window), [False, False, True, False, False]
+            eval_mask(window, windows.max_window), [False, False, True, False, False]
         )
         np.testing.assert_array_equal(window.eval_dates, self.dates[4:5])
+
+    @pytest.mark.parametrize(
+        "mode, full_axis, include_carryover",
+        [
+            (mode, full_axis, include_carryover)
+            for mode in ConvMode
+            for full_axis in (False, True)
+            for include_carryover in (False, True)
+            # A windowed evaluation with carryover needs ConvMode.After, and
+            # EvaluationWindows.build refuses the other modes there.
+            if mode == ConvMode.After or full_axis or not include_carryover
+        ],
+    )
+    def test_slices_select_the_same_dates_as_the_masks(
+        self, mode, full_axis, include_carryover
+    ):
+        """Each window's slices pick out its masks' dates.
+
+        The periods cover the start and the end of the data, the middle, and
+        one the data never reaches.  That one sums nothing unless a full-axis
+        evaluation reaches back into the data, and then its slices are empty.
+        """
+        far_future = pd.Timestamp("2030-01-07")
+        windows = EvaluationWindows.build(
+            periods=[
+                (self.dates[0], self.dates[1]),
+                (self.dates[3], self.dates[4]),
+                (self.dates[7], self.dates[7]),
+                (far_future, far_future),
+            ],
+            dates=self.dates,
+            l_max=2,
+            freq_offset=self.freq_offset,
+            full_axis=full_axis,
+            include_carryover=include_carryover,
+            mode=mode,
+        )
+        full_axis_values = np.arange(len(self.dates))
+        window_positions = np.arange(windows.max_window)
+
+        for window in windows.windows:
+            np.testing.assert_array_equal(
+                full_axis_values[window.eval_slice],
+                full_axis_values[window.in_eval],
+            )
+            np.testing.assert_array_equal(
+                window_positions[window.window_eval_slice],
+                np.flatnonzero(eval_mask(window, windows.max_window)),
+            )
+            if not window.in_eval.any():
+                assert window.eval_slice == slice(0, 0)
+                assert window.window_eval_slice == slice(0, 0)
+
+    @pytest.mark.parametrize(
+        "order, period",
+        [
+            # The swap falls inside the period: its dates are not one run.
+            ([1, 0, 2], (1, 2)),
+            # The swap falls before the period: its dates are still one run.
+            ([1, 0, 2], (2, 2)),
+            ([2, 1, 0], (1, 2)),
+        ],
+        ids=["swap-inside", "swap-before", "descending"],
+    )
+    @pytest.mark.parametrize("full_axis", [False, True])
+    def test_unsorted_dates_are_refused(self, order, period, full_axis):
+        """An unsorted axis is refused for every period, wherever the swap falls."""
+        with pytest.raises(ValueError, match="must be sorted in increasing order"):
+            EvaluationWindows.build(
+                periods=[(self.dates[period[0]], self.dates[period[1]])],
+                dates=self.dates[order],
+                l_max=0,
+                freq_offset=self.freq_offset,
+                include_carryover=False,
+                full_axis=full_axis,
+            )
 
 
 def build_observed_model(n_dates=6):
