@@ -2304,6 +2304,9 @@ class MMM(RegressionModelBuilder):
             target_column=self.target_column,
         )
         self.xarray_dataset = self._reindex_custom_dims(self.xarray_dataset)
+        self.xarray_dataset = self._contribution_factors.align_reference_order(
+            self.xarray_dataset
+        )
         # Keep the original observed-cell mask before the likelihood's zero-fill.
         self._contribution_factors.mask = cast(
             xr.DataArray, np.isfinite(self.xarray_dataset[DatasetVar.TARGET])

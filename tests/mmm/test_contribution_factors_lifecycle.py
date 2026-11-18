@@ -384,3 +384,49 @@ def test_factor_reference_with_supplementary_effect_data(
 
     with patch("pymc.sample", side_effect=sample):
         loaded.sample_effective_prior()
+
+
+@pytest.mark.parametrize("initial_reversed", [False, True])
+@pytest.mark.parametrize("use_frame", [False, True])
+def test_rebuild_preserves_original_temporal_sequence(
+    labeled_panel, initial_reversed, use_frame, tmp_path, mock_pymc_sample
+):
+    ds, X, y = labeled_panel
+    if initial_reversed:
+        ds = ds.isel(date=slice(None, None, -1)).sel(
+            region=["B", "A"], product=["q", "p"]
+        )
+    m = make_model(dims=("region", "product"))
+    m.build_model(ds)
+    m.add_contribution_factor(
+        "belief", ["search"], "share", Prior("Normal", mu=0.3, sigma=0.1)
+    )
+    dates = m.model_coords["date"].copy()
+    fingerprint = m._contribution_factors.fingerprint
+    expected = evaluate(
+        m.model, [m.model["belief"], m.model.logp(vars=m.model.potentials)]
+    )
+    if use_frame:
+        m.build_model(X.iloc[::-1], y.iloc[::-1])
+    else:
+        m.build_model(ds.isel(date=slice(None, None, -1)))
+    assert m._contribution_factors.fingerprint == fingerprint
+    np.testing.assert_array_equal(m.model_coords["date"], dates)
+    np.testing.assert_array_equal(m.model_coords["region"], ds.region.values)
+    np.testing.assert_array_equal(m.model_coords["product"], ds.product.values)
+    np.testing.assert_allclose(
+        evaluate(m.model, [m.model["belief"], m.model.logp(vars=m.model.potentials)]),
+        expected,
+    )
+    m.fit(X, y)
+    path = tmp_path / "date-order.nc"
+    m.save(path, groups=["fit_data", "contribution_factor_data"])
+    loaded = MMM.load(path)
+    np.testing.assert_array_equal(loaded.model_coords["date"], dates)
+    np.testing.assert_allclose(
+        evaluate(
+            loaded.model,
+            [loaded.model["belief"], loaded.model.logp(vars=loaded.model.potentials)],
+        ),
+        expected,
+    )

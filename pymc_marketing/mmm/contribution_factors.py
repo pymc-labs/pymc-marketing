@@ -180,6 +180,14 @@ class ContributionFactorState:
                 "a fresh MMM and period-specific factors."
             )
 
+    def align_reference_order(self, dataset: xr.Dataset) -> xr.Dataset:
+        """Keep the original sequence and parameter axes for equivalent named cells."""
+        if self.mask is None:
+            return dataset
+        return dataset.reindex(
+            {dim: self.mask.coords[dim].values for dim in self.mask.dims}
+        )
+
     @contextmanager
     def rebuilding(self, mmm: MMM, X: Any, y: Any) -> Iterator[MMM]:
         """Build into fresh state; publish it only after every factor restores."""
@@ -187,7 +195,7 @@ class ContributionFactorState:
         # Stage library-owned graph/configuration fields. Effect hooks retain
         # normal MMM semantics and access the original caller-owned components.
         working = self.isolated_configuration(mmm) if self.specs else mmm
-        candidate = ContributionFactorState()
+        candidate = ContributionFactorState(mask=self.mask if self.specs else None)
         working._contribution_factors = candidate
         yield working
         if self.restoring:
