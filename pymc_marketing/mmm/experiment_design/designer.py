@@ -353,13 +353,7 @@ class ExperimentDesigner:
         instance = cls.__new__(cls)
 
         posterior = idata.posterior.dataset
-        stacked = posterior.stack(sample=("chain", "draw"))
-
-        first_param_var = next(iter(stacked.data_vars))
-        if Dim.CHANNEL in stacked[first_param_var].dims:
-            channels = list(stacked[first_param_var].coords[Dim.CHANNEL].values)
-        else:
-            channels = list(stacked.coords.get(Dim.CHANNEL, []))
+        channels = posterior.coords[Dim.CHANNEL].values.tolist()
 
         cd = idata.constant_data
         l_max = int(cd["l_max"].values)

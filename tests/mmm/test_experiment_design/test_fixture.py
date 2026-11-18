@@ -92,6 +92,17 @@ class TestFromIdataRoundTrip:
         designer = ExperimentDesigner.from_idata(synthetic_idata)
         assert designer.channel_columns == ["tv", "search", "social"]
 
+    def test_channels_recovered_with_scalar_first_in_posterior(self, synthetic_idata):
+        idata = synthetic_idata.copy()
+        posterior = idata.posterior.dataset
+        idata["posterior"] = posterior.assign(intercept=0)[
+            ["intercept", *posterior.data_vars]
+        ]
+
+        designer = ExperimentDesigner.from_idata(idata)
+
+        assert designer.channel_columns == ["tv", "search", "social"]
+
     def test_l_max_recovered(self, synthetic_idata):
         designer = ExperimentDesigner.from_idata(synthetic_idata)
         assert designer.l_max == 8
