@@ -251,8 +251,8 @@ def test_positive_factor_rebuild_rejects_new_signed_effects(data, family):
     m.build_model(*data)
     m.add_contribution_factor("belief", ["search"], "share", Prior(family, sigma=0.1))
     model = m.model
-    m.model_config["saturation_beta"] = Prior(
-        "Normal", mu=0.3, sigma=0.5, dims="channel"
+    m.saturation.update_priors(
+        {"saturation_beta": Prior("Normal", mu=0.3, sigma=0.5, dims="channel")}
     )
     with pytest.raises(ValueError, match="nonnegative support"):
         m.build_model(*data)

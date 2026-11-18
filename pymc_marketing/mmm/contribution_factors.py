@@ -38,7 +38,7 @@ from pytensor.graph.rewriting import rewrite_graph
 from pytensor.graph.traversal import ancestors
 from pytensor.xtensor import as_xtensor
 
-from pymc_marketing.mmm._contribution_support import nonnegative_contribution_error
+from pymc_marketing.mmm._contribution_support import ContributionSupport
 from pymc_marketing.mmm.data_conversion import to_mmm_dataset
 from pymc_marketing.mmm.hsgp import HSGPBase
 from pymc_marketing.mmm.spend_reach import resolve_channel_dependent_effects
@@ -150,6 +150,7 @@ class ContributionFactorState:
     fingerprint: str | None = None
     inputs: dict[str, np.ndarray] = field(default_factory=dict)
     frozen_graph: Any = None
+    support: ContributionSupport | None = None
     restoring: bool = False
 
     def validate_reference(self, mmm: MMM, X: Any, y: Any) -> None:
@@ -258,6 +259,8 @@ class ContributionFactorState:
             if v in inputs
         }
 
+        self.support = ContributionSupport.capture(mmm)
+
     def _validate_model(self, mmm: MMM) -> None:
         """Check the built attribution graph, allowing spend-independent effects."""
         if mmm.link != "identity":
@@ -327,7 +330,10 @@ class ContributionFactorState:
                 "Shares require a finite positive sum of observed training outcomes"
             )
         # Only make a sign claim when this model's amplitude support establishes it.
-        if nonnegative_contribution_error(mmm, list(channels), self.inputs) is None:
+        if (
+            self.support is not None
+            and self.support.nonnegative_error(list(channels)) is None
+        ):
             try:
                 log_negative_mass = pm.logcdf(
                     prior.pymc_distribution.dist(**prior.parameters), 0
@@ -351,22 +357,19 @@ class ContributionFactorState:
     ) -> None:
         """Prevent nonnegative factors from truncating signed channel effects."""
         if prior.distribution in ("LogNormal", "HalfNormal"):
-            reason = nonnegative_contribution_error(mmm, list(channels), self.inputs)
+            if self.support is None:
+                raise RuntimeError("Historical contribution support was not captured")
+            reason = self.support.nonnegative_error(list(channels))
             if reason is not None:
                 raise ValueError(
                     f"LogNormal/HalfNormal factors require nonnegative contributions: {reason}"
                 )
             if prior.distribution == "LogNormal":
-                channels_data = xr.DataArray(
-                    self.inputs[Var.CHANNEL_DATA],
-                    dims=mmm.model[Var.CHANNEL_DATA].dims,
-                    coords={
-                        d: mmm.model_coords[d] for d in mmm.model[Var.CHANNEL_DATA].dims
-                    },
-                )
-                if not bool((channels_data.sel(channel=list(channels)) > 0).any()):
+                if self.mask is None or not self.support.has_positive_target(
+                    list(channels), self.mask
+                ):
                     raise ValueError(
-                        "LogNormal factors require nonzero historical channel inputs"
+                        "LogNormal factors require nonzero historical channel inputs reaching observed outcomes"
                     )
 
     def _freeze_training_contribution_graph(self, mmm: MMM) -> Any:

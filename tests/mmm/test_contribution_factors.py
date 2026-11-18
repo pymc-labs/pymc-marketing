@@ -687,3 +687,109 @@ def test_positive_factor_rejects_custom_saturation_override(data):
         )
     m.add_contribution_factor("signed_belief", ["search"], "share", Prior("Normal"))
     assert np.isfinite(m.model.compile_dlogp()(m.model.initial_point())).all()
+
+
+@pytest.mark.parametrize("signed_at_build", [False, True])
+@pytest.mark.parametrize("family", ["HalfNormal", "LogNormal"])
+def test_factor_support_follows_constructed_graph(data, signed_at_build, family):
+    m = make_model()
+    signed = Prior("Normal", mu=0, sigma=1, dims="channel")
+    positive = Prior("HalfNormal", sigma=1, dims="channel")
+    m.saturation.update_priors(
+        {"saturation_beta": signed if signed_at_build else positive}
+    )
+    m.build_model(*data)
+    # Neither configuration owner may retroactively change the built graph's support.
+    later = positive if signed_at_build else signed
+    m.saturation.update_priors({"saturation_beta": later})
+    m.model_config["saturation_beta"] = later
+    names = set(m.model.named_vars)
+    if signed_at_build:
+        with pytest.raises(ValueError, match="nonnegative support"):
+            m.add_contribution_factor(
+                "belief", ["search"], "share", Prior(family, sigma=0.1)
+            )
+        assert set(m.model.named_vars) == names
+        assert not m._contribution_factors.specs
+    else:
+        m.add_contribution_factor(
+            "belief", ["search"], "share", Prior(family, sigma=0.1)
+        )
+        assert np.isfinite(m.model.compile_logp()(m.model.initial_point()))
+
+
+@pytest.mark.parametrize("adstock_kind", ["none", "after", "before", "overlap"])
+@pytest.mark.parametrize("reachable", [False, True])
+def test_lognormal_requires_spend_reaching_observed_cells(
+    data, adstock_kind, reachable
+):
+    from pymc_marketing.mmm import LogisticSaturation, NoAdstock
+    from pymc_marketing.mmm.transformers import ConvMode
+
+    X, _ = data
+    modes = {
+        "after": ConvMode.After,
+        "before": ConvMode.Before,
+        "overlap": ConvMode.Overlap,
+    }
+    adstock = (
+        NoAdstock(l_max=4)
+        if adstock_kind == "none"
+        else GeometricAdstock(l_max=3, mode=modes[adstock_kind])
+    )
+    m = MMM(
+        date_column="date",
+        channel_columns=["search", "tiktok"],
+        adstock=adstock,
+        saturation=LogisticSaturation(),
+    )
+    spend = np.zeros(5)
+    y = np.full(5, np.nan)
+    if adstock_kind in ("after", "none"):
+        spend[-1 if not reachable else 0] = 1
+        y[1 if adstock_kind == "after" or not reachable else 0] = 10
+    elif adstock_kind == "before":
+        spend[0 if not reachable else 4] = 1
+        y[3] = 10
+    else:
+        spend[0] = 1
+        y[1 if reachable else 3] = 10
+    m.build_model(X.assign(search=spend), y)
+    names = set(m.model.named_vars)
+    if not reachable:
+        with pytest.raises(ValueError, match="nonzero historical channel inputs"):
+            m.add_contribution_factor(
+                "belief", ["search"], "total", Prior("LogNormal", sigma=0.1)
+            )
+        assert set(m.model.named_vars) == names
+        assert not m._contribution_factors.specs
+    else:
+        m.add_contribution_factor(
+            "belief", ["search"], "total", Prior("LogNormal", sigma=0.1)
+        )
+        assert evaluate(m.model, [m.model["belief"]])[0] > 0
+        assert np.isfinite(m.model.compile_logp()(m.model.initial_point()))
+
+
+@pytest.mark.parametrize("amplitude", [0.5, -0.5])
+def test_fixed_amplitude_support_is_captured_at_build(data, amplitude):
+    from pymc_marketing.mmm import LogisticSaturation
+
+    m = MMM(
+        date_column="date",
+        channel_columns=["search", "tiktok"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(priors={"beta": amplitude}),
+    )
+    m.build_model(*data)
+    m.saturation.update_priors({"saturation_beta": -amplitude})
+    if amplitude < 0:
+        with pytest.raises(ValueError, match="nonnegative support"):
+            m.add_contribution_factor(
+                "belief", ["search"], "share", Prior("HalfNormal", sigma=0.1)
+            )
+    else:
+        m.add_contribution_factor(
+            "belief", ["search"], "share", Prior("HalfNormal", sigma=0.1)
+        )
+        assert np.isfinite(m.model.compile_logp()(m.model.initial_point()))
