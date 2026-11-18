@@ -9919,3 +9919,118 @@ def test_the_paths_of_a_panel_model_match_holding_its_hubs(panel_hubs_fitted_mmm
     for path in ("total", "direct", "mediated"):
         assert_matches(parts[path], expected[path])
     assert float(np.abs(parts["mediated"]).max()) > 0
+
+
+class TestPathDeltas:
+    """The change in the linear predictor, one node and one column at a time.
+
+    Synthetic arrays, no model.  The reference differences every node over
+    the evaluation mask in full, then keeps a ``channel_contribution`` column
+    or sums the channels.
+    """
+
+    DATES = pd.date_range("2023-01-01", periods=6, freq="W-SUN")
+    N_SAMPLES = 3
+    GEOS = ["g0", "g1"]
+    CHANNELS = ["c0", "c1", "c2"]
+    # The channel axis is not the first non-date axis, so reading a column has
+    # to find it.
+    NON_DATE_DIMS = {
+        "channel_contribution": ("geo", "channel"),
+        "effect_contribution": ("geo",),
+        "mu": ("geo",),
+    }
+
+    @pytest.fixture
+    def windows(self):
+        return EvaluationWindows.build(
+            periods=[(self.DATES[0], self.DATES[1]), (self.DATES[3], self.DATES[4])],
+            dates=self.DATES,
+            l_max=2,
+            freq_offset=pd.tseries.frequencies.to_offset("W-SUN"),
+        )
+
+    @pytest.fixture
+    def arrays(self, windows):
+        rng = np.random.default_rng(0)
+        sizes = {"geo": len(self.GEOS), "channel": len(self.CHANNELS)}
+        counterfactual, baseline = {}, {}
+        for name, dims in self.NON_DATE_DIMS.items():
+            shape = tuple(sizes[dim] for dim in dims)
+            counterfactual[name] = rng.normal(
+                size=(2 * len(windows), self.N_SAMPLES, windows.max_window, *shape)
+            )
+            baseline[name] = rng.normal(size=(self.N_SAMPLES, len(self.DATES), *shape))
+        return counterfactual, baseline
+
+    def _reference(
+        self, counterfactual, baseline, row, window, mask, channel, effects, held
+    ):
+        def delta(name):
+            dims = self.NON_DATE_DIMS[name]
+            return xr.DataArray(
+                counterfactual[name][row][:, mask] - baseline[name][:, window.in_eval],
+                dims=("sample", "date", *dims),
+                coords={
+                    "date": window.eval_dates,
+                    "geo": self.GEOS,
+                    **({"channel": self.CHANNELS} if "channel" in dims else {}),
+                },
+            )
+
+        contribution = delta("channel_contribution")
+        kept = (
+            contribution.sum(dim="channel")
+            if channel is None
+            else contribution.isel(channel=channel, drop=True)
+        )
+        released = None
+        for name in effects:
+            if name in held:
+                released = delta(name) if released is None else released + delta(name)
+            else:
+                kept = kept + delta(name)
+        return kept, released
+
+    @pytest.mark.parametrize(
+        "effects, held",
+        [
+            ((), ()),
+            (("effect_contribution",), ()),
+            (("effect_contribution",), ("effect_contribution",)),
+        ],
+        ids=["no-effect", "effect", "held-effect"],
+    )
+    @pytest.mark.parametrize("channel", [None, 0, 2])
+    def test_matches_differencing_every_node_in_full(
+        self, windows, arrays, channel, effects, held
+    ):
+        """Bitwise the same change, column read or channels summed, held or kept."""
+        counterfactual, baseline = arrays
+
+        for period_idx, window in enumerate(windows.windows):
+            row = 2 * period_idx + 1
+            mask = window.eval_mask(windows.max_window)
+            got = Incrementality._path_deltas(
+                row=row,
+                cf_mask=mask,
+                window_dates=window.eval_dates,
+                baseline={
+                    name: values[:, window.in_eval] for name, values in baseline.items()
+                },
+                counterfactual=counterfactual,
+                non_date_dims=self.NON_DATE_DIMS,
+                coords={"geo": np.array(self.GEOS), "channel": np.array(self.CHANNELS)},
+                effect_names=effects,
+                channel=channel,
+                held_terms=held,
+            )
+            kept, released = self._reference(
+                counterfactual, baseline, row, window, mask, channel, effects, held
+            )
+
+            xr.testing.assert_identical(got.kept, kept)
+            if released is None:
+                assert got.released is None
+            else:
+                xr.testing.assert_identical(got.released, released)

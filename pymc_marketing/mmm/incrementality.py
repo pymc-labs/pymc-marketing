@@ -6999,7 +6999,9 @@ class Incrementality:
             perturbation of one channel alone -- the mediated case, and the
             measured-mixing one -- the whole delta belongs to that channel,
             including the movement it caused in the other columns, so the sum is
-            what the unilateral estimand asks for.
+            what the unilateral estimand asks for.  Only the column read is
+            differenced: the other columns' change is neither computed nor kept
+            alive by a view of one column.
         held_terms : sequence of str, default ()
             The effects' contribution variables a direct effect holds at their
             factual value.  Their perturbations are collected apart.
@@ -7016,10 +7018,20 @@ class Incrementality:
             the result: regrouping the terms changes the last bits of the sum.
         """
 
-        def delta(name: str) -> xr.DataArray:
+        def delta(name: str, column: int | None = None) -> xr.DataArray:
             dims = non_date_dims[name]
+            moved = counterfactual[name][row][:, cf_mask]
+            unmoved = baseline[name]
+            if column is not None:
+                column_index: tuple = (
+                    *(slice(None),) * (2 + dims.index(Dim.CHANNEL)),
+                    column,
+                )
+                moved = moved[column_index]
+                unmoved = unmoved[column_index]
+                dims = tuple(dim for dim in dims if dim != Dim.CHANNEL)
             return xr.DataArray(
-                counterfactual[name][row][:, cf_mask] - baseline[name],
+                moved - unmoved,
                 dims=("sample", Dim.DATE, *dims),
                 coords={
                     Dim.DATE: window_dates,
@@ -7027,12 +7039,9 @@ class Incrementality:
                 },
             )
 
-        channel_delta = delta(Var.CHANNEL_CONTRIBUTION)
-        kept = (
-            channel_delta.sum(dim=Dim.CHANNEL)
-            if channel is None
-            else channel_delta.isel(channel=channel, drop=True)
-        )
+        kept = delta(Var.CHANNEL_CONTRIBUTION, channel)
+        if channel is None:
+            kept = kept.sum(dim=Dim.CHANNEL)
         released = None
         for name in effect_names:
             # xarray aligns by name, so an effect carrying only a subset of
