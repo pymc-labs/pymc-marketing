@@ -79,6 +79,8 @@ from pymc_marketing.names.mmm import Dim, Var
 from pymc_marketing.pytensor_utils import blocked_between
 
 if TYPE_CHECKING:
+    from numpy.typing import DTypeLike
+
     from pymc_marketing.mmm.mmm import MMM
 
 _PKG_PREFIX = str(Path(__file__).resolve().parent.parent)
@@ -151,12 +153,18 @@ class ChannelDependentEffect:
         ``None`` to have it measured.
     declared_evaluation_mode : {"auto", "window", "full"}
         The spec's ``evaluation_mode``.
+    spec : object, optional
+        The spec the effect returned, as returned.  Carried for the requests
+        that read an effect's role and mediator nodes
+        (:mod:`~pymc_marketing.mmm.mediation`), which validate it again before
+        they do.  A total reads neither.
     """
 
     contribution_var: str
     label: str
     declared_carryover_lags: int | None
     declared_evaluation_mode: Literal["auto", "window", "full"]
+    spec: object | None = None
 
 
 def resolve_channel_dependent_effects(
@@ -173,7 +181,10 @@ def resolve_channel_dependent_effects(
 
     Effects that do not depend on ``channel_data`` -- a linear trend, an event
     window, seasonality -- are part of the baseline.  They cancel in the
-    difference and are skipped without consulting their spec.
+    difference and are skipped here without consulting their spec.  A request
+    that reads roles or mediator nodes consults it anyway, through
+    :func:`~pymc_marketing.mmm.mediation.resolve_mediators`, because such an
+    effect may declare a node spend drives.
 
     An effect whose contribution cannot be located at all is *not* an error here.
     Duck-typed effects are a documented pattern (see the module docstring of
@@ -272,6 +283,7 @@ def resolve_channel_dependent_effects(
                 label=label,
                 declared_carryover_lags=spec.additional_carryover_lags,
                 declared_evaluation_mode=spec.evaluation_mode,
+                spec=spec,
             )
         )
 
@@ -384,7 +396,10 @@ def refuse_blocked_spend_paths(
         "Normal(f(spend), sigma), write the node as a Deterministic of spend "
         "plus a noise term that does not depend on spend, and list a "
         "date-indexed noise term in the effect's 'frozen_deterministics' so "
-        "that it is cut to each evaluation window.  For a quantity meant to "
+        "that it is cut to each evaluation window.  Moving the tie into a "
+        "pm.Potential removes this error but not the problem: a Potential is "
+        "not a spend path, so the increment would still leave the mediated "
+        "effect out.  For a quantity meant to "
         "stay fixed while spend moves, such as a prior scale or a normalizer "
         "computed from the channel data, compute it outside the graph and "
         "pass the value in."
@@ -611,6 +626,83 @@ class SpendReach:
             )
 
 
+def unattributed_path_error(
+    accounted: Sequence[str], gap: float
+) -> NotImplementedError:
+    """Build the refusal for accounted nodes that do not reproduce the predictor's move.
+
+    Parameters
+    ----------
+    accounted : sequence of str
+        The nodes the increment is assembled from.
+    gap : float
+        What :meth:`ProbeStatistics.accounting_gap` returned.
+
+    Returns
+    -------
+    NotImplementedError
+        The error to raise.
+    """
+    return NotImplementedError(
+        "Perturbing channel spend moved the linear predictor by more than "
+        f"the variables incrementality is evaluating "
+        f"({', '.join(accounted)}) "
+        f"account for -- by {gap:.1%} of the largest move either side "
+        "makes.  Some path from spend to the response is unattributed, so "
+        "the increment would report part of it as the whole.  Every "
+        "mu_effect that spend reaches has to register the term it adds to "
+        "the linear predictor as a Deterministic, return that name from "
+        "'contribution_var_name', and opt in through 'incrementality_spec'."
+    )
+
+
+def completeness_tolerance(
+    *, scale: float, magnitude: float, dtype: DTypeLike
+) -> float:
+    """Return the absolute tolerance of the completeness check.
+
+    The one tolerance for every comparison of a move against what accounts for
+    it: the accounted terms against the linear predictor
+    (:meth:`ProbeStatistics.accounting_gap`), and a node on a window against
+    the same node on the full date axis.
+
+    A move is a difference of two full-magnitude evaluations, so its rounding
+    floor is ``eps * |node|``, not ``eps * |move|``: two sums of the same terms
+    assembled through different chains of operations (adstock, saturation, one
+    reduction per ``mu_effect``) round independently, and nothing keeps their
+    errors from surviving the subtraction.  A tolerance proportional only to
+    *scale* cannot absorb that, and under float32 (``eps`` around 1.2e-7, a
+    supported pytensor config) it does not have to be small before the
+    accumulated rounding exceeds it.  The dtype is the one the compared arrays
+    produced, so a float64 model is not loosened by a float32-sized floor.
+
+    The tradeoff cannot be avoided: under float32 a real discrepancy smaller
+    than roughly ``COMPLETENESS_ACCUMULATION_SAFETY_FACTOR * eps * |node| /
+    |move|`` of the move passes undetected.  Under float64 that floor is on the
+    order of 1e-11 relative and never binds in practice.
+
+    Parameters
+    ----------
+    scale : float
+        The largest move compared.
+    magnitude : float
+        The largest absolute value of any compared node, on either side.
+    dtype : dtype
+        The result type of the compared arrays.  A dtype that is not inexact
+        is taken as float64.
+
+    Returns
+    -------
+    float
+        ``max(COMPLETENESS_TOLERANCE * scale, safety * eps * magnitude)``.
+    """
+    eps = np.finfo(dtype if np.issubdtype(dtype, np.inexact) else np.float64).eps
+    return max(
+        SpendProbe.COMPLETENESS_TOLERANCE * scale,
+        COMPLETENESS_ACCUMULATION_SAFETY_FACTOR * eps * magnitude,
+    )
+
+
 def _sample_runs(n_samples: int, per_sample: int) -> list[slice]:
     """Split the sample axis into runs that fit :attr:`ProbeStatistics.FOLD_ELEMENTS`.
 
@@ -650,7 +742,11 @@ class ProbeStatistics:
         folded for the completeness check then.
     per_date_move : dict
         Per node, the largest ``|probed - baseline|`` over samples and every
-        non-date dimension, one value per date.
+        non-date dimension, one value per date.  Empty unless
+        ``measures_reach``.
+    measures_reach : bool
+        Whether :attr:`per_date_move` is folded.  Only the probe reads a
+        reach; a request that checks its own rows reads the accounting alone.
     max_expected : float
         Largest move of the linear predictor.
     max_accounted : float
@@ -677,6 +773,7 @@ class ProbeStatistics:
     """
 
     accounted: tuple[str, ...] = ()
+    measures_reach: bool = True
     per_date_move: dict[str, np.ndarray] = field(default_factory=dict)
     max_expected: float = 0.0
     max_accounted: float = 0.0
@@ -693,6 +790,7 @@ class ProbeStatistics:
         *,
         accounted: Sequence[str],
         non_date_dims: Mapping[str, tuple[str, ...]],
+        measures_reach: bool = True,
     ) -> ProbeStatistics:
         """Fold one probe evaluation over slices of its samples.
 
@@ -707,13 +805,15 @@ class ProbeStatistics:
         non_date_dims : mapping
             Per node, its dimensions after ``sample`` and ``date``.  Read only
             for the compared nodes.
+        measures_reach : bool, default=True
+            Whether to fold each node's per-date move as well.
 
         Returns
         -------
         ProbeStatistics
             The statistics of the whole evaluation.
         """
-        stats = cls(accounted=tuple(accounted))
+        stats = cls(accounted=tuple(accounted), measures_reach=measures_reach)
         n_samples = next(iter(probed.values())).shape[0]
         per_sample = max(int(np.prod(array.shape[1:])) for array in probed.values())
         for samples in _sample_runs(n_samples, per_sample):
@@ -748,7 +848,8 @@ class ProbeStatistics:
             if name != Var.MU or self.accounted
         }
         # The reach is measured on the accounted nodes, never on the predictor.
-        for name, values in moved.items():
+        reached = moved.items() if self.measures_reach else []
+        for name, values in reached:
             if name == Var.MU:
                 continue
             per_date = (
@@ -766,12 +867,12 @@ class ProbeStatistics:
 
         def as_array(name: str) -> xr.DataArray:
             return xr.DataArray(
-                moved[name], dims=("sample", "date", *non_date_dims[name])
+                moved[name], dims=("sample", Dim.DATE, *non_date_dims[name])
             )
 
         # channel_contribution carries a channel dimension the predictor does
         # not: it enters mu summed over channels.
-        accounted = as_array(Var.CHANNEL_CONTRIBUTION).sum("channel")
+        accounted = as_array(Var.CHANNEL_CONTRIBUTION).sum(Dim.CHANNEL)
         for name in self.accounted[1:]:
             accounted = accounted + as_array(name)
         expected = as_array(Var.MU)
@@ -833,6 +934,49 @@ class ProbeStatistics:
             return True
         return self.max_residual <= float(self.expected_dtype.type(atol))
 
+    def tolerance(self) -> float:
+        """Return the absolute tolerance the folded moves are judged by.
+
+        See :func:`completeness_tolerance`.  The scale is whichever side moved
+        more, so that a predictor which did not move cannot excuse accounted
+        nodes that did: taking the predictor's scale alone would pass a
+        misattribution vacuously.  The magnitude is the largest baseline or
+        probed value of every node the identity compares, which is where
+        cancellation inside the accounted sum sets the true floor when large
+        terms offset; the predictor alone would understate it.
+
+        Returns
+        -------
+        float
+            The tolerance, or ``0.0`` when nothing was folded to compare.
+        """
+        return completeness_tolerance(
+            scale=max(self.max_expected, self.max_accounted),
+            magnitude=self.node_magnitude,
+            dtype=np.float64 if self.dtype is None else self.dtype,
+        )
+
+    def accounting_gap(self) -> float | None:
+        """Return how far the accounted move falls from the predictor's, if at all.
+
+        The one tolerance of the completeness check, shared by the probe
+        (:meth:`SpendProbe.assert_increment_is_complete`) and by the requests
+        that check their own rows; see :meth:`tolerance`.
+
+        Returns
+        -------
+        float or None
+            ``None`` when the accounted nodes reproduce the predictor's move, or
+            when nothing was folded to compare.  Otherwise the largest residual
+            as a share of the largest move either side makes.
+        """
+        if self.expected_dtype is None or self.dtype is None:
+            return None
+        scale = max(self.max_expected, self.max_accounted)
+        if scale == 0.0 or self.residual_within(self.tolerance()):
+            return None
+        return self.max_residual / scale
+
 
 class SpendProbe:
     """Single-date spend perturbations, and the two facts read off them.
@@ -867,6 +1011,11 @@ class SpendProbe:
         The factor the caller will apply, so the measurement is taken where the
         analysis will be run.  A factor of exactly ``1.0`` perturbs nothing, so
         the probe falls back to zeroing the date out.
+    mediators : sequence of str, default ()
+        Nodes of *baseline* that are measured and not accounted: mediator
+        nodes a request reports next to the increment.  They are no term of
+        the linear predictor, so the completeness check leaves them out, and
+        their reach sizes the window like any other node's.
 
     Attributes
     ----------
@@ -915,6 +1064,7 @@ class SpendProbe:
         baseline: dict[str, np.ndarray],
         baseline_array: np.ndarray,
         counterfactual_spend_factor: float,
+        mediators: Sequence[str] = (),
     ) -> None:
         self.baseline = baseline
         for name, array in baseline.items():
@@ -927,10 +1077,11 @@ class SpendProbe:
         self._baseline_array = baseline_array
         self._counterfactual_spend_factor = counterfactual_spend_factor
         self._mixes_channels: bool | None = None
+        self._mediators = tuple(mediators)
         self.probe_indices = self._select_probe_indices(baseline_array)
-        # The completeness check sums every node but the predictor against it,
-        # which is what the caller evaluated the probe for:
-        # assert_increment_is_complete refuses any other set of effects.
+        # The completeness check sums every node but the predictor and the
+        # mediators against it, which is what the caller evaluated the probe
+        # for: assert_increment_is_complete refuses any other set of effects.
         self._accounted: tuple[str, ...] = ()
         if Var.MU in baseline:
             self._accounted = (
@@ -938,7 +1089,7 @@ class SpendProbe:
                 *(
                     name
                     for name in baseline
-                    if name not in (Var.CHANNEL_CONTRIBUTION, Var.MU)
+                    if name not in (Var.CHANNEL_CONTRIBUTION, Var.MU, *self._mediators)
                 ),
             )
         # One probe evaluation alive at a time, and none once its statistics
@@ -1265,6 +1416,8 @@ class SpendProbe:
         effects: Sequence[ChannelDependentEffect],
         l_max: int,
         trailing_lags: int,
+        accounting_needs_probe: bool = True,
+        mediators_need_full_axis: bool = False,
     ) -> SpendReach:
         r"""Measure how far in time a change in spend moves the evaluated nodes.
 
@@ -1304,6 +1457,18 @@ class SpendProbe:
             :func:`~pymc_marketing.mmm.incrementality.kernel_trailing_lags`.
             Passed in rather than derived here, so this module needs nothing
             about convolution modes.
+        accounting_needs_probe : bool, default=True
+            Whether the completeness of an increment the request returns rests
+            on the probe.  It does not for a request that checks its own rows,
+            as one for the direct or the mediated path does, nor for one that
+            returns no increment, nor for a model without ``mu_effects``, where
+            spend reaches the predictor through ``channel_contribution`` alone.
+            Only decides what the warning says when no probe could be placed.
+        mediators_need_full_axis : bool, default=False
+            Whether an effect that declares a mediator node the request reads
+            asks for ``evaluation_mode="full"``.  Honoured like the declaration
+            of a channel-dependent effect, also when the declaring effect's own
+            term does not read spend and so is not among *effects*.
 
         Returns
         -------
@@ -1314,15 +1479,19 @@ class SpendProbe:
             # No date could be perturbed, so nothing about the window was
             # established.  Fall back to the only mode that is correct without a
             # measurement rather than trusting an unmeasured one.
+            unverified = (
+                "  With no probe, the completeness of the increment -- "
+                "that the evaluated nodes account for the whole move in the "
+                "linear predictor -- also goes unverified."
+                if accounting_needs_probe
+                else ""
+            )
             warnings.warn(
                 "Some channel's spend carries no non-zero date after the first or "
                 "before the last, so the reach of a spend counterfactual could "
                 "not be measured.  "
                 "Every period will be evaluated on the full date axis, which is "
-                "correct but slower than a window.  With no probe, the "
-                "completeness of the increment -- that the evaluated nodes "
-                "account for the whole move in the linear predictor -- also "
-                "goes unverified.",
+                "correct but slower than a window." + unverified,
                 UserWarning,
                 skip_file_prefixes=(_PKG_PREFIX,),
             )
@@ -1350,12 +1519,16 @@ class SpendProbe:
             for name in (
                 Var.CHANNEL_CONTRIBUTION,
                 *(effect.contribution_var for effect in effects),
+                *self._mediators,
             )
         }
+        # A mediator's movement is summed on the same window as the increment,
+        # so the window has to hold its reach too.
         combined = TemporalReach.widest(
             [
                 measured[Var.CHANNEL_CONTRIBUTION],
                 *self._reconcile_declarations(effects, measured),
+                *(measured[name] for name in self._mediators),
             ]
         )
         # The longest lag spend was measured to move anything at, floored at the
@@ -1363,9 +1536,10 @@ class SpendProbe:
         # its lower bound.  Read off the measurements, not the window: the
         # window keeps one date of slack past a plain kernel and honours wider
         # declarations, neither of which is carryover that lands.
+        requires_full_axis = combined.requires_full_axis or mediators_need_full_axis
         max_lag = (
             None
-            if combined.requires_full_axis
+            if requires_full_axis
             else max(
                 trailing_lags,
                 max(reach.max_lag for reach in measured.values()),
@@ -1373,7 +1547,7 @@ class SpendProbe:
         )
         return SpendReach(
             effective_l_max=l_max + combined.additional_carryover_lags,
-            requires_full_axis=combined.requires_full_axis,
+            requires_full_axis=requires_full_axis,
             measured=measured,
             max_lag=max_lag,
         )
@@ -1613,7 +1787,7 @@ class SpendProbe:
             return True
 
         # `+ 2` for the sample and date axes the evaluations carry in front.
-        channel_axis = non_date_dims[Var.CHANNEL_CONTRIBUTION].index("channel") + 2
+        channel_axis = non_date_dims[Var.CHANNEL_CONTRIBUTION].index(Dim.CHANNEL) + 2
         baseline = self.baseline[Var.CHANNEL_CONTRIBUTION]
         for channel, probe_index in placements.items():
             probed = self._evaluator.evaluate_baseline(
@@ -1659,7 +1833,7 @@ class SpendProbe:
         *,
         effects: Sequence[ChannelDependentEffect],
         non_date_dims: Mapping[str, tuple[str, ...]],
-    ) -> None:
+    ) -> bool:
         r"""Check the evaluated nodes account for the whole move in the predictor.
 
         Everything downstream rests on one identity:
@@ -1693,17 +1867,24 @@ class SpendProbe:
             drop a dimension the predictor has, and a panel model's predictor
             need not order the ones it keeps the way spend does.
 
+        Returns
+        -------
+        bool
+            Whether anything was compared.  ``False`` when no date could be
+            probed, or when the baseline carries no linear predictor: the
+            increment is then computed on an assumption nobody checked.
+
         Raises
         ------
         NotImplementedError
             If the accounted nodes do not reproduce the predictor's move.
         ValueError
             If *effects* or *non_date_dims* differ from what the probe was folded
-            for: every node of the baseline but the predictor, with the
-            evaluator's dimensions.
+            for: every node of the baseline but the predictor and the
+            mediators, with the evaluator's dimensions.
         """
         if not self.probes or not self._accounted:
-            return
+            return False
 
         accounted_names = (
             Var.CHANNEL_CONTRIBUTION,
@@ -1724,53 +1905,7 @@ class SpendProbe:
         # Every probe has to satisfy the identity: an unattributed path from one
         # channel is visible only under a probe at a date that channel spends.
         for stats in self.probes.values():
-            # Scaled by whichever side moved more, so that a predictor which did
-            # not move cannot excuse accounted nodes that did.  Taking the
-            # predictor's scale alone would pass a misattribution vacuously.
-            scale = max(stats.max_expected, stats.max_accounted)
-
-            # The predictor's move and the accounted move are each a difference
-            # of two full-magnitude evaluations, so their rounding floor is
-            # eps * |node|, not eps * |move|: two sums of the same terms
-            # assembled through different chains of operations (adstock,
-            # saturation, one reduction per mu_effect) round independently, and
-            # nothing keeps their errors from surviving the subtraction.  A
-            # tolerance proportional only to `scale` -- the size of the move --
-            # cannot absorb that, and under float32 (eps around 1.2e-7, a
-            # supported pytensor config) it does not have to be small before
-            # the accumulated rounding exceeds it.  So the floor also accounts
-            # for the magnitude of the nodes themselves: the largest baseline
-            # or probed value among every node the identity compares, which is
-            # where cancellation inside the accounted sum sets the true floor
-            # when large terms offset -- the predictor alone would understate
-            # it.
-            node_magnitude = stats.node_magnitude
-            # The dtype actually produced by the compared arrays, not an
-            # assumption: nothing here gates on the model's floatX, and a
-            # float64 model must not be loosened by a float32-sized floor.
-            eps = np.finfo(stats.dtype).eps
-            # Unavoidable tradeoff: under float32 a real unattributed path
-            # smaller than roughly
-            # COMPLETENESS_ACCUMULATION_SAFETY_FACTOR * eps * |node| / |move|
-            # of the move now passes undetected.  Under float64 the floor is
-            # on the order of 1e-11 relative and never binds in practice, so
-            # float64 behaviour is unchanged.
-            atol = max(
-                self.COMPLETENESS_TOLERANCE * scale,
-                COMPLETENESS_ACCUMULATION_SAFETY_FACTOR * eps * node_magnitude,
-            )
-            if scale == 0.0 or stats.residual_within(atol):
-                continue
-
-            largest = stats.max_residual / scale
-            raise NotImplementedError(
-                "Perturbing channel spend moved the linear predictor by more than "
-                f"the variables incrementality is evaluating "
-                f"({', '.join(accounted_names)}) "
-                f"account for -- by {largest:.1%} of the largest move either side "
-                "makes.  Some path from spend to the response is unattributed, so "
-                "the increment would report part of it as the whole.  Every "
-                "mu_effect that spend reaches has to register the term it adds to "
-                "the linear predictor as a Deterministic, return that name from "
-                "'contribution_var_name', and opt in through 'incrementality_spec'."
-            )
+            gap = stats.accounting_gap()
+            if gap is not None:
+                raise unattributed_path_error(accounted_names, gap)
+        return True

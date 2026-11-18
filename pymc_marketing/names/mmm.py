@@ -30,12 +30,15 @@ from pymc_marketing import names
 
 
 class Dim:
-    """Dimension names of the MMM and of the results it stores.
+    """Dimension names of the MMM, of the results it stores and of the inputs its optimizer reads.
 
     ``DATE``, ``CHANNEL``, ``CONTROL`` and ``FOURIER_MODE`` are the dims of the
     model (see :data:`RESERVED_DIMS`). ``TIME_SINCE_EXPOSURE`` is the lag dim of a
     sampled adstock curve, ``CV`` the fold dim of the cross-validation results and
-    ``SWEEP`` the dim of a sensitivity sweep.
+    ``SWEEP`` the dim of a sensitivity sweep. ``BRACKET`` is the dim a
+    :class:`~pymc_marketing.mmm.price_response.TieredPriceResponse` schedule runs
+    along when given as a ``DataArray``, one entry per bracket. It is not reserved:
+    a model may have a dim of that name, and only a schedule resolved on it refuses.
     """
 
     DATE: Final = "date"
@@ -45,6 +48,7 @@ class Dim:
     TIME_SINCE_EXPOSURE: Final = "time since exposure"
     CV: Final = "cv"
     SWEEP: Final = "sweep"
+    BRACKET: Final = "bracket"
 
 
 RESERVED_DIMS: Final = frozenset({Dim.DATE, Dim.CHANNEL, Dim.CONTROL, Dim.FOURIER_MODE})
@@ -136,6 +140,21 @@ class Group(names.Group):
 
     SENSITIVITY_ANALYSIS: Final = "sensitivity_analysis"
     CV_METADATA: Final = "cv_metadata"
+
+
+class IncrementalityResult:
+    """Names an incrementality result writes besides the model's own.
+
+    ``SPEND_CHANGE`` and ``INDUCED_SPEND`` are variables of the dataset that
+    ``Incrementality.decompose_incremental_contribution`` returns, and the
+    quantities their labels name.  ``COMPLETE`` is the boolean coordinate on
+    ``date`` of a result that reads a mediator.  A declared mediator cannot take
+    any of them as its name.
+    """
+
+    SPEND_CHANGE: Final = "spend_change"
+    INDUCED_SPEND: Final = "induced_spend"
+    COMPLETE: Final = "complete"
 
 
 ORIGINAL_SCALE_SUFFIX: Final = "_original_scale"
