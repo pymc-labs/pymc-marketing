@@ -261,8 +261,7 @@ _HIGH_CORRELATION_THRESHOLD = 0.7
 def _format_rationale(
     rec: ExperimentRecommendation,
     uncertainty_rank: int | None = None,
-    correlation_info: str | None = None,
-    max_correlation: float | None = None,
+    correlation: tuple[str, float] | None = None,
 ) -> str:
     """Generate a template-based rationale string for a recommendation.
 
@@ -272,12 +271,8 @@ def _format_rationale(
         The recommendation to generate a rationale for.
     uncertainty_rank : int | None
         Rank of this channel by posterior uncertainty (1 = most uncertain).
-    correlation_info : str | None
-        Description of spend correlation (e.g. "high correlation with
-        Digital (r = 0.91)"). None if unavailable.
-    max_correlation : float | None
-        Maximum absolute spend correlation with any other channel.
-        Used to trigger an identification warning when high.
+    correlation : tuple[str, float] | None
+        Other channel and magnitude of the strongest spend correlation.
 
     Returns
     -------
@@ -297,9 +292,7 @@ def _format_rationale(
     uncertainty_str = (
         f" (uncertainty rank #{uncertainty_rank})" if uncertainty_rank else ""
     )
-    correlation_str = f" Spend shows {correlation_info}." if correlation_info else ""
-
-    sentence1 = f"Candidate for {rec.channel}{uncertainty_str}.{correlation_str}"
+    sentence1 = f"Candidate for {rec.channel}{uncertainty_str}."
 
     sentence2 = (
         f"A {direction} change for {rec.duration_weeks} weeks produces "
@@ -316,10 +309,14 @@ def _format_rationale(
 
     parts = [sentence1, sentence2, sentence3]
 
-    if max_correlation is not None and max_correlation >= _HIGH_CORRELATION_THRESHOLD:
+    if correlation is not None and correlation[1] >= _HIGH_CORRELATION_THRESHOLD:
+        other, magnitude = correlation
+        parts[0] += (
+            f" Spend shows high spend correlation with {other} (|r| = {magnitude:.2f})."
+        )
         parts.append(
             f"Caution: {rec.channel} has high spend correlation "
-            f"(|r| = {max_correlation:.2f}) with other channels, which "
+            f"(|r| = {magnitude:.2f}) with other channels, which "
             "may indicate identification problems. The model's posterior "
             "for this channel could be influenced by confounding. "
             "Interpret assurance with care."

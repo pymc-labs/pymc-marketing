@@ -21,18 +21,24 @@ from functools import cached_property
 from typing import TYPE_CHECKING, cast
 
 import numpy as np
+import pandas as pd
+import pymc as pm
+import pymc.dims as pmd
 import pytensor.xtensor as ptx
+import xarray as xr
 from pytensor import function
 from pytensor.graph.replace import clone_replace
 from pytensor.xtensor.vectorization import vectorize_graph
 
+from pymc_marketing.mmm.components.adstock import GeometricAdstock
+from pymc_marketing.mmm.components.saturation import LogisticSaturation
+from pymc_marketing.mmm.experiment_design._statistics import residual_statistics
 from pymc_marketing.mmm.link import _distribution_name
 from pymc_marketing.names.mmm import Dim, Var
 from pymc_marketing.pytensor_utils import extract_response_distribution
 
 if TYPE_CHECKING:
-    from pymc import Model
-    from xarray import Dataset
+    from xarray import DataArray, Dataset
 
     from pymc_marketing.mmm.mmm import MMM
 
@@ -59,10 +65,42 @@ def validate_observed_mean(mmm: MMM, posterior: Dataset) -> None:
         ) from error
 
 
+def fitted_residual_statistics(
+    mmm: MMM, observed: DataArray, posterior: Dataset
+) -> tuple[float, float]:
+    """Calculate scaled residual statistics from aligned weekly training data."""
+    if Var.MU in posterior:
+        fitted_mu = posterior[Var.MU]
+    else:
+        # Older identity-link fits did not store mu in the posterior.
+        training_model = mmm._set_xarray_data(
+            mmm.xarray_dataset, model=mmm.model.copy()
+        )
+        fitted_mu = pm.compute_deterministics(
+            posterior, var_names=[Var.MU], model=training_model, progressbar=False
+        )[Var.MU]
+
+    prediction = fitted_mu.mean(("chain", "draw"))
+    if observed.dims != (Dim.DATE,) or prediction.dims != (Dim.DATE,):
+        raise ValueError("Observed and predicted targets must be weekly time series.")
+    observed, prediction = xr.align(observed, prediction, join="exact")
+    dates = observed.indexes.get(Dim.DATE)
+    if dates is None or dates.inferred_type not in {"datetime", "datetime64"}:
+        raise ValueError("ExperimentDesigner requires regular weekly observations.")
+    local_dates = pd.DatetimeIndex(dates).tz_localize(None)
+    if (
+        len(local_dates) < 2
+        or not ((local_dates[1:] - local_dates[:-1]) == pd.Timedelta(weeks=1)).all()
+    ):
+        raise ValueError("ExperimentDesigner requires regular weekly observations.")
+    return residual_statistics((observed - prediction).values)
+
+
 class ContributionGraph:
     """Evaluate a channel response graph with posterior values bound."""
 
-    def __init__(self, model: Model, posterior: Dataset, n_channels: int) -> None:
+    def __init__(self, model: pm.Model, posterior: Dataset, n_channels: int) -> None:
+        self.n_draws = posterior.sizes["chain"] * posterior.sizes["draw"]
         observed_spend = model[Var.CHANNEL_DATA]
         self._spend = ptx.xtensor(
             name="channel_data_input",
@@ -77,10 +115,37 @@ class ContributionGraph:
         response = cast("ptx.XTensorVariable", graph)
         if "sample" not in response.dims:
             # Fixed media parameters have the same response in every draw.
-            sizes = posterior.sizes
-            draws = np.ones(sizes["chain"] * sizes["draw"], dtype=response.dtype)
+            draws = np.ones(self.n_draws, dtype=response.dtype)
             response = response * ptx.as_xtensor(draws, dims=("sample",))
         self._response = response.transpose("sample", Dim.DATE, Dim.CHANNEL)
+
+    @classmethod
+    def from_fixture(
+        cls, posterior: Dataset, channels: list[str], l_max: int, normalize: bool
+    ) -> ContributionGraph:
+        """Build the fixture's geometric adstock and logistic saturation graph."""
+        n_channels = len(channels)
+        dummy_weeks = l_max + 4
+        adstock = GeometricAdstock(l_max=l_max, normalize=normalize)
+        saturation = LogisticSaturation()
+        adstock.set_dims_for_all_priors((Dim.CHANNEL,))
+        saturation.set_dims_for_all_priors((Dim.CHANNEL,))
+
+        with pm.Model(
+            coords={Dim.CHANNEL: channels, Dim.DATE: np.arange(dummy_weeks)}
+        ) as model:
+            channel_data = pmd.Data(
+                Var.CHANNEL_DATA,
+                value=np.zeros((dummy_weeks, n_channels)),
+                dims=(Dim.DATE, Dim.CHANNEL),
+            )
+            adstocked = adstock.apply(x=channel_data, core_dim=Dim.DATE)
+            contribution = saturation.apply(x=adstocked, core_dim=Dim.DATE)
+            pmd.Deterministic(
+                Var.CHANNEL_CONTRIBUTION, contribution, dims=(Dim.DATE, Dim.CHANNEL)
+            )
+
+        return cls(model, posterior, n_channels)
 
     @cached_property
     def _evaluate(self) -> Callable[[np.ndarray], np.ndarray]:
@@ -98,6 +163,7 @@ class ContributionGraph:
         return function([sweep], response.transpose("sample", Dim.SWEEP, Dim.CHANNEL))
 
     def __call__(self, spend: np.ndarray) -> np.ndarray:
+        """Evaluate (date, channel) spend as (sample, date, channel) contributions."""
         return np.asarray(self._evaluate(spend.astype(self._spend.dtype, copy=False)))
 
     def steady_responses(self, spend: np.ndarray) -> np.ndarray:

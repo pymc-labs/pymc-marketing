@@ -68,9 +68,6 @@ class TestExperimentDesignerInit:
     def test_has_eval_fn(self, designer):
         assert callable(designer._eval_fn)
 
-    def test_has_posterior(self, designer):
-        assert designer._posterior is not None
-
 
 class TestInitFromMMM:
     """Tests for ExperimentDesigner.__init__(mmm) constructor path."""
@@ -523,7 +520,7 @@ class TestRecommend:
 
     def test_baselines_are_evaluated_once_per_horizon(self, designer, monkeypatch):
         calls = {}
-        evaluate = designer._eval_contributions
+        evaluate = designer._eval_fn
         baseline_row = designer._make_spend_array(1)[0]
 
         def tracked(spend):
@@ -533,7 +530,7 @@ class TestRecommend:
                 calls[len(spend)] = calls.get(len(spend), 0) + 1
             return evaluate(spend)
 
-        monkeypatch.setattr(designer, "_eval_contributions", tracked)
+        monkeypatch.setattr(designer, "_eval_fn", tracked)
         designer.recommend(spend_changes=[0.2, -0.2], durations=[4, 8], min_snr=0)
         assert calls == {designer.l_max + 4: 1, designer.l_max + 8: 1}
 
@@ -734,9 +731,9 @@ class TestCorrelationWarning:
         )
         rationale = _format_rationale(
             rec,
-            correlation_info="high spend correlation with search (r = 0.85)",
-            max_correlation=0.85,
+            correlation=("search", 0.85),
         )
+        assert "high spend correlation with search (|r| = 0.85)" in rationale
         assert "Caution" in rationale
         assert "identification" in rationale
 
@@ -873,7 +870,7 @@ class TestSingleChannel:
             seed=1,
         )
         d = ExperimentDesigner.from_idata(idata)
-        result = d._get_correlation_info("solo")
+        result = d._strongest_spend_correlation("solo")
         assert result is None
 
 
@@ -1029,7 +1026,7 @@ class TestPlotting:
         for i in (0, 57, 199):
             spend = designer._make_spend_array(designer.l_max + 1)
             spend[:, 0] = levels[i]
-            mean = designer._eval_contributions(spend)[:, -1, 0].mean()
+            mean = designer._eval_fn(spend)[:, -1, 0].mean()
             assert means[i] == pytest.approx(mean)
         plt.close(figure)
 
@@ -1064,12 +1061,12 @@ class TestEvalContributions:
 
     def test_eval_contributions_shape(self, designer):
         spend = designer._make_spend_array(10)
-        contrib = designer._eval_contributions(spend)
+        contrib = designer._eval_fn(spend)
         assert contrib.shape[0] == designer.n_draws
         assert contrib.shape[1] == 10
         assert contrib.shape[2] == len(designer.channel_columns)
 
     def test_eval_contributions_positive(self, designer):
         spend = designer._make_spend_array(10)
-        contrib = designer._eval_contributions(spend)
+        contrib = designer._eval_fn(spend)
         assert np.all(contrib >= 0)

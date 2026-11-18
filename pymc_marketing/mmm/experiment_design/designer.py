@@ -30,23 +30,21 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import arviz as az
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import pymc as pm
-import xarray as xr
+from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from scipy.stats import norm
 from xarray import DataTree
 
+from pymc_marketing.mmm.experiment_design import _plotting
 from pymc_marketing.mmm.experiment_design._evaluation import (
     ContributionGraph,
+    fitted_residual_statistics,
     validate_observed_mean,
 )
-from pymc_marketing.mmm.experiment_design._statistics import residual_statistics
 from pymc_marketing.mmm.experiment_design.fixture import _validate_transformations
 from pymc_marketing.mmm.experiment_design.recommendation import (
-    _HIGH_CORRELATION_THRESHOLD,
     ExperimentRecommendation,
     ExperimentRecommendations,
     _format_rationale,
@@ -55,8 +53,6 @@ from pymc_marketing.mmm.transformers import ConvMode
 from pymc_marketing.names.mmm import Dim, Var
 
 if TYPE_CHECKING:
-    import matplotlib.axes
-
     from pymc_marketing.mmm.mmm import MMM
 
 _DEFAULT_SCORE_WEIGHTS: dict[str, float] = {
@@ -179,34 +175,8 @@ class ExperimentDesigner:
             )
         )
         spend_correlation = spend.transpose(Dim.DATE, Dim.CHANNEL).to_pandas().corr()
-        observed = idata.observed_data[mmm.output_var]
-        if Var.MU in posterior:
-            fitted_mu = posterior[Var.MU]
-        else:
-            # Older identity-link fits did not store mu in the posterior.
-            training_model = mmm._set_xarray_data(
-                mmm.xarray_dataset, model=mmm.model.copy()
-            )
-            fitted_mu = pm.compute_deterministics(
-                posterior, var_names=[Var.MU], model=training_model, progressbar=False
-            )[Var.MU]
-        prediction = fitted_mu.mean(("chain", "draw"))
-        if observed.dims != (Dim.DATE,) or prediction.dims != (Dim.DATE,):
-            raise ValueError(
-                "Observed and predicted targets must be weekly time series."
-            )
-        observed, prediction = xr.align(observed, prediction, join="exact")
-        dates = observed.indexes.get(Dim.DATE)
-        if dates is None or dates.inferred_type not in {"datetime", "datetime64"}:
-            raise ValueError("ExperimentDesigner requires regular weekly observations.")
-        local_dates = pd.DatetimeIndex(dates).tz_localize(None)
-        if (
-            len(local_dates) < 2
-            or not ((local_dates[1:] - local_dates[:-1]) == pd.Timedelta(weeks=1)).all()
-        ):
-            raise ValueError("ExperimentDesigner requires regular weekly observations.")
-        residual_std, residual_autocorr = residual_statistics(
-            (observed - prediction).values
+        residual_std, residual_autocorr = fitted_residual_statistics(
+            mmm, idata.observed_data[mmm.output_var], posterior
         )
         eval_fn = ContributionGraph(mmm.model, posterior, len(channel_columns))
 
@@ -215,7 +185,6 @@ class ExperimentDesigner:
             channel_columns=channel_columns,
             l_max=int(mmm.adstock.l_max),
             normalize=bool(mmm.adstock.normalize),
-            posterior=posterior,
             current_spend=current_spend,
             residual_std=residual_std,
             residual_autocorr=residual_autocorr,
@@ -229,7 +198,6 @@ class ExperimentDesigner:
         channel_columns: list[str],
         l_max: int,
         normalize: bool,
-        posterior: xr.Dataset,
         current_spend: dict[str, float],
         residual_std: float,
         residual_autocorr: float,
@@ -244,8 +212,7 @@ class ExperimentDesigner:
         self.channel_columns = channel_columns
         self.l_max = l_max
         self.normalize = normalize
-        self._posterior = posterior
-        self.n_draws: int = posterior.sizes["chain"] * posterior.sizes["draw"]
+        self.n_draws = eval_fn.n_draws
         self._current_spend = current_spend
         self._residual_std = residual_std
         self._residual_autocorr = residual_autocorr
@@ -298,12 +265,6 @@ class ExperimentDesigner:
         ExperimentDesigner
             A configured designer ready for ``recommend()``.
         """
-        import pymc as pm
-        import pymc.dims as pmd
-
-        from pymc_marketing.mmm.components.adstock import GeometricAdstock
-        from pymc_marketing.mmm.components.saturation import LogisticSaturation
-
         _validate_transformations(saturation, adstock)
 
         instance = cls.__new__(cls)
@@ -314,35 +275,7 @@ class ExperimentDesigner:
         cd = idata.constant_data
         l_max = int(cd["l_max"].values)
         normalize = bool(cd["normalize"].values)
-        n_channels = len(channels)
-        T_dummy = l_max + 4
-
-        adstock_obj = GeometricAdstock(l_max=l_max, normalize=normalize)
-        saturation_obj = LogisticSaturation()
-
-        adstock_obj.set_dims_for_all_priors((Dim.CHANNEL,))
-        saturation_obj.set_dims_for_all_priors((Dim.CHANNEL,))
-
-        with pm.Model(
-            coords={
-                Dim.CHANNEL: channels,
-                Dim.DATE: np.arange(T_dummy),
-            }
-        ) as model:
-            channel_data = pmd.Data(
-                Var.CHANNEL_DATA,
-                value=np.zeros((T_dummy, n_channels)),
-                dims=(Dim.DATE, Dim.CHANNEL),
-            )
-            adstocked = adstock_obj.apply(x=channel_data, core_dim=Dim.DATE)
-            contribution = saturation_obj.apply(x=adstocked, core_dim=Dim.DATE)
-            pmd.Deterministic(
-                Var.CHANNEL_CONTRIBUTION,
-                contribution,
-                dims=(Dim.DATE, Dim.CHANNEL),
-            )
-
-        eval_fn = ContributionGraph(model, posterior, n_channels)
+        eval_fn = ContributionGraph.from_fixture(posterior, channels, l_max, normalize)
 
         spend = cd["current_weekly_spend"]
         current_spend = {ch: float(spend.sel(channel=ch).values) for ch in channels}
@@ -361,7 +294,6 @@ class ExperimentDesigner:
             channel_columns=channels,
             l_max=l_max,
             normalize=normalize,
-            posterior=posterior,
             current_spend=current_spend,
             residual_std=float(cd["residual_std"].values),
             residual_autocorr=(
@@ -377,21 +309,6 @@ class ExperimentDesigner:
     # ------------------------------------------------------------------
     # Graph-based evaluation
     # ------------------------------------------------------------------
-
-    def _eval_contributions(self, spend_data: np.ndarray) -> np.ndarray:
-        """Evaluate channel contributions using the compiled model graph.
-
-        Parameters
-        ----------
-        spend_data : np.ndarray
-            Spend time series of shape ``(T, n_channels)`` in designer input units.
-
-        Returns
-        -------
-        np.ndarray
-            Contributions of shape ``(n_samples, T, n_channels)``.
-        """
-        return self._eval_fn(spend_data)
 
     def _make_spend_array(self, T: int) -> np.ndarray:
         """Create a baseline spend array filled with current spend.
@@ -523,12 +440,12 @@ class ExperimentDesigner:
         spend = self._make_spend_array(total)
         baseline = None if baselines is None else baselines.get(total)
         if baseline is None:
-            baseline = self._eval_contributions(spend)[:, self.l_max :, :].copy()
+            baseline = self._eval_fn(spend)[:, self.l_max :, :].copy()
             if baselines is not None:
                 baselines[total] = baseline
 
         spend[self.l_max :, channel_index] += delta_x
-        treatment = self._eval_contributions(spend)[:, self.l_max :, channel_index]
+        treatment = self._eval_fn(spend)[:, self.l_max :, channel_index]
         return treatment - baseline[:, :, channel_index]
 
     def _compute_assurance(
@@ -608,7 +525,7 @@ class ExperimentDesigner:
 
     def _response_hdi_widths(self) -> dict[str, float]:
         """Compute current response uncertainty for every channel in one call."""
-        contributions = self._eval_contributions(self._make_spend_array(self.l_max + 1))
+        contributions = self._eval_fn(self._make_spend_array(self.l_max + 1))
         widths = {}
         for i, channel in enumerate(self.channel_columns):
             lower, upper = az.hdi(contributions[:, -1, i], prob=0.94)
@@ -625,8 +542,8 @@ class ExperimentDesigner:
         spend_hi = spend_lo.copy()
         spend_hi[:, ch_idx] += h
 
-        contrib_lo = self._eval_contributions(spend_lo)
-        contrib_hi = self._eval_contributions(spend_hi)
+        contrib_lo = self._eval_fn(spend_lo)
+        contrib_hi = self._eval_fn(spend_hi)
 
         response_lo = float(np.mean(contrib_lo[:, -1, ch_idx]))
         response_hi = float(np.mean(contrib_hi[:, -1, ch_idx]))
@@ -638,15 +555,8 @@ class ExperimentDesigner:
         ranked = sorted(widths, key=widths.__getitem__, reverse=True)
         return {ch: rank + 1 for rank, ch in enumerate(ranked)}
 
-    def _get_correlation_info(self, channel: str) -> tuple[str, float] | None:
-        """Get correlation description and value for a channel.
-
-        Returns
-        -------
-        tuple[str, float] | None
-            ``(description, max_correlation_value)`` or ``None`` if
-            spend correlation data is unavailable.
-        """
+    def _strongest_spend_correlation(self, channel: str) -> tuple[str, float] | None:
+        """Get the other channel and magnitude of the strongest correlation."""
         if self._spend_correlation is None:
             return None
 
@@ -661,10 +571,7 @@ class ExperimentDesigner:
                 max_corr = corr
                 max_other = other
 
-        if max_other is None or max_corr < _HIGH_CORRELATION_THRESHOLD:
-            return None
-        desc = f"high spend correlation with {max_other} (|r| = {max_corr:.2f})"
-        return desc, max_corr
+        return (max_other, max_corr) if max_other is not None else None
 
     # ------------------------------------------------------------------
     # Scoring
@@ -797,14 +704,10 @@ class ExperimentDesigner:
                 score=score,
                 rationale="",
             )
-            corr_result = self._get_correlation_info(rec.channel)
-            corr_desc = corr_result[0] if corr_result else None
-            corr_value = corr_result[1] if corr_result else None
             rec.rationale = _format_rationale(
                 rec,
                 uncertainty_rank=uncertainty_ranks.get(rec.channel),
-                correlation_info=corr_desc,
-                max_correlation=corr_value,
+                correlation=self._strongest_spend_correlation(rec.channel),
             )
             candidates.append(rec)
 
@@ -890,7 +793,7 @@ class ExperimentDesigner:
         """
         null_candidates: list[str] = []
         spend = self._make_spend_array(self.l_max + 1)
-        contrib = self._eval_contributions(spend)
+        contrib = self._eval_fn(spend)
 
         for i, ch in enumerate(self.channel_columns):
             mean_contribution = float(np.mean(np.abs(contrib[:, -1, i])))
@@ -926,43 +829,20 @@ class ExperimentDesigner:
         -------
         tuple[Figure, ndarray of Axes]
         """
-        channels = self.channel_columns
-        if colors is None:
-            colors = {ch: f"C{i}" for i, ch in enumerate(channels)}
-        if figsize is None:
-            figsize = (10, 4)
-
-        metrics = self._channel_metrics()
-
-        n_metrics = 4
-        fig, axes = plt.subplots(1, n_metrics, figsize=figsize)
-        x_pos = np.arange(len(channels))
-        bar_colors = [colors[ch] for ch in channels]
-
-        titles = [
-            "Response HDI Width",
-            "Mean |Spend Correlation|",
-            "Response Gradient\n(at operating point)",
-            f"Ramp @ {self.l_max}w\n(fraction of steady state)",
-        ]
-        value_keys = ["hdi_width", "mean_correlation", "gradient", "ramp_at_lmax"]
-
-        for ax_i, title, key in zip(axes, titles, value_keys, strict=True):
-            vals = [metrics[ch][key] for ch in channels]
-            ax_i.bar(x_pos, vals, color=bar_colors)
-            ax_i.set_xticks(x_pos)
-            ax_i.set_xticklabels(channels, rotation=45, ha="right")
-            ax_i.set_title(title)
-
-        fig.tight_layout()
-        return fig, axes
+        return _plotting.plot_channel_diagnostics(
+            self.channel_columns,
+            self._channel_metrics(),
+            self.l_max,
+            colors,
+            figsize,
+        )
 
     def plot_power_cost(
         self,
         recommendations: ExperimentRecommendations | Sequence[ExperimentRecommendation],
         colors: dict[str, str] | None = None,
         figsize: tuple[float, float] | None = None,
-    ) -> tuple[Figure, plt.Axes]:
+    ) -> tuple[Figure, Axes]:
         """Scatter plot of assurance vs. absolute net cost.
 
         Points are coloured by channel and shaped by spend direction.
@@ -982,47 +862,12 @@ class ExperimentDesigner:
         -------
         tuple[Figure, Axes]
         """
-        if figsize is None:
-            figsize = (10, 4)
-        fig, ax = plt.subplots(figsize=figsize)
-
-        if colors is None:
-            colors = {ch: f"C{i}" for i, ch in enumerate(self.channel_columns)}
-        markers = {
-            "increase": "^",
-            "decrease": "v",
-            "go-dark": "X",
-        }
-
-        for rec in recommendations:
-            if rec.spend_change_frac == -1.0:
-                direction = "go-dark"
-            elif rec.spend_change_frac > 0:
-                direction = "increase"
-            else:
-                direction = "decrease"
-
-            ax.scatter(
-                abs(rec.net_cost),
-                rec.assurance,
-                c=colors.get(rec.channel, "C0"),
-                marker=markers[direction],
-                s=60,
-                alpha=0.7,
-            )
-
-        for ch, color in colors.items():
-            ax.scatter([], [], c=color, label=ch, s=60)
-        for name, marker in markers.items():
-            ax.scatter([], [], c="gray", marker=marker, label=name, s=60)
-
-        ax.set_xlabel("Absolute net cost (spend units)")
-        ax.set_ylabel("Assurance (posterior-predictive power)")
-        ax.set_title("Experiment Assurance vs. Cost")
-        ax.legend(loc="best", fontsize=8)
-
-        fig.tight_layout()
-        return fig, ax
+        return _plotting.plot_power_cost(
+            self.channel_columns,
+            recommendations,
+            colors,
+            figsize,
+        )
 
     def plot_lift_distributions(
         self,
@@ -1056,48 +901,24 @@ class ExperimentDesigner:
         -------
         tuple[Figure, ndarray of Axes]
         """
-        if spend_changes is None:
-            spend_changes = [0.2, 0.5, -0.5, -1.0]
-        if durations is None:
-            durations = [4, 6, 8, 12]
-        if color is None:
-            color = "C0"
-
-        n_rows, n_cols = len(spend_changes), len(durations)
-        if figsize is None:
-            figsize = (10, 3 * n_rows)
-        fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize, squeeze=False)
-
-        x_current = self._current_spend[channel]
-
-        for i, frac in enumerate(spend_changes):
-            for j, T in enumerate(durations):
-                ax_ij = axes[i, j]
-                delta_x = frac * x_current
-                lift = self._predict_lift(channel, delta_x, T)
-                hdi = az.hdi(lift, prob=0.94)
-
-                ax_ij.hist(lift, bins=50, density=True, alpha=0.6, color=color)
-                ax_ij.axvline(0, color="black", linestyle="--", linewidth=0.8)
-                ax_ij.axvspan(hdi[0], hdi[1], alpha=0.15, color=color)
-                ax_ij.set_title(f"\u0394={frac * 100:+.0f}%, T={T}w", fontsize=9)
-                if j == 0:
-                    ax_ij.set_ylabel("Density")
-                if i == n_rows - 1:
-                    ax_ij.set_xlabel("Total Lift")
-
-        fig.suptitle(f"Lift Distributions \u2014 {channel}", fontsize=12, y=1.02)
-        fig.tight_layout()
-        return fig, axes
+        return _plotting.plot_lift_distributions(
+            channel,
+            self._current_spend[channel],
+            self._predict_lift,
+            spend_changes,
+            durations,
+            color,
+            figsize,
+        )
 
     def plot_saturation_curve(
         self,
         channel: str,
         spend_levels: list[float] | None = None,
-        ax: matplotlib.axes.Axes | None = None,
+        ax: Axes | None = None,
         color: str | None = None,
         figsize: tuple[float, float] | None = None,
-    ) -> tuple[Figure, plt.Axes]:
+    ) -> tuple[Figure, Axes]:
         """Plot the saturation curve with posterior uncertainty.
 
         Shows the posterior mean curve with a central 94% interval, evaluated
@@ -1123,70 +944,24 @@ class ExperimentDesigner:
         -------
         tuple[Figure, Axes]
         """
-        if color is None:
-            color = "C0"
-        if ax is None:
-            if figsize is None:
-                figsize = (10, 4)
-            fig, ax = plt.subplots(figsize=figsize)
-        else:
-            fig = ax.get_figure()
-
-        ch_idx = self.channel_columns.index(channel)
-        x_current = self._current_spend[channel]
-        x_max = x_current * 2.5
-        n_grid = 200
-        x_grid = np.linspace(0, x_max, n_grid)
-
-        baseline = self._make_spend_array(self.l_max + 1)
-        y_mean, y_lo, y_hi = np.empty((3, len(x_grid)))
-        # Reduce each batch before evaluating the next spend range.
-        batch_size = 32
-        for start in range(0, len(x_grid), batch_size):
-            batch = slice(start, start + batch_size)
-            levels = x_grid[batch]
-            spend = np.repeat(baseline[None, :, :], len(levels), axis=0)
-            spend[:, :, ch_idx] = levels[:, None]
-            response = self._eval_fn.steady_responses(spend)[:, :, ch_idx]
-            y_mean[batch] = response.mean(axis=0)
-            y_lo[batch], y_hi[batch] = np.percentile(response, [3.0, 97.0], axis=0)
-
-        ax.fill_between(x_grid, y_lo, y_hi, color=color, alpha=0.15)
-        ax.plot(x_grid, y_mean, color=color, linewidth=2, label="Posterior mean")
-
-        ax.axvline(
-            x_current,
-            color="black",
-            linestyle="--",
-            linewidth=1.2,
-            label=f"Current spend ({x_current:.2f})",
+        return _plotting.plot_saturation_curve(
+            channel,
+            self.channel_columns.index(channel),
+            self._current_spend[channel],
+            self._make_spend_array(self.l_max + 1),
+            self._eval_fn.steady_responses,
+            spend_levels,
+            ax,
+            color,
+            figsize,
         )
-
-        if spend_levels:
-            for frac in spend_levels:
-                x_new = x_current * (1 + frac)
-                ax.axvline(
-                    x_new,
-                    color="C1",
-                    linestyle=":",
-                    linewidth=1,
-                    label=f"+{frac * 100:.0f}%",
-                )
-
-        ax.set_xlabel("Weekly spend")
-        ax.set_ylabel("Response (scaled target units)")
-        ax.set_title(f"Saturation Curve \u2014 {channel}")
-        ax.legend(fontsize=8)
-
-        fig.tight_layout()
-        return fig, ax
 
     def plot_adstock_ramp(
         self,
         max_weeks: int = 16,
         colors: dict[str, str] | None = None,
         figsize: tuple[float, float] | None = None,
-    ) -> tuple[Figure, plt.Axes]:
+    ) -> tuple[Figure, Axes]:
         """Plot adstock ramp fraction vs. experiment duration.
 
         One line per channel showing how quickly the effect approaches
@@ -1207,46 +982,12 @@ class ExperimentDesigner:
         -------
         tuple[Figure, Axes]
         """
-        if colors is None:
-            colors = {ch: f"C{i}" for i, ch in enumerate(self.channel_columns)}
-        if figsize is None:
-            figsize = (10, 4)
-        fig, ax = plt.subplots(figsize=figsize)
-        weeks = np.arange(1, max_weeks + 1)
-
-        baselines: dict[int, np.ndarray] = {}
-        for ch in self.channel_columns:
-            c = colors[ch]
-            ch_idx = self.channel_columns.index(ch)
-            x_current = self._current_spend[ch]
-            small_delta = 0.01 * x_current
-            if small_delta <= 0:
-                continue
-
-            duration = max(max_weeks, 4 * self.l_max)
-            path = self._lift_path(ch_idx, small_delta, duration, baselines)
-            ss_per_week = path[:, -1]
-            diff = path[:, :max_weeks]
-            cumulative_lift = np.cumsum(diff, axis=1)
-
-            avg_per_week = cumulative_lift / weeks[None, :]
-            keep = np.abs(ss_per_week) > 1e-12
-            if not np.any(keep):
-                continue
-            ramp_fracs = np.clip(avg_per_week[keep] / ss_per_week[keep, None], 0, 1)
-
-            mean_ramp = ramp_fracs.mean(axis=0)
-            low = np.percentile(ramp_fracs, 5.5, axis=0)
-            high = np.percentile(ramp_fracs, 94.5, axis=0)
-
-            ax.plot(weeks, mean_ramp, color=c, label=ch)
-            ax.fill_between(weeks, low, high, color=c, alpha=0.15)
-
-        ax.set_xlabel("Experiment Duration (weeks)")
-        ax.set_ylabel("Adstock Ramp Fraction")
-        ax.set_title("Adstock Ramp-up by Channel")
-        ax.legend(fontsize=8)
-        ax.set_ylim(0, 1.05)
-
-        fig.tight_layout()
-        return fig, ax
+        return _plotting.plot_adstock_ramp(
+            self.channel_columns,
+            self._current_spend,
+            self.l_max,
+            self._lift_path,
+            max_weeks,
+            colors,
+            figsize,
+        )
