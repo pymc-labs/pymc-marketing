@@ -15,6 +15,7 @@
 
 import copy
 import gc
+import itertools
 import json
 import logging
 import math
@@ -69,10 +70,15 @@ from pymc_marketing.mmm.counterfactual import (
 )
 from pymc_marketing.mmm.estimand_label import EstimandLabel
 from pymc_marketing.mmm.incrementality import (
+    CurrentFuture,
     IdentityLinkReducer,
     Incrementality,
     IncrementalReducer,
     LogLinkReducer,
+    PeriodBand,
+    PeriodCurrentFuture,
+    PeriodTotal,
+    ReadoutContext,
     kernel_trailing_lags,
 )
 from pymc_marketing.mmm.link import LinkFunction
@@ -104,6 +110,7 @@ from tests.mmm.conftest import (
     mock_fit,
 )
 from tests.mmm.conftest import seed as fit_seed
+from tests.mmm.test_counterfactual import eval_mask
 from tests.mmm.test_spend_reach import (
     assert_identical_statistics,
     effective_l_max,
@@ -1708,6 +1715,30 @@ class TestIncrementalReducers:
 
         expected = 4.0 * np.expm1(0.5) + 8.0 * np.expm1(0.25)
         np.testing.assert_allclose(result.values, [[expected]])
+
+    @pytest.mark.parametrize(
+        "call",
+        [
+            lambda inc: inc.compute_incremental_contribution(frequency="all_time"),
+            lambda inc: inc.split_incremental_contribution_over_time(
+                frequency="original"
+            ),
+        ],
+        ids=["total", "band"],
+    )
+    def test_a_dim_the_reducer_brings_in_is_refused(
+        self, simple_fitted_mmm, monkeypatch, call
+    ):
+        """The increment is laid out by name, so an unexpected dim raises instead of riding along."""
+        real = IdentityLinkReducer.per_date_increment
+
+        def with_extra_dim(self, delta, **kwargs):
+            return real(self, delta, **kwargs).expand_dims(extra=2)
+
+        monkeypatch.setattr(IdentityLinkReducer, "per_date_increment", with_extra_dim)
+
+        with pytest.raises(ValueError, match="extra"):
+            call(simple_fitted_mmm.incrementality)
 
     def test_log_reducer_zero_perturbation_gives_zero(self):
         """No change in the linear predictor means no incremental response."""
@@ -6739,10 +6770,9 @@ class TestKernelTrailingLags:
             kernel_trailing_lags(4, "Sideways")
 
 
-def _band(values, dates, observed=None):
-    """One period's band: one chain, draw and channel, NaN where unobserved."""
+def _band(values, dates):
+    """One period's band: one chain, draw and channel."""
     values = np.asarray(values, dtype=float)
-    observed = np.isfinite(values) if observed is None else np.asarray(observed)
     return xr.DataArray(
         values.reshape(1, 1, -1, 1),
         dims=("chain", "draw", "realization_date", "channel"),
@@ -6752,7 +6782,7 @@ def _band(values, dates, observed=None):
             "realization_date": pd.DatetimeIndex(dates),
             "channel": ["c"],
         },
-    ).assign_coords(observed=("realization_date", observed))
+    )
 
 
 class TestSplitIncrementalContributionHelpers:
@@ -6925,20 +6955,39 @@ class TestSplitIncrementalContributionHelpers:
         with pytest.raises(ValueError, match="full date axis"):
             Incrementality._check_reach_supports_split(reach, lags=0)
 
+    def _split(self, band, *, start, end, lags, dates, tail_lags):
+        """Split *band* through :class:`PeriodCurrentFuture`, in one block."""
+        window = EvaluationWindows.build(
+            periods=[(start, end)],
+            dates=dates,
+            l_max=tail_lags,
+            freq_offset=self.WEEKLY,
+        ).windows[0]
+        context = ReadoutContext(
+            dates=dates, reported_order={}, tail_lags=tail_lags, freq_offset=self.WEEKLY
+        )
+        readout = PeriodCurrentFuture(lags)
+        return readout.finish_period(
+            readout.reduce_block(band, window=window, context=context),
+            window=window,
+            context=context,
+        )
+
     @pytest.mark.parametrize(
         "lags, current, future",
         [(0, 1.0, 14.0), (1, 3.0, 12.0), (3, 15.0, 0.0)],
     )
-    def test_split_band_counts_lags_after_the_period_end(self, lags, current, future):
+    def test_split_counts_lags_after_the_period_end(self, lags, current, future):
         """Spend on one date: current is lags ``0 .. lags``, future the rest."""
         band = _band([1.0, 2.0, 4.0, 8.0], self.WEEKS[:4])
 
-        got_current, got_future, complete = Incrementality._split_band(
+        got_current, got_future, complete = self._split(
             band,
             start=self.WEEKS[0],
             end=self.WEEKS[0],
             lags=lags,
-            freq_offset=self.WEEKLY,
+            dates=self.WEEKS,
+            tail_lags=3,
         )
 
         assert float(got_current.squeeze()) == current
@@ -6955,25 +7004,27 @@ class TestSplitIncrementalContributionHelpers:
             (3, np.nan, 0.0),
         ],
     )
-    def test_split_band_does_not_sum_an_unobserved_date_as_zero(
-        self, lags, current, future
-    ):
-        """A ``NaN`` date makes the sum it falls in ``NaN``, and the band incomplete."""
-        band = _band([1.0, 2.0, 4.0, np.nan], self.WEEKS[:4])
+    def test_split_does_not_sum_an_unobserved_date_as_zero(self, lags, current, future):
+        """A tail date makes the sum it falls in ``NaN``, and the split incomplete.
 
-        got_current, got_future, complete = Incrementality._split_band(
+        The data ends on the third week, and the carryover reaches the fourth.
+        """
+        band = _band([1.0, 2.0, 4.0], self.WEEKS[:3])
+
+        got_current, got_future, complete = self._split(
             band,
             start=self.WEEKS[0],
             end=self.WEEKS[0],
             lags=lags,
-            freq_offset=self.WEEKLY,
+            dates=self.WEEKS[:3],
+            tail_lags=3,
         )
 
         np.testing.assert_equal(float(got_current.squeeze()), current)
         np.testing.assert_equal(float(got_future.squeeze()), future)
         assert not complete
 
-    def test_split_band_keeps_a_period_end_off_the_data_frequency(self):
+    def test_split_keeps_a_period_end_off_the_data_frequency(self):
         """A month ending mid-week keeps the next Sunday out of its current window.
 
         ``2023-01-31`` plus zero ``W-SUN`` periods rolls forward to
@@ -6982,12 +7033,13 @@ class TestSplitIncrementalContributionHelpers:
         """
         band = _band([1.0, 1.0, 1.0, 1.0, 1.0, 10.0], self.WEEKS)
 
-        current, future, _ = Incrementality._split_band(
+        current, future, _ = self._split(
             band,
             start=pd.Timestamp("2023-01-01"),
             end=pd.Timestamp("2023-01-31"),
             lags=0,
-            freq_offset=self.WEEKLY,
+            dates=self.WEEKS,
+            tail_lags=1,
         )
 
         assert float(current.squeeze()) == 5.0
@@ -7056,6 +7108,369 @@ class TestSplitIncrementalContributionHelpers:
         assert result.coords["spend_date"].values == np.datetime64("2023-04-02")
         assert result.coords["period_start"].values == np.datetime64("2023-01-01")
         assert bool(result.coords["complete"])
+
+
+def _split_joined_band(band, *, start, end, lags, freq_offset):
+    """Split one period's joined band as the split did before it had a readout.
+
+    The reference :class:`PeriodCurrentFuture` is checked against: the band
+    over every sample block, extended by its unobserved tail, summed over the
+    current and the future window.  Neither sum skips ``NaN``.
+    """
+    current_end = Incrementality._current_window_end(
+        end, lags=lags, freq_offset=freq_offset
+    )
+    realization = band.indexes["realization_date"]
+    in_current = (realization >= start) & (realization <= current_end)
+    current = band.isel(realization_date=in_current).sum(
+        "realization_date", skipna=False
+    )
+    future = band.isel(realization_date=realization > current_end).sum(
+        "realization_date", skipna=False
+    )
+    return current, future, bool(band.coords["observed"].all())
+
+
+def _period_band(values, dates, *, chains=1, draws=1, channel=True):
+    """One period of one block: ``(chain, draw, realization_date, [channel,] geo)``.
+
+    *values* are per date; every chain, draw, channel and geo gets them scaled
+    by its own factor, so a mix-up between entries would show.
+    """
+    values = np.asarray(values, dtype=float)
+    n_channels = 2 if channel else 1
+    factors = np.arange(1, chains * draws * n_channels * 2 + 1, dtype=float).reshape(
+        chains, draws, 1, n_channels, 2
+    )
+    band = xr.DataArray(
+        values.reshape(1, 1, -1, 1, 1) * factors,
+        dims=("chain", "draw", "realization_date", "channel", "geo"),
+        coords={
+            "chain": np.arange(chains),
+            "draw": np.arange(draws),
+            "realization_date": pd.DatetimeIndex(dates),
+            "channel": ["c0", "c1"][:n_channels],
+            "geo": ["g0", "g1"],
+        },
+    )
+    return band if channel else band.squeeze("channel", drop=True)
+
+
+class TestReduceMove:
+    """Each readout hands the reducer the change, and ``base`` only when given."""
+
+    DATES = pd.date_range("2023-01-01", periods=6, freq="W-SUN")
+
+    @pytest.fixture
+    def delta(self):
+        return xr.DataArray(
+            np.arange(6.0).reshape(2, 3) / 10,
+            dims=("sample", "date"),
+            coords={"date": self.DATES[:3]},
+        )
+
+    def test_a_total_sums_and_a_band_keeps_the_dates(self, delta):
+        reducer = IdentityLinkReducer(scale=2.0)
+
+        total = PeriodTotal().reduce_move(reducer, delta)
+
+        assert total.dims == ("sample",)
+        np.testing.assert_allclose(
+            total.values, [2.0 * (0.0 + 0.1 + 0.2), 2.0 * (0.3 + 0.4 + 0.5)]
+        )
+        for readout in (PeriodBand(), PeriodCurrentFuture(0)):
+            xr.testing.assert_identical(
+                readout.reduce_move(reducer, delta), reducer.per_date_increment(delta)
+            )
+
+    @pytest.mark.parametrize("readout", [PeriodTotal(), PeriodBand()], ids=type)
+    def test_base_reaches_the_reducer(self, readout, delta):
+        """The mediated path is reduced on top of the move a direct effect keeps."""
+        rng = np.random.default_rng(0)
+        reducer = LogLinkReducer(
+            baseline_response=xr.DataArray(
+                rng.uniform(1, 2, size=(2, 5)),
+                dims=("sample", "date"),
+                coords={"date": self.DATES[:5]},
+            )
+        )
+        base = delta * 0.5
+
+        got = readout.reduce_move(reducer, delta, base=base)
+
+        expected = (
+            reducer.counterfactual_minus_baseline(delta, base=base)
+            if isinstance(readout, PeriodTotal)
+            else reducer.per_date_increment(delta, base=base)
+        )
+        xr.testing.assert_identical(got, expected)
+        assert not np.allclose(got, readout.reduce_move(reducer, delta), rtol=1e-3), (
+            "base changed nothing, so the test cannot tell it was passed"
+        )
+
+    @pytest.mark.parametrize("readout", [PeriodTotal(), PeriodBand()], ids=type)
+    def test_no_base_keyword_without_a_base(self, readout, delta):
+        """A reducer written before ``base`` existed still answers a total."""
+
+        class Legacy(IdentityLinkReducer):
+            def per_date_increment(self, delta):
+                return super().per_date_increment(delta)
+
+            def counterfactual_minus_baseline(self, delta):
+                return self.per_date_increment(delta).sum("date")
+
+        xr.testing.assert_identical(
+            readout.reduce_move(Legacy(scale=2.0), delta),
+            readout.reduce_move(IdentityLinkReducer(scale=2.0), delta),
+        )
+
+
+class TestPeriodReadouts:
+    """Each readout keeps what its output reads, and only that.
+
+    Synthetic bands, no model.  The reference for the current and future split
+    is what the split computed before it had a readout: the band joined over
+    every block, extended by its unobserved tail and put in the reported
+    order, then :func:`_split_joined_band`.
+    """
+
+    DATES = pd.date_range("2023-01-01", periods=6, freq="W-SUN")
+    WEEKLY = pd.tseries.frequencies.to_offset("W-SUN")
+    # The reported order of ``geo`` differs from the order the increment
+    # arrives in, as it can for a reloaded model.
+    CONTEXT = ReadoutContext(
+        dates=DATES,
+        reported_order={"geo": np.array(["g1", "g0"])},
+        tail_lags=3,
+        freq_offset=WEEKLY,
+    )
+
+    @pytest.fixture
+    def windows(self):
+        # Week 1 lands inside the data; week 4 lands on weeks 4 to 7, and the
+        # data ends at week 5, so weeks 6 and 7 are an unobserved tail.
+        return EvaluationWindows.build(
+            periods=[(self.DATES[1], self.DATES[1]), (self.DATES[4], self.DATES[4])],
+            dates=self.DATES,
+            l_max=3,
+            freq_offset=self.WEEKLY,
+        )
+
+    def _reference(self, band, window, lags):
+        joined = Incrementality._append_unobserved_tail(
+            band,
+            window=window,
+            dates=self.DATES,
+            tail_lags=self.CONTEXT.tail_lags,
+            freq_offset=self.WEEKLY,
+        ).sel(self.CONTEXT.reported_order)
+        return _split_joined_band(
+            joined,
+            start=window.start,
+            end=window.end,
+            lags=lags,
+            freq_offset=self.WEEKLY,
+        )
+
+    def _read(self, readout, band, window, *, n_blocks):
+        """Reduce *band* in *n_blocks* blocks of draws per chain, join them, and finish.
+
+        The blocks come chain by chain, as the evaluator yields them.
+        """
+        edges = np.linspace(0, band.sizes["draw"], n_blocks + 1).astype(int)
+        parts = [
+            (
+                {"chain": slice(chain, chain + 1), "draw": slice(start, stop)},
+                readout.reduce_block(
+                    band.isel(chain=[chain], draw=slice(start, stop)),
+                    window=window,
+                    context=self.CONTEXT,
+                ),
+            )
+            for chain in range(band.sizes["chain"])
+            for start, stop in itertools.pairwise(edges)
+        ]
+        return readout.finish_period(
+            Incrementality._join_sample_blocks(parts),
+            window=window,
+            context=self.CONTEXT,
+        )
+
+    @pytest.mark.parametrize(
+        "start, end, tail_lags, expected",
+        [
+            # The carryover ends inside the data.
+            ("2023-01-08", "2023-01-08", 3, []),
+            # Three weeks after 2023-01-29, past the data's end on 2023-02-05.
+            ("2023-01-29", "2023-01-29", 3, ["2023-02-12", "2023-02-19"]),
+            # A month end off the data frequency counts from its last spend date.
+            ("2023-01-01", "2023-01-31", 3, ["2023-02-12", "2023-02-19"]),
+            # No fitted spend date in the period.
+            ("2023-03-01", "2023-03-31", 3, []),
+            # No carryover past the last fitted date.
+            ("2023-02-05", "2023-02-05", 0, []),
+        ],
+        ids=["inside", "past-the-end", "month-end", "no-spend", "no-lags"],
+    )
+    def test_tail_dates(self, start, end, tail_lags, expected):
+        """The dates past the fitted axis, up to the last spend date plus the lags."""
+        window = EvaluationWindows.build(
+            periods=[(pd.Timestamp(start), pd.Timestamp(end))],
+            dates=self.DATES,
+            l_max=tail_lags,
+            freq_offset=self.WEEKLY,
+        ).windows[0]
+
+        tail = Incrementality._tail_dates(
+            window=window,
+            dates=self.DATES,
+            tail_lags=tail_lags,
+            freq_offset=self.WEEKLY,
+        )
+
+        assert list(tail) == list(pd.DatetimeIndex(expected))
+
+    def test_in_reported_order_selects_only_the_dims_a_result_has(self):
+        """A mediator's movement can lack a custom dim the model has."""
+        context = ReadoutContext(
+            dates=self.DATES,
+            reported_order={
+                "geo": np.array(["g1", "g0"]),
+                "brand": np.array(["b1", "b0"]),
+            },
+            tail_lags=0,
+            freq_offset=self.WEEKLY,
+        )
+        movement = xr.DataArray(
+            [1.0, 2.0], dims="geo", coords={"geo": ["g0", "g1"]}, name="movement"
+        )
+
+        result = context.in_reported_order(movement)
+
+        xr.testing.assert_identical(result, movement.sel(geo=["g1", "g0"]))
+
+    @pytest.mark.parametrize("channel", [True, False], ids=["per-channel", "joint"])
+    @pytest.mark.parametrize("n_chains, n_blocks", [(1, 1), (1, 2), (2, 2)])
+    @pytest.mark.parametrize("lags", [0, 1, 2, 3])
+    @pytest.mark.parametrize("period", [0, 1])
+    def test_current_future_matches_splitting_the_joined_band(
+        self, windows, period, lags, n_chains, n_blocks, channel
+    ):
+        """The same sums, ``NaN`` where an unobserved date falls, and ``complete``.
+
+        For the period near the end: with ``lags=0`` the tail is future, so
+        future is ``NaN`` and current is not; with ``lags=2`` the tail
+        straddles both; with ``lags=3`` it is all current and future sums
+        nothing.
+        """
+        window = windows.windows[period]
+        band = _period_band(
+            np.arange(1.0, len(window.eval_dates) + 1),
+            window.eval_dates,
+            chains=n_chains,
+            draws=4,
+            channel=channel,
+        )
+        expected_current, expected_future, expected_complete = self._reference(
+            band, window, lags
+        )
+
+        result = self._read(PeriodCurrentFuture(lags), band, window, n_blocks=n_blocks)
+
+        assert isinstance(result, CurrentFuture)
+        xr.testing.assert_identical(result.current, expected_current.rename("current"))
+        xr.testing.assert_identical(result.future, expected_future.rename("future"))
+        assert result.complete is expected_complete
+        assert result.complete is (period == 0)
+
+    def test_the_tail_makes_a_sum_nan(self, windows):
+        """An unobserved date is not summed as zero, on whichever side it falls."""
+        window = windows.windows[1]
+        band = _period_band([1.0, 2.0], window.eval_dates)
+
+        current, future, _ = self._read(
+            PeriodCurrentFuture(0), band, window, n_blocks=1
+        )
+        assert np.isfinite(current).all()
+        assert np.isnan(future).all()
+
+        current, future, _ = self._read(
+            PeriodCurrentFuture(3), band, window, n_blocks=1
+        )
+        assert np.isnan(current).all()
+        assert (future == 0).all()
+
+    def test_a_month_end_off_the_data_frequency_keeps_the_tail_future(self):
+        """The Sunday after a month end is future, even when it is in the tail.
+
+        The data ends on 2023-01-29 and January ends on Tuesday 2023-01-31, so
+        the tail starts on 2023-02-05.  ``2023-01-31`` plus zero ``W-SUN``
+        periods rolls forward to that Sunday; with ``lags=0`` the tail must
+        stay future and leave January's current value finite.
+        """
+        dates = self.DATES[:5]
+        context = ReadoutContext(
+            dates=dates,
+            reported_order={"geo": np.array(["g1", "g0"])},
+            tail_lags=3,
+            freq_offset=self.WEEKLY,
+        )
+        window = EvaluationWindows.build(
+            periods=[(pd.Timestamp("2023-01-01"), pd.Timestamp("2023-01-31"))],
+            dates=dates,
+            l_max=3,
+            freq_offset=self.WEEKLY,
+        ).windows[0]
+        band = _period_band(np.arange(1.0, 6.0), window.eval_dates)
+        readout = PeriodCurrentFuture(0)
+
+        current, future, complete = readout.finish_period(
+            readout.reduce_block(band, window=window, context=context),
+            window=window,
+            context=context,
+        )
+
+        xr.testing.assert_identical(
+            current,
+            band.sum("realization_date").sel(context.reported_order).rename("current"),
+        )
+        assert np.isnan(future).all()
+        assert complete is False
+
+    @pytest.mark.parametrize("n_chains, n_blocks", [(1, 1), (1, 2), (2, 2)])
+    def test_band_appends_its_tail_in_the_reported_order(
+        self, windows, n_chains, n_blocks
+    ):
+        """A band joined over blocks, extended by its tail, as callers see it."""
+        window = windows.windows[1]
+        band = _period_band([1.0, 2.0], window.eval_dates, chains=n_chains, draws=4)
+
+        result = self._read(PeriodBand(), band, window, n_blocks=n_blocks)
+
+        np.testing.assert_array_equal(result["geo"], ["g1", "g0"])
+        np.testing.assert_array_equal(
+            result.coords["observed"], [True, True, False, False]
+        )
+        xr.testing.assert_identical(
+            result.sel(realization_date=window.eval_dates).drop_vars("observed"),
+            band.sel(self.CONTEXT.reported_order),
+        )
+
+    def test_total_is_labelled_by_the_period_end(self, windows):
+        """A total gets a length-one ``date``, the period's end."""
+        window = windows.windows[0]
+        total = _period_band([1.0, 2.0], window.eval_dates[:2], draws=2).sum(
+            "realization_date"
+        )
+
+        result = self._read(PeriodTotal(), total, window, n_blocks=2)
+
+        assert result.sizes["date"] == 1
+        assert pd.Timestamp(result["date"].values[0]) == window.end
+        xr.testing.assert_identical(
+            result.squeeze("date", drop=True),
+            total.sel(self.CONTEXT.reported_order),
+        )
 
 
 def _three_draws_per_block(monkeypatch):
@@ -9505,3 +9920,119 @@ def test_the_paths_of_a_panel_model_match_holding_its_hubs(panel_hubs_fitted_mmm
     for path in ("total", "direct", "mediated"):
         assert_matches(parts[path], expected[path])
     assert float(np.abs(parts["mediated"]).max()) > 0
+
+
+class TestPathDeltas:
+    """The change in the linear predictor, one node and one column at a time.
+
+    Synthetic arrays, no model.  The change is read through the window's
+    slices; the reference differences every node over the evaluation masks in
+    full, then keeps a ``channel_contribution`` column or sums the channels.
+    """
+
+    DATES = pd.date_range("2023-01-01", periods=6, freq="W-SUN")
+    N_SAMPLES = 3
+    GEOS = ["g0", "g1"]
+    CHANNELS = ["c0", "c1", "c2"]
+    # The channel axis is not the first non-date axis, so reading a column has
+    # to find it.
+    NON_DATE_DIMS = {
+        "channel_contribution": ("geo", "channel"),
+        "effect_contribution": ("geo",),
+        "mu": ("geo",),
+    }
+
+    @pytest.fixture
+    def windows(self):
+        return EvaluationWindows.build(
+            periods=[(self.DATES[0], self.DATES[1]), (self.DATES[3], self.DATES[4])],
+            dates=self.DATES,
+            l_max=2,
+            freq_offset=pd.tseries.frequencies.to_offset("W-SUN"),
+        )
+
+    @pytest.fixture
+    def arrays(self, windows):
+        rng = np.random.default_rng(0)
+        sizes = {"geo": len(self.GEOS), "channel": len(self.CHANNELS)}
+        counterfactual, baseline = {}, {}
+        for name, dims in self.NON_DATE_DIMS.items():
+            shape = tuple(sizes[dim] for dim in dims)
+            counterfactual[name] = rng.normal(
+                size=(2 * len(windows), self.N_SAMPLES, windows.max_window, *shape)
+            )
+            baseline[name] = rng.normal(size=(self.N_SAMPLES, len(self.DATES), *shape))
+        return counterfactual, baseline
+
+    def _reference(
+        self, counterfactual, baseline, row, window, mask, channel, effects, held
+    ):
+        def delta(name):
+            dims = self.NON_DATE_DIMS[name]
+            return xr.DataArray(
+                counterfactual[name][row][:, mask] - baseline[name][:, window.in_eval],
+                dims=("sample", "date", *dims),
+                coords={
+                    "date": window.eval_dates,
+                    "geo": self.GEOS,
+                    **({"channel": self.CHANNELS} if "channel" in dims else {}),
+                },
+            )
+
+        contribution = delta("channel_contribution")
+        kept = (
+            contribution.sum(dim="channel")
+            if channel is None
+            else contribution.isel(channel=channel, drop=True)
+        )
+        released = None
+        for name in effects:
+            if name in held:
+                released = delta(name) if released is None else released + delta(name)
+            else:
+                kept = kept + delta(name)
+        return kept, released
+
+    @pytest.mark.parametrize(
+        "effects, held",
+        [
+            ((), ()),
+            (("effect_contribution",), ()),
+            (("effect_contribution",), ("effect_contribution",)),
+        ],
+        ids=["no-effect", "effect", "held-effect"],
+    )
+    @pytest.mark.parametrize("channel", [None, 0, 2])
+    def test_matches_differencing_every_node_in_full(
+        self, windows, arrays, channel, effects, held
+    ):
+        """Bitwise the same change, column read or channels summed, held or kept."""
+        counterfactual, baseline = arrays
+
+        for period_idx, window in enumerate(windows.windows):
+            row = 2 * period_idx + 1
+            mask = eval_mask(window, windows.max_window)
+            got = Incrementality._path_deltas(
+                row=row,
+                cf_slice=window.window_eval_slice,
+                window_dates=window.eval_dates,
+                baseline={
+                    name: values[:, window.eval_slice]
+                    for name, values in baseline.items()
+                },
+                counterfactual=counterfactual,
+                non_date_dims=self.NON_DATE_DIMS,
+                coords={"geo": np.array(self.GEOS), "channel": np.array(self.CHANNELS)},
+                effect_names=effects,
+                channel=channel,
+                held_terms=held,
+            )
+            kept, released = self._reference(
+                counterfactual, baseline, row, window, mask, channel, effects, held
+            )
+
+            xr.testing.assert_identical(got.kept, kept)
+            if released is None:
+                assert got.released is None
+            else:
+                xr.testing.assert_identical(got.released, released)
