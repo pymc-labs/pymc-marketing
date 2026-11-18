@@ -25,6 +25,7 @@
   plot
   pytensor_utils
   r2d2
+  reweighting
   serialization
   serialization_migration
   special_priors
