@@ -102,6 +102,7 @@ from pymc_marketing.serialization import serialization
 from tests.mmm.conftest import (
     FUNNEL_L_MAX,
     FunnelEffect,
+    GlobalNormalizationEffect,
     NegativeEffect,
     _build_funnel_mmm,
     _build_simple_effect_mmm,
@@ -113,6 +114,7 @@ from tests.mmm.conftest import seed as fit_seed
 from tests.mmm.test_counterfactual import eval_mask
 from tests.mmm.test_spend_reach import (
     assert_identical_statistics,
+    build_spend_probe,
     effective_l_max,
     measure_reach,
     measure_spend_reach,
@@ -9404,6 +9406,107 @@ class TestIncrementalMediator:
         assert not bool(matrix.coords["observed"].all())
         notes = json.loads(matrix.attrs["warnings"])
         assert not any("could not bound" in note for note in notes)
+
+    def test_a_full_axis_split_keeps_the_lags_the_probe_bounded(self, funnel_mmm_data):
+        """Where the probe cannot bound the reach, the tail keeps the lags it did bound.
+
+        ``Before`` with ``l_max=3`` moves dates before the spend, so
+        ``channel_contribution`` is full-axis and no horizon is reported.  The
+        probe still bounds the funnel effect's reach, 4 lags after the
+        spend.  The tail past the data is those 4 lags, not the kernel's 0
+        trailing lags under ``Before``.
+        """
+        mmm = _build_funnel_mmm(
+            funnel_mmm_data, link="identity", l_max=3, adstock_mode=ConvMode.Before
+        )
+        reach = measure_reach(mmm)
+        assert reach["channel_contribution"].requires_full_axis
+        assert not reach["funnel_effect_contribution"].requires_full_axis
+        tail = reach["funnel_effect_contribution"].max_lag
+        assert tail == 4
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            matrix = mmm.incrementality.split_incremental_contribution_over_time(
+                frequency="monthly"
+            )
+
+        dates = mmm.incrementality.data.dates
+        assert json.loads(matrix.attrs["assumptions"])["evaluation"] == "full_axis"
+        assert "effective_horizon" not in matrix.attrs
+        observed = matrix.coords["observed"]
+        # June's last spend is the last fitted date, so all 4 lags are past it.
+        assert int((~observed.isel(spend_date=-1)).sum()) == tail
+        last = pd.Timestamp(matrix.realization_date.values[-1])
+        assert last == dates[-1] + pd.Timedelta(weeks=tail)
+        assert bool(matrix.where(~observed).isnull().all())
+        notes = json.loads(matrix.attrs["warnings"])
+        assert any("runs past the end" in note for note in notes)
+
+    def test_a_full_axis_node_does_not_set_the_tail(self, funnel_mmm_data):
+        """A node whose reach the probe could not bound is left out of the tail.
+
+        The global effect normalizes over the whole axis, so its lag only says
+        the axis ended first.  The funnel effect stops 4 lags after the spend,
+        past the kernel's 2 trailing lags, and those 4 lags set the tail.
+        """
+        mmm = _build_funnel_mmm(
+            funnel_mmm_data,
+            link="identity",
+            effects=[_funnel_effect(), GlobalNormalizationEffect(prefix="global")],
+        )
+        reach = measure_reach(mmm)
+        assert reach["global_effect_contribution"].requires_full_axis
+        assert not reach["funnel_effect_contribution"].requires_full_axis
+        assert reach["funnel_effect_contribution"].max_lag == 4
+        assert mmm.adstock.l_max - 1 == 2
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            matrix = mmm.incrementality.split_incremental_contribution_over_time(
+                frequency="original"
+            )
+
+        observed = matrix.coords["observed"]
+        assert int((~observed.isel(spend_date=-1)).sum()) == 4
+
+    def test_a_date_reduction_that_stops_moving_early_does_not_set_the_tail(
+        self, funnel_mmm_data
+    ):
+        """A node that reduces over ``date`` is no carryover bound, even short of the end.
+
+        With no spend in the last 6 weeks, normalizing spend by its date-mean
+        moves nothing there, so the effect's last moved date falls short of the
+        axis end.  That lag is not carryover, so the tail stays the kernel's 2
+        trailing lags past the last date.
+        """
+        X_df = funnel_mmm_data["X_df"].copy()
+        X_df.loc[X_df.index[-6:], ["channel_1", "channel_2"]] = 0.0
+        mmm = _build_simple_effect_mmm(
+            {**funnel_mmm_data, "X_df": X_df},
+            GlobalNormalizationEffect(prefix="global"),
+            link="identity",
+        )
+        probe, _, effects = build_spend_probe(mmm)
+        (probe_index,) = probe.probe_indices
+        reach = probe.measure(
+            effects=effects,
+            l_max=mmm.adstock.l_max,
+            trailing_lags=kernel_trailing_lags(mmm.adstock.l_max, mmm.adstock.mode),
+        ).measured["global_effect_contribution"]
+        assert reach.requires_full_axis
+        # The last date the effect moves is before the last fitted date.
+        assert probe_index + reach.max_lag < len(X_df) - 1
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            matrix = mmm.incrementality.split_incremental_contribution_over_time(
+                frequency="original"
+            )
+
+        tail = mmm.adstock.l_max - 1
+        assert tail == 2
+        assert matrix.sizes["realization_date"] == len(X_df) + tail
 
     def test_where_no_probe_can_be_placed_the_declarations_mark(
         self, no_probe_funnel_mmm
