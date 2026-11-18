@@ -9410,9 +9410,9 @@ class TestIncrementalMediator:
         """Where the probe cannot bound the reach, the tail keeps the lags it did bound.
 
         ``Before`` with ``l_max=3`` moves dates before the spend, so
-        ``channel_contribution`` is full-axis and no horizon is reported.  It
-        still stops moving at the spend date, and the funnel effect stops 4 lags
-        after it.  The tail past the data is those 4 lags, not the kernel's 0
+        ``channel_contribution`` is full-axis and no horizon is reported.  The
+        probe still bounds the funnel effect on a window, 4 lags after the
+        spend.  The tail past the data is those 4 lags, not the kernel's 0
         trailing lags under ``Before``.
         """
         mmm = _build_funnel_mmm(
@@ -9420,9 +9420,8 @@ class TestIncrementalMediator:
         )
         reach = measure_reach(mmm)
         assert reach["channel_contribution"].requires_full_axis
-        assert not reach["channel_contribution"].reaches_axis_end
-        assert not any(node.reaches_axis_end for node in reach.values())
-        tail = max(node.max_lag for node in reach.values())
+        assert not reach["funnel_effect_contribution"].requires_full_axis
+        tail = reach["funnel_effect_contribution"].max_lag
         assert tail == 4
 
         with warnings.catch_warnings():
@@ -9443,10 +9442,8 @@ class TestIncrementalMediator:
         notes = json.loads(matrix.attrs["warnings"])
         assert any("runs past the end" in note for note in notes)
 
-    def test_a_node_moving_at_the_last_date_does_not_set_the_tail(
-        self, funnel_mmm_data
-    ):
-        """A node still moving at the last date is left out of the full-axis tail.
+    def test_a_full_axis_node_does_not_set_the_tail(self, funnel_mmm_data):
+        """A node the probe could not bound on a window is left out of the tail.
 
         The global effect normalizes over the whole axis, so its lag only says
         the axis ended first.  The funnel effect stops 4 lags after the spend,
@@ -9458,8 +9455,8 @@ class TestIncrementalMediator:
             effects=[_funnel_effect(), GlobalNormalizationEffect(prefix="global")],
         )
         reach = measure_reach(mmm)
-        assert reach["global_effect_contribution"].reaches_axis_end
-        assert not reach["funnel_effect_contribution"].reaches_axis_end
+        assert reach["global_effect_contribution"].requires_full_axis
+        assert not reach["funnel_effect_contribution"].requires_full_axis
         assert reach["funnel_effect_contribution"].max_lag == 4
         assert mmm.adstock.l_max - 1 == 2
 
@@ -9471,6 +9468,37 @@ class TestIncrementalMediator:
 
         observed = matrix.coords["observed"]
         assert int((~observed.isel(spend_date=-1)).sum()) == 4
+
+    def test_a_date_reduction_that_stops_moving_early_does_not_set_the_tail(
+        self, funnel_mmm_data
+    ):
+        """A node that reduces over ``date`` is no carryover bound, even short of the end.
+
+        With no spend in the last 6 weeks, normalizing spend by its date-mean
+        moves nothing there, so the effect's last moved date falls short of the
+        axis end.  That lag is not carryover, so the tail stays the kernel's 2
+        trailing lags past the last date.
+        """
+        X_df = funnel_mmm_data["X_df"].copy()
+        X_df.loc[X_df.index[-6:], ["channel_1", "channel_2"]] = 0.0
+        mmm = _build_simple_effect_mmm(
+            {**funnel_mmm_data, "X_df": X_df},
+            GlobalNormalizationEffect(prefix="global"),
+            link="identity",
+        )
+        reach = measure_reach(mmm)["global_effect_contribution"]
+        assert reach.requires_full_axis
+        assert reach.max_lag < len(X_df) - 1 - 1
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            matrix = mmm.incrementality.split_incremental_contribution_over_time(
+                frequency="original"
+            )
+
+        tail = mmm.adstock.l_max - 1
+        assert tail == 2
+        assert matrix.sizes["realization_date"] == len(X_df) + tail
 
     def test_where_no_probe_can_be_placed_the_declarations_mark(
         self, no_probe_funnel_mmm
