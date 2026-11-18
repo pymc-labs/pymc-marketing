@@ -171,6 +171,14 @@ class TestInitFromMMM:
         with pytest.raises(NotImplementedError, match="time-invariant media"):
             ExperimentDesigner(fitted_mmm)
 
+    @pytest.mark.parametrize("mode", ["Before", "Overlap"])
+    def test_nontrailing_adstock_rejected(self, fitted_mmm, monkeypatch, mode):
+        from pymc_marketing.mmm.transformers import ConvMode
+
+        monkeypatch.setattr(fitted_mmm.adstock, "mode", ConvMode(mode))
+        with pytest.raises(NotImplementedError, match="trailing adstock"):
+            ExperimentDesigner(fitted_mmm)
+
     def test_mismatched_observations_raise(self, fitted_mmm, monkeypatch):
         idata = fitted_mmm.idata.copy()
         idata["observed_data"] = idata.observed_data.dataset.isel(date=slice(1, None))

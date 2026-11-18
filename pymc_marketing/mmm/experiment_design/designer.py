@@ -48,6 +48,7 @@ from pymc_marketing.mmm.experiment_design.recommendation import (
     ExperimentRecommendations,
     _format_rationale,
 )
+from pymc_marketing.mmm.transformers import ConvMode
 from pymc_marketing.names.mmm import Dim, Var
 
 if TYPE_CHECKING:
@@ -70,7 +71,7 @@ class ExperimentDesigner:
 
     The designer uses the model's own computational graph (via
     ``extract_response_distribution``) to evaluate channel contributions,
-    so it works with any adstock/saturation combination automatically.
+    with trailing adstock applied before saturation.
 
     .. note::
 
@@ -86,9 +87,10 @@ class ExperimentDesigner:
     Parameters
     ----------
     mmm : MMM
-        A fitted national-level MMM with an identity link and time-invariant
-        media effects. Spend changes and costs use the units supplied to the
-        MMM. Lift and measurement noise use the MMM's scaled target units.
+        A fitted national-level MMM with an identity link, time-invariant
+        media effects, and trailing adstock. Spend changes and costs use the
+        units supplied to the MMM. Lift and measurement noise use the MMM's
+        scaled target units.
     spend_lookback : int
         Number of most recent observations used to estimate current spend.
         If the fit has fewer observations, all are used.
@@ -99,7 +101,8 @@ class ExperimentDesigner:
         If the MMM has not been fitted.
     NotImplementedError
         If the model includes panel dimensions, a non-identity link,
-        time-varying media effects, or ``adstock_first=False``.
+        time-varying media effects, non-trailing adstock, or
+        ``adstock_first=False``.
 
     Examples
     --------
@@ -133,6 +136,10 @@ class ExperimentDesigner:
         if mmm.time_varying_media:
             raise NotImplementedError(
                 "ExperimentDesigner requires time-invariant media effects."
+            )
+        if mmm.adstock.mode != ConvMode.After:
+            raise NotImplementedError(
+                "ExperimentDesigner requires trailing adstock (ConvMode.After)."
             )
         if spend_lookback < 1:
             raise ValueError("spend_lookback must be positive.")
