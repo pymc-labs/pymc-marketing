@@ -35,6 +35,7 @@ from pymc_marketing.mmm.plotting._helpers import (
     _select_dims,
 )
 from pymc_marketing.mmm.summary.helpers import compute_channel_shares
+from pymc_marketing.names.mmm import Dim
 
 
 class DecompositionPlots:
@@ -208,7 +209,7 @@ class DecompositionPlots:
 
         if "channels" in contributions_ds:
             ch_da = contributions_ds["channels"]
-            for ch in ch_da.coords["channel"].values:
+            for ch in ch_da.coords[Dim.CHANNEL].values:
                 entries_ds[f"channel={ch}"] = _select_dims(
                     ch_da.sel(channel=ch), dims, allow_missing=True
                 )
@@ -222,7 +223,7 @@ class DecompositionPlots:
             ctrl_da = contributions_ds["controls"]
             # sum over the control dim → single time-series
             entries_ds["controls"] = _select_dims(
-                ctrl_da.sum(dim="control"), dims, allow_missing=True
+                ctrl_da.sum(dim=Dim.CONTROL), dims, allow_missing=True
             )
 
         if "seasonality" in contributions_ds:
@@ -303,15 +304,15 @@ class DecompositionPlots:
 
         for ds_key, coord_dim in [
             ("baseline", None),
-            ("channels", "channel"),
-            ("controls", "control"),
+            ("channels", Dim.CHANNEL),
+            ("controls", Dim.CONTROL),
             ("seasonality", None),
         ]:
             if ds_key not in contributions_ds:
                 continue
             da = _select_dims(contributions_ds[ds_key], dims, allow_missing=True)
             # mean over whichever of chain/draw/date are present (baseline has no date dim)
-            mean_dims = [d for d in ("chain", "draw", "date") if d in da.dims]
+            mean_dims = [d for d in ("chain", "draw", Dim.DATE) if d in da.dims]
             if coord_dim is not None:
                 for val in da.coords[coord_dim].values:
                     entries.append(

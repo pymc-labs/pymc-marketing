@@ -57,6 +57,7 @@ from pymc_marketing.mlflow import (
     log_versions,
 )
 from pymc_marketing.mmm import MMM, GeometricAdstock, LogisticSaturation
+from pymc_marketing.mmm.mmm import _calibration_frame_to_record
 from pymc_marketing.version import __version__
 
 seed = sum(map(ord, "mlflow-with-pymc"))
@@ -1113,6 +1114,30 @@ def test_load_mmm_replaces_a_stale_zarr_download(fitted_mmm_run, tmp_path) -> No
     assert not (stale / "leftover.txt").exists()
 
 
+@pytest.mark.parametrize(
+    "affected, artifact, artifact_uri, warns",
+    [
+        (True, "idata.zarr", "mlflow-artifacts:/1/abc/artifacts", True),
+        (True, "idata.zarr", "https://host/api/2.0/mlflow-artifacts/1/abc", True),
+        (True, "idata.zarr", "file:///tmp/mlruns/1/abc/artifacts", False),
+        (True, "idata.nc", "mlflow-artifacts:/1/abc/artifacts", False),
+        (False, "idata.zarr", "mlflow-artifacts:/1/abc/artifacts", False),
+    ],
+    ids=["proxied", "http", "local", "netcdf", "fixed-mlflow"],
+)
+def test_warns_when_zarr_download_may_drop_chunks(
+    mocker, recwarn, affected, artifact, artifact_uri, warns
+) -> None:
+    mocker.patch.object(pmm_mlflow, "_MLFLOW_PROXY_DROPS_ZARR_CHUNKS", affected)
+    get_run = mocker.patch.object(pmm_mlflow.mlflow, "get_run")
+    get_run.return_value.info.artifact_uri = artifact_uri
+
+    pmm_mlflow._warn_if_zarr_download_may_drop_chunks("run", artifact)
+
+    matching = [w for w in recwarn if "mlflow/mlflow#27189" in str(w.message)]
+    assert len(matching) == int(warns)
+
+
 @pytest.mark.parametrize("idata_format", ["netcdf", "zarr"], indirect=True)
 def test_load_mmm_from_run_accepts_a_custom_artifact_name(
     idata_format, mmm, toy_X, toy_y, tmp_path
@@ -1695,3 +1720,52 @@ def test_mlflow_docstrings_have_no_removed_methods(doc_source):
     """
     assert doc_source is not None
     assert "plot_components_contributions" not in doc_source
+
+
+# One record in the format `MMM.add_cost_per_target_calibration` writes; the
+# spend itself lives in the `cost_per_target_spend` group, not in attrs.
+_COST_PER_TARGET_RECORDS = json.dumps(
+    [
+        {
+            "format_version": 2,
+            "name_prefix": "cpt_calibration",
+            "target_column": "cost_per_target",
+            "target_per_cost": False,
+            "central_tendency": "mean",
+            "likelihood": {"dist": "Normal"},
+            "spend_var": "cpt_calibration",
+            **_calibration_frame_to_record(
+                pd.DataFrame(
+                    {
+                        "channel": ["channel_1", "channel_2"],
+                        "cost_per_target": [30.0, 45.0],
+                        "sigma": [2.0, 3.0],
+                    }
+                )
+            ),
+        }
+    ]
+)
+
+
+@pytest.mark.parametrize(
+    "records", ["[]", _COST_PER_TARGET_RECORDS], ids=["empty", "record"]
+)
+def test_log_mmm_configuration_cost_per_target_artifact(mmm, mocker, records):
+    mocker.patch.object(
+        mmm,
+        "create_idata_attrs",
+        return_value={
+            "model_config": "{}",
+            "cost_per_target_calibrations": records,
+        },
+    )
+    log_params = mocker.patch.object(pmm_mlflow.mlflow, "log_params")
+    mocker.patch.object(pmm_mlflow.mlflow, "log_param")
+    log_text = mocker.patch.object(pmm_mlflow.mlflow, "log_text")
+    pmm_mlflow.log_mmm_configuration(mmm)
+    log_params.assert_called_once_with({"model_config": "{}"})
+    if records == "[]":
+        log_text.assert_not_called()
+    else:
+        log_text.assert_called_once_with(records, "cost_per_target_calibrations.json")

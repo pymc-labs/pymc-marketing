@@ -27,7 +27,12 @@ from pytensor.graph.traversal import ancestors
 from pytensor.xtensor import as_xtensor
 from scipy.optimize import approx_fprime
 
-from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation, PowerPriceResponse
+from pymc_marketing.mmm import (
+    GeometricAdstock,
+    LogisticSaturation,
+    PowerPriceResponse,
+    TieredPriceResponse,
+)
 from pymc_marketing.mmm.additive_effect import LinearTrendEffect, MuEffect
 from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer, BuildMergedModel
 from pymc_marketing.mmm.linear_trend import LinearTrend
@@ -2768,6 +2773,33 @@ class TestMonetarySpendVariables:
                 price_response={"channel_data": PowerPriceResponse(elasticity=0.0)},
             )
 
+    def test_a_schedule_on_a_spend_variable_settles_on_its_breakpoint(
+        self, funnel_identity_fitted_mmm
+    ):
+        """A spend variable's bounds cannot be set, so a commitment on one is held by the
+        schedule alone: decided over date alone, its one cell comes back on the breakpoint
+        and its report prices the next unit at the incremental rate in every period."""
+        mmm = funnel_identity_fitted_mmm
+        base = self._optimizer(mmm, spend_vars=["lf_budget"]).allocate_budget(
+            total_budget=self.TOTAL
+        )
+        breakpoint_ = 0.85 * float(base.spend_var_allocations["lf_budget"])
+        optimizer = self._optimizer(
+            mmm,
+            spend_vars=["lf_budget"],
+            price_response={
+                "channel_data": TieredPriceResponse(rate_multipliers=[1.0]),
+                "lf_budget": TieredPriceResponse(
+                    breakpoints=[breakpoint_], rate_multipliers=[1.0, 1.8]
+                ),
+            },
+        )
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+        assert result.scipy_result.success, result.scipy_result.message
+        assert float(result.spend_var_allocations["lf_budget"]) == breakpoint_
+        marginal = result.delivery_reports["lf_budget"]["implied_marginal_price"]
+        np.testing.assert_allclose(marginal, 1.8, rtol=1e-12)
+
     def test_a_curved_spend_variable_needs_the_attestation_then_a_reference(
         self, funnel_identity_fitted_mmm
     ):
@@ -2815,6 +2847,163 @@ class TestMonetarySpendVariables:
         assert np.isfinite(result.spend_var_allocations["lf_budget"]).all()
         spent = result.budgets > 0
         assert np.all(result.implied_price.where(spent).fillna(1.0) == 1.0)
+
+    def test_every_priced_variable_reports_on_the_result(
+        self, funnel_identity_fitted_mmm
+    ):
+        """The issue's acceptance, end to end: with spend_vars and a price_response dict,
+        every priced decision variable has a labelled report on the result, over its own
+        dims, satisfying the money identity without a special case for media. The spend
+        variable reads its own elasticity, not media's."""
+        gamma = 0.2
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm,
+            spend_vars=["lf_budget"],
+            price_response={
+                "channel_data": PowerPriceResponse(elasticity=0.0),
+                "lf_budget": PowerPriceResponse(
+                    elasticity=gamma,
+                    assume_delivery_units=True,
+                    reference_spend=xr.DataArray(1.0),
+                ),
+            },
+        )
+
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+
+        assert result.scipy_result.success, result.scipy_result.message
+        reports = result.delivery_reports
+        assert list(reports) == ["channel_data", "lf_budget"]
+        assert reports["lf_budget"].implied_price.dims == ("date",)
+        allocations = {"channel_data": result.budgets, **result.spend_var_allocations}
+        for name, report in reports.items():
+            paid = xr.where(
+                report.implied_price.isnull(),
+                0.0,
+                report.implied_delivery * report.implied_price,
+            )
+            xr.testing.assert_allclose(paid.sum("date"), report.spend.sum("date"))
+            xr.testing.assert_allclose(
+                report.spend.sum("date"), allocations[name] * optimizer.num_periods
+            )
+        spend = reports["lf_budget"]
+        np.testing.assert_allclose(
+            (spend.implied_marginal_price / spend.implied_price).values,
+            1 / (1 - gamma),
+        )
+
+    def test_an_unspent_spend_variable_reports_nan_prices(
+        self, funnel_identity_fitted_mmm, monkeypatch
+    ):
+        """A spend variable held at zero bought nothing, so its report has zero
+        delivery and nan prices, the same convention as an unspent media cell."""
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm,
+            spend_vars=["lf_budget"],
+            price_response={
+                "channel_data": PowerPriceResponse(elasticity=0.0),
+                "lf_budget": PowerPriceResponse(
+                    elasticity=0.2,
+                    assume_delivery_units=True,
+                    reference_spend=xr.DataArray(1.0),
+                ),
+            },
+        )
+        (spend,) = (
+            variable
+            for variable in optimizer.optimization_variables.variables
+            if variable.name == "lf_budget"
+        )
+        # allocate_budget takes bounds for media only; pin the spend variable here.
+        monkeypatch.setattr(
+            spend, "default_bounds", lambda total: [(0.0, 0.0)] * spend.size
+        )
+
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+
+        assert result.scipy_result.success, result.scipy_result.message
+        np.testing.assert_allclose(
+            result.spend_var_allocations["lf_budget"], 0.0, atol=1e-9
+        )
+        report = result.delivery_reports["lf_budget"]
+        np.testing.assert_allclose(report["implied_delivery"], 0.0, atol=1e-9)
+        assert report["implied_price"].isnull().all()
+        assert report["implied_marginal_price"].isnull().all()
+
+    def test_delivery_reports_at_a_plan_follow_its_labels(
+        self, funnel_identity_fitted_mmm
+    ):
+        """The solution, written in the opposite channel order, reports exactly as the
+        result does: the plan is aligned by label, not read by position."""
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm,
+            spend_vars=["lf_budget"],
+            price_response={
+                "channel_data": PowerPriceResponse(elasticity=0.0),
+                "lf_budget": PowerPriceResponse(
+                    elasticity=0.2,
+                    assume_delivery_units=True,
+                    reference_spend=xr.DataArray(1.0),
+                ),
+            },
+        )
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+        assert result.scipy_result.success, result.scipy_result.message
+        media = result.budgets.values
+        assert not np.allclose(media, media[::-1]), (
+            "fixture drifted: reversing equal budgets would not test alignment"
+        )
+
+        reports = optimizer.delivery_reports(
+            {
+                "channel_data": result.budgets.isel(channel=slice(None, None, -1)),
+                **result.spend_var_allocations,
+            }
+        )
+
+        assert list(reports) == list(result.delivery_reports)
+        for name, report in reports.items():
+            xr.testing.assert_allclose(report, result.delivery_reports[name])
+
+    def test_a_plan_spending_negative_money_is_refused(
+        self, funnel_identity_fitted_mmm
+    ):
+        """Negative money buys nothing, so its report would not add up: delivery times
+        price sums to zero against a negative spend. A rounding error below zero, as a
+        plan read off a solution can carry, is still reported."""
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm,
+            spend_vars=["lf_budget"],
+            price_response={
+                "channel_data": PowerPriceResponse(elasticity=0.0),
+                "lf_budget": PowerPriceResponse(
+                    elasticity=0.2,
+                    assume_delivery_units=True,
+                    reference_spend=xr.DataArray(1.0),
+                ),
+            },
+        )
+        variables = optimizer.optimization_variables
+        plan = variables.unpack(variables.x0(self.TOTAL))
+
+        with pytest.raises(ValueError, match="negative money on 'lf_budget'"):
+            optimizer.delivery_reports({**plan, "lf_budget": -plan["lf_budget"]})
+
+        report = optimizer.delivery_reports(
+            {**plan, "lf_budget": xr.DataArray(-1e-15)}
+        )["lf_budget"]
+        assert report["implied_price"].isnull().all()
+
+    def test_no_price_response_means_no_delivery_reports(
+        self, funnel_identity_fitted_mmm
+    ):
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm, spend_vars=["lf_budget"]
+        )
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+        assert result.delivery_reports == {}
+        plan = {"channel_data": result.budgets, **result.spend_var_allocations}
+        assert optimizer.delivery_reports(plan) == {}
 
     def test_an_identity_spend_variable_response_needs_nothing(
         self, funnel_identity_fitted_mmm
@@ -3105,3 +3294,48 @@ class TestControlData:
 
         xr.testing.assert_allclose(zeros, default)
         assert not np.allclose(raised.values, zeros.values)
+
+
+def test_a_dict_schedule_reaches_every_geo(dummy_df, fitted_mmm):
+    """A dict keyed by channel gives the same breakpoint to that channel in every geo,
+    and each geo's cell is settled on its own. A warning about such a cell names it by
+    its geo and its channel."""
+    _, X_dummy, _ = dummy_df
+    start = X_dummy["date_week"].max() + pd.Timedelta(weeks=1)
+    end = X_dummy["date_week"].max() + pd.Timedelta(weeks=10)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        base = fitted_mmm.budget_optimizer(start, end).allocate_budget(total_budget=1.0)
+        level = float(base.budgets.sel(channel="channel_1").mean())
+        schedule = TieredPriceResponse(
+            breakpoints={"channel_1": [level]},
+            rate_multipliers={"channel_1": [1.0, 3.0]},
+        )
+        optimizer = fitted_mmm.budget_optimizer(start, end, price_response=schedule)
+        result = optimizer.allocate_budget(total_budget=1.0)
+    media = optimizer.optimization_variables.variables[0]
+    edges = xr.DataArray(
+        media.price_response.edges[0], dims=media.dims, coords=media.coords
+    )
+    assert (edges.sel(channel="channel_1") == level).all()
+    assert edges.sel(channel="channel_2").isnull().all()
+    assert result.scipy_result.success
+    channel_1 = result.budgets.sel(channel="channel_1").values
+    assert (channel_1 == level).any(), "fixture drifted"
+    near = np.abs(channel_1 / level - 1.0) < 1e-6
+    np.testing.assert_array_equal(channel_1[near], level)
+    upper = xr.DataArray(
+        [level / 2, 1.0], dims="channel", coords={"channel": ["channel_1", "channel_2"]}
+    ).broadcast_like(result.budgets)
+    bounds = xr.concat([xr.zeros_like(upper), upper], dim="bound").assign_coords(
+        bound=["lower", "upper"]
+    )
+    with pytest.warns(UserWarning, match="every breakpoint is above") as record:
+        optimizer.allocate_budget(
+            total_budget=1.0, budget_bounds=bounds, return_if_fail=True
+        )
+    message = next(
+        str(w.message) for w in record if "every breakpoint" in str(w.message)
+    )
+    first_capped = next(cell for cell in media.flat_labels() if "channel_1" in cell)
+    assert f"{first_capped} (breakpoint" in message

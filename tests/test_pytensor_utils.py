@@ -42,6 +42,7 @@ from pymc_marketing.pytensor_utils import (
     _prefix_model,
     align_posterior_dim,
     aligned_posterior,
+    blocked_between,
     check_aligned_dims,
     check_aligned_shape,
     extract_response_distribution,
@@ -727,6 +728,35 @@ def test_extract_response_distribution_accepts_several_variables():
         extract_response_distribution(model, idata, [])
 
 
+def test_extract_response_distribution_keeps_a_variable_no_parameter_reaches():
+    """A variable computed from data alone extracts next to one that reads a parameter.
+
+    It has no posterior draws to vectorize over, so it comes back without a
+    ``sample`` dimension, as it does when it is asked for on its own.  An
+    index built from spend with no coefficient is such a variable.
+    """
+    data_values = np.array([1.0, 2.0, 3.0])
+    with pm.Model(coords={"d": [0, 1, 2]}) as model:
+        data = pmd.Data("data", data_values, dims="d")
+        slope = pmd.Normal("slope", mu=0.0, sigma=1.0)
+        pmd.Deterministic("scaled", data * slope)
+        pmd.Deterministic("index", pmd.math.tanh(data))
+
+    with model:
+        prior = pm.sample_prior_predictive(draws=4, random_seed=42)
+    idata = xr.DataTree.from_dict({"/posterior": prior["/prior"].to_dataset()})
+
+    alone = extract_response_distribution(model, idata, "index")
+    scaled, index = extract_response_distribution(model, idata, ["scaled", "index"])
+
+    assert index.type.dims == alone.type.dims == ("d",)
+    assert scaled.type.dims == ("sample", "d")
+    scaled_values, index_values = function([], [scaled, index])()
+    np.testing.assert_allclose(index_values, np.tanh(data_values))
+    drawn = prior["/prior"].to_dataset()["slope"].values.reshape(-1)
+    np.testing.assert_allclose(scaled_values, np.outer(drawn, data_values))
+
+
 def _channel_layout(dims=("channel",), *, shape=(2,), coords=None):
     return VariableLayout(
         dims=dims,
@@ -1003,6 +1033,75 @@ def test_needed_posterior_names_stops_at_a_frozen_deterministic():
     )
 
     assert sorted(names) == ["gamma", "scaled"]
+
+
+def _spend_path_model() -> pm.Model:
+    """``spend`` reaches the responses directly and through three kinds of variable.
+
+    ``latent`` is a free random variable, ``held`` a deterministic that may be
+    frozen and ``measured`` an observed random variable.  ``offset`` is upstream
+    of ``resp`` without being downstream of ``spend``, and ``aside`` is downstream
+    of ``spend`` without feeding a response.
+    """
+    with pm.Model(coords={"date": [0, 1, 2]}) as model:
+        spend = pmd.Data("spend", np.ones(3), dims="date")
+        offset = pmd.Normal("offset")
+        latent = pmd.Normal("latent", mu=spend, sigma=1.0)
+        pmd.Normal("aside", mu=spend, sigma=1.0)
+        measured = pmd.Normal(
+            "measured",
+            mu=spend,
+            sigma=1.0,
+            observed=xr.DataArray(np.zeros(3), dims="date"),
+        )
+        held = pmd.Deterministic("held", 2.0 * spend)
+        pmd.Deterministic("resp", offset + latent + held + spend)
+        pmd.Deterministic("resp_measured", measured + spend)
+    return model
+
+
+@pytest.mark.parametrize(
+    "targets, frozen, expected",
+    [
+        pytest.param(["resp"], (), ["latent"], id="a random variable on the path"),
+        pytest.param(
+            ["resp"],
+            ("held", "missing"),
+            ["latent", "held"],
+            id="a frozen deterministic, once it is named",
+        ),
+        pytest.param(
+            ["resp_measured"], (), ["measured"], id="an observed variable on the path"
+        ),
+        pytest.param(["latent"], (), ["latent"], id="a target that is itself held"),
+        pytest.param(["held"], ("held",), ["held"], id="a target that is frozen"),
+        pytest.param(
+            ["resp", "resp_measured", "latent"],
+            ("held", "held"),
+            ["latent", "measured", "held"],
+            id="several targets, each variable once",
+        ),
+    ],
+)
+def test_blocked_between_lists_what_conditioning_holds_fixed_on_the_path(
+    targets, frozen, expected
+):
+    """Only what is downstream of the source and upstream of, or among, the targets.
+
+    ``offset`` and ``aside`` are held fixed too, and neither is ever listed: the
+    first does not depend on ``spend`` and the second feeds no target.  A frozen
+    name the model does not have is ignored.
+    """
+    model = _spend_path_model()
+
+    blocked = blocked_between(
+        model,
+        model["spend"],
+        [model[name] for name in targets],
+        frozen_deterministics=frozen,
+    )
+
+    assert [var.name for var in blocked] == expected
 
 
 def test_reorder_to_model_coords_puts_a_matching_label_set_in_the_model_order():
@@ -1336,6 +1435,89 @@ def test_shared_posterior_realigns_permuted_multi_dim_variables():
     )
     shared_posterior.set_posterior(permuted)
     np.testing.assert_allclose(fn(), 2.0 * (10.0 + values)[None])
+
+
+def _stacked_model_and_draws(*, seed, reordered=False):
+    """A ``date`` x ``channel`` model and a stacked posterior to condition on.
+
+    The posterior has 2 chains, 5 draws, 4 dates and 3 channels, so no bound
+    array is C-contiguous by accident of a toy shape.  ``reordered`` reverses
+    the channel labels and stores ``lam`` as ``(chain, draw, channel, date)``,
+    so binding it against the model, or binding the plain posterior against
+    its layout, moves labels and axes for real.  ``beta`` is over ``channel``
+    alone; both variables are bound by ``resp``.
+    """
+    dates, channels = 4, 3
+    channel_labels = [f"channel{index}" for index in range(channels)]
+    with pm.Model(
+        coords={"date": np.arange(dates), "channel": channel_labels}
+    ) as model:
+        beta = pmd.Normal("beta", dims="channel")
+        lam = pmd.Normal("lam", dims=("date", "channel"))
+        pmd.Deterministic("resp", beta * lam)
+    rng = np.random.default_rng(seed)
+    lam_dims = ("channel", "date") if reordered else ("date", "channel")
+    sizes = {"date": dates, "channel": channels}
+    idata = xr.Dataset(
+        {
+            "beta": (
+                ("chain", "draw", "channel"),
+                rng.normal(size=(2, 5, channels)),
+            ),
+            "lam": (
+                ("chain", "draw", *lam_dims),
+                rng.normal(size=(2, 5, *(sizes[dim] for dim in lam_dims))),
+            ),
+        },
+        coords={
+            "date": np.arange(dates),
+            "channel": channel_labels[::-1] if reordered else channel_labels,
+        },
+    )
+    return model, idata
+
+
+def _bound_array_flags(shared_posterior):
+    """The ``(C_CONTIGUOUS, OWNDATA)`` flags of every array it holds."""
+    flags = {
+        name: var.get_value(borrow=True).flags
+        for name, var in shared_posterior.variables.items()
+    }
+    return {name: (f["C_CONTIGUOUS"], f["OWNDATA"]) for name, f in flags.items()}
+
+
+@pytest.mark.parametrize("through_conditioned_model", [False, True])
+def test_rebind_keeps_the_built_array_layout(through_conditioned_model):
+    """The build and a rebind both bind C-contiguous draws the variable owns.
+
+    Realigning labels or axes leaves a non-C-contiguous array, and the numba
+    linker keys its signatures on the array layout, so a bare ``astype``
+    would compile a second version of the graph on the first rebind.
+    ``ConditionedModel`` realigns the reordered posterior to the model on the
+    build, and both paths realign the plain one to the bound layout on the
+    rebind, so neither relies on ``sel`` running when the labels already
+    match.  Owning the arrays keeps ``set_value(borrow=True)`` from aliasing
+    the caller's draws.
+    """
+    model, idata = _stacked_model_and_draws(seed=0, reordered=True)
+    if through_conditioned_model:
+        conditioned = ConditionedModel(model, idata)
+        conditioned.extract("resp")
+        shared_posterior = conditioned.shared_posterior
+        rebind = conditioned.set_posterior
+    else:
+        shared_posterior = SharedPosterior()
+        extract_response_distribution(
+            model, idata, "resp", shared_posterior=shared_posterior
+        )
+        rebind = shared_posterior.set_posterior
+
+    owned_c_contiguous = {"beta": (True, True), "lam": (True, True)}
+    assert _bound_array_flags(shared_posterior) == owned_c_contiguous
+
+    rebind(_stacked_model_and_draws(seed=1)[1])
+
+    assert _bound_array_flags(shared_posterior) == owned_c_contiguous
 
 
 def test_shared_posterior_mixed_type_labels_raise_value_error():
@@ -2731,3 +2913,31 @@ def test_conditioned_model_takes_a_variable_missing_at_construction_as_given():
     # Once read, it is bound like any other variable and follows a rebind.
     conditioned.set_posterior(_channel_posterior([1.0, 2.0], gamma=[5.0, 6.0]))
     np.testing.assert_allclose(fn(), [[50.0, 120.0]])
+
+
+def test_conditioned_model_names_a_missing_variable_the_same_at_extraction_and_rebind():
+    """A posterior lacking a variable a graph reads raises one ``KeyError``.
+
+    The message is the same whether the variable is missing when the graph is
+    extracted or when a later posterior is bound, so a caller handles one error.
+    """
+    model, spend = _channel_conditioned_model()
+    message = "Posterior is missing variables this graph reads: ['gamma']"
+
+    thinned = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+    with pytest.raises(KeyError) as at_extraction:
+        thinned.extract("resp_g")
+
+    bound = ConditionedModel(
+        model,
+        _channel_posterior([1.0, 2.0], gamma=[3.0, 4.0]),
+        intervention={"spend": spend},
+    )
+    bound.extract("resp_g")
+    with pytest.raises(KeyError) as at_rebind:
+        bound.set_posterior(_channel_posterior([1.0, 2.0]))
+
+    assert at_extraction.value.args == (message,)
+    assert at_rebind.value.args == (message,)

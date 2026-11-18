@@ -241,19 +241,15 @@ class BetaGeoBetaBinomRV(RandomVariable):
             active = True
             recency = 0
 
-            while t_x <= T and active:
+            # Simulate opportunities 1, ..., T; recency stays 0 without purchases.
+            while t_x < T and active:
                 t_x += 1
                 active = rng.binomial(1, churn_prob)
                 purchase = rng.binomial(1, purchase_prob)
                 if active and purchase:
                     recency = t_x
                     x += 1
-            return np.array(
-                [
-                    recency if x > 0 else T,
-                    x,
-                ],
-            )
+            return np.array([recency, x])
 
         for index in np.ndindex(*size):
             output[index] = sim_data(purchase_prob[index], churn_prob[index], T[index])
@@ -311,8 +307,13 @@ class BetaGeoBetaBinom(Discrete):
         # Broadcast all the parameters so they are sequences.
         # Potentially inefficient, but otherwise ugly logic needed to unpack arguments in the scan function,
         # since sequences always precede non-sequences.
-        t_x, alpha, beta, gamma, delta, T = pt.broadcast_arrays(
-            t_x, alpha, beta, gamma, delta, T
+        # `x` must be broadcast too: it comes from `value`, whose length may
+        # differ from the parameter batch. If it keeps a shorter length (e.g. a
+        # single customer against a batch of parameter draws), `scan` truncates
+        # to the shortest sequence and the logp silently computes over a
+        # prefix of the data (see #2919).
+        t_x, x, alpha, beta, gamma, delta, T = pt.broadcast_arrays(
+            t_x, x, alpha, beta, gamma, delta, T
         )
 
         def logp_customer_died(t_x_i, x_i, alpha_i, beta_i, gamma_i, delta_i, T_i):
