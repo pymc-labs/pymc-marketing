@@ -23,6 +23,7 @@ import pytest
 import xarray as xr
 from pydantic import ValidationError
 from pymc_extras.prior import Censored, Prior, Scaled
+from pytensor.xtensor import as_xtensor
 from scipy import stats
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation, LogSaturation
@@ -1663,12 +1664,27 @@ class TestMeanScaleFactor:
                 Censored(Prior("LogNormal", sigma=1), upper=1.0),
             )
 
-    @pytest.mark.parametrize("nu", [1, pt.constant(1.0)])
+    @pytest.mark.parametrize("nu", [1, pt.constant(1.0), pt.constant(0.4) + 0.4])
     def test_studentt_at_or_below_one_refuses(self, nu):
         with pytest.raises(ValueError, match="no mean when nu <= 1"):
             IdentityLinkSpec().mean_scale_factor(
                 self._posterior(), Prior("StudentT", nu=nu, sigma=1)
             )
+
+    @pytest.mark.parametrize(
+        "nu",
+        [pt.constant(1.25) + 1.25, as_xtensor([2.0, 3.0], dims=("geo",)) + 1.0],
+    )
+    def test_studentt_with_fixed_nu_expression(self, nu):
+        factor = IdentityLinkSpec().mean_scale_factor(
+            self._posterior(), Prior("StudentT", nu=nu, sigma=1)
+        )
+        assert float(factor) == 1.0
+
+    def test_studentt_with_unresolved_symbolic_nu(self):
+        likelihood = Prior("StudentT", nu=pt.dscalar("symbolic_nu") + 2.0, sigma=1)
+        with pytest.raises(ValueError, match="Cannot verify the StudentT mean"):
+            IdentityLinkSpec().mean_scale_factor(self._posterior(), likelihood)
 
     def test_unknown_likelihood_warns(self):
         with pytest.warns(UserWarning, match="No mean correction is known"):
