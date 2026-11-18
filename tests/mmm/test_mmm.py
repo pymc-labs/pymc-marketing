@@ -3980,18 +3980,27 @@ def test_mmm_with_events(
 
     assert "holiday_total_effect" in mmm.posterior
     assert "another_event_type_total_effect" in mmm.posterior
-    # The name each effect reports is the one it registered (#3357)
-    assert [effect.contribution_var_name for effect in mmm.mu_effects] == [
-        "holiday_total_effect",
-        "another_event_type_total_effect",
-    ]
-    assert not mmm._effects_carry_media_response()
+    # Each effect names the contribution it registered (#3357)
+    for effect in mmm.mu_effects:
+        assert effect.contribution_var_name in mmm.posterior
+
+    # Events are not downstream of the channel data, so the default objective
+    # does not warn that a mu_effect carries media response
+    start_date = X["date"].max() + pd.Timedelta(weeks=1)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", message=".*routes part of the media response")
+        mmm.budget_optimizer(start_date, start_date + pd.Timedelta(weeks=2))
+
     with warnings.catch_warnings():
         warnings.filterwarnings("error", message=".*was not found in the posterior")
         decomposition = mmm.compute_counterfactual_contributions_dataset()
     assert {"holiday_total_effect", "another_event_type_total_effect"} <= set(
         decomposition.data_vars
     )
+    # Under the identity link the parts add up to the linear predictor
+    total = decomposition.to_dataarray().sum("variable")
+    expected = mmm.posterior["mu"] * mmm.idata.constant_data["target_scale"]
+    xr.testing.assert_allclose(total.transpose(*expected.dims), expected)
 
     kwargs = dict(
         extend_idata=False,
