@@ -105,6 +105,7 @@ import pytensor.xtensor.math as ptx
 from pymc_extras.deserialize import deserialize, register_deserialization
 from pymc_extras.prior import Prior
 
+from pymc_marketing.names import Key
 from pymc_marketing.serialization import serialization
 
 
@@ -549,7 +550,7 @@ for _cls in (R2D2Split, R2D2Sigma, R2D2):
     register_deserialization(
         is_type=lambda d, _c=_cls: (
             isinstance(d, dict)
-            and d.get("__type__") == f"pymc_marketing.r2d2.{_c.__name__}"
+            and d.get(Key.TYPE) == f"pymc_marketing.r2d2.{_c.__name__}"
         ),
         deserialize=_r2d2_deserializer,
     )

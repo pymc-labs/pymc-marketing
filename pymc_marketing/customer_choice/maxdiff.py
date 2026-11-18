@@ -37,6 +37,7 @@ from pymc_extras.prior import Prior
 
 from pymc_marketing.model_builder import ModelBuilder, SamplingMethod
 from pymc_marketing.model_config import parse_model_config
+from pymc_marketing.names import Attr, Group
 from pymc_marketing.version import __version__
 
 # True negative infinity is safe as a mask sentinel: the k≥2 validation
@@ -1125,9 +1126,9 @@ class MaxDiffMixedLogit(ModelBuilder):
             "random_attributes": json.loads(attrs.get("random_attributes", "[]")),
             "item_attributes": item_attributes,
             "model_config": cls._model_config_formatting(
-                json.loads(attrs["model_config"])
+                json.loads(attrs[Attr.MODEL_CONFIG])
             ),
-            "sampler_config": json.loads(attrs["sampler_config"]),
+            "sampler_config": json.loads(attrs[Attr.SAMPLER_CONFIG]),
         }
 
     def create_fit_data_group(self) -> xr.Dataset:
@@ -1138,7 +1139,9 @@ class MaxDiffMixedLogit(ModelBuilder):
 
     def build_from_idata(self, idata: xr.DataTree) -> None:
         """Rebuild the PyMC model from a loaded DataTree."""
-        self.task_df = idata["fit_data"].dataset.to_dataframe().reset_index(drop=True)
+        self.task_df = (
+            idata[Group.FIT_DATA].dataset.to_dataframe().reset_index(drop=True)
+        )
         if not hasattr(self, "model"):
             self.build_model()
 

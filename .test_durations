@@ -3987,7 +3987,6 @@
     "tests/mmm/test_scaling.py::test_scaling_type_registered[FixedScaling]": 0.0006028569996487931,
     "tests/mmm/test_scaling.py::test_scaling_type_registered[Scaling]": 0.0006859920003989828,
     "tests/mmm/test_sensitivity_analysis.py::test_add_to_idata_internal_updates_dataset": 0.008082225999714865,
-    "tests/mmm/test_sensitivity_analysis.py::test_compute_dims_order_from_varinput_internal": 0.00544132500044725,
     "tests/mmm/test_sensitivity_analysis.py::test_compute_marginal_effects": 0.04229347799991956,
     "tests/mmm/test_sensitivity_analysis.py::test_compute_uplift_curve_respect_to_base": 0.0904224770001747,
     "tests/mmm/test_sensitivity_analysis.py::test_compute_uplift_curve_respect_to_base_array_ref": 0.05100644300046042,

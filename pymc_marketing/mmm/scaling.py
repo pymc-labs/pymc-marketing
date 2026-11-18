@@ -26,6 +26,8 @@ import pandas as pd
 import xarray as xr
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
+from pymc_marketing.names import Key
+from pymc_marketing.names.mmm import Dim
 from pymc_marketing.serialization import SerializableBaseModel, serialization
 
 _FIXED_SCALING_XARRAY_KIND = "xarray.DataArray"
@@ -38,7 +40,7 @@ def panel_channel_fixed_scaling_remaining_dims(
 ) -> tuple[str, ...]:
     """Non-date dims of channel data left after reduction over ``date`` and *scaling_dims*."""
     reduced = frozenset(scaling_dims)
-    return tuple(d for d in (*panel_dims, "channel") if d not in reduced)
+    return tuple(d for d in (*panel_dims, Dim.CHANNEL) if d not in reduced)
 
 
 def _jsonable_coord_values(values: Any) -> list[Any]:
@@ -123,7 +125,7 @@ class VariableScaling(SerializableBaseModel, ABC):
         if isinstance(self.dims, str):
             self.dims = (self.dims,)
 
-        if "date" in self.dims:
+        if Dim.DATE in self.dims:
             raise ValueError("dim 'date' is already assumed in the model.")
 
         if len(set(self.dims)) != len(self.dims):
@@ -202,6 +204,14 @@ class FixedScaling(VariableScaling):
         grid (e.g. a vector over ``country`` when the media grid is
         ``country`` × ``channel``). All values must be positive; NaNs are not
         allowed.
+
+        A ``DataArray`` is matched to the model's coordinates by label, so
+        the order of its labels and dimensions does not matter. Each of its
+        dimensions must carry coordinate labels, and every model label must
+        be present on it; dimensions without coordinates, missing labels, and
+        duplicate labels raise a ``ValueError``. Unlike the ``dict`` form,
+        labels the model does not have are ignored, so one scale table can
+        serve models fitted on different subsets of its labels.
 
     Examples
     --------
@@ -321,6 +331,9 @@ class FixedScaling(VariableScaling):
             Column name for the positive scale values.
         dim_cols
             Column names that identify the grid (order defines ``DataArray`` dims).
+            The label and dimension order of the resulting ``DataArray`` do not
+            matter, because the MMM matches its values to the model's
+            coordinates by label.
         """
         s = df.set_index(list(dim_cols))[value_col]
         if s.index.duplicated().any():
@@ -342,7 +355,7 @@ class FixedScaling(VariableScaling):
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
         """Deserialize; restores encoded :class:`xarray.DataArray` values."""
-        filtered = {k: v for k, v in data.items() if k != "__type__"}
+        filtered = {k: v for k, v in data.items() if k != Key.TYPE}
         if "value" in filtered:
             filtered["value"] = _maybe_deserialize_fixed_scaling_value(
                 filtered["value"]
@@ -403,10 +416,10 @@ def deserialize_variable_scaling(d: dict[str, Any]) -> VariableScaling:
     Legacy format (pre-class-split) uses a ``method`` field to discriminate.
     New format uses the ``__type__`` key injected by the serialization registry.
     """
-    if "__type__" in d:
+    if Key.TYPE in d:
         # Backward compatibility: historical payloads may store the abstract
         # VariableScaling class type and rely on "method" discrimination.
-        if d.get("__type__") == _LEGACY_VARIABLE_SCALING_TYPE:
+        if d.get(Key.TYPE) == _LEGACY_VARIABLE_SCALING_TYPE:
             method = d.get("method")
             dims = tuple(d.get("dims", ()))
             if method == "fixed":
@@ -478,7 +491,7 @@ class Scaling(SerializableBaseModel):
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
         """Reconstruct from a dict, dispatching nested VariableScaling via __type__."""
-        filtered = {k: v for k, v in data.items() if k != "__type__"}
+        filtered = {k: v for k, v in data.items() if k != Key.TYPE}
         for key in ("target", "channel"):
             if key in filtered and isinstance(filtered[key], dict):
                 filtered[key] = deserialize_variable_scaling(filtered[key])

@@ -36,7 +36,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        config: [ {python-version: "3.12", oldest-pymc: false}, {python-version: "3.14", oldest-pymc: true}]
+        config: [ {python-version: "3.14", oldest-pymc: false}, {python-version: "3.14", oldest-pymc: true}]
         group: [1, 2, 3, 4, 5, 6]
     steps:
       - uses: actions/checkout@v7
@@ -71,7 +71,7 @@ jobs:
         uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }} # use token for more robust uploads
-          name: ${{ matrix.config.python-version }}
+          flags: py${{ matrix.config.python-version }}${{ matrix.config.oldest-pymc && '-oldest' || '-latest' }}
           fail_ci_if_error: false
 
   test_slow:

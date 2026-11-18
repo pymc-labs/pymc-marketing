@@ -15,9 +15,9 @@
 
 from __future__ import annotations
 
-import functools
-from pathlib import Path
-from typing import Literal
+import importlib
+import warnings
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
@@ -25,48 +25,21 @@ import xarray as xr
 from numpy.random import Generator, RandomState
 
 from pymc_marketing.data.idata.schema import Frequency
+from pymc_marketing.names.mmm import Attr, Dim
+
+_MOVED_TO_IO = ("idata_to_zarr", "idata_from_zarr")
 
 
-def idata_to_zarr(
-    idata: xr.DataTree,
-    store: str | Path,
-    groups: list[str] | None = None,
-) -> None:
-    """Save a DataTree to a Zarr store.
-
-    Parameters
-    ----------
-    idata : xr.DataTree
-        The DataTree to save.
-    store : str or Path
-        Path to the Zarr store directory.
-    groups : list of str, optional
-        Groups to save. If None, all groups are saved.
-    """
-    if groups is not None:
-        attrs = idata.attrs.copy()
-        idata = idata.filter(lambda g: g.name in groups)
-        idata.attrs = attrs
-
-    idata.to_zarr(store)
-
-
-_open_datatree_zarr = functools.partial(xr.open_datatree, engine="zarr")
-
-
-def idata_from_zarr(store: str | Path) -> xr.DataTree:
-    """Load a DataTree from a Zarr store.
-
-    Parameters
-    ----------
-    store : str or Path
-        Path to the Zarr store directory written by :func:`idata_to_zarr`.
-
-    Returns
-    -------
-    xr.DataTree
-    """
-    return _open_datatree_zarr(store)
+def __getattr__(name: str) -> Any:
+    """Keep the import path used up to 1.2 working, with a warning."""
+    if name in _MOVED_TO_IO:
+        warnings.warn(
+            f"{__name__}.{name} moved to pymc_marketing.data.idata.io; update the import.",
+            FutureWarning,
+            stacklevel=2,
+        )
+        return getattr(importlib.import_module("pymc_marketing.data.idata.io"), name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def filter_idata_by_dates(
@@ -97,12 +70,12 @@ def filter_idata_by_dates(
     if start_date is None and end_date is None:
         return idata
 
-    date_slice = {"date": slice(start_date, end_date)}
+    date_slice = {Dim.DATE: slice(start_date, end_date)}
 
     filtered_groups = {}
     for name, child in idata.children.items():
         ds = child.dataset
-        if "date" in ds.dims:
+        if Dim.DATE in ds.dims:
             ds = ds.sel(**date_slice)
         filtered_groups[name] = ds
 
@@ -218,16 +191,16 @@ def _aggregate_over_time[XarrayT: (xr.Dataset, xr.DataArray)](
     xr.Dataset or xr.DataArray
         Aggregated object, of the same type as ``data``.
     """
-    if period == "original" or "date" not in data.dims:
+    if period == "original" or Dim.DATE not in data.dims:
         return data
 
     reducible = (
         data if period == "all_time" else data.resample(date=_PERIOD_RULES[period])
     )
     if method == "sum":
-        return reducible.sum(dim="date")
+        return reducible.sum(dim=Dim.DATE)
     if method == "mean":
-        return reducible.mean(dim="date")
+        return reducible.mean(dim=Dim.DATE)
     raise ValueError(f"Unknown aggregation method: {method}")
 
 
@@ -264,7 +237,7 @@ def broadcast_over_date(variable: xr.DataArray, date: xr.DataArray) -> xr.DataAr
         intercept.dims  # ("chain", "draw", "date", ...)
     """
     return variable.expand_dims(date=date).transpose(
-        *[d for d in ("chain", "draw") if d in variable.dims], "date", ...
+        *[d for d in ("chain", "draw") if d in variable.dims], Dim.DATE, ...
     )
 
 
@@ -302,14 +275,14 @@ def sum_contributions_over_time(
     xr.Dataset
         The contributions of each period.
     """
-    if period == "original" or "date" not in contributions.dims:
+    if period == "original" or Dim.DATE not in contributions.dims:
         return contributions
 
-    date = contributions["date"]
+    date = contributions[Dim.DATE]
     per_date = contributions.map(
         lambda component: (
             component
-            if "date" in component.dims
+            if Dim.DATE in component.dims
             else broadcast_over_date(component, date)
         )
     )
@@ -367,7 +340,7 @@ def aggregate_idata_time(
             if path != "/"
         }
     )
-    result.attrs = {**idata.attrs, "time_aggregation": period}
+    result.attrs = {**idata.attrs, Attr.TIME_AGGREGATION: period}
     return result
 
 
@@ -596,6 +569,11 @@ def subsample_draws(
         When subsampling occurs, returns a new Dataset with shape
         ``(chain=1, draw=num_samples)``.
 
+    Raises
+    ------
+    ValueError
+        If *num_samples* is less than 1.
+
     Examples
     --------
     >>> sub = subsample_draws(posterior, num_samples=100, random_state=42)
@@ -604,6 +582,8 @@ def subsample_draws(
     """
     if num_samples is None:
         return dataset
+    if num_samples < 1:
+        raise ValueError(f"num_samples must be at least 1, got {num_samples}.")
 
     total_samples = dataset.sizes["chain"] * dataset.sizes["draw"]
 

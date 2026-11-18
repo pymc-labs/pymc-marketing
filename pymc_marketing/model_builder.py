@@ -20,7 +20,6 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from functools import cache, wraps
 from inspect import signature
-from pathlib import Path
 from typing import Any, Literal, cast
 
 import arviz as az
@@ -37,7 +36,8 @@ from pymc_extras.deserialize import DeserializableError, deserialize
 from pymc_extras.printing import model_table
 from rich.table import Table
 
-from pymc_marketing.data.idata.utils import idata_from_zarr, idata_to_zarr
+from pymc_marketing.data.idata.io import load_idata, save_idata
+from pymc_marketing.names import Attr, Group, Key
 from pymc_marketing.version import __version__
 
 # If scikit-learn is available, use its data validator
@@ -251,11 +251,13 @@ class ModelIO:
 
         attrs: dict[str, str] = {}
 
-        attrs["id"] = self.id
-        attrs["model_type"] = self._model_type
-        attrs["version"] = self.version
-        attrs["sampler_config"] = json.dumps(self.sampler_config, default=_json_default)
-        attrs["model_config"] = json.dumps(
+        attrs[Attr.ID] = self.id
+        attrs[Attr.MODEL_TYPE] = self._model_type
+        attrs[Attr.VERSION] = self.version
+        attrs[Attr.SAMPLER_CONFIG] = json.dumps(
+            self.sampler_config, default=_json_default
+        )
+        attrs[Attr.MODEL_CONFIG] = json.dumps(
             self._serializable_model_config, default=_json_default
         )
 
@@ -299,11 +301,11 @@ class ModelIO:
         attrs = self.create_idata_attrs()
         attrs_keys = set(attrs.keys())
         required_keys = {
-            "id",
-            "model_type",
-            "version",
-            "sampler_config",
-            "model_config",
+            Attr.ID,
+            Attr.MODEL_TYPE,
+            Attr.VERSION,
+            Attr.SAMPLER_CONFIG,
+            Attr.MODEL_CONFIG,
         }
         if missing_keys := required_keys - attrs_keys:
             msg = (
@@ -334,13 +336,14 @@ class ModelIO:
         fname : str
             The name and path of the file to save the inference data with model parameters.
         **kwargs
-            Additional keyword arguments to pass to xr.DataTree.to_netcdf().
+            Keyword arguments passed to :meth:`xarray.DataTree.to_netcdf` or, for
+            a ``.zarr`` path or existing directory, :meth:`xarray.DataTree.to_zarr`.
             Common options include:
 
             - ``engine`` : str, optional (default ``"netcdf4"``)
-              Library to use for writing files.
+              Library to use for writing netCDF files.
             - ``groups`` : list of str, optional
-              Groups to save to netcdf. If None, all groups are saved.
+              Groups to save. If None, all groups are saved.
 
         Returns
         -------
@@ -377,23 +380,8 @@ class ModelIO:
 
         """
         if self.idata is not None and "posterior" in self.idata:
-            file = Path(str(fname))
             groups = kwargs.pop("groups", None)
-            idata_to_save = self.idata
-            if groups is not None:
-                groups_with_slash = {
-                    g if g.startswith("/") else f"/{g}" for g in groups
-                }
-                nodes_to_drop = [
-                    node[1:]
-                    for node in self.idata.groups
-                    if node != "/" and node not in groups_with_slash
-                ]
-                idata_to_save = self.idata.drop_nodes(nodes_to_drop)
-            if file.suffix == ".zarr" or file.is_dir():
-                idata_to_zarr(idata_to_save, file, **kwargs)
-            else:
-                idata_to_save.to_netcdf(str(file), **kwargs)
+            save_idata(self.idata, str(fname), groups=groups, **kwargs)
         else:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
 
@@ -419,7 +407,7 @@ class ModelIO:
 
         def _format(d: dict) -> dict:
             for key, value in d.items():
-                if isinstance(value, dict) and "__type__" in value:
+                if isinstance(value, dict) and Key.TYPE in value:
                     d[key] = serialization.deserialize(value)
                 # Must precede the generic dict branch: recursing first would
                 # rebuild the nested ``dist`` and leave the wrapper unreadable.
@@ -457,9 +445,9 @@ class ModelIO:
         """
         return {
             "model_config": cls._model_config_formatting(
-                json.loads(attrs["model_config"])
+                json.loads(attrs[Attr.MODEL_CONFIG])
             ),
-            "sampler_config": json.loads(attrs["sampler_config"]),
+            "sampler_config": json.loads(attrs[Attr.SAMPLER_CONFIG]),
         }
 
     @classmethod
@@ -514,11 +502,7 @@ class ModelIO:
             model = MyModel.load(file_name)
 
         """
-        filepath = Path(str(fname))
-        if filepath.suffix == ".zarr" or filepath.is_dir():
-            idata = idata_from_zarr(filepath)
-        else:
-            idata = xr.open_datatree(str(filepath))
+        idata = load_idata(str(fname))
 
         try:
             return cls.load_from_idata(idata, check=check)
@@ -564,7 +548,7 @@ class ModelIO:
         model = cls(**init_kwargs)
 
         model.idata = idata
-        if "fit_data" in idata:
+        if Group.FIT_DATA in idata:
             # TODO: Overriding method in CLVModel requires this; revise/remove for v1.0
             built = model.build_from_idata(idata)
             if built is not None:
@@ -582,7 +566,7 @@ class ModelIO:
             return model
 
         if (model_version := model.version) != (
-            loaded_version := idata.attrs["version"]
+            loaded_version := idata.attrs[Attr.VERSION]
         ):
             msg = (
                 f"The model version ({loaded_version}) in the DataTree does not "
@@ -592,7 +576,7 @@ class ModelIO:
             )
             raise DifferentModelError(msg)
 
-        if model.id != idata.attrs["id"]:
+        if model.id != idata.attrs[Attr.ID]:
             msg = (
                 "The model id in the DataTree does not match the model id. "
                 "There was no error loading the inference data, but the model may "
@@ -836,9 +820,7 @@ class ModelFitter:
 
             var_names = [var.name for var in model.free_RVs]
             idata = pm.sample(var_names=var_names, **kwargs)
-            idata["/posterior"] = pm.compute_deterministics(
-                idata["/posterior"], merge_dataset=True
-            )
+            pm.compute_deterministics(idata, extend_dataset=True)
         return idata
 
     def _fit_mcmc(self, sampler_kwargs: dict[str, Any]) -> xr.DataTree:
@@ -1112,8 +1094,8 @@ class ModelFitter:
 
         self.idata["/posterior"].attrs["pymc_marketing_version"] = __version__
 
-        if "fit_data" in self.idata.children:
-            self.idata = self.idata.drop_nodes("fit_data")
+        if Group.FIT_DATA in self.idata.children:
+            self.idata = self.idata.drop_nodes(Group.FIT_DATA)
 
         fit_data = self.create_fit_data_group()
         if fit_data is not None:
@@ -1123,7 +1105,7 @@ class ModelFitter:
                     category=UserWarning,
                     message="The group fit_data is not defined in the DataTree scheme",
                 )
-                self.idata["/fit_data"] = fit_data
+                self.idata[f"/{Group.FIT_DATA}"] = fit_data
 
         self.set_idata_attrs(self.idata)  # type: ignore[attr-defined]
         self.is_fitted_ = True
@@ -1534,7 +1516,11 @@ class RegressionModelBuilder(ModelBuilder):
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
         y: pd.Series | xr.DataArray | np.ndarray | None = None,
     ) -> tuple[Any, Any]:
-        """Check the X/y pair and fill in a placeholder target when none is given."""
+        """Check the X/y pair and fill in a placeholder target when none is given.
+
+        Subclasses may override this to accept other X/y forms; ``MMM`` does so
+        to read a target embedded in ``X``.
+        """
         if (
             isinstance(y, pd.Series)
             and isinstance(X, pd.DataFrame)

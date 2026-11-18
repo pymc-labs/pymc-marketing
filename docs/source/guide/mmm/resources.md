@@ -39,13 +39,13 @@ To add more substance to our session and ensure it's not just informative but al
 
 ## Business Cases
 
-* PyMC Labs: [Bayesian Media Mix Models: Modelling changes in marketing effectiveness over time](https://www.pymc-labs.com/blog-posts/modelling-changes-marketing-effectiveness-over-time/)
+* PyMC Labs: [Bayesian Media Mix Models: Modelling changes in marketing effectiveness over time](https://www.pymc-labs.com/blog-posts/modelling-changes-marketing-effectiveness-over-time)
 * Bolt: [Better budgeting with Bayesian models: Bolt’s story with PyMC-Marketing](https://bolt.eu/en/blog/budgeting-with-bayesian-models-pymc-marketing/)
 * Shell & Databricks: [Revolutionizing Tech Marketing: The Synergy of PyMC and Databricks](https://www.databricks.com/blog/revolutionizing-tech-marketing)
 
 ## Blogposts
 
-* PyMC Labs: [Improving the Speed and Accuracy of Bayesian Media Mix Models](https://www.pymc-labs.com/blog-posts/reducing-customer-acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget/)
+* PyMC Labs: [Improving the Speed and Accuracy of Bayesian Media Mix Models](https://www.pymc-labs.com/blog-posts/reducing-customer-acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget)
 * 1749: [Measuring Marketing Effectiveness Over the Long-Term](https://1749.io/resource-center/f/measuring-marketing-effectiveness-over-the-long-term)
 * 1749: [Marketing Mix Modeling in a Modern Era: Time-Varying Parameters](https://1749.io/resource-center/f/marketing-mix-modeling-in-a-modern-era-time-varying-parameters)
 * 1749: [A Comprehensive Guide to Marketing-Mix Modeling](https://1749.io/resource-center/f/a-comprehensive-guide-to-bayesian-marketing-mix-modeling)
