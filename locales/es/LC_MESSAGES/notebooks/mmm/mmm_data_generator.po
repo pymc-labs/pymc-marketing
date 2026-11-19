@@ -1,0 +1,467 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2026, PyMC Labs
+# This file is distributed under the same license as the PyMC-Marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyMC-Marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:10003
+#: 8b9e285dd64641b9839710815b76b41f
+msgid "Generating Synthetic MMM Data"
+msgstr "Generación de datos sintéticos de MMM"
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:10005
+#: e26595e9f75843fb87025d21b363f4ba
+#, python-brace-format
+msgid ""
+"Before trusting a Media Mix Model (MMM) on real business data, we need "
+"confidence that it can actually recover the parameters that generated the"
+" observations. **Parameter recovery** is the gold-standard validation "
+"technique: we generate synthetic data from known ground-truth values, fit"
+" the model back on that data, and check whether the posteriors "
+"concentrate around the true values. See for example the "
+"{ref}`mmm_example` notebook as a practical example of parameter recovery."
+msgstr ""
+"Antes de confiar en un modelo de mezcla de medios (MMM) con datos de negocio"
+" reales, necesitamos tener confianza en que realmente puede recuperar los "
+"parámetros que generaron las observaciones. La **recuperación de "
+"parámetros** es la técnica de validación de referencia: generamos datos "
+"sintéticos a partir de valores reales conocidos, ajustamos el modelo de "
+"nuevo sobre esos datos y comprobamos si las posteriors se concentran "
+"alrededor de los valores verdaderos. Consulte, por ejemplo, el cuaderno "
+"{ref}`mmm_example` como ejemplo práctico de recuperación de parámetros."
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:10007
+#: 8f3136374ea64a3faeb8a54b007ae467
+msgid "This notebook walks through the full parameter recovery workflow:"
+msgstr ""
+"Este cuaderno recorre el flujo de trabajo completo de recuperación de "
+"parámetros:"
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:10009
+#: 0f003f93f391433891d5824b8f6be4b1
+msgid ""
+"**Generate correlated channel spend covariates** using a multivariate "
+"normal model with an LKJ prior on the correlation structure."
+msgstr ""
+"**Generar covariables de gasto por canal correlacionadas** mediante un "
+"modelo normal multivariado con un prior LKJ sobre la estructura de "
+"correlación."
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:10010
+#: f4c24176cd5b499e9ac9806a5c7a1637
+msgid ""
+"**Fix known \"true\" parameter values** for adstock, saturation, "
+"seasonality, and noise."
+msgstr ""
+"**Fijar valores \"verdaderos\" conocidos de los parámetros** de adstock, "
+"saturación, estacionalidad y ruido."
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:10011
+#: cc2bc37d017244df9935f883e459b876
+#, python-brace-format
+msgid ""
+"**Forward-sample through the MMM** using PyMC's "
+"{func}`~pymc.model.transform.do` operator to produce a synthetic observed"
+" target variable."
+msgstr ""
+"**Muestrear hacia adelante a través del MMM** usando el operador "
+"{func}`~pymc.model.transform.do` de PyMC para producir una variable objetivo"
+" observada sintética."
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:10012
+#: e1ee05ac3aef49cea80b90dfa98d81da
+msgid "**Fit the MMM** on the synthetic data using the same model specification."
+msgstr ""
+"**Ajustar el MMM** sobre los datos sintéticos usando la misma especificación"
+" del modelo."
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:10013
+#: 7551efbcd38542578793c0b71679a7f6
+msgid ""
+"**Verify recovery** by comparing posterior distributions against the "
+"ground-truth values."
+msgstr ""
+"**Verificar la recuperación** comparando las distribuciones posteriores con "
+"los valores verdaderos."
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:10015
+#: 0a7eb5ce32df48ebbec90359c862f2a2
+msgid ""
+"We use `pymc-marketing`'s `MMM` class with `GeometricAdstock` and "
+"`LogisticSaturation` transformations, and rely on PyMC's `do` operator "
+"for causal intervention (clamping parameters to their true values during "
+"data generation)."
+msgstr ""
+"Usamos la clase `MMM` de `pymc-marketing` con las transformaciones "
+"`GeometricAdstock` y `LogisticSaturation`, y nos apoyamos en el operador "
+"`do` de PyMC para la intervención causal (fijar los parámetros en sus "
+"valores verdaderos durante la generación de datos)."
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:20002
+#: d601630d2b1d4a759879999a5015adce
+msgid "Prepare Notebook"
+msgstr "Preparar el cuaderno"
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:50002
+#: d4ea79a5cbd0494eb00c4327b883d04d
+msgid "Generating Covariates Data"
+msgstr "Generación de los datos de covariables"
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:50004
+#: 135616262edf427888dde73fed9678a9
+msgid ""
+"The first step is to generate realistic media channel spend data. Real-"
+"world channel spends are typically correlated (e.g., brands may increase "
+"spend across multiple channels simultaneously during campaigns) and "
+"exhibit trends over time. We model this with a PyMC generative model that"
+" captures both properties."
+msgstr ""
+"El primer paso es generar datos realistas de gasto en canales de medios. En "
+"el mundo real, el gasto por canal suele estar correlacionado (por ejemplo, "
+"las marcas pueden aumentar el gasto en varios canales a la vez durante las "
+"campañas) y presenta tendencias a lo largo del tiempo. Lo modelamos con un "
+"modelo generativo de PyMC que captura ambas propiedades."
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:70002
+#: 9bbdb9b0fd404c06861783392b398568
+msgid "**Generative model for covariates:**"
+msgstr "**Modelo generativo para las covariables:**"
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:70004
+#: e0b306c5535449f7b70c7c9c6b77de5f
+msgid ""
+"We build a PyMC model where each channel's spend at each time step is "
+"drawn from a multivariate normal distribution:"
+msgstr ""
+"Construimos un modelo de PyMC en el que el gasto de cada canal en cada paso "
+"de tiempo se muestrea de una distribución normal multivariada:"
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:70006
+#: 4a0ed267cc6a4db0a6f8cda307721a51
+msgid ""
+"**Time normalization**: `t` is scaled to $[0, 1)$ so the linear trend "
+"coefficients are on a comparable scale."
+msgstr ""
+"**Normalización del tiempo**: `t` se escala a $[0, 1)$ para que los "
+"coeficientes de la tendencia lineal estén en una escala comparable."
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:70007
+#: c48f2bbe441548ceb5450df1ad9b3a03
+msgid ""
+"**LKJ Cholesky prior** (`LKJCholeskyCov`): Induces a realistic "
+"correlation structure across channels. The Cholesky factor `L` is used "
+"directly in the `MvNormal` likelihood for numerical stability."
+msgstr ""
+"**Prior de Cholesky LKJ** (`LKJCholeskyCov`): induce una estructura de "
+"correlación realista entre los canales. El factor de Cholesky `L` se usa "
+"directamente en la verosimilitud `MvNormal` por estabilidad numérica."
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:70008
+#: 2f3f9c2009f747ffb9da57578f56a7fb
+msgid ""
+"**Linear trends**: Each channel gets its own intercept `a` and slope `b`,"
+" so channels can have different baseline levels and growth/decline "
+"trajectories over time."
+msgstr ""
+"**Tendencias lineales**: cada canal tiene su propio intercepto `a` y su "
+"propia pendiente `b`, de modo que los canales pueden tener distintos niveles"
+" base y trayectorias de crecimiento o descenso a lo largo del tiempo."
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:70009
+#: 931881984ee4430795389f40fbf521fa
+msgid ""
+"**Multivariate normal draws**: At each time step the 5-dimensional "
+"channel vector is drawn from `MvNormal(mu, chol=L)`, ensuring cross-"
+"channel correlations."
+msgstr ""
+"**Muestras normales multivariadas**: en cada paso de tiempo, el vector de 5 "
+"dimensiones de los canales se muestrea de `MvNormal(mu, chol=L)`, lo que "
+"asegura las correlaciones entre canales."
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:70010
+#: a545e73cf74440a881e39b455bb615f9
+msgid ""
+"**Softplus transformation**: `softplus(x) = log(1 + exp(x))` ensures all "
+"spend values are non-negative, which is a hard constraint for media spend"
+" data."
+msgstr ""
+"**Transformación softplus**: `softplus(x) = log(1 + exp(x))` garantiza que "
+"todos los valores de gasto sean no negativos, lo cual es una restricción "
+"estricta para los datos de gasto en medios."
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:70013
+#: eefedbfb6b6f48a18c092a429ea8b045
+msgid ""
+"Depending on your industry, you may need to use a different data "
+"generation process."
+msgstr ""
+"Dependiendo de su industria, es posible que necesite usar un proceso de "
+"generación de datos diferente."
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:90002
+#: b26c42af3f704da6ad9fca3e75fe871c
+msgid ""
+"We draw a single realization from the covariates model and assemble it "
+"into a pandas DataFrame. A dummy target column `y_dummy = 1` is added as "
+"a placeholder; it will be replaced later with the actual synthetic "
+"observations."
+msgstr ""
+"Muestreamos una única realización del modelo de covariables y la ensamblamos"
+" en un DataFrame de pandas. Se agrega una columna objetivo ficticia `y_dummy"
+" = 1` como marcador de posición; más adelante se reemplazará por las "
+"observaciones sintéticas reales."
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:110002
+#: bf80f98dfa2746d88902299e82040c26
+msgid "Specify Model Configuration"
+msgstr "Especificar la configuración del modelo"
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:110004
+#: 2a22a2d7ea154ef6bb95bdca31973f54
+msgid ""
+"Now we draw the ground-truth parameter values from some distributions. We"
+" do not use a single value as we would want to wrap this code into "
+"functions to generate many datasets with different parameter values. "
+"After that we define the `mmm_generator` object that will be used to "
+"generate the synthetic data."
+msgstr ""
+"Ahora muestreamos los valores verdaderos de los parámetros a partir de "
+"algunas distribuciones. No usamos un único valor porque queremos envolver "
+"este código en funciones para generar muchos conjuntos de datos con "
+"distintos valores de parámetros. Después de eso, definimos el objeto "
+"`mmm_generator` que se usará para generar los datos sintéticos."
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:130002
+#: 7c2f02ada1f2424d9188554722e6d954
+msgid "Generate Target Variable"
+msgstr "Generar la variable objetivo"
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:130004
+#: c670d603e25b4c669f2e5fded3d22986
+msgid ""
+"Now we use the MMM's generative structure to produce synthetic "
+"observations. The strategy is a **forward simulation** through the model "
+"graph with the parameters clamped to their known true values:"
+msgstr ""
+"Ahora usamos la estructura generativa del MMM para producir observaciones "
+"sintéticas. La estrategia es una **simulación hacia adelante** a través del "
+"grafo del modelo con los parámetros fijados en sus valores verdaderos "
+"conocidos:"
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:130006
+#: 5d6836fcf2384563a5110d69944b1e8e
+msgid ""
+"**Build the model graph**: `mmm_generator.build_model(X, y_dummy)` "
+"compiles the full MMM computation graph. We also register original-scale "
+"contribution variables (before target scaling) so we can inspect the true"
+" decomposition later."
+msgstr ""
+"**Construir el grafo del modelo**: `mmm_generator.build_model(X, y_dummy)` "
+"compila el grafo de cómputo completo del MMM. También registramos variables "
+"de contribución en la escala original (antes del escalado del objetivo) para"
+" poder inspeccionar más adelante la descomposición verdadera."
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:130007
+#: 25ce86d1cde84a3b9baaa96d14379d79
+msgid ""
+"**Intervene with `do`**: PyMC's `do` operator clamps stochastic nodes to "
+"their ground-truth values. This turns the probabilistic model into a "
+"deterministic forward simulator (aside from observation noise $\\sigma$),"
+" ensuring the synthetic data is generated from *exactly* the parameter "
+"values we want to recover."
+msgstr ""
+"**Intervenir con `do`**: el operador `do` de PyMC fija los nodos "
+"estocásticos en sus valores verdaderos. Esto convierte el modelo "
+"probabilístico en un simulador hacia adelante determinista (salvo por el "
+"ruido de observación $\\sigma$), lo que asegura que los datos sintéticos se "
+"generen a partir de *exactamente* los valores de los parámetros que queremos"
+" recuperar."
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:130008
+#: 92fe52327ac948458ca90266348d06bc
+msgid ""
+"**Sample forward**: `pm.sample_prior_predictive(draws=1)` propagates the "
+"clamped values through the adstock, saturation, and seasonality "
+"transformations to produce one synthetic target time series."
+msgstr ""
+"**Muestrear hacia adelante**: `pm.sample_prior_predictive(draws=1)` propaga "
+"los valores fijados a través de las transformaciones de adstock, saturación "
+"y estacionalidad para producir una serie de tiempo sintética del objetivo."
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:130009
+#: b6284a090e514a459a1596993eef60e6
+msgid ""
+"**Assemble final data**: The synthetic `y_obs` replaces the dummy target."
+" We drop the first `l_max` rows because the geometric adstock "
+"transformation needs a burn-in window to avoid edge effects."
+msgstr ""
+"**Ensamblar los datos finales**: el `y_obs` sintético reemplaza al objetivo "
+"ficticio. Descartamos las primeras `l_max` filas porque la transformación de"
+" adstock geométrico necesita una ventana de calentamiento para evitar "
+"efectos de borde."
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:180002
+#: 83fde0fb67e54e358d009bdac7c9c950
+msgid "Exploratory Visualizations"
+msgstr "Visualizaciones exploratorias"
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:180004
+#: 5996bbb8a0764af78cc78b08fd85e7e1
+msgid ""
+"Before moving to parameter recovery, we inspect the synthetic data to "
+"confirm it looks reasonable:"
+msgstr ""
+"Antes de pasar a la recuperación de parámetros, inspeccionamos los datos "
+"sintéticos para confirmar que se ven razonables:"
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:200002
+#: bc321aa0bf5847ac903300ffc1635581
+msgid "Let's look at the target variable and each channel's spend over time."
+msgstr ""
+"Veamos la variable objetivo y el gasto de cada canal a lo largo del tiempo."
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:220002
+#: 60178cb45bcf42949fcbbea9c283f30f
+msgid "Now, we plot the true channel contributions from the generative model."
+msgstr ""
+"Ahora graficamos las contribuciones verdaderas de los canales según el "
+"modelo generativo."
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:240002
+#: e268c9421f2d4280956b397b30dded0b
+msgid "Parameter Recovery"
+msgstr "Recuperación de parámetros"
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:240004
+#: 0860af18532e4096b9f8fd8b270ca80f
+msgid ""
+"With the synthetic data in hand, we now fit the MMM and check whether the"
+" posteriors recover the true parameter values. This is the core "
+"validation step: if the model cannot recover known parameters from clean "
+"synthetic data, we should not trust it on noisy real-world data."
+msgstr ""
+"Con los datos sintéticos en mano, ahora ajustamos el MMM y comprobamos si "
+"las posteriors recuperan los valores verdaderos de los parámetros. Este es "
+"el paso central de validación: si el modelo no puede recuperar parámetros "
+"conocidos a partir de datos sintéticos limpios, no deberíamos confiar en él "
+"con datos reales y ruidosos."
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:250002
+#: 587b220c0ecf496aa11a02cb17616323
+msgid "Fit Model"
+msgstr "Ajustar el modelo"
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:250004
+#: a131af001cae471faa4c512c0d97c4a2
+msgid ""
+"We create a *new* `MMM` instance that targets `y_obs` (the synthetic "
+"data) and fit it using MCMC."
+msgstr ""
+"Creamos una instancia *nueva* de `MMM` que tiene como objetivo `y_obs` (los "
+"datos sintéticos) y la ajustamos usando MCMC."
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:250006
+#: b8c05e3b12c648df8f777852a595a722
+msgid ""
+"**Informative priors via channel shares**: Before fitting, we adjust the "
+"`saturation_beta` prior. The sigma of the `HalfNormal` prior is scaled by"
+" each channel's share of total spend (`n_channels * channel_shares`), "
+"encoding the reasonable belief that channels with more spend are likely "
+"to have larger effect magnitudes. This is a common practice that helps "
+"the sampler explore more efficiently."
+msgstr ""
+"**Priors informativos mediante la participación de cada canal**: antes del "
+"ajuste, modificamos el prior de `saturation_beta`. El sigma del prior "
+"`HalfNormal` se escala según la participación de cada canal en el gasto "
+"total (`n_channels * channel_shares`), lo que codifica la creencia razonable"
+" de que los canales con más gasto probablemente tienen efectos de mayor "
+"magnitud. Esta es una práctica común que ayuda al muestreador a explorar de "
+"manera más eficiente."
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:280002
+#: 7b68f9daf2704a20815a4d5ebbd4b758
+msgid "Visualization"
+msgstr "Visualización"
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:280004
+#: a0801ef2a397486a9c9392e453e9c6b1
+msgid ""
+"We now visually assess whether the model successfully recovered the true "
+"parameters and structure of the synthetic data."
+msgstr ""
+"Ahora evaluamos visualmente si el modelo recuperó con éxito los parámetros "
+"verdaderos y la estructura de los datos sintéticos."
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:290002
+#: 64b09ca047104e9f99b3c8fdfe7f4bf6
+msgid "**Model Parameters**"
+msgstr "**Parámetros del modelo**"
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:290004
+#: 1f4c995ac60e46b59146763496d54c32
+msgid ""
+"We use `azp.plot_dist` to visualize the posterior densities of the key "
+"model parameters. By comparing these posteriors against the true values "
+"used to generate the data, we can assess whether the parameter recovery "
+"is successful: a successful recovery has the true value falling within "
+"the bulk of each posterior distribution."
+msgstr ""
+"Usamos `azp.plot_dist` para visualizar las densidades posteriores de los "
+"parámetros clave del modelo. Al comparar estas posteriors con los valores "
+"verdaderos usados para generar los datos, podemos evaluar si la recuperación"
+" de parámetros es exitosa: una recuperación exitosa implica que el valor "
+"verdadero cae dentro de la masa principal de cada distribución posterior."
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:310002
+#: 9b6aad72a8db4c4ab1989a8bdb70b461
+msgid "**Posterior Predictive**"
+msgstr "**Predictiva posterior**"
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:310004
+#: e51305256d364e5fb2b518be1217ddcb
+msgid ""
+"The posterior predictive distribution should tightly envelop the observed"
+" (synthetic) time series. A good fit here confirms the model can "
+"reproduce the overall signal, including trends and seasonality."
+msgstr ""
+"La distribución predictiva posterior debería envolver de cerca la serie de "
+"tiempo observada (sintética). Un buen ajuste aquí confirma que el modelo "
+"puede reproducir la señal general, incluidas las tendencias y la "
+"estacionalidad."
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:330002
+#: 0a8b8324eebd4f80873f582621a26b3f
+msgid "**Channel Contributions**"
+msgstr "**Contribuciones de los canales**"
+
+#: ../source/notebooks/mmm/mmm_data_generator.ipynb:330004
+#: 89bb380d37de4b56ba32987b128a6577
+msgid ""
+"We compare the estimated channel contribution curves (with uncertainty "
+"bands) against the known true contributions (black lines). Good overlap "
+"between the posterior estimates and the ground-truth curves validates "
+"that the model correctly decomposes the total target signal into "
+"individual channel effects."
+msgstr ""
+"Comparamos las curvas de contribución estimadas de los canales (con bandas "
+"de incertidumbre) con las contribuciones verdaderas conocidas (líneas "
+"negras). Una buena superposición entre las estimaciones posteriores y las "
+"curvas verdaderas valida que el modelo descompone correctamente la señal "
+"total del objetivo en efectos individuales por canal."
+
