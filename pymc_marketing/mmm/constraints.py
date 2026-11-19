@@ -14,6 +14,8 @@
 
 """Constraints for the BudgetOptimizer."""
 
+import math
+import numbers
 from collections.abc import Callable
 from typing import Any, Literal
 
@@ -27,12 +29,29 @@ class Constraint:
     """
     Represents a constraint for the BudgetOptimizer.
 
-    Attributes
+    SLSQP compares the summed violation of the constraints with its ``ftol``. With the default tolerance,
+    :meth:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget` divides each constraint by a
+    scale, so that a residual in large units, such as revenue, is held to a relative accuracy rather than to
+    ``1e-9`` of its own units. With a ``ftol`` or ``tol`` of your own, every constraint reaches SLSQP as written.
+
+    Parameters
     ----------
-        key (str): Identifier for the constraint.
-        constraint_type (Literal["eq", "ineq"]): Type of the constraint ("eq" for equality, "ineq" for inequality).
-        constraint_fun (Callable[[XTensorVariable, XTensorVariable, Any], XTensorVariable]):
-            Function that computes the symbolic constraint, taking `budgets_sym`, `total_budget_sym`, and `optimizer`.
+    key : str
+        Identifier for the constraint.
+    constraint_type : {"eq", "ineq"}
+        ``"eq"`` for an equality, ``"ineq"`` for an inequality that holds when the residual is nonnegative.
+    constraint_fun : Callable[[XTensorVariable, XTensorVariable, Any], XTensorVariable]
+        Function that computes the symbolic scalar residual, taking ``budgets_sym``, ``total_budget_sym`` and
+        ``optimizer``.
+    scale : float, optional
+        Positive divisor of the residual under the default tolerance. ``None`` (default) lets ``allocate_budget``
+        take the largest change one entry makes in the residual moving across its size, at least 1. Pass ``1.0``
+        to keep the residual's own units, as the default budget constraint does.
+
+    Raises
+    ------
+    ValueError
+        If ``scale`` is not a positive finite number.
     """
 
     def __init__(
@@ -42,14 +61,28 @@ class Constraint:
         constraint_fun: Callable[
             [XTensorVariable, XTensorVariable, Any], XTensorVariable
         ],
+        scale: float | None = None,
     ):
+        if scale is not None and (
+            isinstance(scale, bool)
+            or not isinstance(scale, numbers.Real)
+            or not (math.isfinite(scale) and scale > 0)
+        ):
+            raise ValueError(
+                f"Constraint {key!r}: scale must be a positive finite number, got {scale!r}."
+            )
         self.key = key
         self.constraint_type = constraint_type
         self.constraint_fun = constraint_fun
+        self.scale = None if scale is None else float(scale)
 
 
 def build_default_sum_constraint(key: str = "default") -> Constraint:
-    """Return a Constraint enforcing sum(budgets) == total_budget."""
+    """Return a Constraint enforcing sum(budgets) == total_budget.
+
+    Its scale is 1: the sum is linear in money and SLSQP meets it to rounding, so its tolerance stays ``ftol`` in
+    money and the budgets add up to ``total_budget``.
+    """
 
     def _constraint_fun(
         budgets_sym: XTensorVariable, total_budget_sym: XTensorVariable, optimizer
@@ -67,6 +100,7 @@ def build_default_sum_constraint(key: str = "default") -> Constraint:
         key=key,
         constraint_type="eq",
         constraint_fun=_constraint_fun,
+        scale=1.0,
     )
 
 
@@ -120,6 +154,7 @@ def compile_constraints_for_scipy(constraints: list[Constraint] | dict, optimize
                 "type": constraint.constraint_type,
                 "fun": compiled_fun,
                 "jac": compiled_jac,
+                "scale": constraint.scale,
             }
         )
     return compiled_constraints
