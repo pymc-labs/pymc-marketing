@@ -1,0 +1,2352 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2026, PyMC Labs
+# This file is distributed under the same license as the PyMC-Marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyMC-Marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:10003
+#: ecdeeab64ef9405d8d92a0212a1718dc
+msgid "Calibrating an MMM with ROAS Estimates"
+msgstr "Calibración de un MMM con estimaciones de ROAS"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:10005
+#: 8b995024c19749d28bfa55d5db569cd1
+msgid ""
+"Marketing mix models are fit to sales data, and sales data alone is often"
+" not enough to pin down *how much* each channel contributed. Two very "
+"different sets of channel parameters can reproduce the same sales curve "
+"almost equally well. When that happens, the model is not wrong so much as"
+" under-determined, and the posterior will happily settle on values that a"
+" marketing team knows to be implausible."
+msgstr ""
+"Los modelos de mezcla de marketing se ajustan a datos de ventas, y los datos"
+" de ventas por sí solos a menudo no bastan para determinar *cuánto* "
+"contribuyó cada canal. Dos conjuntos muy distintos de parámetros de canal "
+"pueden reproducir casi igual de bien la misma curva de ventas. Cuando eso "
+"ocurre, el modelo no está tanto equivocado como subdeterminado, y la "
+"distribución posterior se asentará sin reparos en valores que un equipo de "
+"marketing sabe que son poco plausibles."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:10012
+#: 010b8c93ac9440cea19c9783155eedb7
+msgid ""
+"Experiments are the usual way out. A geo lift test, a conversion lift "
+"study, or a switchback experiment gives a direct, causal estimate of what"
+" a channel returns. The question this notebook answers is mechanical: "
+"**how do you get that number into the model?**"
+msgstr ""
+"Los experimentos son la salida habitual. Una prueba de elevación geográfica,"
+" un estudio de elevación de conversiones o un experimento de tipo switchback"
+" proporciona una estimación directa y causal de lo que devuelve un canal. La"
+" pregunta que responde este cuaderno es mecánica: **¿cómo se incorpora ese "
+"número al modelo?**"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:10017
+#: 64115e1ab45e460e95f72cd1615333e0
+#, python-brace-format
+msgid ""
+"PyMC-Marketing exposes this as a one-line method, "
+"{meth}`~pymc_marketing.mmm.mmm.MMM.add_cost_per_target_calibration`, "
+"which attaches an *observed likelihood* to the model's implied return on "
+"ad spend (ROAS) or cost per acquisition (CPA)."
+msgstr ""
+"PyMC-Marketing expone esto como un método de una sola línea, "
+"{meth}`~pymc_marketing.mmm.mmm.MMM.add_cost_per_target_calibration`, que "
+"adjunta una *verosimilitud observada* al retorno de la inversión "
+"publicitaria (ROAS) o al costo por adquisición (CPA) implícito en el modelo."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:10022
+#: d0112bf64f0e4508b426ab1efe573cff
+msgid "What you will learn"
+msgstr "Lo que aprenderá"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:10025
+#: 8b6c036374c1421f815800adb7fdea21
+msgid ""
+"What *likelihood calibration* means and why it is not the same as putting"
+" a prior on a parameter."
+msgstr ""
+"Qué significa la *calibración de la verosimilitud* y por qué no es lo mismo "
+"que colocar un prior sobre un parámetro."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:10027
+#: ccbcab41377e4826b38eff37f0c4b88f
+msgid "How to express an experiment result as a ROAS calibration table."
+msgstr ""
+"Cómo expresar el resultado de un experimento como una tabla de calibración "
+"de ROAS."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:10028
+#: 0fcd751522ba424fa848ff0d2909340c
+msgid "How to add it to an `MMM` with `add_cost_per_target_calibration`."
+msgstr "Cómo añadirla a un `MMM` con `add_cost_per_target_calibration`."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:10029
+#: d7dfddb09bc1424d84a13ebda05f9c33
+msgid "How the `sigma` column controls how strongly the model is pulled."
+msgstr "Cómo la columna `sigma` controla con qué fuerza se atrae al modelo."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:10030
+#: 3c270718f38043d59943fabb69c05713
+msgid "How to compare a naive model against calibrated ones."
+msgstr "Cómo comparar un modelo ingenuo con modelos calibrados."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:10031
+#: 8e434e7fd5894779890352efaeaa456e
+msgid ""
+"How the likelihood family (`Normal`, `StudentT` or `LogNormal`) sets what"
+" a large disagreement costs, and when to switch from the default "
+"`Normal`."
+msgstr ""
+"Cómo la familia de la verosimilitud (`Normal`, `StudentT` o `LogNormal`) "
+"determina lo que cuesta un desacuerdo grande, y cuándo conviene abandonar la"
+" `Normal` predeterminada."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:10035
+#: dd7808e69d1b46cba343ed782753a738
+msgid "Prerequisites"
+msgstr "Requisitos previos"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:10038
+#: b682754b49ce41a79a02f736b19b41b2
+#, python-brace-format
+msgid ""
+"This notebook assumes you have seen the {ref}`mmm_example` notebook and "
+"are comfortable building an `MMM`. No prior exposure to calibration is "
+"assumed."
+msgstr ""
+"Este cuaderno supone que ya ha visto el cuaderno {ref}`mmm_example` y que se"
+" siente cómodo construyendo un `MMM`. No se asume ninguna exposición previa "
+"a la calibración."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:10042
+#: 2b7b1314d0d643de8b5ee0fcb8b82436
+#, python-brace-format
+msgid ""
+"We deliberately reuse the simulated dataset from the {ref}`mmm_roas` "
+"notebook. That dataset contains a known unobserved confounder, so we know"
+" the true ROAS and can check whether calibration actually recovers it. "
+"Where that notebook calibrates through *lift tests* (points on the "
+"saturation curve), this one calibrates directly on the ROAS quantity "
+"itself."
+msgstr ""
+"Reutilizamos deliberadamente el conjunto de datos simulado del cuaderno "
+"{ref}`mmm_roas`. Ese conjunto de datos contiene un confusor no observado "
+"conocido, de modo que conocemos el ROAS verdadero y podemos comprobar si la "
+"calibración realmente lo recupera. Mientras que aquel cuaderno calibra "
+"mediante *pruebas de elevación* (puntos sobre la curva de saturación), este "
+"calibra directamente sobre la propia cantidad ROAS."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:20002
+#: 3aa685f9e00c4597b09ae48513435f88
+msgid "Prepare Notebook"
+msgstr "Preparar el cuaderno"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:50002
+#: 934924cbb68b4f4d864c744778ce8a2e
+msgid "What Is Likelihood Calibration?"
+msgstr "¿Qué es la calibración de la verosimilitud?"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:50004
+#: 9cdd72cad52d42b4ac4c3f19cbe4ca09
+msgid ""
+"Before touching any code it is worth being precise about what we are "
+"doing, because the phrase \"ROAS prior\" is used loosely in the industry "
+"and can mean two quite different things."
+msgstr ""
+"Antes de tocar código conviene precisar qué estamos haciendo, porque la "
+"expresión \"prior de ROAS\" se usa con laxitud en la industria y puede "
+"significar dos cosas bastante distintas."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:50008
+#: e2dfd328731d413787649f9fa1d683d9
+msgid ""
+"A Bayesian model has two ingredients: **priors** over parameters and a "
+"**likelihood** connecting parameters to observed data. In an MMM the "
+"parameters are things like the adstock decay `alpha`, the saturation "
+"`lam`, and the channel coefficient `beta`. The likelihood says how sales "
+"`y` are generated from them."
+msgstr ""
+"Un modelo bayesiano tiene dos ingredientes: **priors** sobre los parámetros "
+"y una **verosimilitud** que conecta los parámetros con los datos observados."
+" En un MMM los parámetros son cosas como el decaimiento del adstock `alpha`,"
+" la saturación `lam` y el coeficiente del canal `beta`. La verosimilitud "
+"dice cómo se generan las ventas `y` a partir de ellos."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:50013
+#: babbc1a74d514c20a98c66d5a22446bb
+msgid ""
+"ROAS is *not* one of those parameters. It is a derived quantity: you have"
+" to run the adstock transform, the saturation transform, sum the channel "
+"contribution over time, and divide by spend before you get a number you "
+"can call ROAS. In PyMC terms it is a deterministic function of the "
+"parameters, and **you cannot put a prior on a deterministic**. A prior is"
+" a statement about a free variable; once a quantity is a function of "
+"other variables its distribution is already implied."
+msgstr ""
+"El ROAS *no* es uno de esos parámetros. Es una cantidad derivada: hay que "
+"ejecutar la transformación de adstock, la transformación de saturación, "
+"sumar la contribución del canal a lo largo del tiempo y dividir por el gasto"
+" antes de obtener un número que se pueda llamar ROAS. En términos de PyMC es"
+" una función determinista de los parámetros, y **no se puede poner un prior "
+"sobre una variable determinista**. Un prior es una afirmación sobre una "
+"variable libre; una vez que una cantidad es función de otras variables, su "
+"distribución ya está implícita."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:50021
+#: 90de3d6eb4a641fb809760f082c88f8e
+msgid ""
+"So what do you do when you have external information about a derived "
+"quantity? You treat that information as **data**. Concretely, you add a "
+"second observed node to the model:"
+msgstr ""
+"Entonces, ¿qué se hace cuando se tiene información externa sobre una "
+"cantidad derivada? Se trata esa información como **datos**. Concretamente, "
+"se añade un segundo nodo observado al modelo:"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:50025
+#: 302c38f5e1394188967cee2d0295ab4b
+msgid ""
+"\n"
+"\\text{ROAS}_{\\text{experiment}} \\sim "
+"\\mathrm{Normal}\\big(\\underbrace{f(\\theta)}_{\\text{model-implied "
+"ROAS}},\\ \\sigma\\big)\n"
+msgstr ""
+"\n"
+"\\text{ROAS}_{\\text{experiment}} \\sim \\mathrm{Normal}\\big(\\underbrace{f(\\theta)}_{\\text{model-implied ROAS}},\\ \\sigma\\big)\n"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:50029
+#: 20db4953b9564bf2b2a3451b18729cd3
+msgid ""
+"Read this literally. The experiment produced a number. The model, for any"
+" given draw of its parameters $\\theta$, implies its own number. We "
+"declare that the experiment's number is a noisy observation of the "
+"model's number, with noise scale $\\sigma$. Parameter draws whose implied"
+" ROAS sits far from the experiment now score badly in the log-likelihood,"
+" and the sampler stops visiting them. The Normal is the default shape of "
+"that noise; a later section replaces it."
+msgstr ""
+"Léalo literalmente. El experimento produjo un número. El modelo, para "
+"cualquier muestra dada de sus parámetros $\\theta$, implica su propio "
+"número. Declaramos que el número del experimento es una observación ruidosa "
+"del número del modelo, con escala de ruido $\\sigma$. Las muestras de "
+"parámetros cuyo ROAS implícito queda lejos del experimento ahora puntúan mal"
+" en la log-verosimilitud, y el muestreador deja de visitarlas. La Normal es "
+"la forma predeterminada de ese ruido; una sección posterior la sustituye."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:50036
+#: 6c745965dcf5481ca146cbc32d623aab
+msgid ""
+"That is *likelihood calibration*: encoding external knowledge as an extra"
+" observation rather than as a prior."
+msgstr ""
+"Eso es la *calibración de la verosimilitud*: codificar conocimiento externo "
+"como una observación adicional en lugar de como un prior."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:50039
+#: 7985a30f1d7f416f99317f728057f91b
+msgid "Why this is a soft constraint, not a hard one"
+msgstr "Por qué es una restricción blanda y no dura"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:50042
+#: d7a74633ed23447b8c338e4c5ea4dd21
+msgid ""
+"Nothing here forces the model to reproduce the experimental ROAS exactly."
+" The sales likelihood is still in play and still pulling in its own "
+"direction. The posterior is a compromise between the two, and `sigma` "
+"sets the exchange rate."
+msgstr ""
+"Nada aquí obliga al modelo a reproducir exactamente el ROAS experimental. La"
+" verosimilitud de las ventas sigue en juego y sigue tirando en su propia "
+"dirección. La distribución posterior es un compromiso entre ambas, y `sigma`"
+" fija el tipo de cambio."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:50046
+#: 9c625af258774a54a303c36750521f11
+msgid ""
+"**Small `sigma`** &rarr; the calibration term dominates. The model is "
+"pulled hard onto the experimental value. Use this when you trust the "
+"experiment far more than the observational sales data."
+msgstr ""
+"**`sigma` pequeño** &rarr; el término de calibración domina. El modelo es "
+"atraído con fuerza hacia el valor experimental. Utilícelo cuando confíe en "
+"el experimento mucho más que en los datos observacionales de ventas."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:50049
+#: 4ea86a47b4ce41d19522416b0ee156ab
+msgid ""
+"**Large `sigma`** &rarr; a gentle nudge. Use this when the experiment was"
+" noisy, ran on a different period, or measured a slightly different "
+"thing."
+msgstr ""
+"**`sigma` grande** &rarr; un empujón suave. Utilícelo cuando el experimento "
+"fue ruidoso, se realizó en un período distinto o midió algo ligeramente "
+"diferente."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:50052
+#: 696fb34b3c044e12ad0b916fd70478f8
+msgid ""
+"`sigma` is your statement about how much you trust the experiment. It is "
+"not a tuning knob to be optimized. Set it from the experiment's own "
+"standard error whenever you have one."
+msgstr ""
+"`sigma` es su declaración sobre cuánto confía en el experimento. No es un "
+"parámetro de ajuste que deba optimizarse. Fíjelo a partir del error estándar"
+" del propio experimento siempre que disponga de uno."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:50057
+#: c7ff3612bac34459ad555eab3537e40e
+msgid "Relationship to lift test calibration"
+msgstr "Relación con la calibración mediante pruebas de elevación"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:50060
+#: 635a2bb98be4432497da4ac48616c816
+#, python-brace-format
+msgid ""
+"The {ref}`mmm_lift_test` notebook calibrates using the *saturation "
+"curve*: a lift test gives you two points (pre-spend and post-spend) and "
+"the inferred change in sales, which constrains the shape of the curve "
+"locally. This approach allows you to pass more information to the model "
+"as you are calibrating the model with marginal ROAS at different spend "
+"levels."
+msgstr ""
+"El cuaderno {ref}`mmm_lift_test` calibra usando la *curva de saturación*: "
+"una prueba de elevación proporciona dos puntos (gasto previo y gasto "
+"posterior) y el cambio inferido en las ventas, lo que restringe localmente "
+"la forma de la curva. Este enfoque permite pasar más información al modelo, "
+"ya que se calibra el modelo con el ROAS marginal a distintos niveles de "
+"gasto."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:60003
+#: 74e22ac907c14307ad9c5e37a3ea6cee
+msgid ""
+"Three notebooks in the gallery get ROAS information into an MMM, and they"
+" do it in three different ways. It is worth knowing which one you want "
+"before you start."
+msgstr ""
+"Tres cuadernos de la galería incorporan información de ROAS a un MMM, y lo "
+"hacen de tres maneras distintas. Conviene saber cuál se quiere antes de "
+"empezar."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:60006
+#: 341b2fb4a9b34e75bffde6172c5a3380
+#, python-brace-format
+msgid ""
+"{ref}`mmm_roas_parametrization` **reparametrizes the model**. Rather than"
+" sampling a channel coefficient and deriving ROAS from it, the model is "
+"written so that ROAS is itself a free parameter. Then you really can "
+"place a prior on it, because it is no longer a deterministic. This is the"
+" most direct route, at the cost of writing the model yourself."
+msgstr ""
+"{ref}`mmm_roas_parametrization` **reparametriza el modelo**. En lugar de "
+"muestrear un coeficiente de canal y derivar el ROAS a partir de él, el "
+"modelo se escribe de manera que el ROAS sea en sí mismo un parámetro libre. "
+"Entonces sí se puede colocar un prior sobre él, porque ya no es una variable"
+" determinista. Es la vía más directa, a costa de tener que escribir el "
+"modelo uno mismo."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:60011
+#: db6780a4a58c49cebe1abd63dc95625f
+#, python-brace-format
+msgid ""
+"{ref}`mmm_roas` **brings experiments in as lift tests**. That is also an "
+"extra likelihood term, exactly like the one in this notebook, but it "
+"carries more information: a lift test says what happened when spend moved"
+" from one level to another, so it constrains points *on the saturation "
+"curve* rather than a single whole-period average."
+msgstr ""
+"{ref}`mmm_roas` **incorpora los experimentos como pruebas de elevación**. "
+"Esto también es un término de verosimilitud adicional, exactamente como el "
+"de este cuaderno, pero aporta más información: una prueba de elevación "
+"indica qué ocurrió cuando el gasto pasó de un nivel a otro, así que "
+"restringe puntos *sobre la curva de saturación* en lugar de un único "
+"promedio de todo el período."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:60016
+#: fd88e12f9b064345a9190ea2585e2a94
+msgid ""
+"**This notebook** covers the simplest case: one ROAS or CPA number per "
+"channel, aggregated over the whole modeling period, added as a single "
+"observation."
+msgstr ""
+"**Este cuaderno** cubre el caso más simple: un número de ROAS o CPA por "
+"canal, agregado sobre todo el período de modelado y añadido como una sola "
+"observación."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:60019
+#: c16d6139f14f41e5ae2a06966f2e84fe
+msgid ""
+"The three are not competing answers to one question. If you have a full "
+"experiment readout, the lift-test route uses more of it. If all that "
+"reached you is a headline ROAS figure, this is the method that fits what "
+"you have."
+msgstr ""
+"Los tres no son respuestas que compitan entre sí a una misma pregunta. Si "
+"tiene el informe completo de un experimento, la vía de la prueba de "
+"elevación aprovecha más información. Si lo único que le llegó es una cifra "
+"de ROAS general, este es el método que se ajusta a lo que tiene."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:70002
+#: e80a5a094f21482d9e685ecfa3812092
+msgid "The Data"
+msgstr "Los datos"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:70004
+#: 97f63d05ff2c426884c75a43b97800f4
+#, python-brace-format
+msgid ""
+"We use the simulated dataset shipped with PyMC-Marketing and analyzed in "
+"the {ref}`mmm_roas` notebook. It comes from the blog post [Media Mix "
+"Model and Experimental Calibration: A Simulation "
+"Study](https://juanitorduz.github.io/mmm_roas/)."
+msgstr ""
+"Usamos el conjunto de datos simulado que se distribuye con PyMC-Marketing y "
+"que se analiza en el cuaderno {ref}`mmm_roas`. Proviene de la entrada de "
+"blog [Media Mix Model and Experimental Calibration: A Simulation "
+"Study](https://juanitorduz.github.io/mmm_roas/)."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:90002
+#: 77e03e1452ef4656ac7e0280cc76b6b1
+msgid ""
+"For modeling we only use `date`, the two channels `x1` and `x2`, and the "
+"target `y`. The remaining columns in `raw_df` describe the data "
+"generating process and let us check our answers later."
+msgstr ""
+"Para el modelado solo usamos `date`, los dos canales `x1` y `x2`, y el "
+"objetivo `y`. Las columnas restantes de `raw_df` describen el proceso "
+"generador de datos y nos permiten comprobar nuestras respuestas más "
+"adelante."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:90006
+#: bad638ced34545ada4a0880220bb7926
+msgid "The generating structure is the following."
+msgstr "La estructura generadora es la siguiente."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:110002
+#: 3541dcdf80f54263967f7403e4076aad
+msgid ""
+"The key feature is `z`: a variable that drives both spend on `x1` and "
+"sales `y`, and which we do **not** observe. This is a textbook "
+"confounder. Because `z` is missing from the model, part of its effect on "
+"`y` gets attributed to `x1`, and the model will overstate how effective "
+"`x1` is."
+msgstr ""
+"La característica clave es `z`: una variable que impulsa tanto el gasto en "
+"`x1` como las ventas `y`, y que **no** observamos. Es un confusor de manual."
+" Como `z` falta en el modelo, parte de su efecto sobre `y` se atribuye a "
+"`x1`, y el modelo sobrestimará la eficacia de `x1`."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:110007
+#: 18b2f5f4e4d24616a0923d5cbeb37c98
+msgid ""
+"Channel `x2` carries no confounding bias of its own: nothing in the graph"
+" drives both `x2` and `y`. That does not mean the model recovers it "
+"cleanly. When `x1` is overstated, the rest of the decomposition has to "
+"give up sales it was explaining, and `x2` is part of that remainder, so "
+"its estimate can be dragged off target indirectly. The contrast between "
+"the two channels is therefore direct bias versus inherited bias, not bias"
+" versus a clean control."
+msgstr ""
+"El canal `x2` no tiene un sesgo de confusión propio: nada en el grafo "
+"impulsa a la vez `x2` e `y`. Eso no significa que el modelo lo recupere sin "
+"problemas. Cuando `x1` se sobrestima, el resto de la descomposición tiene "
+"que ceder ventas que estaba explicando, y `x2` forma parte de ese remanente,"
+" de modo que su estimación puede desviarse indirectamente. El contraste "
+"entre los dos canales es, por tanto, sesgo directo frente a sesgo heredado, "
+"no sesgo frente a un control limpio."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:110014
+#: 65f08f33085e448283dd0aabde07587b
+msgid "Since we simulated the data, we know the true ROAS of each channel."
+msgstr "Como simulamos los datos, conocemos el ROAS verdadero de cada canal."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:130003
+#: 2acb9026b5d54437b55932f86b53ec91
+msgid ""
+"These ROAS values are in the hundreds because the simulated target is "
+"scaled by an amplitude factor. Do not read them as realistic revenue "
+"multiples. What matters for this notebook is the *ratio* between the two "
+"channels and whether we recover it."
+msgstr ""
+"Estos valores de ROAS están en los cientos porque el objetivo simulado se "
+"escala mediante un factor de amplitud. No los interprete como múltiplos de "
+"ingresos realistas. Lo que importa para este cuaderno es la *razón* entre "
+"los dos canales y si la recuperamos."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:130009
+#: 461ac38be9454ea2889f3de6275cd3af
+msgid "Let us look at the series before modeling."
+msgstr "Veamos las series antes de modelar."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:150002
+#: 166fd89593b84fb6b57109a59c86de82
+msgid "The Naive Model"
+msgstr "El modelo ingenuo"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:150004
+#: 6e4d4f9ed3654e46b048fc235ac0818c
+#, python-brace-format
+msgid ""
+"We start with a model that sees only `date`, `x1`, `x2` and `y`. No "
+"experiment information at all. This is our baseline and it uses exactly "
+"the same configuration as the baseline model in the {ref}`mmm_roas` "
+"notebook, so the two notebooks are directly comparable."
+msgstr ""
+"Empezamos con un modelo que solo ve `date`, `x1`, `x2` e `y`. Sin ninguna "
+"información de experimentos. Esta es nuestra línea base y usa exactamente la"
+" misma configuración que el modelo de línea base del cuaderno "
+"{ref}`mmm_roas`, de modo que ambos cuadernos son directamente comparables."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:150009
+#: 31b8054e5640460bb82dab20f6dcf885
+msgid ""
+"Without external information, a sensible default is to encode the *cost "
+"share* of each channel into the prior of its coefficient: channels that "
+"absorb more of the budget are given more room to contribute."
+msgstr ""
+"Sin información externa, un valor predeterminado sensato es codificar la "
+"*proporción de costo* de cada canal en el prior de su coeficiente: a los "
+"canales que absorben más presupuesto se les da más margen para contribuir."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:180002
+#: 7d67453f09b040fa8c33491c4751f677
+#, python-brace-format
+msgid ""
+"A Gaussian process handles the non-linear trend through a time-varying "
+"intercept (see {ref}`mmm_tv_intercept`). We collect the constructor "
+"arguments and the sampler settings in dictionaries so that every model in"
+" this notebook is built identically and only the calibration differs."
+msgstr ""
+"Un proceso gaussiano maneja la tendencia no lineal mediante un intercepto "
+"variable en el tiempo (véase {ref}`mmm_tv_intercept`). Reunimos los "
+"argumentos del constructor y la configuración del muestreador en "
+"diccionarios para que todos los modelos de este cuaderno se construyan de "
+"forma idéntica y solo cambie la calibración."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:200002
+#: 5afffb1043ed4c52aa3c4fa98b3021a5
+msgid ""
+"One detail matters for everything that follows. Calibration compares "
+"model contribution against spend in **original units**, so the model has "
+"to expose the channel contribution on its original scale, "
+"`channel_contribution_original_scale`. "
+"`add_original_scale_contribution_variable` registers it, and "
+"`add_cost_per_target_calibration` registers it too when it is missing. We"
+" call the former explicitly because the plots below also read the other "
+"components on the original scale."
+msgstr ""
+"Un detalle importa para todo lo que sigue. La calibración compara la "
+"contribución del modelo con el gasto en **unidades originales**, así que el "
+"modelo tiene que exponer la contribución del canal en su escala original, "
+"`channel_contribution_original_scale`. "
+"`add_original_scale_contribution_variable` la registra, y "
+"`add_cost_per_target_calibration` también la registra cuando falta. Llamamos"
+" explícitamente al primer método porque los gráficos siguientes también leen"
+" los demás componentes en la escala original."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:220002
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:370002
+#: a842a358785a4bfcba0586eba9a38ec8 fb5414e4042947968b7aeafa020f3f17
+msgid "\\displaystyle 0"
+msgstr "\\displaystyle 0"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:230002
+#: 179d966496fd433db18239493ff4ddd8
+msgid ""
+"There are no divergences, but divergences do not reveal a chain stuck in "
+"a minor mode. A quick check is the mean joint log density of each chain: "
+"the log prior of every free parameter plus the log-likelihood of `y`."
+msgstr ""
+"No hay divergencias, pero las divergencias no revelan una cadena atascada en"
+" un modo menor. Una comprobación rápida es la densidad logarítmica conjunta "
+"media de cada cadena: el log prior de cada parámetro libre más la log-"
+"verosimilitud de `y`."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:250002
+#: 195d3f1b3d6f4c56b80207cf3b44bf0f
+msgid "Dropping a stuck chain"
+msgstr "Descartar una cadena atascada"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:250005
+#: 75d7501b503340d192dea7d048177c10
+msgid ""
+"One chain sits about $44$ nats below the other three. It is stuck in a "
+"minor mode where `x1` saturates heavily and its ROAS lands near $464$, "
+"and it fits `y` worse. A mode that far down holds a negligible share of "
+"the posterior, yet pooling all four chains would give it a quarter of the"
+" draws, so we keep only the chains within $10$ nats of the best one. This"
+" is the pruning of minor modes recommended in [Bayesian "
+"Workflow](https://arxiv.org/abs/2011.01808) (Gelman et al., 2020, Section"
+" 5.6), and what stacking the chains ([Yao, Vehtari and Gelman, "
+"2022](https://jmlr.org/papers/v23/20-1426.html)) does approximately. Only"
+" drop a chain once you know why it differs."
+msgstr ""
+"Una cadena se sitúa unos $44$ nats por debajo de las otras tres. Está "
+"atascada en un modo menor donde `x1` se satura fuertemente y su ROAS queda "
+"cerca de $464$, y ajusta peor `y`. Un modo tan bajo contiene una parte "
+"despreciable de la distribución posterior, pero al agrupar las cuatro "
+"cadenas se le daría una cuarta parte de las muestras, así que conservamos "
+"solo las cadenas que están a menos de $10$ nats de la mejor. Esta es la poda"
+" de modos menores recomendada en [Bayesian "
+"Workflow](https://arxiv.org/abs/2011.01808) (Gelman et al., 2020, Sección "
+"5.6), y lo que hace de forma aproximada el apilamiento de cadenas ([Yao, "
+"Vehtari y Gelman, 2022](https://jmlr.org/papers/v23/20-1426.html)). Descarte"
+" una cadena solo cuando sepa por qué es diferente."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:250008
+#: 4432cae0ead5405498a899a55baf48fd
+msgid ""
+"Now let us look at what the model believes about ROAS. The "
+"`incrementality` accessor computes contribution over spend for us."
+msgstr ""
+"Veamos ahora qué cree el modelo sobre el ROAS. El accesor `incrementality` "
+"calcula por nosotros la contribución sobre el gasto."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:250010
+#: 9cc748d2b2e7440dba32775a13d3130c
+msgid ""
+"One bookkeeping note before reading any plots. Three closely related "
+"quantities appear in this notebook: the **plotted** ROAS below comes from"
+" `contribution_over_spend`, a zero-spend counterfactual that includes "
+"carryover effects; the **calibration target** added later constrains the "
+"ratio of mean channel contribution to mean spend over the fitted dates; "
+"and the **true** ROAS was computed above directly from the simulation's "
+"ground-truth columns. For an additive model like this one they agree in "
+"principle, but they are three different computations, so small numerical "
+"differences between them are expected and not a bug."
+msgstr ""
+"Una nota de contabilidad antes de leer los gráficos. En este cuaderno "
+"aparecen tres cantidades estrechamente relacionadas: el ROAS **trazado** más"
+" abajo proviene de `contribution_over_spend`, un contrafactual de gasto cero"
+" que incluye los efectos de arrastre; el **objetivo de calibración** que se "
+"añade más adelante restringe la razón entre la contribución media del canal "
+"y el gasto medio sobre las fechas ajustadas; y el ROAS **verdadero** se "
+"calculó más arriba directamente a partir de las columnas de verdad conocida "
+"de la simulación. Para un modelo aditivo como este coinciden en principio, "
+"pero son tres cálculos distintos, por lo que son de esperar pequeñas "
+"diferencias numéricas entre ellos, y no son un error."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:280002
+#: 1cbd3e2bf2e14361a46e6a9ea52907f6
+msgid ""
+"Neither channel is recovered, and `x1` is the large failure. The "
+"posterior mean puts it at about $197$ against a true ROAS of $93$, more "
+"than twice the truth. This is the confounder at work."
+msgstr ""
+"Ninguno de los dos canales se recupera, y `x1` es el gran fallo. La media "
+"posterior lo sitúa en alrededor de $197$ frente a un ROAS verdadero de $93$,"
+" más del doble del valor real. Este es el confusor en acción."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:280004
+#: a2e96d4617df4ce2b211a23c1fec6a1b
+msgid ""
+"`x2` is the milder case: about $142$, against a true $171$, so low by "
+"roughly $17\\%$. Note that `x2` is not confounded, so its error is "
+"inherited rather than direct. When one channel's contribution is "
+"overstated, the rest of the model has to give up some of the sales it was"
+" explaining, and `x2` is part of that remainder. This notebook does not "
+"isolate that mechanism, so treat it as the likely reading rather than a "
+"demonstrated one."
+msgstr ""
+"`x2` es el caso más leve: alrededor de $142$, frente a un valor verdadero de"
+" $171$, es decir, por debajo en aproximadamente $17\\%$. Tenga en cuenta que"
+" `x2` no está confundido, así que su error es heredado y no directo. Cuando "
+"se sobrestima la contribución de un canal, el resto del modelo tiene que "
+"ceder parte de las ventas que estaba explicando, y `x2` forma parte de ese "
+"remanente. Este cuaderno no aísla ese mecanismo, así que tómelo como la "
+"lectura probable y no como una demostrada."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:280006
+#: 5f0c4d7ff7e64929be60f88be5ce1094
+msgid ""
+"The ordering is the consequence that matters most. The model ranks `x1` "
+"above `x2`, and the truth is the opposite. A budget recommendation built "
+"on this posterior moves money in the wrong direction."
+msgstr ""
+"El orden es la consecuencia que más importa. El modelo sitúa a `x1` por "
+"encima de `x2`, y la verdad es lo contrario. Una recomendación de "
+"presupuesto construida sobre esta distribución posterior mueve el dinero en "
+"la dirección equivocada."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:280008
+#: d2bdbfd05e084dc58d078359f7c9b687
+msgid ""
+"No amount of extra sales data fixes this. The bias is structural, not "
+"statistical. We need information from outside the sales series."
+msgstr ""
+"Ninguna cantidad adicional de datos de ventas arregla esto. El sesgo es "
+"estructural, no estadístico. Necesitamos información de fuera de la serie de"
+" ventas."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:290002
+#: 279ec76258c14c08b900055b6d2e311c
+msgid "Adding a ROAS Calibration"
+msgstr "Añadir una calibración de ROAS"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:290004
+#: a86a275f85bb486295b4af23dc11c370
+msgid ""
+"Suppose the measurement team ran geo lift experiments on both channels "
+"and reported a ROAS point estimate with a standard error for each. That "
+"is exactly the input `add_cost_per_target_calibration` expects."
+msgstr ""
+"Supongamos que el equipo de medición realizó experimentos de elevación "
+"geográfica en ambos canales y reportó una estimación puntual del ROAS con un"
+" error estándar para cada uno. Esa es exactamente la entrada que espera "
+"`add_cost_per_target_calibration`."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:290008
+#: 3f355dced31149628d7487aa3ba12283
+msgid "The calibration table needs one row per experiment, with:"
+msgstr "La tabla de calibración necesita una fila por experimento, con:"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:250002
+#: e955506f548549c795574f4a0d62ffc3
+msgid "column"
+msgstr "columna"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:250002
+#: e151c74518614ec29443278d956b7aa2
+msgid "meaning"
+msgstr "significado"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:250002
+#: aafade1bf6de4b73bc74061f9c93384d
+msgid "`channel`"
+msgstr "`channel`"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:250002
+#: 8304112d4fa74af0b3469e441970f241
+msgid "which channel the experiment measured, matching `channel_columns`"
+msgstr "qué canal midió el experimento, que coincide con `channel_columns`"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:250002
+#: ee7fe138387947dd80bb3c74b619fb77
+msgid "*value column*"
+msgstr "*columna de valor*"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:250002
+#: 60876cd2d7ae430db306cf3941e861da
+msgid "the measured ROAS (or CPA); you choose the column name"
+msgstr "el ROAS (o CPA) medido; usted elige el nombre de la columna"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:250002
+#: f2bf4666db384ab09440a285829e822d
+msgid "`sigma`"
+msgstr "`sigma`"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:250002
+#: 56adab5afd524ce0a8b048991fd2dd9f
+msgid "how much deviation you accept, on the same scale as the value"
+msgstr "cuánta desviación se acepta, en la misma escala que el valor"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:250002
+#: facb55413ec54fe8b9705c41ee41b98a
+msgid "*dims columns*"
+msgstr "*columnas de dimensiones*"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:250002
+#: 0792ed0b58ea465382c735e2479c033d
+msgid "one column per model dimension, for example `geo`, when the model has them"
+msgstr ""
+"una columna por cada dimensión del modelo, por ejemplo `geo`, cuando el "
+"modelo las tiene"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:290017
+#: f30c83ce92074aa0a2839ecb363a5120
+msgid ""
+"Our model has no extra dimensions, so `channel`, the value, and `sigma` "
+"are all we need."
+msgstr ""
+"Nuestro modelo no tiene dimensiones adicionales, así que `channel`, el valor"
+" y `sigma` es todo lo que necesitamos."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:310002
+#: 2854614e7d754111985ff7cbaa6c1a16
+msgid "Where these numbers come from in practice"
+msgstr "De dónde salen estos números en la práctica"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:310005
+#: 0210e8285fe44f3e8e66c989d1c2006f
+msgid ""
+"We plug in the true ROAS because this is a simulation and we want to "
+"check recovery. In a real project the value column comes from an "
+"experiment readout and `sigma` comes from that experiment's own "
+"uncertainty, not from a guess. A geo lift analysis in "
+"[CausalPy](https://causalpy.readthedocs.io/en/stable/), for instance, "
+"gives you a posterior over the incremental effect; its standard deviation"
+" is a defensible `sigma`."
+msgstr ""
+"Introducimos el ROAS verdadero porque esto es una simulación y queremos "
+"comprobar la recuperación. En un proyecto real, la columna de valor proviene"
+" del informe de un experimento y `sigma` proviene de la propia incertidumbre"
+" de ese experimento, no de una suposición. Un análisis de elevación "
+"geográfica en [CausalPy](https://causalpy.readthedocs.io/en/stable/), por "
+"ejemplo, proporciona una distribución posterior sobre el efecto incremental;"
+" su desviación estándar es un `sigma` defendible."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:310012
+#: bd2b1e8306f94eed865cf0ae23337427
+msgid ""
+"Never calibrate to a number that came out of another MMM. You would be "
+"feeding the model its own opinion back as evidence."
+msgstr ""
+"Nunca calibre con un número que haya salido de otro MMM. Estaría devolviendo"
+" al modelo su propia opinión como si fuera evidencia."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:310016
+#: 078ffa2d4f19422b8ea853115f9be809
+msgid ""
+"Here `sigma` is $15\\%$ of each ROAS value, which is a moderate stance: "
+"we take the experiments seriously but leave the sales likelihood some "
+"room to disagree."
+msgstr ""
+"Aquí `sigma` es el $15\\%$ de cada valor de ROAS, lo que es una postura "
+"moderada: nos tomamos en serio los experimentos pero dejamos a la "
+"verosimilitud de las ventas cierto margen para discrepar."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:310019
+#: 70a12600777540e8a35e46a42912bb21
+msgid "Now we build the calibrated model. Note the ordering:"
+msgstr "Ahora construimos el modelo calibrado. Observe el orden:"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:310021
+#: f160a8ca43704ddcb6c7ae9fa34ad696
+msgid "`build_model`: the calibration needs a model to attach to."
+msgstr "`build_model`: la calibración necesita un modelo al que adjuntarse."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:310022
+#: f6521b3aecde4ab08c7d121e663fddd9
+msgid ""
+"`add_original_scale_contribution_variable`: optional for the calibration,"
+" which registers `channel_contribution_original_scale` itself when it is "
+"missing. We call it so the calibrated model exposes the same original-"
+"scale variables as the naive one."
+msgstr ""
+"`add_original_scale_contribution_variable`: opcional para la calibración, "
+"que registra por sí misma `channel_contribution_original_scale` cuando "
+"falta. La llamamos para que el modelo calibrado exponga las mismas variables"
+" en escala original que el modelo ingenuo."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:310023
+#: d89856e7334c46869c3284269460b9b5
+msgid "`add_cost_per_target_calibration`: add the observed likelihood."
+msgstr "`add_cost_per_target_calibration`: añade la verosimilitud observada."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:310024
+#: 833dae0cbf5c463694e0e910c1c6f3bc
+msgid "`fit`."
+msgstr "`fit`."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:330002
+#: 754018361d114671a98b11885187a20c
+msgid "Three arguments deserve comment."
+msgstr "Tres argumentos merecen un comentario."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:330004
+#: 8c592ac50f084c3a9824d5af494dde3f
+msgid ""
+"`data` is a spend table with the same layout as `X`. In this dataset the "
+"channel columns already *are* spend, so we pass `X` directly. If your "
+"model is fit on impressions or GRPs rather than money, this is where you "
+"supply the matching monetary spend, and getting it right is what makes "
+"the resulting ratio a real ROAS."
+msgstr ""
+"`data` es una tabla de gasto con el mismo formato que `X`. En este conjunto "
+"de datos las columnas de canal ya *son* gasto, así que pasamos `X` "
+"directamente. Si su modelo se ajusta con impresiones o GRPs en lugar de "
+"dinero, aquí es donde se proporciona el gasto monetario correspondiente, y "
+"acertar con él es lo que hace que la razón resultante sea un ROAS real."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:330010
+#: 19d690db084a4fd99d96e28754b7214b
+msgid ""
+"`target_column` tells the method which column holds the calibration "
+"values. It defaults to `\"cost_per_target\"`; we named ours `\"roas\"`, "
+"so we say so."
+msgstr ""
+"`target_column` le indica al método qué columna contiene los valores de "
+"calibración. Su valor predeterminado es `\"cost_per_target\"`; nosotros "
+"nombramos la nuestra `\"roas\"`, así que lo indicamos."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:330013
+#: 5ea927a0f70647288e68e5db6baf08e3
+msgid ""
+"`target_per_cost=True` is the direction switch, and it is the important "
+"one:"
+msgstr ""
+"`target_per_cost=True` es el interruptor de dirección, y es el importante:"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:330015
+#: 7eaf19137f044f1da23512b4712055d4
+msgid ""
+"`target_per_cost=False` (the default) calibrates "
+"$\\overline{\\text{spend}} \\,/\\, \\overline{\\text{contribution}}$, "
+"which is **cost per target**: CPA, CPI, cost per conversion."
+msgstr ""
+"`target_per_cost=False` (el valor predeterminado) calibra "
+"$\\overline{\\text{spend}} \\,/\\, \\overline{\\text{contribution}}$, que es"
+" el **costo por objetivo**: CPA, CPI, costo por conversión."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:330018
+#: 19a05c75017448fd95f22591c6c2cd4d
+msgid ""
+"`target_per_cost=True` calibrates $\\overline{\\text{contribution}} "
+"\\,/\\, \\overline{\\text{spend}}$, which is **ROAS** when contribution "
+"is revenue."
+msgstr ""
+"`target_per_cost=True` calibra $\\overline{\\text{contribution}} \\,/\\, "
+"\\overline{\\text{spend}}$, que es el **ROAS** cuando la contribución son "
+"ingresos."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:330022
+#: 11818e30fc564ffdb6617d34abbefa91
+#, python-brace-format
+msgid ""
+"The two are reciprocals, so in principle either could express the same "
+"constraint. In practice they are not interchangeable, because `sigma` is "
+"applied on whichever scale you pick. A symmetric Normal error on ROAS is "
+"not a symmetric error on CPA. For a lift test the ROAS scale is the one "
+"whose error is Normal, so a CPA from one is converted to a ROAS table "
+"before it is calibrated (see the warning in {ref}`roas_calibration_cpa`)."
+msgstr ""
+"Los dos son recíprocos, así que en principio cualquiera de ellos podría "
+"expresar la misma restricción. En la práctica no son intercambiables, porque"
+" `sigma` se aplica en la escala que se elija. Un error Normal simétrico "
+"sobre el ROAS no es un error simétrico sobre el CPA. Para una prueba de "
+"elevación, la escala del ROAS es aquella cuyo error es Normal, por lo que un"
+" CPA procedente de una se convierte en una tabla de ROAS antes de calibrar "
+"(véase la advertencia en {ref}`roas_calibration_cpa`)."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:330029
+#: 9f6d4ffeef5d495b8902bfcaf04bee73
+msgid "The likelihood family is a choice"
+msgstr "La familia de la verosimilitud es una elección"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:330032
+#: 25d8d91e8fc64c48884b5e8dd55c5779
+#, python-brace-format
+msgid ""
+"The calibration term is a `Normal` by default. "
+"`likelihood=Prior(\"StudentT\", nu=...)` and "
+"`likelihood=Prior(\"LogNormal\")` are the alternatives. They differ in "
+"what happens when the model and the experiment disagree by a lot, not "
+"near the experiment, and the direction switch above matters a great deal "
+"for the first two and not at all for the third. The section "
+"{ref}`roas_calibration_likelihood_family` shows them side by side."
+msgstr ""
+"El término de calibración es una `Normal` de forma predeterminada. "
+"`likelihood=Prior(\"StudentT\", nu=...)` y `likelihood=Prior(\"LogNormal\")`"
+" son las alternativas. Se diferencian en lo que ocurre cuando el modelo y el"
+" experimento discrepan mucho, no cerca del experimento, y el interruptor de "
+"dirección anterior importa muchísimo para las dos primeras y nada para la "
+"tercera. La sección {ref}`roas_calibration_likelihood_family` las muestra "
+"una junto a otra."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:330040
+#: 817d0b57c73144bf8a1387044116437c
+msgid "Let us confirm what actually got added to the model."
+msgstr "Confirmemos qué se añadió realmente al modelo."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:350002
+#: ee0798b71622421685eccd1717af1a4b
+msgid ""
+"The naive model observes only `y`. The calibrated model observes `y` "
+"**and** `roas_calibration`. That second node is the whole mechanism: two "
+"likelihood terms instead of one, and the posterior has to satisfy both."
+msgstr ""
+"El modelo ingenuo observa solo `y`. El modelo calibrado observa `y` **y** "
+"`roas_calibration`. Ese segundo nodo es todo el mecanismo: dos términos de "
+"verosimilitud en lugar de uno, y la distribución posterior tiene que "
+"satisfacer ambos."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:350006
+#: ccf8d130c30646a4ace635ee85a3c4e8
+msgid "Now we fit."
+msgstr "Ahora ajustamos."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:390002
+#: f497a138940642219063603934fc3666
+msgid ""
+"This calibration helps the model estimates, but it only partially "
+"mitigates the confounding effect. The `x1` posterior mean moves from the "
+"naive model's $197$ down to $155$ against a true $93$, so roughly $40\\%$"
+" of the error is gone, and `x2` moves from $142$ up to $149$ against a "
+"true $171$. The true `x1` ROAS is still outside its $94\\%$ interval, and"
+" the ranking is still inverted: about $155$ for `x1` against $149$ for "
+"`x2`."
+msgstr ""
+"Esta calibración ayuda a las estimaciones del modelo, pero solo mitiga "
+"parcialmente el efecto de confusión. La media posterior de `x1` pasa de "
+"$197$ en el modelo ingenuo a $155$ frente a un valor verdadero de $93$, de "
+"modo que aproximadamente $40\\%$ del error ha desaparecido, y `x2` pasa de "
+"$142$ a $149$ frente a un valor verdadero de $171$. El ROAS verdadero de "
+"`x1` sigue estando fuera de su intervalo de $94\\%$, y el orden sigue "
+"invertido: unos $155$ para `x1` frente a $149$ para `x2`."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:390006
+#: 3493f214206546f384c3bd7b6061a7e7
+msgid ""
+"That is a weaker result than \"calibration fixes it\", and the reason is "
+"`sigma`. We asked for $15\\%$ relative uncertainty, which leaves the "
+"sales likelihood a lot of room to disagree, and it uses it. The next "
+"section refits with a tighter and a looser calibration so you can see how"
+" much of the answer is controlled by that one number."
+msgstr ""
+"Ese es un resultado más débil que \"la calibración lo arregla\", y la razón "
+"es `sigma`. Pedimos una incertidumbre relativa de $15\\%$, lo que deja a la "
+"verosimilitud de las ventas mucho margen para discrepar, y lo aprovecha. La "
+"siguiente sección vuelve a ajustar con una calibración más estricta y otra "
+"más laxa para que pueda ver cuánto de la respuesta lo controla ese único "
+"número."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:400002
+#: 1c8598ff06334eed8f36d1de84d0f078
+msgid "How `sigma` Controls the Pull"
+msgstr "Cómo controla `sigma` la atracción"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:400004
+#: 791802ef75314116b8479c3b5ee9d85d
+msgid ""
+"`sigma` is the only real dial and it is worth seeing it move. We refit "
+"the model with a tight calibration ($5\\%$ relative uncertainty) and a "
+"loose one ($60\\%$), keeping everything else fixed."
+msgstr ""
+"`sigma` es el único control real y vale la pena verlo moverse. Volvemos a "
+"ajustar el modelo con una calibración estricta ($5\\%$ de incertidumbre "
+"relativa) y una laxa ($60\\%$), manteniendo todo lo demás fijo."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:420002
+#: 3de08cf9b0644f5c90d7561a2f5f53a3
+msgid "Comparing the Models"
+msgstr "Comparación de los modelos"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:420004
+#: 89e4bad9383143fdaf1843ef32f93b62
+msgid ""
+"A forest plot is the natural way to compare posteriors across models: it "
+"puts every interval on one axis so the shrinkage is immediately visible."
+msgstr ""
+"Un gráfico de bosque (*forest plot*) es la forma natural de comparar "
+"distribuciones posteriores entre modelos: coloca todos los intervalos sobre "
+"un mismo eje, de modo que la contracción se aprecia de inmediato."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:480002
+#: 0c04e01b22964f1f9a9dacc266315423
+msgid ""
+"The `x1` panel, read against the dashed line at the true ROAS of $93$, "
+"tells a more nuanced story than \"calibration works\"."
+msgstr ""
+"El panel de `x1`, leído frente a la línea discontinua en el ROAS verdadero "
+"de $93$, cuenta una historia más matizada que \"la calibración funciona\"."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:480004
+#: e24fb23c7d804cdfa3395c676075e796
+msgid "Two things work as advertised:"
+msgstr "Dos cosas funcionan como se anuncia:"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:480006
+#: e04ce249ad5a41ee857a4db12cc460e3
+msgid ""
+"Every calibrated model moves toward the truth, and the ordering follows "
+"`sigma` exactly. The tight ($5\\%$) calibration lands nearest with a "
+"posterior mean near $108$, the moderate ($15\\%$) one at about $155$, and"
+" the loose ($60\\%$) one at about $193$, against the naive model's $197$."
+msgstr ""
+"Todo modelo calibrado se mueve hacia la verdad, y el orden sigue exactamente"
+" a `sigma`. La calibración estricta ($5\\%$) queda más cerca, con una media "
+"posterior cercana a $108$, la moderada ($15\\%$) en alrededor de $155$ y la "
+"laxa ($60\\%$) en alrededor de $193$, frente a $197$ del modelo ingenuo."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:480008
+#: 4847234c4ac2465aa03e1710119c2611
+msgid ""
+"The loose calibration stays closest to the naive fit. It settles almost "
+"exactly on the naive fit, with an interval of about the same width. That "
+"is the expected behavior when you have told the model not to trust the "
+"experiment."
+msgstr ""
+"La calibración laxa permanece lo más cerca del ajuste ingenuo. Se asienta "
+"casi exactamente sobre el ajuste ingenuo, con un intervalo de "
+"aproximadamente el mismo ancho. Ese es el comportamiento esperado cuando se "
+"le ha dicho al modelo que no confíe en el experimento."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:480011
+#: ffceecc7d7ce4ff48d263f8ac16bb358
+#, python-brace-format
+msgid ""
+"One thing does not work. Not even the tight calibration recovers the true"
+" value: its $94\\%$ interval runs from about $100$ to $116$, which "
+"excludes $93$ at the low end. The calibration enters as a single "
+"observation that competes against every date in the sales series. So even"
+" at $5\\%$ relative uncertainty, the posterior mean of about $108$ "
+"settles roughly three `sigma` (here $5\\%$ of $93$, about $4.7$) above "
+"the calibration target of $93$ and not on it. Tightening `sigma` buys a "
+"large reduction in bias here, not exact recovery. If you need the "
+"experiment to constrain the model more firmly than that, a whole-period "
+"ratio is the wrong instrument. See the note on matching the time window "
+"below, and {ref}`mmm_lift_test` for a constraint at the spend levels the "
+"experiment tested."
+msgstr ""
+"Una cosa no funciona. Ni siquiera la calibración estricta recupera el valor "
+"verdadero: su intervalo de $94\\%$ va de aproximadamente $100$ a $116$, lo "
+"que excluye $93$ en el extremo inferior. La calibración entra como una única"
+" observación que compite contra cada fecha de la serie de ventas. Así que "
+"incluso con $5\\%$ de incertidumbre relativa, la media posterior de "
+"aproximadamente $108$ se asienta a unos tres `sigma` (aquí $5\\%$ de $93$, "
+"aproximadamente $4.7$) por encima del objetivo de calibración de $93$ y no "
+"sobre él. Estrechar `sigma` consigue aquí una gran reducción del sesgo, no "
+"una recuperación exacta. Si necesita que el experimento restrinja el modelo "
+"con más firmeza que eso, una razón de todo el período es el instrumento "
+"equivocado. Véase la nota sobre hacer coincidir la ventana de tiempo más "
+"abajo, y {ref}`mmm_lift_test` para una restricción en los niveles de gasto "
+"que probó el experimento."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:480019
+#: bb64deadfa6f4566ab3e4598e84fb102
+msgid ""
+"The `x2` panel shows the inherited bias described earlier. The naive "
+"model was not already right about `x2`: its mean sits near $142$ against "
+"a true $171$, low by about $17\\%$, with the truth outside its interval. "
+"Calibration helps here too. The tight interval covers the true value, and"
+" the moderate one ends just short of it (its upper end is about $170$)."
+msgstr ""
+"El panel de `x2` muestra el sesgo heredado descrito antes. El modelo ingenuo"
+" no estaba ya en lo cierto con `x2`: su media está cerca de $142$ frente a "
+"un valor verdadero de $171$, por debajo en aproximadamente $17\\%$, con la "
+"verdad fuera de su intervalo. La calibración ayuda también aquí. El "
+"intervalo estricto cubre el valor verdadero, y el moderado termina justo por"
+" debajo de él (su extremo superior es de aproximadamente $170$)."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:480023
+#: ff6caa1d084b4f729fb9c3f4ededa5cb
+msgid ""
+"The summary that matters is the ranking, because that is what moves "
+"budget. The truth is `x2` above `x1`, and the table above gives the "
+"posterior probability of that ordering under each model. This probability"
+" is the right way to read a ranking off two overlapping posteriors. The "
+"difference between the posterior means is small relative to their spread,"
+" so the means alone would overstate the precision. The naive model and "
+"the loose calibration put that probability below $0.1\\%$ and at about "
+"$0.2\\%$, so they bet confidently on the wrong order. The moderate "
+"calibration moves it to about $35\\%$, closer to a coin flip but still in"
+" favor of the wrong order. Only the tight calibration commits to the "
+"correct order, at essentially $100\\%$."
+msgstr ""
+"El resumen que importa es el orden, porque es lo que mueve el presupuesto. "
+"La verdad es `x2` por encima de `x1`, y la tabla anterior da la probabilidad"
+" posterior de ese orden bajo cada modelo. Esta probabilidad es la forma "
+"correcta de leer un orden a partir de dos distribuciones posteriores "
+"solapadas. La diferencia entre las medias posteriores es pequeña en relación"
+" con su dispersión, por lo que las medias por sí solas exagerarían la "
+"precisión. El modelo ingenuo y la calibración laxa sitúan esa probabilidad "
+"por debajo de $0.1\\%$ y en aproximadamente $0.2\\%$, de modo que apuestan "
+"con seguridad por el orden equivocado. La calibración moderada la lleva a "
+"aproximadamente $35\\%$, más cerca de una moneda al aire pero todavía a "
+"favor del orden equivocado. Solo la calibración estricta se compromete con "
+"el orden correcto, con esencialmente $100\\%$."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:480030
+#: 88c429e6c15243b38293cf8d3fcadcc3
+msgid ""
+"Note what made the difference: the tight calibration describes a more "
+"precise experiment, not a better choice of `sigma` for the same "
+"experiment. If the experiment's standard error is $15\\%$, the moderate "
+"fit is the right one, and on this dataset it does not overturn the "
+"confounding. Also, every experiment in this notebook reports the true "
+"ROAS, because we set it that way. What happens to the tight calibration "
+"when the experiment itself is biased?"
+msgstr ""
+"Observe qué marcó la diferencia: la calibración estricta describe un "
+"experimento más preciso, no una mejor elección de `sigma` para el mismo "
+"experimento. Si el error estándar del experimento es $15\\%$, el ajuste "
+"moderado es el correcto, y en este conjunto de datos no revierte la "
+"confusión. Además, todos los experimentos de este cuaderno informan el ROAS "
+"verdadero, porque así lo configuramos. ¿Qué ocurre con la calibración "
+"estricta cuando el propio experimento está sesgado?"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:480036
+#: 63c0ecabc20c4e33b565609720203ed9
+msgid "When the Experiment Is Biased"
+msgstr "Cuando el experimento está sesgado"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:480038
+#: 7ff4b27785544d17bdcbe390fada0155
+msgid ""
+"Let's repeat the tight ($5\\%$) calibration with an `x1` experiment that "
+"overstates the true ROAS, once by $50\\%$ and once by $100\\%$. The `x2` "
+"experiment stays exact. We build the two tables first."
+msgstr ""
+"Repitamos la calibración estricta ($5\\%$) con un experimento de `x1` que "
+"sobrestima el ROAS verdadero, una vez en $50\\%$ y otra en $100\\%$. El "
+"experimento de `x2` sigue siendo exacto. Primero construimos las dos tablas."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:500002
+#: a79c125c40644691a911516adf34e9bb
+msgid "Now we fit one model per table."
+msgstr "Ahora ajustamos un modelo por cada tabla."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:520002
+#: 20063803572843f49192e3491ea98217
+msgid ""
+"We compare the three tight calibrations, on the exact experiment and on "
+"the two overstated ones, with one forest plot per channel."
+msgstr ""
+"Comparamos las tres calibraciones estrictas, con el experimento exacto y con"
+" los dos sobrestimados, con un gráfico de bosque por canal."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:540002
+#: c7ec167dd72547b08f383223f238de2b
+msgid ""
+"Next, the probability of the correct ranking under each of the three "
+"experiments."
+msgstr ""
+"A continuación, la probabilidad del orden correcto bajo cada uno de los tres"
+" experimentos."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:560002
+#: 966f7f9bd1d240fb91820af106858ec3
+msgid ""
+"With the `x1` experiment at $140$ ($+50\\%$), the posterior mean moves to"
+" about $155$. That is about $15$ above the experiment, close to the "
+"offset with the exact experiment ($108$ against $93$). Its interval is "
+"still short and excludes the true $93$ by a wide margin, so the model is "
+"now confidently wrong about the `x1` ROAS. The decision mostly survives: "
+"the probability of the correct ranking drops from $100\\%$ to about "
+"$80\\%$, because the `x1` experiment still sits below the `x2` experiment"
+" at $171$."
+msgstr ""
+"Con el experimento de `x1` en $140$ ($+50\\%$), la media posterior se mueve "
+"a aproximadamente $155$. Eso es unos $15$ por encima del experimento, cerca "
+"de la diferencia observada con el experimento exacto ($108$ frente a $93$). "
+"Su intervalo sigue siendo corto y excluye con holgura el valor verdadero de "
+"$93$, de modo que el modelo está ahora seguro pero equivocado sobre el ROAS "
+"de `x1`. La decisión sobrevive en su mayor parte: la probabilidad del orden "
+"correcto baja de $100\\%$ a aproximadamente $80\\%$, porque el experimento "
+"de `x1` sigue situándose por debajo del experimento de `x2`, que está en "
+"$171$."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:560004
+#: 00093f392c6843e99e4488ca71ced91b
+msgid ""
+"With the `x1` experiment at $187$ ($+100\\%$), it sits above the `x2` "
+"experiment. The posterior follows it to about $190$, and the probability "
+"of the correct ranking falls to $0.3\\%$. The model now commits to the "
+"wrong order."
+msgstr ""
+"Con el experimento de `x1` en $187$ ($+100\\%$), este queda por encima del "
+"experimento de `x2`. La distribución posterior lo sigue hasta "
+"aproximadamente $190$, y la probabilidad del orden correcto cae a $0.3\\%$. "
+"El modelo se compromete ahora con el orden equivocado."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:560006
+#: 46ea8eace676412d8f30272b3f302628
+msgid ""
+"The two comparisons show what decides the result. The precision of the "
+"experiment decides how firmly the model follows it. The correctness of "
+"the experiment decides where the model goes, and so whether the decision "
+"comes out right. `sigma` should state the precision the experiment has. A"
+" tight `sigma` does not correct an experiment that is wrong."
+msgstr ""
+"Las dos comparaciones muestran qué decide el resultado. La precisión del "
+"experimento decide con qué firmeza lo sigue el modelo. La corrección del "
+"experimento decide hacia dónde va el modelo y, por tanto, si la decisión "
+"sale bien. `sigma` debe expresar la precisión que tiene el experimento. Un "
+"`sigma` pequeño no corrige un experimento que es erróneo."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:560008
+#: 0d5904730a99437584b6ba63bed7236a
+msgid ""
+"We can look at the exact-experiment models as densities rather than "
+"intervals."
+msgstr ""
+"Podemos mirar los modelos con experimento exacto como densidades en lugar de"
+" intervalos."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:580002
+#: ac615aa2990b4e2b95600497c03c8234
+msgid ""
+"The tight calibration produces a visibly narrower density for `x1`, the "
+"loose one a broader density on top of the naive one, and the moderate one"
+" sits between them."
+msgstr ""
+"La calibración estricta produce una densidad visiblemente más estrecha para "
+"`x1`, la laxa una densidad más ancha encima de la del modelo ingenuo, y la "
+"moderada queda entre ambas."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:590002
+#: 20f819e238f34d76869697406977b3fb
+msgid "What Calibration Costs You"
+msgstr "Lo que cuesta la calibración"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:590004
+#: 7be17ced22c7482da1753989ad462856
+msgid ""
+"Calibration is not free. Forcing `x1` down means the rest of the model "
+"has to absorb the sales that `x1` was previously explaining, usually "
+"through the intercept and the trend. It is worth checking that the fit to"
+" the target has not degraded in some pathological way."
+msgstr ""
+"La calibración no es gratis. Forzar `x1` hacia abajo significa que el resto "
+"del modelo tiene que absorber las ventas que `x1` explicaba antes, "
+"normalmente a través del intercepto y la tendencia. Vale la pena comprobar "
+"que el ajuste al objetivo no se haya degradado de alguna manera patológica."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:610002
+#: c6d211c03cf846638d6a4a5a61ce0f26
+msgid ""
+"Both models track the target closely. Calibration changed *which* "
+"component gets credit for the sales, not whether the sales are explained."
+msgstr ""
+"Ambos modelos siguen de cerca el objetivo. La calibración cambió *qué* "
+"componente recibe el crédito de las ventas, no si las ventas quedan "
+"explicadas."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:610005
+#: 90f4130e55624df199d7a59909a79157
+#, python-brace-format
+msgid ""
+"This is the central lesson, and it is the reason predictive accuracy is a"
+" poor way to choose between MMMs. Two models can fit the observed series "
+"equally well and still give opposite budget advice. Only causal "
+"information, from experiments, separates them. The {ref}`mmm_roas` "
+"notebook makes the same point quantitatively with cross-validated CRPS, "
+"where the *uncalibrated* model actually scores better out of sample while"
+" being the more wrong of the two."
+msgstr ""
+"Esta es la lección central, y es la razón por la que la precisión predictiva"
+" es una mala manera de elegir entre MMM. Dos modelos pueden ajustar igual de"
+" bien la serie observada y aun así dar consejos de presupuesto opuestos. "
+"Solo la información causal, procedente de experimentos, los distingue. El "
+"cuaderno {ref}`mmm_roas` plantea el mismo argumento de forma cuantitativa "
+"con el CRPS validado de forma cruzada, donde el modelo *no calibrado* en "
+"realidad puntúa mejor fuera de muestra siendo el más equivocado de los dos."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:620003
+#: 444611c06f594f8e8bf2935d73f7cf14
+msgid "Calibrating on CPA Instead"
+msgstr "Calibrar con CPA en su lugar"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:620005
+#: 03fd3593dad04906b5dd326c9717b1cf
+msgid ""
+"Many teams do not report ROAS. If your target variable is conversions "
+"rather than revenue, the natural quantity is cost per acquisition, and "
+"that is what the method does by default."
+msgstr ""
+"Muchos equipos no reportan el ROAS. Si su variable objetivo son conversiones"
+" en lugar de ingresos, la cantidad natural es el costo por adquisición, y "
+"eso es lo que hace el método de forma predeterminada."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:620009
+#: 611e3a4579bd4fdeb451bbd2a6a659b0
+msgid ""
+"The only changes are the direction flag and the column name. We calibrate"
+" the CPA table as written, with the default `Normal`, to see what the "
+"direction of the table does; the warning below gives the conversion to "
+"use for a CPA that comes from a lift test."
+msgstr ""
+"Los únicos cambios son el indicador de dirección y el nombre de la columna. "
+"Calibramos la tabla de CPA tal como está, con la `Normal` predeterminada, "
+"para ver qué hace la dirección de la tabla; la advertencia siguiente da la "
+"conversión que debe usarse para un CPA que proviene de una prueba de "
+"elevación."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:640002
+#: 11a61d88f4f74bb0bf25cc63ee8c16ef
+msgid "Do not treat CPA and ROAS as interchangeable under a Normal"
+msgstr "No trate el CPA y el ROAS como intercambiables bajo una Normal"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:640005
+#: 3fdbe17f3403464ebf21f18c6d9c2b4a
+msgid ""
+"The point estimates are reciprocals, but the *uncertainty* is not. A "
+"Normal with `sigma` on the ROAS scale implies an asymmetric, non-Normal "
+"uncertainty on the CPA scale, and vice versa, and the next section shows "
+"that the direction also decides on which side of the experiment the "
+"calibration can hold the model at all. For a lift test the ROAS scale is "
+"the one to calibrate on, whichever way the result was reported: the "
+"incremental outcome has the Normal error and the spend is known. Convert "
+"a CPA and its standard error with $\\text{ROAS} = 1 / \\text{CPA}$ and "
+"$\\sigma_{\\text{ROAS}} = \\sigma_{\\text{CPA}} / \\text{CPA}^2$, which "
+"is exact for the delta-method standard error of a CPA and close while the"
+" relative error is about $30\\%$ or less; a CPA given as bootstrap "
+"replicates or posterior draws is inverted draw by draw. Taking the "
+"reciprocal of the standard error itself is wrong."
+msgstr ""
+"Las estimaciones puntuales son recíprocas, pero la *incertidumbre* no lo es."
+" Una Normal con `sigma` en la escala del ROAS implica una incertidumbre "
+"asimétrica y no Normal en la escala del CPA, y viceversa, y la siguiente "
+"sección muestra que la dirección también decide de qué lado del experimento "
+"puede la calibración retener al modelo. Para una prueba de elevación, la "
+"escala del ROAS es aquella en la que se debe calibrar, sea cual sea la forma"
+" en que se reportó el resultado: el resultado incremental tiene el error "
+"Normal y el gasto es conocido. Convierta un CPA y su error estándar con "
+"$\\text{ROAS} = 1 / \\text{CPA}$ y $\\sigma_{\\text{ROAS}} = "
+"\\sigma_{\\text{CPA}} / \\text{CPA}^2$, lo cual es exacto para el error "
+"estándar de un CPA obtenido por el método delta y cercano mientras el error "
+"relativo sea de aproximadamente $30\\%$ o menos; un CPA dado como réplicas "
+"bootstrap o muestras de la distribución posterior se invierte muestra por "
+"muestra. Tomar el recíproco del propio error estándar es incorrecto."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:640019
+#: cd09928ada9a42eea20474b5fefa0d6e
+msgid ""
+"With `likelihood=Prior(\"LogNormal\")` the direction stops mattering for "
+"the posterior, because that family reads `sigma` as a relative error, "
+"which is the same number whichever way the table is written."
+msgstr ""
+"Con `likelihood=Prior(\"LogNormal\")` la dirección deja de importar para la "
+"distribución posterior, porque esa familia interpreta `sigma` como un error "
+"relativo, que es el mismo número sea cual sea la forma en que se escriba la "
+"tabla."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:640024
+#: 23c7eb9826184c2391e19d28a904b047
+msgid ""
+"We fit this model too, as written, to show what the direction does. The "
+"same experiment, the same $15\\%$, and a different answer from the ROAS "
+"table: the forest plot in the next section puts the two side by side."
+msgstr ""
+"Ajustamos también este modelo, tal como está, para mostrar qué hace la "
+"dirección. El mismo experimento, el mismo $15\\%$ y una respuesta distinta a"
+" la de la tabla de ROAS: el gráfico de bosque de la siguiente sección pone "
+"los dos lado a lado."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:660003
+#: 918da13528594cc088b8843c5c05ed58
+msgid "Choosing the Likelihood Family"
+msgstr "Elegir la familia de la verosimilitud"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:660005
+#: 3cbe162477eb41dba3a7a265e4a1b6ec
+msgid ""
+"The ROAS calibration and the CPA calibration used the same experiment, "
+"the same $15\\%$ relative `sigma` and the same `Normal` family, yet they "
+"pull `x1` by different amounts. What differs between them is the shape of"
+" the penalty."
+msgstr ""
+"La calibración de ROAS y la calibración de CPA usaron el mismo experimento, "
+"el mismo `sigma` relativo de $15\\%$ y la misma familia `Normal`, y sin "
+"embargo atraen a `x1` en cantidades distintas. Lo que las diferencia es la "
+"forma de la penalización."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:660009
+#: 75a6e717bd2146e19c2dc0f8a4cfa310
+msgid ""
+"Write $r$ for the model's ratio and $t$ for the experiment's value. A "
+"Normal centered on $r$ with the experiment observed charges"
+msgstr ""
+"Sea $r$ la razón del modelo y $t$ el valor del experimento. Una Normal "
+"centrada en $r$, con el experimento observado, impone una penalización de"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:660012
+#: a94e2363e25a4330966dd146d0ec613f
+#, python-brace-format
+msgid ""
+"\n"
+"-\\log p(t \\mid r) = \\frac{(r - t)^2}{2\\sigma^2} + \\text{const}.\n"
+msgstr ""
+"\n"
+"-\\log p(t \\mid r) = \\frac{(r - t)^2}{2\\sigma^2} + \\text{const}.\n"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:660016
+#: cc4d82387e5f4436976e5401e7412b8b
+msgid ""
+"As $r$ grows the charge grows without bound. As $r$ shrinks toward zero "
+"it stops at $t^2 / (2\\sigma^2)$: with `sigma` at $15\\%$ of the target "
+"that is about $22$ nats, and no amount of further shrinking costs more "
+"than that. A ratio of two positive quantities has zero on one side and "
+"infinity on the other, so a Normal on it is a floor or a ceiling, never "
+"both. Which side is capped is decided by how the table is written:"
+msgstr ""
+"A medida que $r$ crece, la penalización crece sin límite. A medida que $r$ "
+"se reduce hacia cero, se detiene en $t^2 / (2\\sigma^2)$: con `sigma` al "
+"$15\\%$ del objetivo eso son unos $22$ nats, y ninguna reducción adicional "
+"cuesta más que eso. Una razón de dos cantidades positivas tiene cero en un "
+"lado e infinito en el otro, así que una Normal sobre ella es un piso o un "
+"techo, nunca ambos. Cuál de los lados queda acotado lo decide la forma en "
+"que se escribe la tabla:"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:660023
+#: 8d0a43fbde7f495aba574425b5a266b1
+msgid ""
+"A CPA table (`target_per_cost=False`, the default) caps the charge as CPA"
+" goes to zero, which is ROAS going to infinity. That is exactly where the"
+" confounder pushes `x1`, and on that side the charge is nearly flat: "
+"moving `x1` from $155$ to $187$ costs the CPA table about $2$ nats more, "
+"where the ROAS table would charge about $13$ nats more for the same move."
+msgstr ""
+"Una tabla de CPA (`target_per_cost=False`, el valor predeterminado) acota la"
+" penalización cuando el CPA tiende a cero, es decir, cuando el ROAS tiende a"
+" infinito. Justo hacia ahí empuja el confusor a `x1`, y de ese lado la "
+"penalización es casi plana: mover `x1` de $155$ a $187$ le cuesta a la tabla"
+" de CPA unos $2$ nats más, mientras que la tabla de ROAS penalizaría con "
+"unos $13$ nats más por el mismo movimiento."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:660028
+#: 7a1acf96bfb64bd39246830e0a5c8167
+msgid ""
+"A ROAS table (`target_per_cost=True`) caps the charge as ROAS goes to "
+"zero and is unbounded as ROAS grows. On this dataset the bias runs toward"
+" its unbounded side, which is why the ROAS calibration pulled harder. "
+"With a channel the model *under*states, the two tables would swap roles."
+msgstr ""
+"Una tabla de ROAS (`target_per_cost=True`) acota la penalización cuando el "
+"ROAS tiende a cero y no tiene límite cuando el ROAS crece. En este conjunto "
+"de datos el sesgo va hacia su lado sin límite, razón por la cual la "
+"calibración de ROAS tiró con más fuerza. Con un canal que el modelo "
+"*sub*estime, las dos tablas intercambiarían sus papeles."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:660033
+#: b6bc9cac1ab4485bac019669f9700357
+msgid ""
+"`StudentT` caps the same side lower than the Normal and grows only "
+"logarithmically on the other, on purpose: heavier tails let the model "
+"walk away from an experiment that may itself be wrong. `LogNormal` "
+"measures the error on the log scale, so a $2\\times$ miss costs the same "
+"in either direction and the cost keeps growing as $(\\log(r/t))^2$. The "
+"figure below computes the three charges from the same densities the "
+"calibration uses."
+msgstr ""
+"`StudentT` acota el mismo lado más abajo que la Normal y crece solo de forma"
+" logarítmica en el otro, a propósito: las colas más pesadas permiten que el "
+"modelo se aleje de un experimento que podría estar equivocado. `LogNormal` "
+"mide el error en la escala logarítmica, de modo que un error de $2\\times$ "
+"cuesta lo mismo en cualquier dirección y el costo sigue creciendo como "
+"$(\\log(r/t))^2$. La figura siguiente calcula las tres penalizaciones a "
+"partir de las mismas densidades que usa la calibración."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:690002
+#: 577bb30fbf264df4bea067c81ea2f473
+msgid ""
+"Read the two panels against each other. The `Normal` and `StudentT` "
+"curves flatten on the right in the CPA panel and on the left in the ROAS "
+"panel; the `LogNormal` curve is the same parabola in both. Near the "
+"experiment the three families charge similar amounts (at a factor of "
+"$1.3$ either way the charges run from about $1.2$ to $2$ nats at this "
+"`sigma`), so an existing `sigma` keeps its meaning; they part ways in the"
+" tails."
+msgstr ""
+"Lea los dos paneles uno frente al otro. Las curvas de `Normal` y `StudentT` "
+"se aplanan a la derecha en el panel de CPA y a la izquierda en el panel de "
+"ROAS; la curva de `LogNormal` es la misma parábola en ambos. Cerca del "
+"experimento las tres familias penalizan cantidades similares (con un factor "
+"de $1.3$ en cualquier dirección, las penalizaciones van de aproximadamente "
+"$1.2$ a $2$ nats con este `sigma`), de modo que un `sigma` existente "
+"conserva su significado; se separan en las colas."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:690009
+#: 62dfad00c72244809da27afb15170e04
+#, python-brace-format
+msgid ""
+"`sigma` comes from the same number under every family: the standard error"
+" of the value in the table, in the table's units, which is the number an "
+"experiment reports next to its point estimate. `Normal` uses it as its "
+"standard deviation. `StudentT` uses it as its scale, which is not its "
+"standard deviation: with `nu=4` the spread is $\\sqrt{2} \\approx 1.41$ "
+"times `sigma`, it has no finite standard deviation for `nu` of $2$ or "
+"less, and it approaches the `Normal` as `nu` grows. Smaller `nu` means "
+"heavier tails, so the model walks away from the experiment more readily. "
+"`LogNormal` turns it into a width on the log scale, `sigma / target`, the"
+" first-order translation of an additive standard error into a relative "
+"one, so our $15\\%$ `sigma` becomes a log-scale width of $0.15$ in both "
+"tables. That is why the LogNormal term does not care which way the table "
+"is written. The translation holds while the relative error is small, as "
+"$15\\%$ is; at $50\\%$ the LogNormal reads the experiment as allowing "
+"ratios from $0.38$ to $2.66$ times its value, where the Normal allows "
+"$0.02$ to $1.98$ times."
+msgstr ""
+"`sigma` sale del mismo número en cada familia: el error estándar del valor "
+"de la tabla, en las unidades de la tabla, que es el número que un "
+"experimento reporta junto a su estimación puntual. `Normal` lo usa como su "
+"desviación estándar. `StudentT` lo usa como su escala, que no es su "
+"desviación estándar: con `nu=4` la dispersión es $\\sqrt{2} \\approx 1.41$ "
+"veces `sigma`, no tiene desviación estándar finita para `nu` de $2$ o menos,"
+" y se aproxima a la `Normal` a medida que `nu` crece. Un `nu` menor "
+"significa colas más pesadas, de modo que el modelo se aleja del experimento "
+"con más facilidad. `LogNormal` lo convierte en un ancho en la escala "
+"logarítmica, `sigma / target`, la traducción de primer orden de un error "
+"estándar aditivo a uno relativo, de modo que nuestro `sigma` de $15\\%$ se "
+"convierte en un ancho en escala logarítmica de $0.15$ en ambas tablas. Por "
+"eso al término LogNormal no le importa en qué sentido se escriba la tabla. "
+"La traducción es válida mientras el error relativo sea pequeño, como lo es "
+"$15\\%$; con $50\\%$ la LogNormal interpreta que el experimento permite "
+"razones de $0.38$ a $2.66$ veces su valor, mientras que la Normal permite de"
+" $0.02$ a $1.98$ veces."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:690024
+#: b4e146911cfd455ea2c02779aba3209c
+#, python-brace-format
+msgid ""
+"The family is the `likelihood` argument, a "
+"{class}`~pymc_extras.prior.Prior` as in `add_lift_test_measurements`. "
+"`Normal` stays the default, so existing calibrated models are unchanged. "
+"We refit with `Prior(\"LogNormal\")` on both tables, and with "
+"`Prior(\"StudentT\", nu=4)` on the ROAS table, the same `nu` as in the "
+"figure."
+msgstr ""
+"La familia es el argumento `likelihood`, un "
+"{class}`~pymc_extras.prior.Prior` como en `add_lift_test_measurements`. "
+"`Normal` sigue siendo la predeterminada, de modo que los modelos calibrados "
+"existentes no cambian. Volvemos a ajustar con `Prior(\"LogNormal\")` en "
+"ambas tablas, y con `Prior(\"StudentT\", nu=4)` en la tabla de ROAS, el "
+"mismo `nu` que en la figura."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:710002
+#: 47334a9154f348a99afac64216b71353
+msgid ""
+"We put the six posteriors on one forest plot per channel. Blue marks the "
+"ROAS table and red the CPA table, and the shade marks the family: full "
+"color for `Normal`, lighter for `StudentT`, lightest for `LogNormal`. The"
+" naive model is gray."
+msgstr ""
+"Colocamos las seis distribuciones posteriores en un gráfico de bosque por "
+"canal. El azul marca la tabla de ROAS y el rojo la tabla de CPA, y el tono "
+"marca la familia: color pleno para `Normal`, más claro para `StudentT`, el "
+"más claro para `LogNormal`. El modelo ingenuo es gris."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:730002
+#: c4719e5c4d194645b518b11095d5461d
+msgid "The posterior means in tabular form:"
+msgstr "Las medias posteriores en forma de tabla:"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:750002
+#: 87010320286a460aaf3426715dc2d92b
+msgid "Four things to read off the `x1` panel."
+msgstr "Cuatro cosas que leer en el panel de `x1`."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:750004
+#: 476689f951cd4676a0533f9507b309fd
+msgid ""
+"First, the two `Normal` fits disagree, and the direction of the table is "
+"the only thing that differs between them. The CPA table leaves `x1` at "
+"about $187$, close to the naive model's $197$, because its charge "
+"flattens on the side the data pushes toward. The ROAS table holds it near"
+" $155$ because that side is unbounded for it."
+msgstr ""
+"Primero, los dos ajustes `Normal` discrepan, y la dirección de la tabla es "
+"lo único que los diferencia. La tabla de CPA deja `x1` en aproximadamente "
+"$187$, cerca de los $197$ del modelo ingenuo, porque su penalización se "
+"aplana del lado hacia el que empujan los datos. La tabla de ROAS lo mantiene"
+" cerca de $155$ porque ese lado no tiene límite para ella."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:750008
+#: c5cdb1540a384e729f9bf19b9599d6ba
+msgid ""
+"Next, the two `LogNormal` fits agree, up to sampling noise, as they must:"
+" once `sigma` is read as a relative error, the term is the same in both "
+"directions. They land at about $173$, between the two `Normal` fits. On "
+"the high side the `LogNormal` charges less than the ROAS-table `Normal`: "
+"a $1.7\\times$ miss costs about $6$ nats on the log scale against about "
+"$11$ on the ROAS scale. Against the CPA-table `Normal` it is far "
+"stronger, and it keeps getting stronger the further the model wanders, "
+"which the `Normal` does not."
+msgstr ""
+"Después, los dos ajustes `LogNormal` coinciden, salvo por el ruido de "
+"muestreo, como deben: una vez que `sigma` se lee como un error relativo, el "
+"término es el mismo en ambas direcciones. Quedan en aproximadamente $173$, "
+"entre los dos ajustes `Normal`. Del lado alto, la `LogNormal` penaliza menos"
+" que la `Normal` de la tabla de ROAS: un error de $1.7\\times$ cuesta unos "
+"$6$ nats en la escala logarítmica frente a unos $11$ en la escala del ROAS. "
+"Frente a la `Normal` de la tabla de CPA es mucho más fuerte, y sigue "
+"haciéndose más fuerte cuanto más se aleja el modelo, algo que la `Normal` no"
+" hace."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:750013
+#: 74c052d5c4ab47f6bff1a8a800c87e36
+msgid ""
+"Now the `StudentT` on the ROAS table. It lands at about $189$, almost "
+"back at the naive model, and further from the truth than every other "
+"calibrated fit in this comparison. This is what heavy tails are for: the "
+"sales data disagree with the experiment, and the `StudentT` lets the "
+"model side with the sales data. Here the sales data are the ones that are"
+" wrong, because of the confounder, so this choice costs us. A `StudentT` "
+"pays off in the opposite case, when the experiment is the doubtful part."
+msgstr ""
+"Ahora la `StudentT` sobre la tabla de ROAS. Queda en aproximadamente $189$, "
+"casi de vuelta en el modelo ingenuo, y más lejos de la verdad que cualquier "
+"otro ajuste calibrado de esta comparación. Para eso sirven las colas "
+"pesadas: los datos de ventas discrepan del experimento, y la `StudentT` deja"
+" que el modelo se ponga del lado de los datos de ventas. Aquí los datos de "
+"ventas son los que están equivocados, por el confusor, así que esta elección"
+" nos perjudica. Una `StudentT` rinde en el caso contrario, cuando lo dudoso "
+"es el experimento."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:750018
+#: abcf88249bca4d9ab95ae1f0ce958f0a
+msgid ""
+"We do not fit a `StudentT` on the CPA table, because it would combine the"
+" two weak sides. A CPA table caps the charge as ROAS grows, which is "
+"where the confounder pushes `x1`, and the `StudentT` caps it lower than "
+"the `Normal`. The left panel of the penalty figure shows the result: the "
+"`StudentT` charge levels off near $6$ nats however far ROAS grows, so it "
+"would barely hold `x1`. Use a `StudentT` on a ROAS table."
+msgstr ""
+"No ajustamos una `StudentT` sobre la tabla de CPA, porque combinaría los dos"
+" lados débiles. Una tabla de CPA acota la penalización cuando el ROAS crece,"
+" que es hacia donde empuja el confusor a `x1`, y la `StudentT` la acota más "
+"abajo que la `Normal`. El panel izquierdo de la figura de penalizaciones "
+"muestra el resultado: la penalización de la `StudentT` se estabiliza cerca "
+"de $6$ nats por mucho que crezca el ROAS, por lo que apenas retendría a "
+"`x1`. Utilice una `StudentT` sobre una tabla de ROAS."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:750020
+#: 2dec899af6d44985a40c608c9c60b089
+msgid ""
+"Finally, the `x2` panel barely moves across families. Nothing pushes `x2`"
+" far from its experiment, and within a factor of $1.3$ of the experiment "
+"the families charge similar amounts."
+msgstr ""
+"Por último, el panel de `x2` casi no se mueve entre familias. Nada empuja a "
+"`x2` lejos de su experimento, y dentro de un factor de $1.3$ del experimento"
+" las familias penalizan cantidades similares."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:750022
+#: 27aff5b39a12420cad8cb7e7531f7e38
+msgid ""
+"None of this is a statement about which family is closer to the truth. On"
+" this dataset the ROAS-table `Normal` happens to land nearest, and it "
+"does so because the bias runs toward its unbounded side. Pick the family "
+"by the error you believe the experiment has:"
+msgstr ""
+"Nada de esto es una afirmación sobre qué familia está más cerca de la "
+"verdad. En este conjunto de datos la `Normal` de la tabla de ROAS resulta "
+"quedar más cerca, y lo hace porque el sesgo va hacia su lado sin límite. "
+"Elija la familia según el error que crea que tiene el experimento:"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:750025
+#: ab18765a4a324f5dac26b4f8dcae9527
+msgid ""
+"**Additive error**: `Normal`, the default, for an additive error in the "
+"units of the table, with a cap on the side you choose. A ROAS read off a "
+"lift test is this case, since the incremental outcome has a Normal "
+"standard error and the test knows its spend. So is a CPA from a lift test"
+" once it is inverted to a ROAS table, `roas = 1 / cpa` with `sigma = "
+"sigma_cpa / cpa**2`. Here that turns the CPA table into the ROAS table "
+"exactly, and with it the $155$ fit."
+msgstr ""
+"**Error aditivo**: `Normal`, la predeterminada, para un error aditivo en las"
+" unidades de la tabla, con un tope en el lado que usted elija. Un ROAS leído"
+" de una prueba de elevación es este caso, ya que el resultado incremental "
+"tiene un error estándar Normal y la prueba conoce su gasto. También lo es un"
+" CPA de una prueba de elevación una vez invertido a una tabla de ROAS, `roas"
+" = 1 / cpa` con `sigma = sigma_cpa / cpa**2`. Aquí eso convierte exactamente"
+" la tabla de CPA en la tabla de ROAS, y con ella el ajuste de $155$."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:750029
+#: 4406a200275e4f79b2c130b33c2a984f
+msgid ""
+"**Doubtful experiment**: `Prior(\"StudentT\", nu=...)`, for an additive "
+"error from an experiment that may itself be wrong, so that the model can "
+"walk away from it, as it did above."
+msgstr ""
+"**Experimento dudoso**: `Prior(\"StudentT\", nu=...)`, para un error aditivo"
+" de un experimento que podría estar equivocado, de modo que el modelo pueda "
+"alejarse de él, como hizo antes."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:750030
+#: da13859880704dbc8ba11d0dabef5d01
+msgid ""
+"**Relative error**: `Prior(\"LogNormal\")`, so that a miss by a factor "
+"costs the same whichever way the table is written and the pull never "
+"flattens."
+msgstr ""
+"**Error relativo**: `Prior(\"LogNormal\")`, de modo que un error por un "
+"factor cueste lo mismo sea cual sea la forma en que se escriba la tabla y la"
+" atracción nunca se aplane."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:750032
+#: 7b6603ad0675417aaf10feb22943d9d3
+msgid ""
+"A ratio of two positive quantities reported with a relative standard "
+"error is the third case, which is why `LogNormal` is the family that "
+"closes the ceiling. It assumes contributions that stay positive, as the "
+"`HalfNormal` channel priors here keep them."
+msgstr ""
+"Una razón de dos cantidades positivas reportada con un error estándar "
+"relativo es el tercer caso, razón por la cual `LogNormal` es la familia que "
+"cierra el techo. Supone contribuciones que se mantienen positivas, como las "
+"mantienen aquí los priors `HalfNormal` de los canales."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:760002
+#: 72a372beb4df484f8d98f1e0857b2037
+msgid "In-Sample Fit Does Not Rank the Models"
+msgstr "El ajuste dentro de la muestra no ordena los modelos"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:760004
+#: d0e65c11b6c44d72a89e89c9093d72da
+msgid ""
+"The plots above were read by eye. The same point can be made with a "
+"proper score, and it is worth doing because the result is counter-"
+"intuitive."
+msgstr ""
+"Los gráficos anteriores se leyeron a ojo. Se puede plantear lo mismo con una"
+" puntuación propia, y vale la pena hacerlo porque el resultado es "
+"contraintuitivo."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:760007
+#: 517082d122de4ff3842d48a0136baddb
+msgid ""
+"The Continuous Ranked Probability Score (CRPS) generalizes the mean "
+"absolute error to probabilistic predictions. Instead of comparing a point"
+" forecast to the observation, it compares the whole predictive "
+"distribution to it, so a model is rewarded both for being close and for "
+"being honest about its uncertainty. Lower is better. For the intuition, "
+"see the blog post [\"Intuition behind "
+"CRPS\"](https://juanitorduz.github.io/crps/)."
+msgstr ""
+"La puntuación de probabilidad ordenada continua (*Continuous Ranked "
+"Probability Score*, CRPS) generaliza el error absoluto medio a las "
+"predicciones probabilísticas. En lugar de comparar un pronóstico puntual con"
+" la observación, compara con ella toda la distribución predictiva, de modo "
+"que se premia a un modelo tanto por estar cerca como por ser honesto con su "
+"incertidumbre. Cuanto menor, mejor. Para la intuición, consulte la entrada "
+"de blog [\"Intuition behind CRPS\"](https://juanitorduz.github.io/crps/)."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:760014
+#: 26ce8341d3254e829f4fab89440f0165
+msgid ""
+"We compute it in sample, on the very dates the models were fit to, for "
+"the naive model and the three calibrations of the `sigma` comparison. We "
+"score posterior predictive draws taken with a fixed seed, so the scores "
+"are the same on every run."
+msgstr ""
+"Lo calculamos dentro de la muestra, en las mismas fechas a las que se "
+"ajustaron los modelos, para el modelo ingenuo y las tres calibraciones de la"
+" comparación de `sigma`. Puntuamos muestras predictivas posteriores tomadas "
+"con una semilla fija, de modo que las puntuaciones son las mismas en cada "
+"ejecución."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:790002
+#: 76dbf49d08cb4409b88ee1ee8c2747d3
+msgid "The scores land in almost the opposite order to the causal accuracy:"
+msgstr ""
+"Las puntuaciones quedan en un orden casi opuesto a la precisión causal:"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:790004
+#: 61f33dc4091b4491a8cefd4c610f9d65
+msgid "calibrated, loose ($60\\%$): $6.93$"
+msgstr "calibrado, laxo ($60\\%$): $6.93$"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:790005
+#: 8c4893ad16fc43be95ab1133ddd413d2
+msgid "naive: $6.93$"
+msgstr "ingenuo: $6.93$"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:790006
+#: 3046cd6f91e34b0d93a1c3722732349b
+msgid "calibrated, moderate ($15\\%$): $7.30$"
+msgstr "calibrado, moderado ($15\\%$): $7.30$"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:790007
+#: c5a4e58ab8244d4abf3b940c55ec1b67
+msgid "calibrated, tight ($5\\%$): $9.06$"
+msgstr "calibrado, estricto ($5\\%$): $9.06$"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:790009
+#: 30657ad5197b4f1ebfad066f97a3f350
+msgid ""
+"The best score is shared by the naive model and the loose calibration, "
+"the model that stays closest to the naive fit and shares its inverted "
+"channel ranking. The moderate calibration is close behind. The tight "
+"calibration, the only model that recovers the correct ranking, comes "
+"last, about $30\\%$ worse than the best score."
+msgstr ""
+"La mejor puntuación la comparten el modelo ingenuo y la calibración laxa, el"
+" modelo que permanece más cerca del ajuste ingenuo y comparte su orden "
+"invertido de los canales. La calibración moderada va muy cerca por detrás. "
+"La calibración estricta, el único modelo que recupera el orden correcto, "
+"queda en último lugar, aproximadamente $30\\%$ peor que la mejor puntuación."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:790013
+#: 565a13d64f8d4d51b39cd757e52e0c32
+msgid ""
+"This is not a bug, and it is not a sign that calibration damaged the "
+"model. The calibration term pulls the channel contributions away from the"
+" split that best explains the observed sales, and the rest of the model "
+"absorbs the difference, so the fit to `y` degrades a little."
+msgstr ""
+"Esto no es un error, ni es una señal de que la calibración dañara el modelo."
+" El término de calibración aleja las contribuciones de los canales de la "
+"repartición que mejor explica las ventas observadas, y el resto del modelo "
+"absorbe la diferencia, por lo que el ajuste a `y` se degrada un poco."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:790016
+#: d4422b5b464e4a31b704a99fd022dbdf
+msgid ""
+"In-sample CRPS measures how well a model reproduces `y`. It does not "
+"measure whether the model splits the credit between `x1` and `x2` "
+"correctly, because `y` does not identify that split: many different "
+"attributions reproduce the same series about equally well. So the score "
+"can see the small loss in fit that calibration causes, but it cannot see "
+"the large gain in attribution."
+msgstr ""
+"El CRPS dentro de la muestra mide qué tan bien reproduce un modelo `y`. No "
+"mide si el modelo reparte correctamente el crédito entre `x1` y `x2`, porque"
+" `y` no identifica esa repartición: muchas atribuciones distintas reproducen"
+" la misma serie casi igual de bien. Así que la puntuación puede ver la "
+"pequeña pérdida de ajuste que causa la calibración, pero no puede ver la "
+"gran ganancia en atribución."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:790018
+#: 4d2687dca75646f0be98b1b7b04000d4
+#, python-brace-format
+msgid ""
+"Read the direction of this result carefully, because it is the practical "
+"warning of the whole notebook. If you select models on predictive score "
+"here, you pick the loose calibration or the naive model and you get the "
+"budget advice backwards. Predictive fit and causal correctness are "
+"different objectives, and on this dataset they point in opposite "
+"directions. {ref}`mmm_roas` shows the same pattern holding out of sample "
+"with cross-validated CRPS."
+msgstr ""
+"Lea con atención la dirección de este resultado, porque es la advertencia "
+"práctica de todo el cuaderno. Si selecciona modelos por la puntuación "
+"predictiva aquí, elige la calibración laxa o el modelo ingenuo y obtiene el "
+"consejo de presupuesto al revés. El ajuste predictivo y la corrección causal"
+" son objetivos distintos, y en este conjunto de datos apuntan en direcciones"
+" opuestas. {ref}`mmm_roas` muestra el mismo patrón fuera de muestra con el "
+"CRPS validado de forma cruzada."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:790023
+#: a53dc634b8c649cca78f519cd779c5bd
+msgid ""
+"Three caveats on the numbers themselves. They are in sample, computed on "
+"the very dates the models were fit to, so they flatter every model and "
+"should not be read as generalization performance. The loose, moderate and"
+" naive scores lie close together, so do not read much into their order. "
+"And the spread is small in absolute terms, roughly $7$ to $9$ against a "
+"target whose mean is about $372$, so no model here fits badly. The robust"
+" signal is the gap to the tight calibration: it scores about $30\\%$ "
+"worse than the best model, and it is the only one with the correct "
+"ranking."
+msgstr ""
+"Tres salvedades sobre las propias cifras. Son dentro de la muestra, "
+"calculadas en las mismas fechas a las que se ajustaron los modelos, por lo "
+"que favorecen a todos los modelos y no deben leerse como rendimiento de "
+"generalización. Las puntuaciones laxa, moderada e ingenua están muy "
+"próximas, así que no conviene darle mucha importancia a su orden. Y la "
+"dispersión es pequeña en términos absolutos, aproximadamente de $7$ a $9$ "
+"frente a un objetivo cuya media es de unos $372$, de modo que ningún modelo "
+"aquí se ajusta mal. La señal robusta es la distancia a la calibración "
+"estricta: puntúa aproximadamente $30\\%$ peor que el mejor modelo, y es el "
+"único con el orden correcto."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:800002
+#: 9169860669d84ebebb7e8e40e2aaf336
+msgid "Practical Guidance"
+msgstr "Guía práctica"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:800004
+#: 9c908b654fa34ea4ba81817a6c26ee60
+msgid ""
+"**One calibration per experiment.** Each row is an observation. Two rows "
+"for the same channel mean two independent experiments, and the model will"
+" try to satisfy both. If you have repeated readouts of the same "
+"experiment, pool them first."
+msgstr ""
+"**Una calibración por experimento.** Cada fila es una observación. Dos filas"
+" para el mismo canal significan dos experimentos independientes, y el modelo"
+" intentará satisfacer ambos. Si tiene lecturas repetidas del mismo "
+"experimento, agrúpelas primero."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:800008
+#: 21347b1fac944cb69cbdc53efb197a8d
+msgid ""
+"**Match the time window.** The ratio is computed over the model's full "
+"date range. If your experiment ran for four weeks in a year of data, the "
+"model-implied ROAS covers the whole year while the experiment covers four"
+" weeks."
+msgstr ""
+"**Haga coincidir la ventana de tiempo.** La razón se calcula sobre todo el "
+"rango de fechas del modelo. Si su experimento se ejecutó durante cuatro "
+"semanas en un año de datos, el ROAS implícito del modelo abarca todo el año "
+"mientras que el experimento abarca cuatro semanas."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:800010
+#: 9b520968a7664535a2851d940d9ca533
+#, python-brace-format
+msgid ""
+"What if ROAS varies inside the window? Then the calibration constrains "
+"only the average over the whole window, not the ROAS of any single "
+"period. ROAS can vary for two reasons. The channel's effectiveness can "
+"change over time, and ROAS changes with the spend level, because the "
+"saturation curve flattens as spend grows. An experiment that ran in a "
+"peak quarter, or at an unusual spend level, measures the ROAS of that "
+"period and that spend, which can be far from the whole-window average. "
+"Calibrating it as a whole-window ratio pulls the average toward a number "
+"that was never an average. In that case use lift tests "
+"({ref}`mmm_lift_test`): each lift test states the spend level and the "
+"spend change it tested, and with `time_varying_media=True` each row can "
+"also carry a `date` column, so the model compares the experiment with its"
+" own response at that spend and at that date. The model in this notebook "
+"uses `time_varying_media=False`, and then the `date` column is ignored."
+msgstr ""
+"¿Y si el ROAS varía dentro de la ventana? Entonces la calibración restringe "
+"solo el promedio sobre toda la ventana, no el ROAS de ningún período "
+"concreto. El ROAS puede variar por dos razones. La eficacia del canal puede "
+"cambiar con el tiempo, y el ROAS cambia con el nivel de gasto, porque la "
+"curva de saturación se aplana a medida que crece el gasto. Un experimento "
+"que se ejecutó en un trimestre pico, o a un nivel de gasto inusual, mide el "
+"ROAS de ese período y de ese gasto, que puede estar muy lejos del promedio "
+"de toda la ventana. Calibrarlo como una razón de toda la ventana atrae el "
+"promedio hacia un número que nunca fue un promedio. En ese caso use pruebas "
+"de elevación ({ref}`mmm_lift_test`): cada prueba de elevación indica el "
+"nivel de gasto y el cambio de gasto que probó, y con "
+"`time_varying_media=True` cada fila puede además llevar una columna `date`, "
+"de modo que el modelo compara el experimento con su propia respuesta a ese "
+"gasto y en esa fecha. El modelo de este cuaderno usa "
+"`time_varying_media=False`, y entonces la columna `date` se ignora."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:800012
+#: 53026bc8ea2c4bf5a6c94f01c144072a
+#, python-brace-format
+msgid ""
+"**Set `sigma` from the experiment.** Use the standard error the analysis "
+"produced. In this notebook the tightest `sigma` gave the best result, but"
+" only because every experiment here reports the true ROAS and the tight "
+"scenario describes a very precise one. In the "
+"{ref}`roas_calibration_biased_experiment` subsection, the same tight "
+"`sigma` on an experiment that overstated the true ROAS held the model "
+"about as firmly near the wrong value. If you have no uncertainty estimate"
+" at all, prefer a deliberately loose `sigma` over a tight guess, because "
+"a loose `sigma` does not add certainty that the experiment does not have."
+" A loose `sigma` has a cost: on this dataset the loose fit kept the wrong"
+" ranking. So when `sigma` is a guess, refit at a few values, as we did "
+"here, and report whether the decision changes between them."
+msgstr ""
+"**Fije `sigma` a partir del experimento.** Use el error estándar que produjo"
+" el análisis. En este cuaderno el `sigma` más pequeño dio el mejor "
+"resultado, pero solo porque todos los experimentos aquí reportan el ROAS "
+"verdadero y el escenario estricto describe uno muy preciso. En la subsección"
+" {ref}`roas_calibration_biased_experiment`, el mismo `sigma` pequeño sobre "
+"un experimento que sobrestimaba el ROAS verdadero mantuvo al modelo casi con"
+" la misma firmeza cerca del valor equivocado. Si no tiene ninguna estimación"
+" de incertidumbre, prefiera un `sigma` deliberadamente grande a una "
+"suposición pequeña, porque un `sigma` grande no añade una certeza que el "
+"experimento no tiene. Un `sigma` grande tiene un costo: en este conjunto de "
+"datos el ajuste laxo mantuvo el orden equivocado. Así que cuando `sigma` es "
+"una suposición, vuelva a ajustar con unos cuantos valores, como hicimos "
+"aquí, e informe si la decisión cambia entre ellos."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:800014
+#: 10444aa57f88483783d94ed701dbba71
+msgid ""
+"**Watch for conflict.** If the calibration and the sales data disagree "
+"sharply, the sampler will tell you: divergences, poor `r_hat`, or a "
+"posterior that sits between the two and satisfies neither. Treat that as "
+"a signal to investigate, not something to sample harder through. The "
+"usual culprits are a spend column that is not really spend, a channel "
+"naming mismatch, or an experiment measuring a different outcome from the "
+"model target. Poor `r_hat` can also have nothing to do with calibration: "
+"the naive model in this notebook had a stuck chain without any "
+"calibration term. Check the uncalibrated model first, so you know which "
+"problem you are looking at."
+msgstr ""
+"**Esté atento a los conflictos.** Si la calibración y los datos de ventas "
+"discrepan con fuerza, el muestreador se lo hará saber: divergencias, un "
+"`r_hat` deficiente, o una distribución posterior que se sitúa entre las dos "
+"y no satisface a ninguna. Trátelo como una señal para investigar, no como "
+"algo que se resuelva muestreando con más empeño. Los culpables habituales "
+"son una columna de gasto que en realidad no es gasto, una discrepancia en el"
+" nombre de un canal, o un experimento que mide un resultado distinto del "
+"objetivo del modelo. Un `r_hat` deficiente también puede no tener nada que "
+"ver con la calibración: el modelo ingenuo de este cuaderno tuvo una cadena "
+"atascada sin ningún término de calibración. Revise primero el modelo sin "
+"calibrar, para saber ante qué problema se encuentra."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:800024
+#: 03cf50b58ae54a49bd37100ce1ffb903
+msgid ""
+"**Combining with lift tests.** `add_lift_test_measurements` and "
+"`add_cost_per_target_calibration` can both be applied to the same model. "
+"Just be aware that if a lift test and a ROAS estimate come from the "
+"*same* experiment, adding both double-counts the evidence and will "
+"overstate your certainty."
+msgstr ""
+"**Combinación con pruebas de elevación.** `add_lift_test_measurements` y "
+"`add_cost_per_target_calibration` pueden aplicarse ambos al mismo modelo. "
+"Solo tenga presente que si una prueba de elevación y una estimación de ROAS "
+"provienen del *mismo* experimento, añadir ambos cuenta dos veces la "
+"evidencia y sobrestimará su certeza."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:800029
+#: bc30d970307a4ccda560de58a42b14ea
+#, python-brace-format
+msgid ""
+"**Pick the family by the error you believe in.** The default `Normal` "
+"reads `sigma` as an additive error and caps the charge on one side of the"
+" experiment; which side depends on `target_per_cost`, so decide it on "
+"purpose. A lift test's readout has its additive error on the ROAS scale, "
+"so a CPA from one is inverted to a ROAS table (`roas = 1 / cpa`, `sigma ="
+" sigma_cpa / cpa**2`) and calibrated with the `Normal`. "
+"`Prior(\"StudentT\", nu=...)` caps that side lower still and grows only "
+"logarithmically on the other, so the model can walk away from an "
+"experiment that may be wrong. `Prior(\"LogNormal\")` reads `sigma` as a "
+"relative error, charges a miss by a factor the same whichever way the "
+"table is written, and never flattens; it is the family for a ratio "
+"reported with a relative standard error. See "
+"{ref}`roas_calibration_likelihood_family`."
+msgstr ""
+"**Elija la familia según el error en el que cree.** La `Normal` "
+"predeterminada interpreta `sigma` como un error aditivo y acota la "
+"penalización en un lado del experimento; qué lado depende de "
+"`target_per_cost`, así que decídalo a propósito. El resultado de una prueba "
+"de elevación tiene su error aditivo en la escala del ROAS, por lo que un CPA"
+" de una se invierte a una tabla de ROAS (`roas = 1 / cpa`, `sigma = "
+"sigma_cpa / cpa**2`) y se calibra con la `Normal`. `Prior(\"StudentT\", "
+"nu=...)` acota ese lado todavía más abajo y crece solo de forma logarítmica "
+"en el otro, de modo que el modelo puede alejarse de un experimento que "
+"podría estar equivocado. `Prior(\"LogNormal\")` interpreta `sigma` como un "
+"error relativo, penaliza un error por un factor igual sea cual sea la forma "
+"en que se escriba la tabla, y nunca se aplana; es la familia para una razón "
+"reportada con un error estándar relativo. Véase "
+"{ref}`roas_calibration_likelihood_family`."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:800042
+#: a87da3d8dc4f4ac6b894e264967dcbe7
+msgid ""
+"**Multiplicative models (`link=\"log\"`).** The same call works for a "
+"log-link model, with one difference in what it constrains. Under "
+"`link=\"log\"` a channel's `channel_contribution_original_scale` is the "
+"factor $s\\,e^{m_{t,c}}$, not a level change, so the calibration targets "
+"the counterfactual increment $\\Delta_{t,c} = s \\left(e^{\\mu_t} - "
+"e^{\\mu_t - m_{t,c}}\\right)$ instead, which it registers as the "
+"deterministic `channel_incremental_contribution`. For a channel that no "
+"`mu_effect` reads, the calibrated ratio is exactly "
+"`mmm.incrementality.contribution_over_spend(frequency=\"all_time\", "
+"central_tendency=\"mean\")`, draw for draw. That `\"mean\"` is the "
+"calibration's default `central_tendency`, and it matters under this link:"
+" $\\Delta$ is on the conditional-median scale, while an experiment "
+"measures the expected realized lift, which is larger by $e^{\\sigma^2/2}$"
+" ($1.03$ at $\\sigma = 0.25$, $1.13$ at $0.5$), so the calibration "
+"applies that factor per cell of the likelihood scale. "
+"`central_tendency=\"median\"` drops the factor and matches the default "
+"scale of `contribution_over_spend`, but no experiment measures that "
+"scale. Two more things differ from the identity link. The increment "
+"scales with the baseline $e^{\\mu_t}$, so the time-window mismatch above "
+"matters more: a lift test run in a peak season measures a larger ROAS "
+"than the full-window average. And the per-channel increments do not add "
+"up to the total media contribution, because each removes one channel "
+"while the total removes all of them at once, so do not calibrate per-"
+"channel figures obtained by splitting a total-media number. Under both "
+"links the calibration constrains a channel's direct path only: an "
+"experiment on a channel that also feeds a `mu_effect` (a funnel mediator,"
+" say) measures the direct plus the mediated effect, so calibrate direct-"
+"only channels or read the target as a direct-path ROAS."
+msgstr ""
+"**Modelos multiplicativos (`link=\"log\"`).** La misma llamada funciona para"
+" un modelo con enlace logarítmico, con una diferencia en lo que restringe. "
+"Con `link=\"log\"`, la `channel_contribution_original_scale` de un canal es "
+"el factor $s\\,e^{m_{t,c}}$, no un cambio de nivel, así que la calibración "
+"apunta en su lugar al incremento contrafactual $\\Delta_{t,c} = s "
+"\\left(e^{\\mu_t} - e^{\\mu_t - m_{t,c}}\\right)$, que registra como la "
+"variable determinista `channel_incremental_contribution`. Para un canal que "
+"ningún `mu_effect` lee, la razón calibrada es exactamente "
+"`mmm.incrementality.contribution_over_spend(frequency=\"all_time\", "
+"central_tendency=\"mean\")`, muestra por muestra. Ese `\"mean\"` es el "
+"`central_tendency` predeterminado de la calibración, y importa con este "
+"enlace: $\\Delta$ está en la escala de la mediana condicional, mientras que "
+"un experimento mide la elevación realizada esperada, que es mayor por un "
+"factor de $e^{\\sigma^2/2}$ ($1.03$ con $\\sigma = 0.25$, $1.13$ con $0.5$),"
+" así que la calibración aplica ese factor por cada celda de la escala de la "
+"verosimilitud. `central_tendency=\"median\"` elimina el factor y coincide "
+"con la escala predeterminada de `contribution_over_spend`, pero ningún "
+"experimento mide esa escala. Otras dos cosas difieren del enlace identidad. "
+"El incremento escala con la línea base $e^{\\mu_t}$, de modo que el "
+"desajuste de la ventana de tiempo mencionado antes importa más: una prueba "
+"de elevación realizada en una temporada alta mide un ROAS mayor que el "
+"promedio de toda la ventana. Y los incrementos por canal no suman la "
+"contribución total de los medios, porque cada uno elimina un canal mientras "
+"que el total elimina todos a la vez, así que no calibre cifras por canal "
+"obtenidas dividiendo un número del total de medios. Con ambos enlaces la "
+"calibración restringe solo la vía directa de un canal: un experimento sobre "
+"un canal que además alimenta un `mu_effect` (un mediador de embudo, por "
+"ejemplo) mide el efecto directo más el mediado, así que calibre canales de "
+"solo efecto directo o lea el objetivo como un ROAS de vía directa."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:810002
+#: 8bb12cacb50c46568539a702ae397555
+msgid "Conclusion"
+msgstr "Conclusión"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:810004
+#: 2cf5427106404a7ca2fabfc9c108f49a
+msgid ""
+"Calibration turns an experiment result into an extra likelihood term. The"
+" model keeps fitting sales, and simultaneously has to explain the "
+"experimental observation. Where the sales data underdetermines the "
+"answer, that second term is what moves it."
+msgstr ""
+"La calibración convierte el resultado de un experimento en un término de "
+"verosimilitud adicional. El modelo sigue ajustando las ventas y, a la vez, "
+"tiene que explicar la observación experimental. Donde los datos de ventas "
+"subdeterminan la respuesta, ese segundo término es lo que la mueve."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:810008
+#: c566c8623be34f30974776bc93a3ea34
+msgid "Concretely, in this notebook:"
+msgstr "En concreto, en este cuaderno:"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:810010
+#: a6107634a2374039b89534507e2fd751
+msgid ""
+"The naive model got channel `x1` badly wrong, about $197$ against a true "
+"$93$, because of an unobserved confounder, and it inverted the ranking of"
+" the two channels. No amount of extra sales data would have fixed either "
+"problem."
+msgstr ""
+"El modelo ingenuo se equivocó mucho con el canal `x1`, unos $197$ frente a "
+"un valor verdadero de $93$, debido a un confusor no observado, e invirtió el"
+" orden de los dos canales. Ninguna cantidad adicional de datos de ventas "
+"habría corregido ninguno de los dos problemas."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:810012
+#: fe608005e5294bb2bef1e18ddabe0d6f
+msgid ""
+"`add_cost_per_target_calibration` with `target_per_cost=True` removed "
+"roughly $40\\%$ of that error at a moderate `sigma`, and at a tight "
+"`sigma` it restored the correct ranking, which is the part that changes a"
+" budget decision. It did not recover the true ROAS exactly: even the "
+"tight calibration left the truth just outside the $94\\%$ interval for "
+"`x1`. One experimental observation against a full sales series pulls the "
+"posterior, it does not overrule it."
+msgstr ""
+"`add_cost_per_target_calibration` con `target_per_cost=True` eliminó "
+"aproximadamente $40\\%$ de ese error con un `sigma` moderado, y con un "
+"`sigma` pequeño restauró el orden correcto, que es lo que cambia una "
+"decisión de presupuesto. No recuperó el ROAS verdadero con exactitud: "
+"incluso la calibración estricta dejó la verdad justo fuera del intervalo de "
+"$94\\%$ para `x1`. Una observación experimental frente a una serie de ventas"
+" completa atrae la distribución posterior, pero no la anula."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:810015
+#: 93a170ada3aa45e790e58f7736102e2c
+msgid ""
+"`sigma` is the trust dial, and here it decided the outcome. At $15\\%$ "
+"the ranking stayed inverted, and at $5\\%$ it flipped to the correct "
+"order. The same $5\\%$ on an experiment that overstated `x1` moved the "
+"posterior with it: by $50\\%$, to about $155$ with an interval that "
+"excludes the true $93$, and by $100\\%$, far enough to commit to the "
+"wrong ranking. That is a lot of leverage for one number, which is exactly"
+" why it should come from the experiment's own uncertainty rather than "
+"from tuning until the answer looks right."
+msgstr ""
+"`sigma` es el control de la confianza, y aquí decidió el resultado. Con "
+"$15\\%$ el orden siguió invertido, y con $5\\%$ pasó al orden correcto. El "
+"mismo $5\\%$ sobre un experimento que sobrestimaba `x1` movió la "
+"distribución posterior con él: en $50\\%$, hasta aproximadamente $155$ con "
+"un intervalo que excluye el $93$ verdadero, y en $100\\%$, lo bastante para "
+"comprometerse con un orden equivocado. Es mucha influencia para un solo "
+"número, que es exactamente la razón por la que debe provenir de la "
+"incertidumbre propia del experimento y no de ajustarlo hasta que la "
+"respuesta parezca correcta."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:810019
+#: bc31c897e5cd4f41b0e7dc85363ea3ab
+msgid ""
+"In-sample CRPS ranked the models in roughly the reverse order of their "
+"causal accuracy. You cannot choose between these models on predictive "
+"fit."
+msgstr ""
+"El CRPS dentro de la muestra ordenó los modelos aproximadamente en el orden "
+"inverso de su precisión causal. No es posible elegir entre estos modelos "
+"según el ajuste predictivo."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:810021
+#: 36c286ac468846dbb0d09ea58f66b5b0
+msgid ""
+"The same experiment at the same `sigma` pulled `x1` by different amounts "
+"depending on whether the table was written as CPA or as ROAS, because a "
+"`Normal` on a ratio caps the charge on one side and the direction picks "
+"which. `likelihood=Prior(\"LogNormal\")` removed that dependence: its "
+"charge is symmetric and unbounded on the log scale, and the two tables "
+"gave the same posterior."
+msgstr ""
+"El mismo experimento con el mismo `sigma` atrajo a `x1` en cantidades "
+"distintas según la tabla se escribiera como CPA o como ROAS, porque una "
+"`Normal` sobre una razón acota la penalización en un lado y la dirección "
+"elige cuál. `likelihood=Prior(\"LogNormal\")` eliminó esa dependencia: su "
+"penalización es simétrica y sin límite en la escala logarítmica, y las dos "
+"tablas dieron la misma distribución posterior."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:810023
+#: 283e889bc8c44a38b62ed5df670ec457
+msgid ""
+"`likelihood=Prior(\"StudentT\", nu=4)` on the ROAS table let the model "
+"walk away from the experiment, back to about $189$, close to the naive "
+"model. Heavy tails help when the experiment is the doubtful part. Here "
+"the confounded sales data were the doubtful part, so the `StudentT` gave "
+"up most of what the calibration gained."
+msgstr ""
+"`likelihood=Prior(\"StudentT\", nu=4)` sobre la tabla de ROAS dejó que el "
+"modelo se alejara del experimento, de vuelta a aproximadamente $189$, cerca "
+"del modelo ingenuo. Las colas pesadas ayudan cuando lo dudoso es el "
+"experimento. Aquí lo dudoso eran los datos de ventas confundidos, así que la"
+" `StudentT` cedió la mayor parte de lo que había ganado la calibración."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:810026
+#: 52a924d7d35343f19f7cd88990f2f62b
+msgid ""
+"If your experiment needs to constrain the model more firmly than it does "
+"here, the whole-period ratio may be the wrong instrument: a lift test "
+"anchored to the dates the experiment actually ran is a sharper constraint"
+" than an average over the full history."
+msgstr ""
+"Si su experimento necesita restringir el modelo con más firmeza de lo que lo"
+" hace aquí, la razón de todo el período puede ser el instrumento equivocado:"
+" una prueba de elevación anclada a las fechas en que el experimento "
+"realmente se ejecutó es una restricción más precisa que un promedio sobre "
+"todo el historial."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:810028
+#: 0fd4e00e95cf4ca882768c9642b4a1a1
+msgid "Where to go next:"
+msgstr "Adónde ir a continuación:"
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:810030
+#: 4969a43726484c71b37980fb53e51751
+#, python-brace-format
+msgid ""
+"{ref}`mmm_lift_test` for calibrating on the saturation curve using lift "
+"tests."
+msgstr ""
+"{ref}`mmm_lift_test` para calibrar sobre la curva de saturación usando "
+"pruebas de elevación."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:810031
+#: e75fe149138d444eb86102140a316261
+#, python-brace-format
+msgid ""
+"{ref}`mmm_roas` for the same dataset analyzed through lift-test "
+"likelihoods, with time-slice cross-validation."
+msgstr ""
+"{ref}`mmm_roas` para el mismo conjunto de datos analizado mediante "
+"verosimilitudes de pruebas de elevación, con validación cruzada por "
+"intervalos de tiempo."
+
+#: ../source/notebooks/mmm/mmm_roas_calibration.ipynb:810032
+#: f74a0707e05e4bd9b4a1779f367d0e46
+#, python-brace-format
+msgid "{ref}`mmm_geolift_calibration` for calibration with geo-level experiments."
+msgstr ""
+"{ref}`mmm_geolift_calibration` para la calibración con experimentos a nivel "
+"geográfico."
+
