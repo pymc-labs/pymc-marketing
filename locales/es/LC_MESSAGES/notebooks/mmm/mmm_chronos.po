@@ -1,0 +1,1697 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2026, PyMC Labs
+# This file is distributed under the same license as the PyMC-Marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyMC-Marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:10002
+#: 9c5bbf8747544596863ed7346c21a370
+msgid "Integrating Foundational Time Series Models with PyMC-Marketing MMM"
+msgstr ""
+"Integración de modelos fundacionales de series temporales con MMM de PyMC-"
+"Marketing"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:10004
+#: 4b04d84721bb4f6a816b9154639685de
+msgid ""
+"This tutorial demonstrates how to combine "
+"[Chronos-2](https://arxiv.org/abs/2510.15821), a pretrained time series "
+"forecasting model, with [PyMC-Marketing](https://www.pymc-marketing.io/) "
+"Media Mix Models (MMM). The goal is to forecast sales when control "
+"variables are unavailable for future periods."
+msgstr ""
+"Este tutorial muestra cómo combinar "
+"[Chronos-2](https://arxiv.org/abs/2510.15821), un modelo preentrenado de "
+"pronóstico de series temporales, con los modelos de mezcla de medios (MMM) "
+"de [PyMC-Marketing](https://www.pymc-marketing.io/). El objetivo es "
+"pronosticar las ventas cuando las variables de control no están disponibles "
+"para los períodos futuros."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:10006
+#: 15b8a9f0bcf24d3cb16542a8ec7df749
+msgid ""
+"This tutorial is based on the original "
+"[notebook](https://github.com/lfiaschi/advanced-pymc-marketing-"
+"examples/blob/main/notebooks/07_chronos_pymc_marketing.ipynb) by [Luca "
+"Fiaschi](https://github.com/lfiaschi)."
+msgstr ""
+"Este tutorial se basa en el [cuaderno](https://github.com/lfiaschi/advanced-"
+"pymc-marketing-examples/blob/main/notebooks/07_chronos_pymc_marketing.ipynb)"
+" original de [Luca Fiaschi](https://github.com/lfiaschi)."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:10008
+#: 5cfe1259609249538da8daa4138beeff
+msgid "The Problem"
+msgstr "El problema"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:10010
+#: b43a32c78b4e4d67904e162b8b686116
+msgid ""
+"When using MMM for forward-looking predictions, practitioners face a "
+"common challenge: **control variables are often unavailable for future "
+"periods**. Consider a scenario where your MMM includes employment rates "
+"and temperature as controls. These variables help the model separate "
+"media effects from external factors, but when planning next quarter's "
+"media budget, you don't yet have next quarter's employment or temperature"
+" data."
+msgstr ""
+"Al usar MMM para hacer predicciones a futuro, los profesionales se enfrentan"
+" a un desafío común: **las variables de control suelen no estar disponibles "
+"para los períodos futuros**. Consideremos un escenario en el que su MMM "
+"incluye la tasa de empleo y la temperatura como controles. Estas variables "
+"ayudan al modelo a separar los efectos de los medios de los factores "
+"externos, pero al planificar el presupuesto de medios del próximo trimestre,"
+" todavía no se dispone de los datos de empleo ni de temperatura de ese "
+"trimestre."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:10012
+#: a0768ed5ef254d26890114de38964dc7
+msgid "This creates a practical dilemma:"
+msgstr "Esto crea un dilema práctico:"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:10013
+#: 96b19dac56ec47dabca6d0a60e000021
+msgid ""
+"**Without controls**: Predictions may be biased because the model expects"
+" control inputs"
+msgstr ""
+"**Sin controles**: las predicciones pueden estar sesgadas porque el modelo "
+"espera valores de entrada para los controles"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:10014
+#: f66db13fcad24776a2ff90b2c4d204c9
+msgid ""
+"**With naive assumptions** (e.g., using last known values): Predictions "
+"degrade as the forecast horizon extends"
+msgstr ""
+"**Con supuestos ingenuos** (por ejemplo, usar los últimos valores "
+"conocidos): las predicciones se degradan a medida que se extiende el "
+"horizonte de pronóstico"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:10016
+#: c5f6740ce8784444b38a7f665c43e100
+msgid "The Approach"
+msgstr "El enfoque"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:10018
+#: 31e82ae7bc7946bca15abf1da15198b6
+msgid "This tutorial presents a two-model technique:"
+msgstr "Este tutorial presenta una técnica con dos modelos:"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:10020
+#: 6845e601a01747a992bfd3e9318e29b7
+msgid ""
+"**Train an MMM** on historical data to learn the causal relationships "
+"between media spend, controls, and sales"
+msgstr ""
+"**Entrenar un MMM** con datos históricos para aprender las relaciones "
+"causales entre el gasto en medios, los controles y las ventas"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:10021
+#: 16b8a54dfbbf4ed982a79beaec1d56a4
+msgid "**Use Chronos-2** to forecast the control variables into the future period"
+msgstr ""
+"**Usar Chronos-2** para pronosticar las variables de control en el período "
+"futuro"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:10022
+#: b3630ec6771f4cfc855b3222b788de2f
+msgid ""
+"**Combine** the forecasted controls with planned media spend to generate "
+"sales predictions"
+msgstr ""
+"**Combinar** los controles pronosticados con el gasto en medios planificado "
+"para generar predicciones de ventas"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:10023
+#: efadc8fbfef242ea915e5f64f3deae97
+msgid ""
+"**Evaluate** how forecast errors in controls propagate to sales "
+"predictions"
+msgstr ""
+"**Evaluar** cómo se propagan a las predicciones de ventas los errores de "
+"pronóstico de los controles"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:10025
+#: e72991b040c446eebd913096a371f042
+msgid ""
+"This approach combines the best of two worlds: a general-purpose "
+"foundation model that accurately predict the future state of covariates, "
+"and a specialized Bayesian MMMs that explicitly model marketing effects "
+"and allow for causal interpretation."
+msgstr ""
+"Este enfoque combina lo mejor de dos mundos: un modelo fundacional de "
+"propósito general que predice con precisión el estado futuro de las "
+"covariables, y un MMM bayesiano especializado que modela explícitamente los "
+"efectos del marketing y permite una interpretación causal."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:10028
+#: 4fe1ea27f9e94c3ea5745b91dc701d75
+msgid ""
+"![MMM with Chronos-2: Schematic "
+"Overview](../../gallery/images/mmm_chronos_schema.jpeg)"
+msgstr ""
+"![MMM con Chronos-2: esquema "
+"general](../../gallery/images/mmm_chronos_schema.jpeg)"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:10028
+#: 5f615280b2ea475d967db3307d65a768
+msgid "MMM with Chronos-2: Schematic Overview"
+msgstr "MMM con Chronos-2: esquema general"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:10030
+#: 407d33c35d5a4934926ee62e041dd16e
+msgid ""
+"We also derive a practical rule for estimating how much control forecast "
+"error affects MMM accuracy, helping practitioners set appropriate "
+"forecasting targets."
+msgstr ""
+"También derivamos una regla práctica para estimar cuánto afecta el error de "
+"pronóstico de los controles a la precisión del MMM, lo que ayuda a los "
+"profesionales a fijar objetivos de pronóstico adecuados."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:20002
+#: fe14d848d9aa4be1ad559d02efdd20f2
+msgid "Background and Prerequisites"
+msgstr "Antecedentes y requisitos previos"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:20004
+#: 782311276c594edd88fef17f908bb3cf
+msgid ""
+"Before diving into the implementation, let's briefly review the key "
+"concepts."
+msgstr ""
+"Antes de entrar en la implementación, repasemos brevemente los conceptos "
+"clave."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:20006
+#: f4413e141ca4460c8d669c6ca36fe7d8
+msgid "Media Mix Modeling (MMM)"
+msgstr "Modelado de mezcla de medios (MMM)"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:20008
+#: 0c8db3c00438411ab9de7b4cae9ef71a
+msgid ""
+"MMM is a statistical technique used to measure the effectiveness of "
+"marketing channels. A typical MMM decomposes sales into:"
+msgstr ""
+"MMM es una técnica estadística que se utiliza para medir la efectividad de "
+"los canales de marketing. Un MMM típico descompone las ventas en:"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:20010
+#: 8ec197555bed45a98d677b4d7d5215cd
+#, python-brace-format
+msgid ""
+"\n"
+"y_t = \\text{baseline}_t + \\sum_{c} f_c(\\text{media}_{c,t}) + \\sum_{j}"
+" \\gamma_j z_{j,t} + \\varepsilon_t\n"
+msgstr ""
+"\n"
+"y_t = \\text{baseline}_t + \\sum_{c} f_c(\\text{media}_{c,t}) + \\sum_{j} \\gamma_j z_{j,t} + \\varepsilon_t\n"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:20014
+#: c3bac2ecc9594e95975616621d1eb8a5
+msgid "where:"
+msgstr "donde:"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:20015
+#: e73edc7739e34303b1da3da74d165730
+msgid "$y_t$ is the target variable (e.g., sales) at time $t$"
+msgstr ""
+"$y_t$ es la variable objetivo (por ejemplo, las ventas) en el tiempo $t$"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:20016
+#: 797b8ed180ed47feb436dbf370468fb3
+msgid ""
+"$f_c(\\cdot)$ captures the nonlinear effect of media channel $c$, "
+"typically including **adstock** (carryover effects) and **saturation** "
+"(diminishing returns)"
+msgstr ""
+"$f_c(\\cdot)$ captura el efecto no lineal del canal de medios $c$, que "
+"típicamente incluye **adstock** (efectos de arrastre) y **saturación** "
+"(rendimientos decrecientes)"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:20017
+#: 630794823cc243cfad3249ef324f3f9d
+#, python-brace-format
+msgid ""
+"$z_{j,t}$ are **control variables** (e.g., economic indicators, weather, "
+"holidays)"
+msgstr ""
+"$z_{j,t}$ son las **variables de control** (por ejemplo, indicadores "
+"económicos, clima, feriados)"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:20018
+#: 90be153d571b4f548bf6d3cb42586bb6
+msgid "$\\gamma_j$ are the coefficients for control variables"
+msgstr "$\\gamma_j$ son los coeficientes de las variables de control"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:20019
+#: 2dd8aa57a1ac49d5aabfb5c11a37ab71
+msgid "$\\varepsilon_t$ is the error term"
+msgstr "$\\varepsilon_t$ es el término de error"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:20021
+#: 3384ca7fc11b4b4086f55f1a7f6e4adb
+msgid ""
+"**Control variables** are external factors that influence sales but are "
+"not marketing activities. Including them helps isolate the true media "
+"effects from confounding factors."
+msgstr ""
+"Las **variables de control** son factores externos que influyen en las "
+"ventas pero que no son actividades de marketing. Incluirlas ayuda a aislar "
+"los verdaderos efectos de los medios de los factores de confusión."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:20023
+#: 9cd57af9018e4a5f81b86935eedce027
+#, python-brace-format
+msgid ""
+"For more information on MMM, see the example notebooks  "
+"{ref}`mmm_example` and {ref}`mmm_case_study`."
+msgstr ""
+"Para más información sobre MMM, consulte los cuadernos de ejemplo  "
+"{ref}`mmm_example` y {ref}`mmm_case_study`."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:20025
+#: 28dc0ca917224c3d86c9a39b4187a724
+msgid "Foundational Time Series Models"
+msgstr "Modelos fundacionales de series temporales"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:20027
+#: a62ab09fecd145a485341900fda2dfec
+msgid ""
+"[Chronos-2](https://arxiv.org/abs/2510.15821) is a pretrained time series"
+" model developed by Amazon that can generate forecasts without task-"
+"specific training (zero-shot forecasting). Key characteristics:"
+msgstr ""
+"[Chronos-2](https://arxiv.org/abs/2510.15821) es un modelo preentrenado de "
+"series temporales desarrollado por Amazon que puede generar pronósticos sin "
+"entrenamiento específico para la tarea (pronóstico zero-shot). "
+"Características principales:"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:20029
+#: e0cf5bd2a4d94c4284b889b797b97dd0
+msgid "Handles univariate, multivariate, and covariate-informed forecasting"
+msgstr ""
+"Maneja pronósticos univariados, multivariados e informados por covariables"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:20030
+#: 23b54335beff45edac6c18acd7c2d11a
+msgid ""
+"Uses a group attention mechanism for in-context learning across related "
+"series"
+msgstr ""
+"Usa un mecanismo de atención por grupos para el aprendizaje en contexto "
+"entre series relacionadas"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:20031
+#: 12e6755429e34139a36ebf89d288e527
+msgid "Trained on diverse synthetic datasets to generalize across domains"
+msgstr ""
+"Entrenado con diversos conjuntos de datos sintéticos para generalizar entre "
+"dominios"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:20033
+#: a43fcd3767c54200a66a9dd3b472957d
+msgid ""
+"In this tutorial, we use Chronos-2 to forecast control variables "
+"(employment, temperature) that exhibit predictable temporal patterns."
+msgstr ""
+"En este tutorial usamos Chronos-2 para pronosticar variables de control "
+"(empleo, temperatura) que presentan patrones temporales predecibles."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:20035
+#: 52529484886f4d63acb8aa798fface40
+msgid "What This Tutorial Covers"
+msgstr "Qué cubre este tutorial"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:20037
+#: c8dc45bc3b72488eb031d365cca87b5c
+msgid ""
+"Setting up a multi-dimensional MMM with [PyMC-"
+"Marketing](https://github.com/pymc-labs/pymc-marketing)"
+msgstr ""
+"Configuración de un MMM multidimensional con [PyMC-"
+"Marketing](https://github.com/pymc-labs/pymc-marketing)"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:20038
+#: 079f9e098a924a66b6624616b5f5514d
+msgid "Using Chronos-2 for zero-shot forecasting of control variables"
+msgstr "Uso de Chronos-2 para el pronóstico zero-shot de variables de control"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:20039
+#: 0fd2271c9dbf4cbf91040ccf2a18a1d9
+msgid "Evaluating how forecast errors propagate through the MMM"
+msgstr ""
+"Evaluación de cómo se propagan los errores de pronóstico a través del MMM"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:20040
+#: 51eeb3f3fe81490b92f140893ebcb583
+msgid "Practical guidelines for setting forecast accuracy targets"
+msgstr "Pautas prácticas para fijar objetivos de precisión del pronóstico"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:20042
+#: 796129c90ce04544b9ce1e8134e7c474
+msgid "What This Tutorial Does Not Cover"
+msgstr "Qué no cubre este tutorial"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:20044
+#: c7250e916a8a4dbe94f387bbf2d4f5c7
+msgid ""
+"MMM model selection and validation (see [PyMC-Marketing "
+"documentation](https://www.pymc-marketing.io/))"
+msgstr ""
+"Selección y validación de modelos MMM (consulte la [documentación de PyMC-"
+"Marketing](https://www.pymc-marketing.io/))"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:20045
+#: ed7ab78bbbff493a9cc9718a89a99ed7
+msgid "Hyperparameter tuning for Chronos-2"
+msgstr "Ajuste de hiperparámetros de Chronos-2"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:20046
+#: 111f47e8ccab4277915756a0ec878b43
+msgid "Budget optimization using MMM results"
+msgstr "Optimización del presupuesto usando los resultados del MMM"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30002
+#: 8ab9d72b41b442c9a449b99607dfaf7f
+msgid "Setup"
+msgstr "Configuración"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30005
+#: cf6aed22876b45aa8fc5629a3d57f348
+msgid ""
+"To run this notebook you can go to the original notebook "
+"https://github.com/lfiaschi/advanced-pymc-marketing-"
+"examples/blob/main/notebooks/07_chronos_pymc_marketing.ipynb and install "
+"the dependencies."
+msgstr ""
+"Para ejecutar este cuaderno, puede ir al cuaderno original "
+"https://github.com/lfiaschi/advanced-pymc-marketing-"
+"examples/blob/main/notebooks/07_chronos_pymc_marketing.ipynb e instalar las "
+"dependencias."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30008
+#: a6976f70fc4345cfb3b1f27f5cf44d57
+msgid "Import the required libraries. Key dependencies:"
+msgstr "Importe las bibliotecas necesarias. Dependencias principales:"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30010
+#: 05954edfe6eb42a1927b4a45141aabaf
+msgid "`pymc_marketing`: Bayesian MMM implementation"
+msgstr "`pymc_marketing`: implementación bayesiana de MMM"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30011
+#: 14005e59891b45979c12c7ffbabccdba
+msgid "`chronos`: Amazon's pretrained time series models"
+msgstr "`chronos`: modelos preentrenados de series temporales de Amazon"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30012
+#: 3298c49107754ada9cfe2cadaa4b2690
+msgid "`polars`: Fast DataFrame operations"
+msgstr "`polars`: operaciones rápidas con DataFrame"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30013
+#: be73cb4de8fb402a890593306fceee95
+msgid "`rich`: Enhanced console output for tables and progress"
+msgstr "`rich`: salida de consola mejorada para tablas y barras de progreso"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:50002
+#: 60793aca35274aa2b04a76e7293cdf4c
+msgid "Load and Explore Data"
+msgstr "Cargar y explorar los datos"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:50004
+#: 902ca6ccf3c24332939219e8100659c9
+msgid ""
+"We use a synthetic dataset designed to illustrate the key concepts. The "
+"data simulates a realistic MMM scenario with:"
+msgstr ""
+"Usamos un conjunto de datos sintético diseñado para ilustrar los conceptos "
+"clave. Los datos simulan un escenario realista de MMM con:"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: 330e4f8badbf48239273cedb43e07ed0
+msgid "Variable"
+msgstr "Variable"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: c6c0947861424b51a3ed975f75060c4a
+msgid "Description"
+msgstr "Descripción"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: dbd8d94db0464fb9a2c6c01cccbfe9f7
+msgid "`week`"
+msgstr "`week`"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: 719210e98b3d470182c183124bdd4972
+msgid "Weekly timestamp (208 weeks, ~4 years)"
+msgstr "Marca de tiempo semanal (208 semanas, ~4 años)"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: 916502397e2b4fdd919ae2e4c26b15eb
+msgid "`state`"
+msgstr "`state`"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: 7c081e18319b4edd882ca60647c0f304
+msgid "US state identifier (50 states)"
+msgstr "Identificador del estado de EE. UU. (50 estados)"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: 1a181a597baf4df7bef45a838f44c68b
+msgid "`tv_spend`"
+msgstr "`tv_spend`"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: 61737eccd72044919ee5ce33e908e1cd
+msgid "TV advertising spend"
+msgstr "Gasto en publicidad en TV"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: 04cb3f34bffb410a8b7fdd458a9e7b9c
+msgid "`search_spend`"
+msgstr "`search_spend`"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: db083e1d7fa2482e845f07dd8524f027
+msgid "Search advertising spend"
+msgstr "Gasto en publicidad en búsqueda"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: d0e6a8d4ac174aec95a6d84a6f0fc12a
+msgid "`avg_temp`"
+msgstr "`avg_temp`"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: 5d1eef32ee1545d4a6dae479d9055a79
+msgid "Average temperature (control variable with seasonal pattern)"
+msgstr "Temperatura promedio (variable de control con patrón estacional)"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: 0d700bef19394fdf846d2df5020e7701
+msgid "`avg_employment`"
+msgstr "`avg_employment`"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: f5f816f71ef54ecfa0f41a869d330143
+msgid "Employment rate (control variable with trend + noise)"
+msgstr "Tasa de empleo (variable de control con tendencia + ruido)"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: b9cea068d37a42559d366e8a9f64aeee
+msgid "`y`"
+msgstr "`y`"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: a5fcb187f20a40f4b862e5ef76f91ddf
+msgid "Sales (target variable)"
+msgstr "Ventas (variable objetivo)"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:50016
+#: 8c49046cf3d4454e8fea719026f4ef18
+msgid ""
+"The sales variable was generated using a known MMM formula, which allows "
+"us to evaluate how well the approach recovers the true relationships. In "
+"practice, you would use real data where the ground truth is unknown."
+msgstr ""
+"La variable de ventas se generó con una fórmula de MMM conocida, lo que nos "
+"permite evaluar qué tan bien el enfoque recupera las relaciones verdaderas. "
+"En la práctica, usted utilizaría datos reales en los que la verdad de "
+"referencia es desconocida."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:70002
+#: 203870fbb9d841f7a379e829ad346146
+msgid "Visualize Time Series Patterns"
+msgstr "Visualizar los patrones de las series temporales"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:70004
+#: 141627fc8be9405ea62a1669d746855a
+msgid ""
+"Before modeling, we examine the temporal patterns in our data. Key "
+"observations to look for:"
+msgstr ""
+"Antes de modelar, examinamos los patrones temporales de nuestros datos. "
+"Aspectos clave que conviene buscar:"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:70006
+#: 0da8ad7bb9c040bda5896f18cada98d0
+msgid ""
+"**Seasonality**: Temperature shows clear annual cycles; employment may "
+"have subtler patterns"
+msgstr ""
+"**Estacionalidad**: la temperatura muestra ciclos anuales claros; el empleo "
+"puede tener patrones más sutiles"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:70007
+#: 943c47277148489a85775971387ba940
+msgid "**Trends**: Employment rates may drift over time"
+msgstr "**Tendencias**: las tasas de empleo pueden desplazarse con el tiempo"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:70008
+#: 8bd0f968ac804d6dbe6bdb8cc981cdd5
+msgid ""
+"**Correlation structure**: Understanding how variables relate helps "
+"interpret model results"
+msgstr ""
+"**Estructura de correlación**: entender cómo se relacionan las variables "
+"ayuda a interpretar los resultados del modelo"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:70010
+#: 1ee93ef2d598435f9c8e0209db68468b
+msgid ""
+"The visualization below shows aggregated time series (bold lines) with "
+"individual state series in the background (gray lines). This reveals both"
+" the overall patterns and the cross-sectional variation."
+msgstr ""
+"La visualización de abajo muestra las series temporales agregadas (líneas "
+"gruesas) con las series individuales de cada estado de fondo (líneas "
+"grises). Esto revela tanto los patrones generales como la variación "
+"transversal."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:100002
+#: 3986657a173d465c83a7d5d0c7346ad8
+msgid "Understanding Error Propagation: Theory"
+msgstr "Entender la propagación del error: teoría"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:100004
+#: 176a07cf8ce34c40a19207388574f7e8
+msgid ""
+"Before implementing the approach, it's useful to understand how forecast "
+"errors in control variables affect MMM predictions. This section derives "
+"a practical rule for estimating the impact."
+msgstr ""
+"Antes de implementar el enfoque, conviene entender cómo afectan los errores "
+"de pronóstico de las variables de control a las predicciones del MMM. Esta "
+"sección deriva una regla práctica para estimar el impacto."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:100006
+#: 1849142e99304284b803a36ac66afd51
+msgid "The Core Question"
+msgstr "La pregunta central"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:100008
+#: c17cadb44d224b90bf0c6d35e6a1ff0f
+#, python-brace-format
+msgid ""
+"When we replace true control values $z$ with forecasts $\\tilde{z}$, how "
+"much does the MMM prediction error increase?"
+msgstr ""
+"Cuando reemplazamos los valores reales de los controles $z$ por pronósticos "
+"$\\tilde{z}$, ¿cuánto aumenta el error de predicción del MMM?"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:100010
+#: 7bf6a10da9df49da893064ccc20575aa
+msgid "Key Insight"
+msgstr "Idea clave"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:100012
+#: ca4bc9fa154a4ebe9676cadf1060a5da
+msgid "The answer depends on two factors:"
+msgstr "La respuesta depende de dos factores:"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:100013
+#: 72913d7b06e540b8852ba3452b4d174d
+msgid "**Control share**: How much do controls contribute to the predicted sales?"
+msgstr ""
+"**Proporción de control**: ¿cuánto contribuyen los controles a las ventas "
+"predichas?"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:100014
+#: 17f479b9b3c74b3aba96ea2186351dd4
+msgid ""
+"**Forecast accuracy**: How accurate are the control forecasts (measured "
+"by MAPE)?"
+msgstr ""
+"**Precisión del pronóstico**: ¿qué tan precisos son los pronósticos de los "
+"controles (medida con el MAPE)?"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:100016
+#: d33e58c3e29249e49763c16d4b469bb4
+msgid "The Rule of Thumb"
+msgstr "La regla empírica"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:100018
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:240006
+#: 728f2f4a113b454198f1ba0706f24abe 877485f644c64fe49e86989277c52e3d
+msgid "**Incremental MMM MAPE ≈ Control Share × Control MAPE**"
+msgstr ""
+"**MAPE incremental del MMM ≈ Proporción de control × MAPE del control**"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:100020
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:250035
+#: b8c7270afd7049cc92863d697b7b938f ebc9e2460eea4d66820724c2a85cf3ab
+msgid "For example:"
+msgstr "Por ejemplo:"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:100021
+#: 95e4e999f53943f3b59f133e0606412f
+msgid "If controls explain **30%** of sales variation"
+msgstr "Si los controles explican el **30%** de la variación de las ventas"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:100022
+#: 8b38d76e31024ebaa333cf5f2f756847
+msgid "And control forecast MAPE is **10%**"
+msgstr "Y el MAPE del pronóstico de los controles es del **10%**"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:100023
+#: 42d08778d0b34cc7bda523a111160f51
+msgid "Then expect roughly **3%** additional MAPE in sales predictions"
+msgstr ""
+"Entonces cabe esperar aproximadamente un **3%** adicional de MAPE en las "
+"predicciones de ventas"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:100025
+#: 324b797c80924075972971c7a848ee71
+msgid "Practical Guidelines"
+msgstr "Pautas prácticas"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: 8200e0dd6283457593ec7bc1a8db2328
+msgid "Control Share"
+msgstr "Proporción de control"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: eaccd50ccf2245609b30a55580b50116
+msgid "Recommended Control MAPE"
+msgstr "MAPE de control recomendado"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: 4b2c292b13e04f00b882af35c9280366
+msgid "Expected Impact"
+msgstr "Impacto esperado"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: 033556d3119e46429268d0c8dd39658a
+msgid "≤ 20%"
+msgstr "≤ 20%"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: ad506c7d0924444f9ff68ce8a0554c2b
+msgid "Any reasonable"
+msgstr "Cualquiera razonable"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: c2aba9c3e62b4a439b0b69820dc6220f
+msgid "Negligible (≤ 2% MAPE)"
+msgstr "Insignificante (≤ 2% de MAPE)"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: 1735ff466bc44d2a88124b5b36ff8103
+msgid "30-50%"
+msgstr "30-50%"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: dcbed919898844eaa2e4804f718d0aea
+msgid "≤ 10%"
+msgstr "≤ 10%"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: 7083fa22a68646d4bd61024c622ee565
+msgid "Moderate (3-5% MAPE)"
+msgstr "Moderado (3-5% de MAPE)"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: c4ba335e0f9c49bb84643a8f5a8100e1
+msgid "> 50%"
+msgstr "> 50%"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: dceda46a8c094f86b6ba893e4e080bab
+msgid "≤ 5%"
+msgstr "≤ 5%"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: f5da0a88044240a99a86a16f31c294fe
+msgid "Each 1% adds ~0.5-1% MAPE"
+msgstr "Cada 1% añade ~0.5-1% de MAPE"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:100033
+#: 36ba292a6d8545c293e483abcba37d89
+msgid "Mathematical Derivation (Optional)"
+msgstr "Derivación matemática (opcional)"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:100035
+#: eb08334d4a874cbebfc83f4d5a2bb91e
+msgid ""
+"For readers interested in the derivation, the MMM prediction with "
+"controls is:"
+msgstr ""
+"Para quienes estén interesados en la derivación, la predicción del MMM con "
+"controles es:"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:100037
+#: b9004bda0baa4ba5a53f9ec86b839206
+#, python-brace-format
+msgid ""
+"\n"
+"\\hat{y}_i = f(x_i) + \\sum_{j=1}^p \\gamma_j z_{ij}\n"
+msgstr ""
+"\n"
+"\\hat{y}_i = f(x_i) + \\sum_{j=1}^p \\gamma_j z_{ij}\n"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:100041
+#: e9d468873b474539b8f732f06ac9ea1c
+#, python-brace-format
+msgid ""
+"where $f(x_i)$ is the media contribution and $\\gamma_j z_{ij}$ is the "
+"control contribution. When we substitute forecasted controls "
+"$\\tilde{z}_{ij}$, the prediction changes by:"
+msgstr ""
+"donde $f(x_i)$ es la contribución de los medios y $\\gamma_j z_{ij}$ es la "
+"contribución de los controles. Cuando sustituimos los controles "
+"pronosticados $\\tilde{z}_{ij}$, la predicción cambia en:"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:100043
+#: 5517eacc78e749339d73775ac2aae683
+#, python-brace-format
+msgid ""
+"\n"
+"\\Delta \\hat{y}_i = \\sum_j \\gamma_j (\\tilde{z}_{ij} - z_{ij}) = "
+"\\sum_j \\gamma_j z_{ij} \\varepsilon_{ij}\n"
+msgstr ""
+"\n"
+"\\Delta \\hat{y}_i = \\sum_j \\gamma_j (\\tilde{z}_{ij} - z_{ij}) = \\sum_j \\gamma_j z_{ij} \\varepsilon_{ij}\n"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:100047
+#: f44add74202847b18c5db3e7f70e421d
+#, python-brace-format
+msgid ""
+"where $\\varepsilon_{ij} = (\\tilde{z}_{ij} - z_{ij})/z_{ij}$ is the "
+"relative forecast error."
+msgstr ""
+"donde $\\varepsilon_{ij} = (\\tilde{z}_{ij} - z_{ij})/z_{ij}$ es el error "
+"relativo del pronóstico."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:100049
+#: 8563cffcb36a4d8ba050038290090179
+msgid "The resulting MAPE increase is bounded by:"
+msgstr "El aumento resultante del MAPE está acotado por:"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:100051
+#: dc7347436d6e4b3e9cbea33478f1b0ae
+msgid ""
+"\n"
+"\\text{MAPE}_y^{(\\text{from controls})} \\leq \\frac{1}{n} \\sum_i "
+"\\left[ \\sum_j \\frac{|\\gamma_j| |z_{ij}|}{|y_i|} m_j \\right]\n"
+msgstr ""
+"\n"
+"\\text{MAPE}_y^{(\\text{from controls})} \\leq \\frac{1}{n} \\sum_i \\left[ \\sum_j \\frac{|\\gamma_j| |z_{ij}|}{|y_i|} m_j \\right]\n"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:100055
+#: 51c8b6f8a1434a3f93f0f55876447339
+#, python-brace-format
+msgid ""
+"where $m_j$ is the MAPE of control $j$. The term $|\\gamma_j| |z_{ij}| / "
+"|y_i|$ represents the control share—the fraction of sales explained by "
+"control $j$."
+msgstr ""
+"donde $m_j$ es el MAPE del control $j$. El término $|\\gamma_j| |z_{ij}| / "
+"|y_i|$ representa la proporción de control—la fracción de las ventas "
+"explicada por el control $j$."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:100057
+#: 197be8426e034ea7b9e8f460d173ca06
+msgid ""
+"When all controls have similar forecast accuracy $M_z$, this simplifies "
+"to:"
+msgstr ""
+"Cuando todos los controles tienen una precisión de pronóstico similar $M_z$,"
+" esto se simplifica a:"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:100059
+#: c4701600b018470b8f9d7473e6c63b2b
+msgid ""
+"\n"
+"\\text{MAPE}_y^{(\\text{from controls})} \\approx M_z \\times "
+"\\text{(Average Control Share)}\n"
+msgstr ""
+"\n"
+"\\text{MAPE}_y^{(\\text{from controls})} \\approx M_z \\times \\text{(Average Control Share)}\n"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:100063
+#: 274942dc5ede4ad9aa44a9a33a04c4ec
+msgid ""
+"This derivation justifies the rule of thumb and helps practitioners set "
+"appropriate forecasting targets."
+msgstr ""
+"Esta derivación justifica la regla empírica y ayuda a los profesionales a "
+"fijar objetivos de pronóstico adecuados."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:110002
+#: 96fdfe62185b41f986e10b24ed765b48
+msgid "Step 1: Split Data into Training and Test Sets"
+msgstr "Paso 1: dividir los datos en conjuntos de entrenamiento y de prueba"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:110004
+#: fde63c89c81c495f838e4af1f0a5c529
+msgid "We use a temporal split to simulate a realistic forecasting scenario:"
+msgstr ""
+"Usamos una división temporal para simular un escenario de pronóstico "
+"realista:"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:110006
+#: bd7dc8e0d49140da8c21d9554e8b00ec
+msgid ""
+"**Training period** (Years 1-3): Used to fit the MMM and learn the "
+"relationships between media, controls, and sales"
+msgstr ""
+"**Período de entrenamiento** (años 1-3): se usa para ajustar el MMM y "
+"aprender las relaciones entre los medios, los controles y las ventas"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:110007
+#: 5fe2ea761a5e4377be19e5387355d773
+msgid ""
+"**Test period** (Year 4): Held out to evaluate predictions—we pretend we "
+"don't know the control values for this period"
+msgstr ""
+"**Período de prueba** (año 4): se reserva para evaluar las "
+"predicciones—fingimos que no conocemos los valores de los controles en este "
+"período"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:110009
+#: e478baa9b75a47228c2bcea6bee4f996
+msgid ""
+"This split allows us to measure how well the approach works when control "
+"variables must be forecasted rather than observed."
+msgstr ""
+"Esta división nos permite medir qué tan bien funciona el enfoque cuando las "
+"variables de control deben pronosticarse en lugar de observarse."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:110011
+#: 4c2c2ed0d6594fd5a2f193eea74082a0
+msgid ""
+"**Practical Tip**: When choosing your split point, ensure the training "
+"period captures at least one full cycle of any seasonal patterns in your "
+"control variables. For annual seasonality (like temperature), this means "
+"at least 1-2 years of training data."
+msgstr ""
+"**Consejo práctico**: al elegir el punto de división, asegúrese de que el "
+"período de entrenamiento abarque al menos un ciclo completo de cualquier "
+"patrón estacional de sus variables de control. Para la estacionalidad anual "
+"(como la temperatura), esto significa al menos 1-2 años de datos de "
+"entrenamiento."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:130002
+#: 55ab4d0b2a5a49e586f678b9ea0d1d5d
+msgid "Step 2: Fit the MMM on Training Data"
+msgstr "Paso 2: ajustar el MMM con los datos de entrenamiento"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:130004
+#: dd84488acef6433cb0eaa8fe01e7ede1
+msgid ""
+"We fit a [PyMC-Marketing MMM](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_example.html) to the training "
+"data. The model learns:"
+msgstr ""
+"Ajustamos un [MMM de PyMC-Marketing](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_example.html) con los datos de "
+"entrenamiento. El modelo aprende:"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:130006
+#: 96715706e395477c8a68a6e19987e382
+msgid ""
+"**Media effects**: How TV and search spend influence sales, including "
+"adstock (carryover) and saturation (diminishing returns)"
+msgstr ""
+"**Efectos de los medios**: cómo influyen el gasto en TV y en búsqueda sobre "
+"las ventas, incluidos el adstock (arrastre) y la saturación (rendimientos "
+"decrecientes)"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:130007
+#: 77b0bb4e025648eca7e0f93cd109362c
+msgid ""
+"**Control effects**: The coefficients $\\gamma_j$ for employment and "
+"temperature"
+msgstr ""
+"**Efectos de los controles**: los coeficientes $\\gamma_j$ del empleo y la "
+"temperatura"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:130008
+#: 68b2cc7c027243ff9c9a4d8226c877d1
+msgid "**Seasonality**: Yearly patterns captured via Fourier terms"
+msgstr ""
+"**Estacionalidad**: patrones anuales capturados mediante términos de Fourier"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:130010
+#: 404a3e0d93e243849b228242b1956d1a
+msgid ""
+"The model uses a multi-dimensional structure with `dims=(\"state\",)` to "
+"share information across states while allowing state-specific scaling. "
+"This is particularly useful when you have panel data with multiple "
+"geographic units."
+msgstr ""
+"El modelo usa una estructura multidimensional con `dims=(\"state\",)` para "
+"compartir información entre los estados y, al mismo tiempo, permitir un "
+"escalado específico para cada estado. Esto es particularmente útil cuando se"
+" tienen datos de panel con múltiples unidades geográficas."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:130012
+#: c680a4fe359b45aa87ae069174627d93
+msgid ""
+"**Practical Tip**: The sampler configuration below uses reduced settings "
+"for faster execution in this tutorial. For production use, increase "
+"`draws` to 1000+ and use 4 chains to ensure proper convergence. Always "
+"check `rhat` values and effective sample sizes in your diagnostics."
+msgstr ""
+"**Consejo práctico**: la configuración del muestreador de abajo usa valores "
+"reducidos para acelerar la ejecución en este tutorial. Para un uso en "
+"producción, aumente `draws` a 1000+ y use 4 cadenas para asegurar una "
+"convergencia adecuada. Revise siempre los valores de `rhat` y los tamaños de"
+" muestra efectivos en sus diagnósticos."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:150002
+#: 4980e256c1c949ebaba234e6b1fdd70b
+msgid "Step 3: Forecast Control Variables with Chronos-2"
+msgstr "Paso 3: pronosticar las variables de control con Chronos-2"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:150004
+#: 3cf31a01477a4efcb928e64aaa258812
+msgid ""
+"With the MMM trained, we now need forecasts of the control variables for "
+"the test period. This is where "
+"[Chronos-2](https://arxiv.org/abs/2510.15821) comes in."
+msgstr ""
+"Con el MMM entrenado, ahora necesitamos pronósticos de las variables de "
+"control para el período de prueba. Aquí es donde entra en juego "
+"[Chronos-2](https://arxiv.org/abs/2510.15821)."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:150006
+#: 5a43c3ffaf134fe1a81e870b8169c18a
+msgid ""
+"Chronos-2 is a pretrained time series model that can generate forecasts "
+"without any task-specific training. We provide it with the historical "
+"control variable data, and it produces forecasts for the next 52 weeks."
+msgstr ""
+"Chronos-2 es un modelo preentrenado de series temporales que puede generar "
+"pronósticos sin ningún entrenamiento específico para la tarea. Le "
+"proporcionamos los datos históricos de las variables de control y produce "
+"pronósticos para las próximas 52 semanas."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:150008
+#: 28f4d651b8e44230a791be5034db9f19
+msgid "Key aspects of our approach:"
+msgstr "Aspectos clave de nuestro enfoque:"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:150009
+#: 1c4d80bebb9e43b6be7d97395d2af64c
+msgid ""
+"**Multi-target forecasting**: We forecast both employment and temperature"
+" simultaneously"
+msgstr ""
+"**Pronóstico de múltiples objetivos**: pronosticamos tanto el empleo como la"
+" temperatura de forma simultánea"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:150010
+#: 8ee4516f8e8a411bbb51243a6c1c7595
+msgid ""
+"**Per-state forecasts**: Each state gets its own forecast based on its "
+"historical pattern"
+msgstr ""
+"**Pronósticos por estado**: cada estado obtiene su propio pronóstico basado "
+"en su patrón histórico"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:150011
+#: cc19f230e8da4ea79032ca2565ad06ac
+msgid ""
+"**Uncertainty quantification**: Chronos-2 provides prediction intervals "
+"(10th, 50th, 90th percentiles)"
+msgstr ""
+"**Cuantificación de la incertidumbre**: Chronos-2 proporciona intervalos de "
+"predicción (percentiles 10, 50 y 90)"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:150013
+#: c77d6d5063264d0b93ef44ba036a9c2f
+msgid ""
+"The function below handles the data preparation, model loading, and "
+"forecast generation."
+msgstr ""
+"La función de abajo se encarga de la preparación de los datos, la carga del "
+"modelo y la generación de los pronósticos."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:150015
+#: 874096afed2e468d89e952636ccab6c4
+msgid ""
+"**Practical Tip**: If you have access to a GPU, set `device=\"cuda\"` for"
+" faster inference. For large-scale applications with many series, "
+"consider batching the forecasts to manage memory usage."
+msgstr ""
+"**Consejo práctico**: si tiene acceso a una GPU, configure `device=\"cuda\"`"
+" para una inferencia más rápida. En aplicaciones a gran escala con muchas "
+"series, considere procesar los pronósticos por lotes para controlar el uso "
+"de memoria."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:180002
+#: e7fef40838934c7ba1b2012fd9be187b
+msgid "Evaluate Forecast Accuracy"
+msgstr "Evaluar la precisión del pronóstico"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:180004
+#: 88e72693a847479285e5a4c0783d0872
+msgid ""
+"Before using the forecasted controls in the MMM, we evaluate how well "
+"Chronos-2 predicted the actual values. This is important because, as we "
+"derived earlier, the control forecast MAPE directly affects the MMM "
+"prediction accuracy."
+msgstr ""
+"Antes de usar los controles pronosticados en el MMM, evaluamos qué tan bien "
+"predijo Chronos-2 los valores reales. Esto es importante porque, como "
+"derivamos antes, el MAPE del pronóstico de los controles afecta directamente"
+" la precisión de las predicciones del MMM."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:180006
+#: 154d25e54ed349b4b4a9c3a76fd93918
+msgid ""
+"The metrics below show the forecast accuracy for each control variable. "
+"Pay attention to the MAPE values—these will help us estimate the expected"
+" degradation in MMM predictions."
+msgstr ""
+"Las métricas de abajo muestran la precisión del pronóstico de cada variable "
+"de control. Preste atención a los valores de MAPE—nos ayudarán a estimar la "
+"degradación esperada en las predicciones del MMM."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:180008
+#: 872c6441b6024e77b2e75f7525d0bd45
+msgid ""
+"**Practical Tip**: If the control forecast MAPE is unacceptably high, "
+"consider: (1) using a different forecasting model, (2) incorporating "
+"external information (e.g., economic forecasts), or (3) reducing the "
+"forecast horizon."
+msgstr ""
+"**Consejo práctico**: si el MAPE del pronóstico de los controles es "
+"inaceptablemente alto, considere: (1) usar un modelo de pronóstico "
+"diferente, (2) incorporar información externa (por ejemplo, pronósticos "
+"económicos) o (3) reducir el horizonte de pronóstico."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:210002
+#: caacdea74c7e480bb6982e4c7a2dcf64
+msgid "Step 4: Compare MMM Predictions with Actual vs. Forecasted Controls"
+msgstr ""
+"Paso 4: comparar las predicciones del MMM con controles reales y "
+"pronosticados"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:210004
+#: 205b03bc72bb4cf9b7af97f6ae5dbce4
+msgid ""
+"Now we arrive at the core experiment. We generate MMM predictions for the"
+" test period under two scenarios:"
+msgstr ""
+"Ahora llegamos al experimento central. Generamos predicciones del MMM para "
+"el período de prueba en dos escenarios:"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:210006
+#: 6c3415d39acb4da4b9c2fdeea1d7ae26
+msgid ""
+"**With actual controls**: Using the true employment and temperature "
+"values (oracle scenario)"
+msgstr ""
+"**Con controles reales**: usando los valores verdaderos de empleo y "
+"temperatura (escenario oráculo)"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:210007
+#: 17735208545c4f5ab87d1df2dc1039d3
+msgid ""
+"**With forecasted controls**: Using the Chronos-2 forecasts (realistic "
+"scenario)"
+msgstr ""
+"**Con controles pronosticados**: usando los pronósticos de Chronos-2 "
+"(escenario realista)"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:210009
+#: f6a2b1ed6bdb427eb55b893c8cc8c47f
+msgid ""
+"The difference between these two scenarios quantifies the cost of not "
+"knowing the true control values. This is the error propagation we "
+"analyzed in the theory section."
+msgstr ""
+"La diferencia entre estos dos escenarios cuantifica el costo de no conocer "
+"los valores verdaderos de los controles. Esta es la propagación del error "
+"que analizamos en la sección de teoría."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:240002
+#: 822680f29b49403fb0e5d10268d02464
+msgid "Interpreting the Results"
+msgstr "Interpretación de los resultados"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:240004
+#: ccacd4ab5d5c44e7b82b2240093189bb
+msgid ""
+"The results above demonstrate the error propagation we discussed in the "
+"theory section. Recall the rule of thumb:"
+msgstr ""
+"Los resultados anteriores demuestran la propagación del error que discutimos"
+" en la sección de teoría. Recordemos la regla empírica:"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:240008
+#: d9796a3b06034d98b88333a818c1ce8f
+msgid "Worked Example with Our Data"
+msgstr "Ejemplo práctico con nuestros datos"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:240010
+#: 0e92118a35af4f17b8ecfe88ef21acaa
+msgid "Using the metrics from this experiment:"
+msgstr "Con las métricas de este experimento:"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:240012
+#: eb928e30357741c59dc211744c73ec5f
+msgid ""
+"**Control MAPE** (from Chronos-2 forecasts): Check the forecast accuracy "
+"table above"
+msgstr ""
+"**MAPE del control** (de los pronósticos de Chronos-2): consulte la tabla de"
+" precisión del pronóstico de arriba"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:240013
+#: a71861845d2c48e2adc6fb1e60da54e4
+msgid "**Control Share**: Estimated from the MMM coefficients and control values"
+msgstr ""
+"**Proporción de control**: estimada a partir de los coeficientes del MMM y "
+"los valores de los controles"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:240014
+#: f24cad2567b649d78d9d0fc1df88e00e
+msgid ""
+"**Observed MAPE Degradation**: The difference between \"With Forecasted "
+"Controls\" and \"With Actual Controls\""
+msgstr ""
+"**Degradación observada del MAPE**: la diferencia entre \"Con controles "
+"pronosticados\" y \"Con controles reales\""
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:240016
+#: 5554bd9252e743a1ace132e1dc555f71
+msgid ""
+"The observed degradation should be consistent with the theoretical "
+"prediction. If it's significantly higher, this may indicate:"
+msgstr ""
+"La degradación observada debería ser coherente con la predicción teórica. Si"
+" es significativamente mayor, esto puede indicar:"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:240017
+#: 20b61aef097b4bcca3fe5c14f47aba8c
+msgid "Non-linear interactions between controls and media effects"
+msgstr ""
+"Interacciones no lineales entre los controles y los efectos de los medios"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:240018
+#: 6d096cd2ca174aa5832df0c7e014d8f9
+msgid "Model misspecification"
+msgstr "Mala especificación del modelo"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:240019
+#: cb6c4dbd80b14edc84a5cd0c78876c0d
+msgid "Unusual patterns in the test period"
+msgstr "Patrones inusuales en el período de prueba"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:240021
+#: 1e041fd0f06f41d68b7ff392bed5c566
+msgid ""
+"If it's lower, the model may be robust to control forecast errors, or the"
+" controls have limited influence on predictions."
+msgstr ""
+"Si es menor, el modelo puede ser robusto frente a los errores de pronóstico "
+"de los controles, o los controles tienen una influencia limitada sobre las "
+"predicciones."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:250002
+#: e2fbbf1df84d404689193bb95be5ffaa
+msgid "Practical Tips Summary"
+msgstr "Resumen de consejos prácticos"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:250004
+#: c685ea1cf53640baa80f4d8914708999
+msgid ""
+"This section consolidates the key practical recommendations from this "
+"tutorial."
+msgstr ""
+"Esta sección reúne las principales recomendaciones prácticas de este "
+"tutorial."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:250006
+#: 9b4c804ad1c040eebe82caf6434ebaf5
+msgid "When to Use This Approach"
+msgstr "Cuándo usar este enfoque"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:250008
+#: 9a54b587580a4deab66c31ed966d99f5
+msgid ""
+"This two-model approach (MMM + foundational forecasting model) is "
+"appropriate when:"
+msgstr ""
+"Este enfoque con dos modelos (MMM + modelo fundacional de pronóstico) es "
+"adecuado cuando:"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:250009
+#: cdeba47a469246189c0705eb1f5020db
+msgid ""
+"Your MMM includes control variables that are unavailable for future "
+"periods"
+msgstr ""
+"Su MMM incluye variables de control que no están disponibles para los "
+"períodos futuros"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:250010
+#: c7975c5fa9c447bebb732c74ca755547
+msgid ""
+"The control variables exhibit predictable temporal patterns (seasonality,"
+" trends)"
+msgstr ""
+"Las variables de control presentan patrones temporales predecibles "
+"(estacionalidad, tendencias)"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:250011
+#: 3b27cc0ae4f34ff3bd0912a69c10cf67
+msgid ""
+"You need forward-looking predictions for budget planning or scenario "
+"analysis"
+msgstr ""
+"Necesita predicciones a futuro para la planificación del presupuesto o el "
+"análisis de escenarios"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:250013
+#: 1f274d6aa3434889891c4631ed174a58
+msgid "Consider simpler alternatives when:"
+msgstr "Considere alternativas más simples cuando:"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:250014
+#: b5ded70df2b446b19cee5a094e4d0014
+msgid "Controls have minimal influence on predictions (control share < 10%)"
+msgstr ""
+"Los controles tienen una influencia mínima sobre las predicciones "
+"(proporción de control < 10%)"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:250015
+#: 1b9b089ca4f1453f8b1aab660e8e7994
+msgid "You only need short-term forecasts where last-known values suffice"
+msgstr ""
+"Solo necesita pronósticos a corto plazo en los que basta con los últimos "
+"valores conocidos"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:250016
+#: 199c792f4bf64561938a6d435b6ea35b
+msgid "Control variables are highly volatile and unpredictable"
+msgstr "Las variables de control son muy volátiles e impredecibles"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:250018
+#: 11354fde2bd24e029e77be79f6ffab53
+msgid "Key Parameters to Tune"
+msgstr "Parámetros clave para ajustar"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: 8ea4374d62cd44308fed79677dff3f2f
+msgid "Component"
+msgstr "Componente"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: 4e122225177a4635b7e2e553e1792d0f
+msgid "Parameter"
+msgstr "Parámetro"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: 5ae35e07b03a4d9c8bd42d799b00b09e
+msgid "Recommendation"
+msgstr "Recomendación"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: 5d39730272974ff19c68014cd4acd270 9babe40bc92840aa9fa4efd53136f586
+msgid "MMM"
+msgstr "MMM"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: 93ea7f302f1a4a908abc071590c38de5
+msgid "`draws`, `chains`"
+msgstr "`draws`, `chains`"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: a71fa22120fd4f47ad605d88d24ae07e
+msgid "1000+ draws, 4 chains for production"
+msgstr "1000+ muestras, 4 cadenas para producción"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: 41e7bf83e10a4f038692700183f2ead1
+msgid "`l_max` (adstock)"
+msgstr "`l_max` (adstock)"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: d132986ddd0846bba6fedd5f7a3fd98a
+msgid "Match expected carryover duration"
+msgstr "Que coincida con la duración esperada del efecto de arrastre"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: 858ff9f8222147e0bb9f3f02a2c78acd c0fee9d4d91d4e9595c753ea37b61faf
+msgid "Chronos-2"
+msgstr "Chronos-2"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: ca7f975a8853458fa5c976ea805748e4
+msgid "`prediction_length`"
+msgstr "`prediction_length`"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: 68d02025f7b444bfabad1cf363d865ce
+msgid "Match your planning horizon"
+msgstr "Que coincida con su horizonte de planificación"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: 6b3807e6e764462b9e0081b6ee132773
+msgid "`device`"
+msgstr "`device`"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: 1dc06aa3ef0747d9a14631bec85d8beb
+msgid "Use \"cuda\" if GPU available"
+msgstr "Use \"cuda\" si hay una GPU disponible"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:250027
+#: 1f32643af1dd4a34ba06eb428bad3986
+msgid "Expected Accuracy Trade-offs"
+msgstr "Compromisos esperados en la precisión"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:250029
+#: b433d72de4964876a4b1efd265c04be6
+msgid "Use the rule of thumb to set expectations:"
+msgstr "Use la regla empírica para fijar expectativas:"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:250031
+#: 8a86c658210d4a35b84aa7ac15ef8e1c
+#, python-brace-format
+msgid ""
+"\n"
+"\\text{Incremental MAPE} \\approx \\text{Control Share} \\times "
+"\\text{Control MAPE}\n"
+msgstr ""
+"\n"
+"\\text{Incremental MAPE} \\approx \\text{Control Share} \\times \\text{Control MAPE}\n"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:250036
+#: a2a0fb95503c45aeaacd9da88a9d3840
+#, python-format
+msgid "20% control share × 5% control MAPE = ~1% additional MAPE (acceptable)"
+msgstr ""
+"20% de proporción de control × 5% de MAPE del control = ~1% de MAPE "
+"adicional (aceptable)"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:250037
+#: 7783c365a69040538a0a8623144eee24
+#, python-format
+msgid ""
+"40% control share × 15% control MAPE = ~6% additional MAPE (may need "
+"improvement)"
+msgstr ""
+"40% de proporción de control × 15% de MAPE del control = ~6% de MAPE "
+"adicional (puede requerir mejoras)"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:250039
+#: 35421c39b8bb4322a5bb14a2e2294bdf
+msgid "Common Pitfalls and Solutions"
+msgstr "Problemas comunes y soluciones"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: c48ec9ea3f9c40e9a9e1312261f8fbfc
+msgid "Pitfall"
+msgstr "Problema"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: ffb3897bea924419945a9a791d6c3076
+msgid "Solution"
+msgstr "Solución"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: ac316c1b51bf4a059d5f9be79ba30831
+msgid "High control forecast error"
+msgstr "Error alto en el pronóstico de los controles"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: 007b1dcdeed24dc8b8296ed37241bf30
+msgid ""
+"Try different forecasting models, reduce horizon, or use external "
+"forecasts"
+msgstr ""
+"Pruebe distintos modelos de pronóstico, reduzca el horizonte o use "
+"pronósticos externos"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: 45666317a6804bc3b8d3641f6edd4727
+msgid "MMM convergence issues"
+msgstr "Problemas de convergencia del MMM"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: 6927248eea1a4cd5afc4d7c4160902a3
+msgid "Increase tuning iterations, adjust priors, check data quality"
+msgstr ""
+"Aumente las iteraciones de calentamiento, ajuste los priors y revise la "
+"calidad de los datos"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: 133868cfe06f4c26bed34fb9cfdbfed3
+msgid "Inconsistent results across runs"
+msgstr "Resultados inconsistentes entre ejecuciones"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: b83297f8e5ab4c059192730a05125e17
+msgid "Increase draws and chains, check for multimodality"
+msgstr "Aumente las muestras y las cadenas, y revise si hay multimodalidad"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: 432e28113ed14f71ad884b1764789fb5
+msgid "Memory issues with Chronos-2"
+msgstr "Problemas de memoria con Chronos-2"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:30004
+#: 0724d6fe53d54d23942a02cd7d967649
+msgid "Batch forecasts, reduce model size, use CPU if GPU memory limited"
+msgstr ""
+"Procese los pronósticos por lotes, reduzca el tamaño del modelo y use la CPU"
+" si la memoria de la GPU es limitada"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:250048
+#: d41bc8cb03b74da29ac5af092208d267
+msgid "Scaling Considerations"
+msgstr "Consideraciones de escalabilidad"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:250050
+#: 3072d7cffa8247e39d84e10101f31bbc
+msgid "For large-scale applications:"
+msgstr "Para aplicaciones a gran escala:"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:250051
+#: 8d7a4c641c3e4e919e07f52d3518d488
+msgid ""
+"**Many geographic units**: The multi-dimensional MMM scales well; "
+"Chronos-2 can batch forecasts"
+msgstr ""
+"**Muchas unidades geográficas**: el MMM multidimensional escala bien; "
+"Chronos-2 puede procesar los pronósticos por lotes"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:250052
+#: 84d4de8b7fa748a5838ec7f6c30f5461
+msgid ""
+"**Long forecast horizons**: Accuracy degrades with horizon; consider "
+"rolling forecasts"
+msgstr ""
+"**Horizontes de pronóstico largos**: la precisión se degrada con el "
+"horizonte; considere pronósticos móviles"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:250053
+#: a23fba421ed14f6fb32479fa25dd84a3
+msgid ""
+"**Real-time updates**: Pre-train MMM, update control forecasts as new "
+"data arrives"
+msgstr ""
+"**Actualizaciones en tiempo real**: preentrene el MMM y actualice los "
+"pronósticos de los controles a medida que lleguen nuevos datos"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:260002
+#: d3bb4259a1314941a38178a783c71d8d
+msgid "Conclusion"
+msgstr "Conclusión"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:260004
+#: 688c87ac888a47c49267b0d1056f5f4f
+msgid ""
+"This tutorial demonstrated how to integrate foundational time series "
+"models with PyMC-Marketing MMM to handle the practical challenge of "
+"missing control variables in forward-looking predictions."
+msgstr ""
+"Este tutorial mostró cómo integrar modelos fundacionales de series "
+"temporales con MMM de PyMC-Marketing para abordar el desafío práctico de la "
+"falta de variables de control en las predicciones a futuro."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:260006
+#: 76c66024dc0540dda1ac4f3fe79ca23a
+msgid "Key Takeaways"
+msgstr "Conclusiones clave"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:260008
+#: d3c3a397cb0242159f4156ae178e1c86
+msgid ""
+"**The problem is common**: Control variables (economic indicators, "
+"weather, etc.) are often unavailable for future periods, yet they're "
+"essential for accurate MMM predictions."
+msgstr ""
+"**El problema es común**: las variables de control (indicadores económicos, "
+"clima, etc.) suelen no estar disponibles para los períodos futuros, aunque "
+"son esenciales para obtener predicciones precisas del MMM."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:260010
+#: 72b8c8765fdc4fa48064493345df5787
+msgid ""
+"**The solution is modular**: By combining a causal model (MMM) with a "
+"predictive model (Chronos-2), we leverage the strengths of each—causal "
+"understanding from MMM and forecasting accuracy from Chronos-2."
+msgstr ""
+"**La solución es modular**: al combinar un modelo causal (MMM) con un modelo"
+" predictivo (Chronos-2), aprovechamos las fortalezas de cada uno—la "
+"comprensión causal del MMM y la precisión de pronóstico de Chronos-2."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:260012
+#: 3edad45deed545ac8aee560a85440894
+msgid ""
+"**Error propagation is predictable**: The rule of thumb (Incremental MAPE"
+" ≈ Control Share × Control MAPE) provides a practical way to estimate the"
+" cost of using forecasted controls."
+msgstr ""
+"**La propagación del error es predecible**: la regla empírica (MAPE "
+"incremental ≈ Proporción de control × MAPE del control) ofrece una forma "
+"práctica de estimar el costo de usar controles pronosticados."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:260014
+#: 34538b695d3949af8f2fc2b67d226529
+msgid ""
+"**The approach is flexible**: While we used Chronos-2, the same framework"
+" applies to any forecasting method—ARIMA, Prophet, or domain-specific "
+"models."
+msgstr ""
+"**El enfoque es flexible**: aunque usamos Chronos-2, el mismo marco se "
+"aplica a cualquier método de pronóstico—ARIMA, Prophet o modelos específicos"
+" del dominio."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:260016
+#: 383d295415dc47bcbc5274f9868db6a3
+msgid "Limitations"
+msgstr "Limitaciones"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:260018
+#: 329e56c9b29841e387e2d79580247b73
+msgid ""
+"**Assumes linear control effects**: The error propagation analysis "
+"assumes controls enter the model linearly. Non-linear interactions may "
+"cause different behavior."
+msgstr ""
+"**Supone efectos lineales de los controles**: el análisis de propagación del"
+" error supone que los controles entran al modelo de forma lineal. Las "
+"interacciones no lineales pueden causar un comportamiento diferente."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:260019
+#: 3894db7e1c334d35a7dcbf9d320accdb
+msgid ""
+"**Requires forecastable controls**: This approach works best when control"
+" variables have predictable patterns. Highly volatile or event-driven "
+"controls may not forecast well."
+msgstr ""
+"**Requiere controles pronosticables**: este enfoque funciona mejor cuando "
+"las variables de control tienen patrones predecibles. Los controles muy "
+"volátiles o impulsados por eventos pueden no pronosticarse bien."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:260020
+#: 9682a8615fe5406eb02c55ab0b9fa1ba
+msgid ""
+"**Computational cost**: Running both an MMM and a forecasting model adds "
+"complexity and compute time."
+msgstr ""
+"**Costo computacional**: ejecutar tanto un MMM como un modelo de pronóstico "
+"añade complejidad y tiempo de cómputo."
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:260022
+#: 107d93d058dd46c9bd53b4235948b4a8
+msgid "Next Steps"
+msgstr "Próximos pasos"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:260024
+#: 0cabdcf3a9d54d1e8302d7eea1bc8841
+msgid "For practitioners looking to extend this work:"
+msgstr "Para quienes deseen ampliar este trabajo:"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:260025
+#: e752b5ab114a4bc7a483fe746ed7b68b
+msgid ""
+"Experiment with different forecasting models for controls (e.g., Nixtla "
+"Models, LightGBM, domain-specific models)"
+msgstr ""
+"Experimentar con distintos modelos de pronóstico para los controles (por "
+"ejemplo, Nixtla Models, LightGBM, modelos específicos del dominio)"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:260026
+#: 0b49b8a760104ab89a69b74ea2e8ff29
+msgid "Incorporate uncertainty from control forecasts into MMM predictions"
+msgstr ""
+"Incorporar la incertidumbre de los pronósticos de los controles en las "
+"predicciones del MMM"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:260027
+#: f4fb2ad7f67445b5bb15d469bc759cb3
+msgid "Validate the error propagation rule on your specific data"
+msgstr "Validar la regla de propagación del error con sus propios datos"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:260028
+#: 47b889e77f634006afd11436643f63b5
+msgid "Consider ensemble approaches that combine multiple control forecasts"
+msgstr ""
+"Considerar enfoques de ensamble que combinen múltiples pronósticos de los "
+"controles"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:260030
+#: 3922640a81c74918a85b487c1771b1f5
+msgid "References"
+msgstr "Referencias"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:260032
+#: adb6407aad544af3b068818051d3611d
+msgid ""
+"[Chronos-2: From Univariate to Universal "
+"Forecasting](https://arxiv.org/abs/2510.15821) - Ansari et al. (2025)"
+msgstr ""
+"[Chronos-2: From Univariate to Universal "
+"Forecasting](https://arxiv.org/abs/2510.15821) - Ansari et al. (2025)"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:260033
+#: 65ed6392928d4e92bf4654dd8a698b89
+msgid "[PyMC-Marketing Documentation](https://www.pymc-marketing.io/)"
+msgstr "[Documentación de PyMC-Marketing](https://www.pymc-marketing.io/)"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:260034
+#: fced1e57c09346d4b181d623a95477a8
+msgid ""
+"[PyMC-Marketing GitHub Repository](https://github.com/pymc-labs/pymc-"
+"marketing)"
+msgstr ""
+"[Repositorio de PyMC-Marketing en GitHub](https://github.com/pymc-labs/pymc-"
+"marketing)"
+
+#: ../source/notebooks/mmm/mmm_chronos.ipynb:260035
+#: 78f8897911e74044a96fa07793e544b4
+msgid ""
+"[Amazon Chronos GitHub Repository](https://github.com/amazon-science"
+"/chronos-forecasting)"
+msgstr ""
+"[Repositorio de Amazon Chronos en GitHub](https://github.com/amazon-"
+"science/chronos-forecasting)"
+
