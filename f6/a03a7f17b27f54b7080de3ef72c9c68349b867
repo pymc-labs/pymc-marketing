@@ -1,0 +1,19 @@
+locales/es/LC_MESSAGES/notebooks/mmm/mmm_endogenous_budget.po
+  s_8ccfa4577307b8::t_fdc83204c86def 148,157,164-165,172-173,182,192,199-200,207,216,224,233,243,253,263,271-272,1099,1247-1249,1417-1418,1940-1941,1953-1954,1965,1978,1991-1992,2005,2016
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f6a03a7f17b27f54b7080de3ef72c9c68349b867",
+  "prompts": {},
+  "sessions": {
+    "s_8ccfa4577307b8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4154fb27-2edb-4116-a287-c2ea711af525",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "daimon-pymclabs <daimon@pymc-labs.com>"
+    }
+  }
+}
