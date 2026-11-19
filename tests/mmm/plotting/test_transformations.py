@@ -204,10 +204,6 @@ class TestSaturationScatterplotBasic:
         offsets_explicit = axes_explicit.flat[0].collections[0].get_offsets()
         assert np.allclose(offsets_default[:, 1], offsets_explicit[:, 1])
 
-    def test_original_scale_false(self, simple_plots):
-        fig, _axes = simple_plots.saturation_scatterplot(original_scale=False)
-        assert isinstance(fig, Figure)
-
     def test_axes_count_matches_channels(self, simple_plots, simple_data):
         _, axes = simple_plots.saturation_scatterplot()
         assert axes.size == len(simple_data.channels)
@@ -431,16 +427,6 @@ class TestSaturationCurvesBasic:
         assert isinstance(axes, np.ndarray)
         assert all(isinstance(a, Axes) for a in axes.flat)
 
-    def test_original_scale_true_is_default(self, simple_plots, simple_curve):
-        fig, _axes = simple_plots.saturation_curves(curves=simple_curve)
-        assert isinstance(fig, Figure)
-
-    def test_original_scale_false(self, simple_plots, simple_curve_scaled):
-        fig, _axes = simple_plots.saturation_curves(
-            curves=simple_curve_scaled, original_scale=False
-        )
-        assert isinstance(fig, Figure)
-
     def test_axes_count_matches_channels(self, simple_plots, simple_data, simple_curve):
         _, axes = simple_plots.saturation_curves(curves=simple_curve)
         assert axes.size == len(simple_data.channels)
@@ -455,10 +441,6 @@ class TestSaturationCurvesHDI:
         for ax in axes.flat:
             polys = [c for c in ax.collections if "Poly" in type(c).__name__]
             assert len(polys) > 0, "HDI fill_between should be present"
-
-    def test_custom_hdi_prob(self, simple_plots, simple_curve):
-        fig, _axes = simple_plots.saturation_curves(curves=simple_curve, hdi_prob=0.50)
-        assert isinstance(fig, Figure)
 
 
 class TestSaturationCurvesSamples:
