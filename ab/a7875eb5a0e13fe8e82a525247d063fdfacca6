@@ -1,0 +1,19 @@
+locales/es/LC_MESSAGES/notebooks/customer_choice/mixed_logit.po
+  s_8ccfa4577307b8::t_eecf4688921297 1-1324
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "aba7875eb5a0e13fe8e82a525247d063fdfacca6",
+  "prompts": {},
+  "sessions": {
+    "s_8ccfa4577307b8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4154fb27-2edb-4116-a287-c2ea711af525",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "daimon-pymclabs <daimon@pymc-labs.com>"
+    }
+  }
+}
