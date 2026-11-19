@@ -1,0 +1,19 @@
+locales/es/LC_MESSAGES/notebooks/customer_choice/bayesian_blp_nevo.po
+  s_8ccfa4577307b8::t_d1d1f1ae0997c2 1-702
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f971291ef9bdd9792345bc24e45db91ff644bc3d",
+  "prompts": {},
+  "sessions": {
+    "s_8ccfa4577307b8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4154fb27-2edb-4116-a287-c2ea711af525",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "daimon-pymclabs <daimon@pymc-labs.com>"
+    }
+  }
+}
