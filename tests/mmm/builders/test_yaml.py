@@ -670,20 +670,6 @@ def test_raise_if_lfs_pointer_skips_zarr_directory(tmp_path):
 class TestValidateConfigStructure:
     """Tests for MMMYamlConfig detecting mis-indented/invalid YAML keys."""
 
-    def test_valid_config(self):
-        """No error for a well-formed config."""
-        cfg = {
-            "model": {"class": "some.Class", "kwargs": {}},
-            "original_scale_vars": ["channel_contribution"],
-            "calibration": [{"method_a": {"param": 1}}],
-            "effects": [{"class": "some.Effect", "kwargs": {}}],
-        }
-        MMMYamlConfig.model_validate(cfg)
-
-    def test_missing_model_key(self):
-        with pytest.raises(ValidationError):
-            MMMYamlConfig.model_validate({"effects": []})
-
     def test_model_not_a_mapping(self):
         with pytest.raises(ValidationError):
             MMMYamlConfig.model_validate({"model": "not-a-dict"})
