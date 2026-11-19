@@ -63,7 +63,23 @@ class Constraint:
         ],
         scale: float | None = None,
     ):
-        if scale is not None and (
+        self.key = key
+        self.constraint_type = constraint_type
+        self.constraint_fun = constraint_fun
+        self.scale = self._validated_scale(key, scale)
+
+    @staticmethod
+    def _validated_scale(key: str, scale: float | None) -> float | None:
+        """Return ``scale`` as a float, ``None`` when not given.
+
+        Raises
+        ------
+        ValueError
+            If ``scale`` is not a positive finite number; a bool is not one.
+        """
+        if scale is None:
+            return None
+        if (
             isinstance(scale, bool)
             or not isinstance(scale, numbers.Real)
             or not (math.isfinite(scale) and scale > 0)
@@ -71,10 +87,7 @@ class Constraint:
             raise ValueError(
                 f"Constraint {key!r}: scale must be a positive finite number, got {scale!r}."
             )
-        self.key = key
-        self.constraint_type = constraint_type
-        self.constraint_fun = constraint_fun
-        self.scale = None if scale is None else float(scale)
+        return float(scale)
 
 
 def build_default_sum_constraint(key: str = "default") -> Constraint:

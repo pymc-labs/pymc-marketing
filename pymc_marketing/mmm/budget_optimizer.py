@@ -534,17 +534,6 @@ def _media_report_fields(report: xr.Dataset | None) -> dict[str, DataArray | Non
     return {name: None if report is None else report[name] for name in names}
 
 
-def _divided_by(
-    function: Callable[[np.ndarray], Any], scale: float
-) -> Callable[[np.ndarray], np.ndarray]:
-    """Return ``function`` with its value divided by ``scale``."""
-
-    def divided(x: np.ndarray) -> np.ndarray:
-        return np.asarray(function(x)) / scale
-
-    return divided
-
-
 @dataclass(frozen=True)
 class MinimizeSettings:
     """How :meth:`BudgetOptimizer.allocate_budget` runs SciPy's ``minimize``, resolved once from ``minimize_kwargs``.
@@ -3952,13 +3941,19 @@ class BudgetOptimizer(BaseModel):
             scale = constraint["scale"]
             if scale is None:
                 scale = constraint_scale_from_jacobian(constraint["jac"](start), size)
+            # Default arguments bind this constraint's callables and scale; a plain
+            # closure would read the loop's last values.
             scaled.append(
                 constraint
                 if scale == 1.0
                 else {
                     **constraint,
-                    "fun": _divided_by(constraint["fun"], scale),
-                    "jac": _divided_by(constraint["jac"], scale),
+                    "fun": lambda x, fun=constraint["fun"], scale=scale: (
+                        np.asarray(fun(x)) / scale
+                    ),
+                    "jac": lambda x, jac=constraint["jac"], scale=scale: (
+                        np.asarray(jac(x)) / scale
+                    ),
                 }
             )
             scales.append(scale)
