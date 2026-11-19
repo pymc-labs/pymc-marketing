@@ -1,0 +1,619 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2026, PyMC Labs
+# This file is distributed under the same license as the PyMC-Marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyMC-Marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:10002
+#: 12e2c0e26569405fb1f0fc28e5ba3fe9
+msgid "MaxDiff (Best-Worst Scaling)"
+msgstr "MaxDiff (escalamiento mejor-peor)"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:10004
+#: 35cd4fa4eec34a5a8c7fb6e9616fb837
+msgid ""
+"MaxDiff is a survey methodology for ranking a large pool of items by "
+"preference. Respondents see rotating subsets of the items and, for each "
+"subset, pick the **best** and **worst**. The method has become a "
+"workhorse in conjoint / pricing / product research because it:"
+msgstr ""
+"MaxDiff es una metodología de encuestas para ordenar por preferencia un "
+"conjunto grande de ítems. Los encuestados ven subconjuntos rotativos de los "
+"ítems y, para cada subconjunto, eligen el **mejor** y el **peor**. El método"
+" se ha convertido en una herramienta de uso habitual en la investigación de "
+"conjoint / precios / producto porque:"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:10006
+#: 16d05f429e134fcf89dbab01d86a8455
+msgid ""
+"Avoids the well-known biases of rating scales (scale use heterogeneity, "
+"acquiescence)."
+msgstr ""
+"Evita los sesgos bien conocidos de las escalas de calificación "
+"(heterogeneidad en el uso de la escala, aquiescencia)."
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:10007
+#: 32c9685145c543e6971714e74b064ff4
+msgid "Forces discrimination — respondents cannot rate everything \"important\"."
+msgstr ""
+"Fuerza la discriminación — los encuestados no pueden calificar todo como "
+"\"importante\"."
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:10008
+#: 048e6786163f46b58dbce9bc8b034c93
+msgid ""
+"Recovers item utilities on a common scale that supports *share-of-"
+"preference* calculations."
+msgstr ""
+"Recupera las utilidades de los ítems en una escala común que permite "
+"calcular la *cuota de preferencia*."
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:10010
+#: 98619674c6ce4e7ebc3850c64359f5d9
+msgid ""
+"This notebook walks through hierarchical Bayesian MaxDiff with "
+"[`MaxDiffMixedLogit`](../../api/generated/pymc_marketing.customer_choice.maxdiff.MaxDiffMixedLogit.rst):"
+" synthetic data → model fit → recovery diagnostics → respondent "
+"heterogeneity → share-of-preference output."
+msgstr ""
+"Este cuaderno recorre un MaxDiff bayesiano jerárquico con "
+"[`MaxDiffMixedLogit`](../../api/generated/pymc_marketing.customer_choice.maxdiff.MaxDiffMixedLogit.rst):"
+" datos sintéticos → ajuste del modelo → diagnósticos de recuperación → "
+"heterogeneidad de los encuestados → resultado de cuota de preferencia."
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:40002
+#: 7fd03ed388244729821b00837945eec0
+msgid "Model"
+msgstr "Modelo"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:40004
+#: 2d0e015993e74fa0877fb44acf3193ce
+msgid ""
+"For each task $t$ a respondent $r$ sees a subset $S_t$ of the item pool "
+"and picks a best item $b_t$ and worst item $w_t$. The Louviere "
+"*sequential best-worst* likelihood decomposes the joint pick as"
+msgstr ""
+"Para cada tarea $t$, un encuestado $r$ ve un subconjunto $S_t$ del conjunto "
+"de ítems y elige un ítem mejor $b_t$ y un ítem peor $w_t$. La verosimilitud "
+"*secuencial mejor-peor* de Louviere descompone la elección conjunta como"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:40006
+#: b9bd0417369b45188b7efc2f91f88751
+msgid ""
+"\n"
+"P(b_t, w_t \\mid S_t) = \\underbrace{\\mathrm{softmax}_{j \\in "
+"S_t}(U_{rj})_{b_t}}_{\\text{best pick}} \\times\n"
+"\\underbrace{\\mathrm{softmax}_{j \\in S_t \\setminus "
+"\\{b_t\\}}(-U_{rj})_{w_t}}_{\\text{worst pick (sign-flipped)}}.\n"
+msgstr ""
+"\n"
+"P(b_t, w_t \\mid S_t) = \\underbrace{\\mathrm{softmax}_{j \\in S_t}(U_{rj})_{b_t}}_{\\text{best pick}} \\times\n"
+"\\underbrace{\\mathrm{softmax}_{j \\in S_t \\setminus \\{b_t\\}}(-U_{rj})_{w_t}}_{\\text{worst pick (sign-flipped)}}.\n"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:40011
+#: 9237d6c817d3447791d733bc442f7e1b
+#, python-brace-format
+msgid ""
+"Item utilities $U_{rj}$ decompose into a population-level item intercept "
+"plus a per-respondent deviation:"
+msgstr ""
+"Las utilidades de los ítems $U_{rj}$ se descomponen en un intercepto de ítem"
+" a nivel poblacional más una desviación por encuestado:"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:40013
+#: 5bcceef1ef1e4ad3af163d2cad052bfe
+#, python-brace-format
+msgid ""
+"\n"
+"U_{rj} = \\beta_j + \\sigma_j z_{rj}, \\qquad z_{rj} \\sim "
+"\\mathcal{N}(0, 1),\n"
+msgstr ""
+"\n"
+"U_{rj} = \\beta_j + \\sigma_j z_{rj}, \\qquad z_{rj} \\sim \\mathcal{N}(0, 1),\n"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:40017
+#: b024efb10c544787961c083349387a95
+msgid ""
+"with the reference item pinned to $\\beta_{\\text{ref}} = 0$ for "
+"identification. Only utility *contrasts* against the reference item are "
+"identified — absolute utility levels are arbitrary."
+msgstr ""
+"con el ítem de referencia fijado en $\\beta_{\\text{ref}} = 0$ para la "
+"identificación. Solo se identifican los *contrastes* de utilidad respecto "
+"del ítem de referencia — los niveles absolutos de utilidad son arbitrarios."
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:50002
+#: fdff97f079734c5da30408b8996c2021
+msgid "Synthetic data"
+msgstr "Datos sintéticos"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:50004
+#: f6742d1f25d54da196a9acde5ac458fc
+msgid ""
+"`generate_maxdiff_data` draws subsets uniformly at random (a real field "
+"design would use a balanced incomplete block design) and simulates best /"
+" worst picks under the Louviere model. It returns a long-format "
+"`DataFrame` and a dictionary of the true utilities we want to recover."
+msgstr ""
+"`generate_maxdiff_data` extrae subconjuntos de manera uniforme al azar (un "
+"diseño de campo real usaría un diseño de bloques incompletos balanceados) y "
+"simula elecciones de mejor / peor bajo el modelo de Louviere. Devuelve un "
+"`DataFrame` en formato largo y un diccionario con las utilidades verdaderas "
+"que queremos recuperar."
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:70002
+#: 28250213f9cb4161a8ea55f5607aaa9e
+msgid ""
+"Each row is one *shown item in one task*. Exactly one row per "
+"`(respondent_id, task_id)` group carries `is_best=1` and one carries "
+"`is_worst=1`."
+msgstr ""
+"Cada fila es un *ítem mostrado en una tarea*. Exactamente una fila por grupo"
+" `(respondent_id, task_id)` lleva `is_best=1` y otra lleva `is_worst=1`."
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:90002
+#: 898858c2d5074ccaa6c0b672dcb3cada
+msgid "Data format and `prepare_maxdiff_data`"
+msgstr "Formato de los datos y `prepare_maxdiff_data`"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:90004
+#: 39051263a2344f3ea1f33bb9081d20f1
+msgid ""
+"The long-format `task_df` above is the natural export from Sawtooth / "
+"Qualtrics / Conjointly. Internally, `MaxDiffMixedLogit` reshapes it into "
+"a padded-plus-mask representation via "
+"[`prepare_maxdiff_data`](../../api/generated/pymc_marketing.customer_choice.maxdiff.prepare_maxdiff_data.rst)."
+" You can call the helper directly to inspect what the model consumes. "
+"This is useful when debugging imports from survey platforms."
+msgstr ""
+"El `task_df` en formato largo de arriba es la exportación natural de "
+"Sawtooth / Qualtrics / Conjointly. Internamente, `MaxDiffMixedLogit` lo "
+"reorganiza en una representación con relleno y máscara mediante "
+"[`prepare_maxdiff_data`](../../api/generated/pymc_marketing.customer_choice.maxdiff.prepare_maxdiff_data.rst)."
+" Puede llamar a la función auxiliar directamente para inspeccionar lo que "
+"consume el modelo. Esto es útil al depurar importaciones desde plataformas "
+"de encuestas."
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:110002
+#: 09981d09f1224f948402eb67028aba65
+msgid "Ragged subsets and input validation"
+msgstr "Subconjuntos irregulares y validación de entradas"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:110004
+#: 9482dc8e20544750aa00ca47ecf8d754
+msgid ""
+"Real MaxDiff designs occasionally mix subset sizes within a single study."
+" When a `task_df` has ragged subsets, `prepare_maxdiff_data` pads the "
+"shorter tasks with the reference item; the `mask` array records which "
+"positions are real so the model ignores padding in the softmax."
+msgstr ""
+"Los diseños reales de MaxDiff ocasionalmente mezclan tamaños de subconjunto "
+"dentro de un mismo estudio. Cuando un `task_df` tiene subconjuntos "
+"irregulares, `prepare_maxdiff_data` rellena las tareas más cortas con el "
+"ítem de referencia; el arreglo `mask` registra qué posiciones son reales "
+"para que el modelo ignore el relleno en el softmax."
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:110006
+#: d1a2d0fdcb344fcfa534a12470ac4e83
+msgid ""
+"The helper also validates the data up front and raises a descriptive "
+"`ValueError` on malformed inputs i.e. missing best/worst picks, duplicate"
+" best picks, best == worst in the same task, duplicate items within a "
+"task, or items outside the declared pool:"
+msgstr ""
+"La función auxiliar también valida los datos de antemano y lanza un "
+"`ValueError` descriptivo ante entradas mal formadas, es decir, elecciones de"
+" mejor/peor faltantes, elecciones de mejor duplicadas, mejor == peor en la "
+"misma tarea, ítems duplicados dentro de una tarea o ítems fuera del conjunto"
+" declarado:"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:130002
+#: f603c869b7744b7eaa336bf48f93786d
+msgid "Fit"
+msgstr "Ajuste"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:160002
+#: 6c32078dd49d4017b01d0fea5aac92ff
+msgid "Parameter recovery"
+msgstr "Recuperación de parámetros"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:160004
+#: 72145a75f0544c83b690d9f4cfc7e043
+msgid ""
+"Plot posterior item utilities against the ground truth. The dashed 45° "
+"line is perfect recovery."
+msgstr ""
+"Trazamos las utilidades posteriores de los ítems frente a los valores "
+"verdaderos. La línea discontinua de 45° indica una recuperación perfecta."
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:200002
+#: 21ae4fbded4340c3adb8e2aa6d80b999
+msgid "Respondent heterogeneity"
+msgstr "Heterogeneidad de los encuestados"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:200004
+#: 340181fa3920466197225861ae026121
+msgid ""
+"`beta_item_r` holds per-respondent item utilities. A forest of the first "
+"few respondents shows how strongly preferences vary — the motivation for "
+"the hierarchical layer."
+msgstr ""
+"`beta_item_r` contiene las utilidades de los ítems por encuestado. Un "
+"gráfico de bosque de los primeros encuestados muestra cuán fuertemente "
+"varían las preferencias — la motivación para la capa jerárquica."
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:220002
+#: 00752301d7c1454a954e8d81cb7f03fa
+msgid "Share of preference"
+msgstr "Cuota de preferencia"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:220004
+#: 591c246b8fb84dd0880382f5bcd36489
+msgid ""
+"A common consulting deliverable is the share of implied preferences: "
+"given the posterior utilities, what fraction of respondents would pick "
+"each item if all items were shown together? This is just the softmax of "
+"the posterior item utilities averaged over draws."
+msgstr ""
+"Un entregable habitual en consultoría es la cuota de preferencias "
+"implícitas: dadas las utilidades posteriores, ¿qué fracción de los "
+"encuestados elegiría cada ítem si todos los ítems se mostraran juntos? Esto "
+"es simplemente el softmax de las utilidades posteriores de los ítems "
+"promediado sobre las muestras."
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:240002
+#: cc8c8363ff1646bb980e201e34d4f8d2
+msgid "Counterfactual: restricted-assortment share of preference"
+msgstr "Contrafactual: cuota de preferencia con un surtido restringido"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:240004
+#: 1cd739f0abe746d9b2b1f660551bf122
+msgid ""
+"A real business question: *if we discontinued items 2, 3 and 4, how would"
+" demand shift to the survivors?* This is a genuinely out-of-sample "
+"prediction — the restricted assortment was never shown during the survey."
+msgstr ""
+"Una pregunta de negocio real: *si descontináramos los ítems 2, 3 y 4, ¿cómo "
+"se desplazaría la demanda hacia los ítems restantes?* Esta es una predicción"
+" genuinamente fuera de muestra — el surtido restringido nunca se mostró "
+"durante la encuesta."
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:240006
+#: 78b7af2cea0c4ee88adc0dc5be88adf3
+msgid ""
+"`apply_intervention` answers it by building a synthetic task where every "
+"respondent is shown the counterfactual item set, then generatively "
+"sampling per-respondent best picks from the posterior. Because "
+"`beta_item_r` captures per-respondent preferences, the resulting "
+"substitution pattern is **preference-weighted** — respondents who liked a"
+" dropped item don't all move to the same survivor."
+msgstr ""
+"`apply_intervention` la responde construyendo una tarea sintética en la que "
+"a cada encuestado se le muestra el conjunto contrafactual de ítems y luego "
+"muestreando de forma generativa las mejores elecciones por encuestado a "
+"partir de la distribución posterior. Como `beta_item_r` captura las "
+"preferencias por encuestado, el patrón de sustitución resultante está "
+"**ponderado por las preferencias** — los encuestados a quienes les gustaba "
+"un ítem eliminado no se pasan todos al mismo ítem restante."
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:240008
+#: f789706c8e034f1e9abc068dafc7cd0e
+msgid "The bar chart below compares:"
+msgstr "El gráfico de barras de abajo compara:"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:240010
+#: 6dd79cd2677d46168972330fab70badd
+msgid ""
+"**Blue (before)**: the absolute share each surviving item held in the "
+"*full* assortment — i.e. the raw softmax share when all 5 items compete."
+msgstr ""
+"**Azul (antes)**: la cuota absoluta que tenía cada ítem restante en el "
+"surtido *completo* — es decir, la cuota softmax sin ajustar cuando compiten "
+"los 5 ítems."
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:240011
+#: c801703eea154a2a971b1a42ba83fbe4
+msgid ""
+"**Orange (after)**: the model-predicted share inside the *restricted* "
+"2-item assortment."
+msgstr ""
+"**Naranja (después)**: la cuota predicha por el modelo dentro del surtido "
+"*restringido* de 2 ítems."
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:240013
+#: b2e23908aa4744a5963d815398d93a42
+msgid ""
+"The key insight is **IIA (Independence of Irrelevant Alternatives)**: "
+"under a pure softmax the *ratio* between item_0 and item_1 is unchanged "
+"by removing competitors, but the *absolute* level of each item's share "
+"rises substantially once the three dropped items no longer absorb "
+"probability mass."
+msgstr ""
+"La idea clave es la **IIA (Independencia de Alternativas Irrelevantes)**: "
+"bajo un softmax puro, la *razón* entre item_0 e item_1 no cambia al eliminar"
+" competidores, pero el nivel *absoluto* de la cuota de cada ítem aumenta "
+"sustancialmente una vez que los tres ítems eliminados dejan de absorber masa"
+" de probabilidad."
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:270002
+#: 605cf8b54d944cdcbfdb337e15d1e5b4
+msgid "Caveats and follow-ups"
+msgstr "Salvedades y próximos pasos"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:270004
+#: bb9ef931f7304fb8b006bd165248ac0e
+msgid ""
+"**Design**: real MaxDiff studies use balanced incomplete block designs "
+"(Sawtooth/Lighthouse). This model does not care which design produced the"
+" data — but efficiency is much higher under balanced rotations."
+msgstr ""
+"**Diseño**: los estudios MaxDiff reales usan diseños de bloques incompletos "
+"balanceados (Sawtooth/Lighthouse). A este modelo no le importa qué diseño "
+"produjo los datos — pero la eficiencia es mucho mayor con rotaciones "
+"balanceadas."
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:270005
+#: c67f6b8d85f943ed8609328037056157
+msgid ""
+"**Item-attribute part-worths**: when items share structure (price, brand,"
+" feature levels), a linear utility over item covariates $U_j = x_j^\\top "
+"\\beta$ gains efficiency — see **Part II** below."
+msgstr ""
+"**Utilidades parciales de los atributos de los ítems**: cuando los ítems "
+"comparten estructura (precio, marca, niveles de características), una "
+"utilidad lineal sobre las covariables de los ítems $U_j = x_j^\\top \\beta$ "
+"gana eficiencia — consulte la **Parte II** más abajo."
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:270007
+#: 7321412da949409eb626a0bd7465f12c
+msgid "`sample_posterior_predictive` vs `predict_choices` / `apply_intervention`"
+msgstr ""
+"`sample_posterior_predictive` frente a `predict_choices` / "
+"`apply_intervention`"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:270009
+#: 1d63c29f81da4789ac860c9316563f50
+msgid ""
+"The Louviere model is **sequential**: the worst pick is drawn from the "
+"remaining items *after* the best has been removed. In the PyMC graph this"
+" is achieved by masking the chosen best position out of the worst-pick "
+"softmax, using `best_pos` as a `pm.Data` node."
+msgstr ""
+"El modelo de Louviere es **secuencial**: la peor elección se extrae de los "
+"ítems restantes *después* de haber eliminado la mejor. En el grafo de PyMC "
+"esto se logra enmascarando la posición de la mejor elección fuera del "
+"softmax de la peor elección, usando `best_pos` como un nodo `pm.Data`."
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:270011
+#: 037a198006c64fee8db69e10b77e8d9d
+msgid ""
+"`sample_posterior_predictive` therefore produces a **partially "
+"conditioned** joint:"
+msgstr ""
+"`sample_posterior_predictive` produce, por lo tanto, una distribución "
+"conjunta **parcialmente condicionada**:"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:270013
+#: 855b52fe811342388d2b5437db5bfa73
+#, python-brace-format
+msgid "`best_pick` is sampled correctly from $\\operatorname{softmax}(U)$."
+msgstr ""
+"`best_pick` se muestrea correctamente a partir de "
+"$\\operatorname{softmax}(U)$."
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:270014
+#: 134b75df3902446caa4b0575212c9251
+msgid ""
+"`worst_pick` is conditioned on the **observed** `best_pos` (the value in "
+"the training data), *not* on the freshly sampled `best_pick`."
+msgstr ""
+"`worst_pick` está condicionada a `best_pos` **observado** (el valor en los "
+"datos de entrenamiento), *no* al `best_pick` recién muestreado."
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:270017
+#: ac699ebbc0174fe5a3840f3790c123fa
+msgid ""
+"This means the two draws can designate the same position i.e. the joint "
+"is incoherent for generative use. Instead for generative usage "
+"`predict_choices` and `apply_intervention` sample best first, then "
+"condition worst on the **sampled** best, so the joint is always coherent."
+" All counterfactual work in this notebook uses `apply_intervention` for "
+"exactly this reason. The table below summarises when each method is "
+"appropriate:"
+msgstr ""
+"Esto significa que las dos muestras pueden designar la misma posición, es "
+"decir, la distribución conjunta es incoherente para un uso generativo. En "
+"cambio, para el uso generativo, `predict_choices` y `apply_intervention` "
+"muestrean primero la mejor elección y luego condicionan la peor a la mejor "
+"**muestreada**, de modo que la distribución conjunta siempre es coherente. "
+"Todo el trabajo contrafactual de este cuaderno usa `apply_intervention` "
+"precisamente por esta razón. La tabla de abajo resume cuándo es apropiado "
+"cada método:"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb
+#: 684d3f7d5ae94bd59ae062bf17e1ac94
+msgid "Task"
+msgstr "Tarea"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb
+#: 3fb1bca0215b4343b96e507976460531
+msgid "Correct method"
+msgstr "Método correcto"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb
+#: 84ffd462413248ba8215ee5ee33a7dd4
+msgid ""
+"In-sample PPC — does the model reproduce training worst picks given "
+"observed bests?"
+msgstr ""
+"PPC dentro de muestra — ¿reproduce el modelo las peores elecciones de "
+"entrenamiento dadas las mejores observadas?"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb
+#: de92f606dd27474baf58254bcb975713
+msgid "`sample_posterior_predictive`"
+msgstr "`sample_posterior_predictive`"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb
+#: 420b466a2f8c413484a1c723d3fe6185
+msgid "Counterfactual / out-of-sample — coherent joint $(b, w)$ draws"
+msgstr ""
+"Contrafactual / fuera de muestra — muestras conjuntas coherentes $(b, w)$"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb
+#: ae22058e44ce464ea5315f601d63ff44
+msgid "`predict_choices` / `apply_intervention`"
+msgstr "`predict_choices` / `apply_intervention`"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:280002
+#: 1e87d7f105754853b17bd35be523238c
+msgid "Part II — MaxDiff with attribute part-worths"
+msgstr "Parte II — MaxDiff con utilidades parciales de atributos"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:280004
+#: 0a964572bdb148f8af43b610444dd2c1
+msgid ""
+"So far each item carried its own free utility. In conjoint-style MaxDiff "
+"we instead decompose utility into **attribute part-worths**:"
+msgstr ""
+"Hasta ahora cada ítem tenía su propia utilidad libre. En un MaxDiff de "
+"estilo conjoint, en cambio, descomponemos la utilidad en **utilidades "
+"parciales de atributos**:"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:280006
+#: 8d8d77ab3e034b8a9bb5e8aaa2297672
+msgid "U_i = X_i^\\top \\beta_{\\text{feat}}"
+msgstr "U_i = X_i^\\top \\beta_{\\text{feat}}"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:280008
+#: 3ee423039d124ba7bbb8bfa79bbceca0
+msgid ""
+"where $X_i$ is a row of attribute features (brand dummies, price, quality"
+" score, …) and $\\beta_{\\text{feat}}$ is a vector of population-level "
+"part-worths. This buys three things the item-intercept model cannot give:"
+msgstr ""
+"donde $X_i$ es una fila de características de atributos (variables dummy de "
+"marca, precio, puntaje de calidad, …) y $\\beta_{\\text{feat}}$ es un vector"
+" de utilidades parciales a nivel poblacional. Esto aporta tres cosas que el "
+"modelo con intercepto por ítem no puede ofrecer:"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:280010
+#: f8b1a936a4e44777a38e8a747d04fad8
+msgid ""
+"**Extrapolation to new items.** A hypothetical SKU outside the training "
+"pool gets a utility from its attributes alone — no need to re-survey."
+msgstr ""
+"**Extrapolación a nuevos ítems.** Un SKU hipotético fuera del conjunto de "
+"entrenamiento obtiene una utilidad solo a partir de sus atributos — sin "
+"necesidad de volver a encuestar."
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:280012
+#: cf00f653857740e4aff538f317d2f248
+msgid ""
+"**Attribute-level inference.** The posterior on $\\beta_{\\text{feat}}$ "
+"tells us *what* drives preference, not just *which item* is preferred."
+msgstr ""
+"**Inferencia a nivel de atributo.** La distribución posterior de "
+"$\\beta_{\\text{feat}}$ nos dice *qué* impulsa la preferencia, no solo *qué "
+"ítem* se prefiere."
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:280014
+#: 554486adf6f248c0b0426c8faef86cba
+msgid ""
+"**Heterogeneity on a chosen subspace.** Pass `random_attributes=[...]` to"
+" let respondents vary on a strict subset of features (e.g. price "
+"sensitivity) while sharing population beliefs on the rest."
+msgstr ""
+"**Heterogeneidad en un subespacio elegido.** Pase `random_attributes=[...]` "
+"para que los encuestados varíen en un subconjunto estricto de "
+"características (por ejemplo, la sensibilidad al precio) mientras comparten "
+"las creencias poblacionales sobre el resto."
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:280018
+#: 25fda1c9aa1e4a6fb304ccf464161d16
+msgid ""
+"Identification comes from `~ 0 + ...` in the patsy formula (drop the "
+"global intercept) plus a sum-to-zero constraint on the implied per-item "
+"utilities. No reference item is needed."
+msgstr ""
+"La identificación proviene de `~ 0 + ...` en la fórmula de patsy (se elimina"
+" el intercepto global) más una restricción de suma cero sobre las utilidades"
+" implícitas por ítem. No se necesita ningún ítem de referencia."
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:310002
+#: dafec2ec70e745f984ca885fda062a0d
+msgid "Recovery — population part-worths"
+msgstr "Recuperación — utilidades parciales poblacionales"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:310004
+#: 2fc2952c5383460faf04953ea4892b62
+msgid ""
+"Compare the posterior mean of `beta_feat` against the simulated ground "
+"truth. Brand dummies share an unidentified global location (only "
+"contrasts are identified via `~ 0 + ...`), so we compare *centred* "
+"values; price and quality recover on absolute scale."
+msgstr ""
+"Comparamos la media posterior de `beta_feat` con la verdad simulada. Las "
+"variables dummy de marca comparten una ubicación global no identificada "
+"(solo se identifican los contrastes mediante `~ 0 + ...`), por lo que "
+"comparamos valores *centrados*; el precio y la calidad se recuperan en "
+"escala absoluta."
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:350002
+#: 97dfb671fd3b4f4184fc725e831744ce
+msgid "Attribute importance"
+msgstr "Importancia de los atributos"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:350004
+#: 25040301548d4a9abb0d97cf7aa97e99
+msgid ""
+"A standard conjoint deliverable. Within each attribute, take the *range* "
+"of part-worths (max − min across its levels for categoricals, or the "
+"part-worth times the observed range for continuous attributes), then "
+"normalise so the importances sum to 1."
+msgstr ""
+"Un entregable estándar de conjoint. Dentro de cada atributo, se toma el "
+"*rango* de las utilidades parciales (máx − mín entre sus niveles para los "
+"categóricos, o la utilidad parcial multiplicada por el rango observado para "
+"los atributos continuos) y luego se normaliza para que las importancias "
+"sumen 1."
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:370002
+#: 20105149d96845b881cce80aee3973d6
+msgid "Extrapolation to a brand-new item"
+msgstr "Extrapolación a un ítem completamente nuevo"
+
+#: ../source/notebooks/customer_choice/maxdiff.ipynb:370004
+#: 96578a50c4b0418fa5bfd24b0825b2f9
+msgid ""
+"A unique selling point of part-worths: we can score a hypothetical SKU "
+"that was *never shown in the survey*. We just need its attribute row. "
+"Apply the same patsy formula to the new row and use the posterior of "
+"`beta_feat` to get a full posterior over the new item's utility. This "
+"can, in turn, be plugged directly into a share-of-preference calculation "
+"against the existing items."
+msgstr ""
+"Una ventaja única de las utilidades parciales: podemos puntuar un SKU "
+"hipotético que *nunca se mostró en la encuesta*. Solo necesitamos su fila de"
+" atributos. Aplicamos la misma fórmula de patsy a la nueva fila y usamos la "
+"distribución posterior de `beta_feat` para obtener una distribución "
+"posterior completa de la utilidad del nuevo ítem. Esto, a su vez, puede "
+"conectarse directamente a un cálculo de cuota de preferencia frente a los "
+"ítems existentes."
+
