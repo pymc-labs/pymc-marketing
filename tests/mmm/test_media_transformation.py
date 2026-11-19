@@ -402,9 +402,8 @@ def test_media_transformation_rejects_wrong_input_types(kwargs, match) -> None:
     "kwargs, error, match",
     [
         pytest.param({"columns": "tv"}, TypeError, "columns must be", id="str"),
-        pytest.param(
-            {"columns": ["tv", 1]}, TypeError, "columns must be", id="non-str"
-        ),
+        pytest.param({"columns": 5}, TypeError, "columns must be", id="non-iterable"),
+        pytest.param({"columns": ["tv", 1]}, TypeError, r"got 1 \(int\)", id="non-str"),
         pytest.param({"columns": []}, ValueError, "at least one", id="empty"),
         pytest.param(
             {"media_transformation": {}},
@@ -426,9 +425,17 @@ def test_media_config_rejects_wrong_input_types(kwargs, error, match) -> None:
         )
 
 
-def test_media_config_tuple_columns_round_trip() -> None:
+@pytest.mark.parametrize(
+    "columns",
+    [
+        pytest.param(("tv", "radio"), id="tuple"),
+        pytest.param(pd.Index(["tv", "radio"]), id="pandas-index"),
+        pytest.param(np.array(["tv", "radio"]), id="numpy-array"),
+    ],
+)
+def test_media_config_columns_stored_as_list(columns) -> None:
     config = MediaConfig(
-        name="media", columns=("tv", "radio"), media_transformation=_transformation()
+        name="media", columns=columns, media_transformation=_transformation()
     )
 
     assert config.columns == ["tv", "radio"]

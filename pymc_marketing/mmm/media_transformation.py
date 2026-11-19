@@ -93,6 +93,7 @@ Apply the media transformation to media data in PyMC model:
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import cast
 
@@ -152,7 +153,7 @@ class MediaTransformation:
             )
         if not isinstance(self.adstock_first, bool):
             raise TypeError(
-                f"adstock_first must be a bool, got {type(self.adstock_first).__name__}. "
+                f"adstock_first must be a bool, got {self.adstock_first!r}. "
                 "Pass True to apply adstock before saturation, or False for the reverse order."
             )
 
@@ -281,8 +282,8 @@ class MediaConfig:
     name : str
         The name of the media transformation and prefix of all media variables.
     columns : list[str]
-        The media channels to apply the transformation to. A tuple is also
-        accepted and stored as a list. Must not be empty.
+        The media channels to apply the transformation to.
+        Any non-empty iterable of names, such as a tuple or ``pandas.Index``, is stored as a list.
     media_transformation : MediaTransformation
         The media transformation to apply to the media channels.
 
@@ -294,16 +295,20 @@ class MediaConfig:
 
     def __post_init__(self):
         """Check the input types and store ``columns`` as a list."""
-        if not isinstance(self.columns, list | tuple) or not all(
-            isinstance(column, str) for column in self.columns
-        ):
+        if isinstance(self.columns, str) or not isinstance(self.columns, Iterable):
             raise TypeError(
                 f"columns must be a list of column names, got {self.columns!r}. "
                 'Example: columns=["tv", "radio"]'
             )
+        self.columns = list(self.columns)
+        for column in self.columns:
+            if not isinstance(column, str):
+                raise TypeError(
+                    f"columns must contain only str column names, got {column!r} "
+                    f"({type(column).__name__})."
+                )
         if not self.columns:
             raise ValueError("columns must contain at least one column name.")
-        self.columns = list(self.columns)
 
         if not isinstance(self.media_transformation, MediaTransformation):
             raise TypeError(
