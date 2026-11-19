@@ -1,0 +1,19 @@
+locales/es/LC_MESSAGES/notebooks/mmm/mmm_credibility_disaggregation.po
+  s_8ccfa4577307b8::t_bcaae161d9b47c 2477-2482,2899-2907,3796-3798,4078,4080,4082-4085
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8c334ff085f2037a908372f95deef98d734e2385",
+  "prompts": {},
+  "sessions": {
+    "s_8ccfa4577307b8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4154fb27-2edb-4116-a287-c2ea711af525",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "daimon-pymclabs <daimon@pymc-labs.com>"
+    }
+  }
+}
