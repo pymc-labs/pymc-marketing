@@ -145,7 +145,7 @@ msgstr "**Contenido**"
 #: 9e35d9fb9bb443d787ab77bace193728
 #, python-brace-format
 msgid "{ref}`Prepare notebook <mmm_endogenous_budget_setup>`"
-msgstr "{ref}`Prepare notebook <mmm_endogenous_budget_setup>`"
+msgstr "{ref}`Preparar el cuaderno <mmm_endogenous_budget_setup>`"
 
 #: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10023
 #: 0c20dc2e1492421fb2476a0356caa3fa
@@ -154,21 +154,23 @@ msgid ""
 "{ref}`Part 1: Understanding and using the budget model "
 "<mmm_endogenous_budget_part1>`"
 msgstr ""
-"{ref}`Part 1: Understanding and using the budget model "
+"{ref}`Parte 1: comprender y usar el modelo de presupuesto "
 "<mmm_endogenous_budget_part1>`"
 
 #: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10024
 #: fa8f41003803411e8cc613097e5b9392
 #, python-brace-format
 msgid "{ref}`The business problem <mmm_endogenous_budget_business_problem>`"
-msgstr "{ref}`The business problem <mmm_endogenous_budget_business_problem>`"
+msgstr ""
+"{ref}`El problema de negocio <mmm_endogenous_budget_business_problem>`"
 
 #: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10025
 #: 6d246a3b66924fa29d28ae1ada0ab82a
 #, python-brace-format
 msgid "{ref}`A market where budgets chase demand <mmm_endogenous_budget_market>`"
 msgstr ""
-"{ref}`A market where budgets chase demand <mmm_endogenous_budget_market>`"
+"{ref}`Un mercado donde los presupuestos persiguen la demanda "
+"<mmm_endogenous_budget_market>`"
 
 #: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10026
 #: f35227ac687e44e1ba0a04ab9d5c6c7d
@@ -177,7 +179,7 @@ msgid ""
 "{ref}`Three ways to use the same experiment "
 "<mmm_endogenous_budget_three_fits>`"
 msgstr ""
-"{ref}`Three ways to use the same experiment "
+"{ref}`Tres formas de usar el mismo experimento "
 "<mmm_endogenous_budget_three_fits>`"
 
 #: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10027
@@ -187,21 +189,22 @@ msgid ""
 "{ref}`Comparing the marginal return of TV "
 "<mmm_endogenous_budget_comparison>`"
 msgstr ""
-"{ref}`Comparing the marginal return of TV "
+"{ref}`Comparación del rendimiento marginal de la TV "
 "<mmm_endogenous_budget_comparison>`"
 
 #: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10028
 #: 76a2ac07772f4dbfaeb09038b96dd9cd
 #, python-brace-format
 msgid "{ref}`Replicating across markets <mmm_endogenous_budget_replication>`"
-msgstr "{ref}`Replicating across markets <mmm_endogenous_budget_replication>`"
+msgstr ""
+"{ref}`Replicación en varios mercados <mmm_endogenous_budget_replication>`"
 
 #: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10029
 #: 34de7ad7517a4cd4804cf321c08ec4e6
 #, python-brace-format
 msgid "{ref}`What the control function absorbs <mmm_endogenous_budget_absorbs>`"
 msgstr ""
-"{ref}`What the control function absorbs <mmm_endogenous_budget_absorbs>`"
+"{ref}`Qué absorbe la función de control <mmm_endogenous_budget_absorbs>`"
 
 #: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10030
 #: b085b851b75c48bf98ae10c5861f77ae
@@ -210,7 +213,7 @@ msgid ""
 "{ref}`The control function as an exogeneity check "
 "<mmm_endogenous_budget_exogeneity>`"
 msgstr ""
-"{ref}`The control function as an exogeneity check "
+"{ref}`La función de control como prueba de exogeneidad "
 "<mmm_endogenous_budget_exogeneity>`"
 
 #: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10031
@@ -218,7 +221,7 @@ msgstr ""
 #, python-brace-format
 msgid "{ref}`Predictions and counterfactuals <mmm_endogenous_budget_predictions>`"
 msgstr ""
-"{ref}`Predictions and counterfactuals <mmm_endogenous_budget_predictions>`"
+"{ref}`Predicciones y contrafactuales <mmm_endogenous_budget_predictions>`"
 
 #: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10032
 #: 94f85cfd7fc54fcebbe82d80d59f7164
@@ -227,7 +230,7 @@ msgid ""
 "{ref}`Part 2: When does the budget model help? "
 "<mmm_endogenous_budget_scenarios>`"
 msgstr ""
-"{ref}`Part 2: When does the budget model help? "
+"{ref}`Parte 2: ¿cuándo ayuda el modelo de presupuesto? "
 "<mmm_endogenous_budget_scenarios>`"
 
 #: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10033
@@ -237,7 +240,7 @@ msgid ""
 "{ref}`Scenario 1: budgets that chase targets "
 "<mmm_endogenous_budget_target_chasing>`"
 msgstr ""
-"{ref}`Scenario 1: budgets that chase targets "
+"{ref}`Escenario 1: presupuestos que persiguen metas "
 "<mmm_endogenous_budget_target_chasing>`"
 
 #: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10034
@@ -247,7 +250,7 @@ msgid ""
 "{ref}`Scenario 2: spend that follows search demand "
 "<mmm_endogenous_budget_search>`"
 msgstr ""
-"{ref}`Scenario 2: spend that follows search demand "
+"{ref}`Escenario 2: gasto que sigue la demanda de búsqueda "
 "<mmm_endogenous_budget_search>`"
 
 #: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10035
@@ -257,7 +260,7 @@ msgid ""
 "{ref}`Scenario 3: spend that follows only recorded drivers "
 "<mmm_endogenous_budget_observed_only>`"
 msgstr ""
-"{ref}`Scenario 3: spend that follows only recorded drivers "
+"{ref}`Escenario 3: gasto que sigue solo los factores registrados "
 "<mmm_endogenous_budget_observed_only>`"
 
 #: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10036
@@ -265,7 +268,8 @@ msgstr ""
 #, python-brace-format
 msgid "{ref}`Practical guidance and limitations <mmm_endogenous_budget_guidance>`"
 msgstr ""
-"{ref}`Practical guidance and limitations <mmm_endogenous_budget_guidance>`"
+"{ref}`Recomendaciones prácticas y limitaciones "
+"<mmm_endogenous_budget_guidance>`"
 
 #: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:20003
 #: 2f5aaa7d166b409eb970e7b8bcc32da4
@@ -1092,7 +1096,7 @@ msgstr ""
 "dependencia verdadera de Digital respecto al pronóstico. Sin un diseño la "
 "comprobación sigue funcionando, pero su veredicto descansa en supuestos de "
 "forma funcional y en los priors, y debe leerse como un análisis de "
-"sensibilidad y no como una prueba; el {ref}`negative control in Part 2 "
+"sensibilidad y no como una prueba; el {ref}`control negativo de la Parte 2 "
 "<mmm_endogenous_budget_observed_only>` muestra lo que eso significa en la "
 "práctica."
 
@@ -1240,8 +1244,9 @@ msgstr ""
 "ajustarlo con el diseño de un experimento, compararlo con un MMM simple, "
 "leer el diagnóstico de exogeneidad y hacer predicciones con él. La Parte 2 "
 "plantea cuándo vale la pena la corrección, usando otras tres formas en que "
-"los presupuestos siguen la demanda. Para omitirla, vaya a {ref}`Practical "
-"guidance and limitations <mmm_endogenous_budget_guidance>`."
+"los presupuestos siguen la demanda. Para omitirla, vaya a "
+"{ref}`Recomendaciones prácticas y limitaciones "
+"<mmm_endogenous_budget_guidance>`."
 
 #: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:520003
 #: 61191ff8cd24455c9dd2d2660b582198
@@ -1409,8 +1414,8 @@ msgid ""
 "cover the forecast scenario across markets."
 msgstr ""
 "Un mercado es una sola muestra, así que esto son ilustraciones de dónde "
-"importa la corrección y no un estudio de simulación; {ref}`the replication "
-"in Part 1 <mmm_endogenous_budget_replication>` y el estudio de simulación "
+"importa la corrección y no un estudio de simulación; {ref}`la replicación de"
+" la Parte 1 <mmm_endogenous_budget_replication>` y el estudio de simulación "
 "cubren el escenario de pronóstico en varios mercados."
 
 #: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:530003
@@ -1932,8 +1937,8 @@ msgid ""
 msgstr ""
 "*Los factores observados capturan la parte predecible de la fijación del "
 "presupuesto*; los indicadores de demanda registrados van en "
-"`control_columns`, nunca en `instruments` ({ref}`fit 3 "
-"<mmm_endogenous_budget_three_fits>`, {ref}`target chasing "
+"`control_columns`, nunca en `instruments` ({ref}`ajuste 3 "
+"<mmm_endogenous_budget_three_fits>`, {ref}`persecución de metas "
 "<mmm_endogenous_budget_target_chasing>`)."
 
 #: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:860019
@@ -1945,8 +1950,8 @@ msgid ""
 "<mmm_endogenous_budget_exogeneity>`)."
 msgstr ""
 "*La ecuación de ventas está correctamente especificada*; una curva de "
-"respuesta mal especificada se filtra en $\\gamma$ ({ref}`exogeneity check "
-"<mmm_endogenous_budget_exogeneity>`)."
+"respuesta mal especificada se filtra en $\\gamma$ ({ref}`prueba de "
+"exogeneidad <mmm_endogenous_budget_exogeneity>`)."
 
 #: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:860020
 #: 210e62d122d94b60a1ae284ce7ee52f9
@@ -1957,7 +1962,7 @@ msgid ""
 "<mmm_endogenous_budget_search>`)."
 msgstr ""
 "*La sorpresa se relaciona linealmente con la demanda*; el gasto con tope, o "
-"no lineal de otro modo, pone a prueba la corrección ({ref}`search "
+"no lineal de otro modo, pone a prueba la corrección ({ref}`búsqueda "
 "<mmm_endogenous_budget_search>`)."
 
 #: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:860021
@@ -1970,7 +1975,7 @@ msgid ""
 msgstr ""
 "*Las sorpresas recientes contienen la información de demanda relevante*; un "
 "rezago cubre la mayor parte de la brecha en los choques persistentes, pero "
-"mantenga pequeño su número ({ref}`fit 3 "
+"mantenga pequeño su número ({ref}`ajuste 3 "
 "<mmm_endogenous_budget_three_fits>`)."
 
 #: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:860022
@@ -1983,8 +1988,8 @@ msgid ""
 "<mmm_endogenous_budget_search>`)."
 msgstr ""
 "*Los diseños son conocidos, se realizan por completo y son suficientemente "
-"largos*; use `mode=\"set\"` para las pruebas que fijan el gasto ({ref}`fit 3"
-" <mmm_endogenous_budget_three_fits>`, {ref}`search "
+"largos*; use `mode=\"set\"` para las pruebas que fijan el gasto "
+"({ref}`ajuste 3 <mmm_endogenous_budget_three_fits>`, {ref}`búsqueda "
 "<mmm_endogenous_budget_search>`)."
 
 #: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:860023
@@ -1997,7 +2002,7 @@ msgid ""
 msgstr ""
 "*El mismo experimento no se cuenta dos veces*; use la verosimilitud de "
 "elevación solo para experimentos cuyos períodos o unidades no estén en los "
-"datos del MMM ({ref}`fit 2 <mmm_endogenous_budget_three_fits>`)."
+"datos del MMM ({ref}`ajuste 2 <mmm_endogenous_budget_three_fits>`)."
 
 #: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:860024
 #: ea1592cdcb224316972b1c46407d1e48
@@ -2008,7 +2013,7 @@ msgid ""
 "<mmm_endogenous_budget_predictions>`)."
 msgstr ""
 "*Las sorpresas fuera de muestra son cero para planificar y realizadas para "
-"puntuar*; mantenga modelos separados para los dos usos ({ref}`predictions "
+"puntuar*; mantenga modelos separados para los dos usos ({ref}`predicciones "
 "<mmm_endogenous_budget_predictions>`)."
 
 #: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:860026
