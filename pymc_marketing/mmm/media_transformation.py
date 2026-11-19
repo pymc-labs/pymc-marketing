@@ -139,7 +139,23 @@ class MediaTransformation:
     dims: Dims | None = None
 
     def __post_init__(self):
-        """Normalize the dims and check them against the transformations' prior dims."""
+        """Check the input types, normalize the dims and check them against the transformations' prior dims."""
+        if not isinstance(self.adstock, AdstockTransformation):
+            raise TypeError(
+                f"adstock must be an AdstockTransformation, got {type(self.adstock).__name__}. "
+                "Example: GeometricAdstock(l_max=8)"
+            )
+        if not isinstance(self.saturation, SaturationTransformation):
+            raise TypeError(
+                f"saturation must be a SaturationTransformation, got {type(self.saturation).__name__}. "
+                "Example: LogisticSaturation()"
+            )
+        if not isinstance(self.adstock_first, bool):
+            raise TypeError(
+                f"adstock_first must be a bool, got {type(self.adstock_first).__name__}. "
+                "Pass True to apply adstock before saturation, or False for the reverse order."
+            )
+
         if isinstance(self.dims, str):
             self.dims = (self.dims,)
 
@@ -265,7 +281,8 @@ class MediaConfig:
     name : str
         The name of the media transformation and prefix of all media variables.
     columns : list[str]
-        The media channels to apply the transformation to.
+        The media channels to apply the transformation to. A tuple is also
+        accepted and stored as a list. Must not be empty.
     media_transformation : MediaTransformation
         The media transformation to apply to the media channels.
 
@@ -274,6 +291,25 @@ class MediaConfig:
     name: str
     columns: list[str]
     media_transformation: MediaTransformation
+
+    def __post_init__(self):
+        """Check the input types and store ``columns`` as a list."""
+        if not isinstance(self.columns, list | tuple) or not all(
+            isinstance(column, str) for column in self.columns
+        ):
+            raise TypeError(
+                f"columns must be a list of column names, got {self.columns!r}. "
+                'Example: columns=["tv", "radio"]'
+            )
+        if not self.columns:
+            raise ValueError("columns must contain at least one column name.")
+        self.columns = list(self.columns)
+
+        if not isinstance(self.media_transformation, MediaTransformation):
+            raise TypeError(
+                "media_transformation must be a MediaTransformation, "
+                f"got {type(self.media_transformation).__name__}."
+            )
 
     def to_dict(self) -> dict:
         """Convert the media configuration to a dictionary.
