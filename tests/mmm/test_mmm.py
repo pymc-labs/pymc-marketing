@@ -3325,6 +3325,26 @@ class _DateLevelEffect(_ZeroEffect):
         return pmd.Deterministic(self.contribution_var_name, level)
 
 
+class _ClassicLevelEffect(_ZeroEffect):
+    """A level declared with ``pymc``, not ``pymc.dims``, added to ``mu``.
+
+    ``scalar`` makes it one value for every date; otherwise it is one per date.
+    """
+
+    prefix: str = "classic"
+    scalar: bool = False
+
+    def create_effect(self, mmm):
+        """The classic variable, wrapped with ``as_xtensor``."""
+        name = f"{self.prefix}_draws"
+        if self.scalar:
+            zeros = as_xtensor(pt.zeros(mmm.model.dim_lengths["date"]), dims=("date",))
+            level = zeros + as_xtensor(pm.Normal(name, sigma=0.1), dims=())
+        else:
+            level = as_xtensor(pm.Normal(name, sigma=0.1, dims="date"), dims=("date",))
+        return pmd.Deterministic(self.contribution_var_name, level)
+
+
 @pytest.fixture
 def fit_mmm_with_effect(simple_mmm_data, mock_pymc_sample):
     """Fit an MMM carrying the effects it is given."""
@@ -3412,6 +3432,50 @@ def test_monthly_incrementality_evaluates_a_reduced_date_variable(
 
     assert np.isfinite(incremental).all()
     assert json.loads(split.attrs["assumptions"])["evaluation"] == "window"
+
+
+@pytest.mark.parametrize("scalar", [False, True], ids=["over-date", "scalar"])
+@pytest.mark.parametrize("frequency", ["all_time", "monthly"])
+def test_incrementality_on_a_classic_random_variable(
+    fit_mmm_with_effect, scalar, frequency
+):
+    """An effect's variable declared with ``pymc`` is conditioned on its draws.
+
+    The extraction used to replace it with an xtensor, which raised
+    ``AttributeError: 'TensorType' object has no attribute 'dims'`` (#3398).
+    """
+    mmm = fit_mmm_with_effect(_ClassicLevelEffect(scalar=scalar))
+
+    incremental = mmm.incrementality.compute_incremental_contribution(
+        frequency=frequency
+    )
+
+    assert np.isfinite(incremental).all()
+
+
+@pytest.mark.parametrize("entry_point", BUDGET_ENTRY_POINTS)
+def test_budget_objective_through_a_classic_random_variable_is_optimized(
+    single_dim_data, mock_pymc_sample, entry_point
+):
+    """The total response reaches an effect's classic variable, and is optimized.
+
+    The variable is one value for every date, so it can be evaluated on the
+    optimizer's window.  Every way of building the optimizer reaches the same
+    extraction, which used to raise on it (#3398).
+    """
+    X, y = single_dim_data
+    mmm = _mmm_with_effects(_ClassicLevelEffect(scalar=True))
+    mmm.fit(X.iloc[:9], y.iloc[:9], draws=50, chains=1, random_seed=42)
+
+    result = _optimize_budget(
+        entry_point,
+        mmm,
+        "2023-01-10",
+        "2023-01-14",
+        response_variable="total_response_original_scale",
+    )
+
+    np.testing.assert_allclose(result.budgets.sum(), 10.0)
 
 
 class _ScaledByDateLevelEffect(_ZeroEffect):

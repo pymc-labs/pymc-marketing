@@ -1470,6 +1470,43 @@ def test_extract_response_distribution_mixes_classic_and_dims_variables(
     )
 
 
+def test_shared_posterior_rebinds_a_classic_variable_from_a_permuted_layout():
+    """A rebind reaches a classic variable in its declared axis order.
+
+    ``lam`` is bound as ``(date, channel)`` and rebound from a posterior that
+    stores it as ``(channel, date)`` with other values.  The compiled function
+    reads the plain tensor by position, so the rebound draws have to land in
+    the declared order without a recompile.
+    """
+    dates, channels = [0, 1, 2], ["a", "b"]
+    with pm.Model(coords={"date": dates, "channel": channels}) as model:
+        lam = pm.Normal("lam", dims=("date", "channel"))
+        pmd.Deterministic(
+            "doubled", 2.0 * ptx.as_xtensor(lam, dims=("date", "channel"))
+        )
+
+    values = np.arange(6.0).reshape(3, 2)  # date x channel
+    bound = xr.Dataset(
+        {"lam": (("chain", "draw", "date", "channel"), values[None, None])},
+        coords={"date": dates, "channel": channels},
+    )
+    shared_posterior = SharedPosterior()
+    fn = function(
+        [],
+        extract_response_distribution(
+            model, bound, "doubled", shared_posterior=shared_posterior
+        ),
+    )
+    np.testing.assert_allclose(fn(), 2.0 * values[None])
+
+    permuted = xr.Dataset(
+        {"lam": (("chain", "draw", "channel", "date"), (10.0 + values).T[None, None])},
+        coords={"date": dates, "channel": channels},
+    )
+    shared_posterior.set_posterior(permuted)
+    np.testing.assert_allclose(fn(), 2.0 * (10.0 + values)[None])
+
+
 def test_shared_posterior_realigns_permuted_multi_dim_variables():
     """A variable over two non-sample dims rebinds from a permuted, reordered layout.
 

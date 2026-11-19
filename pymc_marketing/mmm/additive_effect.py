@@ -89,6 +89,9 @@ How it works
 - During ``MMM.build_model(...)``, each effect's ``create_data`` is called first to
   introduce any needed ``pmd.Data``. Then ``create_effect`` must return a tensor with
   dims ``("date", *mmm.dims)`` that is added additively to the model mean.
+- Random variables in an effect may come from ``pymc.dims`` or from ``pymc``. Wrap a
+  ``pymc`` variable with ``as_xtensor`` and declare its ``dims``, so that analyses
+  conditioned on the posterior can match its draws to its axes by name.
 - During posterior predictive, ``set_data`` is called with the cloned PyMC model
   and the new coordinates; update any ``pmd.Data`` you created using ``pm.set_data``.
 
