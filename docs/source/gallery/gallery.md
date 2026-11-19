@@ -442,6 +442,17 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::
 ::::
 
+## Conversion Funnels
+
+::::{grid} 1 2 3 3
+:gutter: 3
+
+:::{grid-item-card} Conversion Funnels: Where Do Users Drop Off and Which Variant Wins?
+:img-top: ../gallery/images/funnel.png
+:link: ../notebooks/conversion/funnel.html
+:::
+::::
+
 ## General Tutorials
 
 ::::{grid} 1 2 3 3

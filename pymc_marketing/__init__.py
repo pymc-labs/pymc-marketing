@@ -24,6 +24,7 @@ import pymc_marketing.special_priors  # noqa: F401
 from pymc_marketing import (
     bass,
     clv,
+    conversion,
     customer_choice,
     mmm,
     pie,
@@ -36,6 +37,7 @@ __all__ = [
     "__version__",
     "bass",
     "clv",
+    "conversion",
     "customer_choice",
     "mmm",
     "pie",

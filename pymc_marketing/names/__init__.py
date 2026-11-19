@@ -20,7 +20,8 @@ models store them, so they must not change.
 
 Each model package has its own module next to this one
 (:mod:`pymc_marketing.names.mmm`, :mod:`pymc_marketing.names.clv`,
-:mod:`pymc_marketing.names.customer_choice`, :mod:`pymc_marketing.names.bass`),
+:mod:`pymc_marketing.names.customer_choice`, :mod:`pymc_marketing.names.bass`,
+:mod:`pymc_marketing.names.conversion`),
 and its ``Attr`` and ``Group`` extend the ones here when it adds keys of its own.
 The package imports nothing else from ``pymc_marketing``, so any module can import
 it without a cycle.

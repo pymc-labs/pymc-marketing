@@ -10,8 +10,10 @@
   bass
   causal_utils
   clv
+  conversion
   customer_choice
   data
+  decision
   experimental
   hsgp_kwargs
   metrics

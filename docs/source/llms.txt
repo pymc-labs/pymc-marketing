@@ -30,6 +30,7 @@ Install with `pip install pymc-marketing`. Source code: https://github.com/pymc-
 ## Other models
 
 - [Bass diffusion model](https://www.pymc-marketing.io/en/stable/notebooks/bass/bass_example.html): Forecasting adoption of new products.
+- [Conversion funnels](https://www.pymc-marketing.io/en/stable/notebooks/conversion/funnel.html): Step-by-step conversion, variant comparison and partial pooling across segments.
 
 ## API reference
 
