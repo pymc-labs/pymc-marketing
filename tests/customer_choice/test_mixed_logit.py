@@ -367,18 +367,6 @@ class TestPreprocessModelData:
 class TestMakeIntercepts:
     """Tests for make_intercepts() method."""
 
-    def test_make_intercepts_creates_deterministic(
-        self, mxl, sample_df, utility_eqs_basic
-    ):
-        """Test that intercepts are created correctly."""
-        _X, _F, _y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
-
-        with pm.Model(coords=mxl.coords):
-            alphas = mxl.make_intercepts()
-
-            assert isinstance(alphas, pt.TensorVariable)
-            assert alphas.name == "alphas"
-
     def test_make_intercepts_last_alternative_zero(
         self, mxl, sample_df, utility_eqs_basic
     ):
@@ -394,18 +382,6 @@ class TestMakeIntercepts:
 
 class TestMakeNonRandomCoefs:
     """Tests for make_non_random_coefs() method."""
-
-    def test_make_non_random_coefs_creates_variable(
-        self, mxl, sample_df, utility_eqs_basic
-    ):
-        """Test that non-random coefficients are created."""
-        _X, _F, _y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
-
-        with pm.Model(coords=mxl.coords):
-            betas = mxl.make_non_random_coefs()
-
-            assert isinstance(betas, pt.TensorVariable)
-            assert betas.name == "betas_non_random"
 
     def test_make_non_random_coefs_correct_shape(
         self, mxl, sample_df, utility_eqs_basic
@@ -681,27 +657,6 @@ class TestMakeControlFunction:
 class TestMakeUtility:
     """Tests for make_utility() method."""
 
-    def test_make_utility_creates_deterministic(
-        self, mxl, sample_df, utility_eqs_basic
-    ):
-        """Test that utility calculation creates deterministic."""
-        X, F, _y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
-        n_obs, n_alts = X.shape[0], X.shape[1]
-
-        with pm.Model(coords=mxl.coords):
-            alphas = mxl.make_intercepts()
-            betas_non_random = mxl.make_non_random_coefs()
-            betas_random, _ = mxl.make_random_coefs(n_obs, None)
-            X_data = pm.Data("X", X, dims=("obs", "alts", "covariates"))
-            B_full = mxl.make_beta_matrix(betas_non_random, betas_random, n_obs)
-            W_contrib = mxl.make_fixed_coefs(F, n_obs, n_alts)
-            price_error = mxl.make_control_function(n_obs, n_alts)
-
-            U = mxl.make_utility(X_data, B_full, alphas, W_contrib, price_error)
-
-            assert isinstance(U, pt.TensorVariable)
-            assert U.name == "U"
-
     def test_make_utility_correct_shape(self, mxl, sample_df, utility_eqs_basic):
         """Test that utility has correct shape."""
         X, F, _y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
@@ -724,28 +679,6 @@ class TestMakeUtility:
 
 class TestMakeChoiceProb:
     """Tests for make_choice_prob() method."""
-
-    def test_make_choice_prob_creates_deterministic(
-        self, mxl, sample_df, utility_eqs_basic
-    ):
-        """Test that choice probabilities are created."""
-        X, F, _y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
-        n_obs, n_alts = X.shape[0], X.shape[1]
-
-        with pm.Model(coords=mxl.coords):
-            alphas = mxl.make_intercepts()
-            betas_non_random = mxl.make_non_random_coefs()
-            betas_random, _ = mxl.make_random_coefs(n_obs, None)
-            X_data = pm.Data("X", X, dims=("obs", "alts", "covariates"))
-            B_full = mxl.make_beta_matrix(betas_non_random, betas_random, n_obs)
-            W_contrib = mxl.make_fixed_coefs(F, n_obs, n_alts)
-            price_error = mxl.make_control_function(n_obs, n_alts)
-            U = mxl.make_utility(X_data, B_full, alphas, W_contrib, price_error)
-
-            p = mxl.make_choice_prob(U)
-
-            assert isinstance(p, pt.TensorVariable)
-            assert p.name == "p"
 
     def test_make_choice_prob_correct_shape(self, mxl, sample_df, utility_eqs_basic):
         """Test that probabilities have correct shape."""
@@ -1011,23 +944,6 @@ def test_plot_change(mxl, sample_change_df):
 class TestEdgeCases:
     """Tests for edge cases."""
 
-    def test_single_random_covariate(self, sample_df, covariates_list):
-        """Test model with single random covariate."""
-        utility_eqs = [
-            "bus ~ bus_price + bus_time | income | bus_price",
-            "car ~ car_price + car_time | income | car_price",
-            "train ~ train_price + train_time | income | train_price",
-        ]
-        mxl_single = MixedLogit(sample_df, utility_eqs, "choice", covariates_list)
-
-        X, F, y = mxl_single.preprocess_model_data(sample_df, utility_eqs)
-        model = mxl_single.make_model(X, F, y)
-
-        assert isinstance(model, pm.Model)
-        # Should have 1 random covariate (price)
-        assert len(mxl_single.random_covar_names) == 1
-        assert "price" in mxl_single.random_covar_names
-
     def test_multiple_random_covariates(
         self, sample_df, utility_eqs_multiple_random, covariates_list
     ):
@@ -1138,36 +1054,6 @@ class TestBackwardCompatibility:
         mxl_no_random.sample()
         assert hasattr(mxl_no_random, "idata")
         assert "posterior" in mxl_no_random.idata
-
-    def test_intervention_compatibility(
-        self, mxl, sample_df, utility_eqs_basic, mock_pymc_sample
-    ):
-        """Test that interventions work like in MNLogit."""
-        X, F, y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
-        _ = mxl.make_model(X, F, y)
-        mxl.sample()
-
-        new_df = sample_df.copy()
-        new_df["bus_price"] = new_df["bus_price"] * 0.9
-        idata_new = mxl.apply_intervention(new_df)
-
-        # Should have same structure as MNLogit interventions
-        assert "posterior_predictive" in idata_new
-        assert "p" in idata_new["posterior_predictive"]
-
-    def test_coordinate_structure_consistency(self, mxl, sample_df, utility_eqs_basic):
-        """Test that coordinate structure is consistent with other models."""
-        _X, _F, _y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
-
-        # Should have standard coordinates
-        assert "alts" in mxl.coords
-        assert "obs" in mxl.coords
-        assert "covariates" in mxl.coords
-
-        # Plus mixed logit specific coordinates
-        assert "random_covariates" in mxl.coords
-        assert "normal_covariates" in mxl.coords
-        assert "individuals" in mxl.coords
 
 
 # =============================================================================

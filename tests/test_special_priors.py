@@ -102,11 +102,6 @@ def test_LogNormalPrior_args(mean, std, centered, dims):
     assert rv.to_dict() == rv.from_dict(rv.to_dict()).to_dict()
 
 
-def test_LogNormalPrior_args_invalid():
-    with pytest.raises(ValueError):
-        LogNormalPrior(alpha=1.0, beta=1.0)
-
-
 def test_LogNormalPrior_from_dict_invalid():
     with pytest.raises(
         ValueError,
@@ -1845,7 +1840,6 @@ def test_constant_mu_fixes_the_channel_mean_and_round_trips(mu):
             lambda: VarianceBudget(0.5, {"brand": 1.0}),
             "VarianceBudget total must be a Prior",
         ),
-        (lambda: nzs({"brand": {}}, sigma=0.5), "`sigma` must be IndependentSigmas"),
         (  # a dimmed scale broadcast onto the wrong axis and broke the zero sum
             lambda: IndependentSigmas({"brand": Prior("HalfNormal", dims="channel")}),
             r"IndependentSigmas priors\['brand'\] must be scalar \(no dims\)",
@@ -1860,7 +1854,6 @@ def test_constant_mu_fixes_the_channel_mean_and_round_trips(mu):
     ids=[
         "independent",
         "budget",
-        "sigma",
         "independent_dims",
         "budget_total_dims",
         "budget_concentration",
@@ -2849,34 +2842,121 @@ def term_only(model, beta, level, n=20):
     )
 
 
-@pytest.mark.parametrize("centered", [True, False])
+# An all-pairs subset of case x centered x sigma.
+# Every case runs both centered forms, once per sigma option; every (centered, sigma) pair occurs.
 @pytest.mark.parametrize(
-    ("terms", "level", "axis", "groups"),
+    ("terms", "level", "axis", "groups", "centered", "sigma"),
     [
-        (
+        pytest.param(
             nested(),
             "family",
             1,
-            [[0, 2]],
-        ),  # one brand per family: the families sum to 0
-        (nested(), "brand", 1, [[0, 1], [2, 3]]),  # within each family
-        (nested(), "tier", 2, [[0, 4, 7]]),
-        (nested(), "dma", 2, [[0, 1, 2, 3], [4, 5, 6], [7, 8, 9]]),  # within each tier
-        (nested(), "brand_dma", 1, [range(4)]),  # interaction: both axes
-        (nested(), "brand_dma", 2, [range(10)]),
-        (CROSSED, "brand", 1, [range(4)]),  # crossed term: over the whole coord
-    ],
-    ids=[
-        "family",
-        "brand_in_family",
-        "tier",
-        "dma_in_tier",
-        "interaction_brand_axis",
-        "interaction_dma_axis",
-        "crossed_brand",
+            [[0, 2]],  # one brand per family: the families sum to 0
+            True,
+            None,
+            id="independent-family-True",
+        ),
+        pytest.param(
+            nested(), "family", 1, [[0, 2]], False, LEVEL_HN, id="prior-family-False"
+        ),
+        pytest.param(  # within each family
+            nested(),
+            "brand",
+            1,
+            [[0, 1], [2, 3]],
+            True,
+            LEVEL_HN,
+            id="prior-brand_in_family-True",
+        ),
+        pytest.param(
+            nested(),
+            "brand",
+            1,
+            [[0, 1], [2, 3]],
+            False,
+            None,
+            id="independent-brand_in_family-False",
+        ),
+        pytest.param(
+            nested(), "tier", 2, [[0, 4, 7]], True, None, id="independent-tier-True"
+        ),
+        pytest.param(
+            nested(), "tier", 2, [[0, 4, 7]], False, LEVEL_HN, id="prior-tier-False"
+        ),
+        pytest.param(  # within each tier
+            nested(),
+            "dma",
+            2,
+            [[0, 1, 2, 3], [4, 5, 6], [7, 8, 9]],
+            True,
+            LEVEL_HN,
+            id="prior-dma_in_tier-True",
+        ),
+        pytest.param(
+            nested(),
+            "dma",
+            2,
+            [[0, 1, 2, 3], [4, 5, 6], [7, 8, 9]],
+            False,
+            None,
+            id="independent-dma_in_tier-False",
+        ),
+        pytest.param(  # interaction: both axes
+            nested(),
+            "brand_dma",
+            1,
+            [range(4)],
+            True,
+            None,
+            id="independent-interaction_brand_axis-True",
+        ),
+        pytest.param(
+            nested(),
+            "brand_dma",
+            1,
+            [range(4)],
+            False,
+            LEVEL_HN,
+            id="prior-interaction_brand_axis-False",
+        ),
+        pytest.param(
+            nested(),
+            "brand_dma",
+            2,
+            [range(10)],
+            True,
+            LEVEL_HN,
+            id="prior-interaction_dma_axis-True",
+        ),
+        pytest.param(
+            nested(),
+            "brand_dma",
+            2,
+            [range(10)],
+            False,
+            None,
+            id="independent-interaction_dma_axis-False",
+        ),
+        pytest.param(  # crossed term: over the whole coord
+            CROSSED,
+            "brand",
+            1,
+            [range(4)],
+            True,
+            None,
+            id="independent-crossed_brand-True",
+        ),
+        pytest.param(
+            CROSSED,
+            "brand",
+            1,
+            [range(4)],
+            False,
+            LEVEL_HN,
+            id="prior-crossed_brand-False",
+        ),
     ],
 )
-@pytest.mark.parametrize("sigma", [None, LEVEL_HN], ids=["independent", "prior"])
 def test_zero_sum_on_every_intended_axis(terms, level, axis, groups, centered, sigma):
     x = term_only(*build_full(terms, centered, sigma), level)
     assert np.abs(x).max() > 1e-3

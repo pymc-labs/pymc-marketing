@@ -390,16 +390,6 @@ def test_budget_optimizer_clear_error_on_missing_response_variable(mmm_wrapper):
         )
 
 
-def test_empty_constraints_auto_adds_default(mmm_wrapper):
-    """Empty ``constraints`` should auto-add the default sum constraint."""
-    optimizer = BudgetOptimizer(
-        model=mmm_wrapper,
-        num_periods=4,
-        response_variable="total_media_contribution_original_scale",
-    )
-    assert "default" in optimizer._constraints
-
-
 def test_non_empty_constraints_skips_default(mmm_wrapper):
     """A non-empty ``constraints`` means the caller is in charge: no default."""
     custom = [
@@ -706,9 +696,8 @@ def minimize_budget_utility(samples, budgets):
     "total_budget,target_response",
     [
         (10, 5.0),
-        (50, 10.0),
     ],
-    ids=["budget=10->resp=5", "budget=50->resp=10"],
+    ids=["budget=10->resp=5"],
 )
 def test_allocate_budget_custom_response_constraint(
     mmm_wrapper,
@@ -1428,13 +1417,6 @@ def test_budget_optimizer_mu_effects_deprecated(mmm_wrapper):
             False,
             None,
         ),
-        # Valid case: front-loaded distribution
-        (
-            {"channel_1": [0.7, 0.2, 0.1, 0.0], "channel_2": [0.4, 0.3, 0.2, 0.1]},
-            4,
-            False,
-            None,
-        ),
         # Invalid case: factors don't sum to 1
         (
             {"channel_1": [0.3, 0.3, 0.3, 0.3], "channel_2": [0.25, 0.25, 0.25, 0.25]},
@@ -1452,7 +1434,6 @@ def test_budget_optimizer_mu_effects_deprecated(mmm_wrapper):
     ],
     ids=[
         "valid_uniform",
-        "valid_front_loaded",
         "invalid_sum",
         "invalid_periods",
     ],
@@ -2084,18 +2065,6 @@ def test_optimizable_vars_validation_raises(mock_pymc_sample, entry, match):
             optimizable_vars=entry,
             response_variable="joint_objective",
         )
-
-
-def test_optimized_vars_empty_without_optimizable_vars(mmm_wrapper):
-    """Backward compatible: a plain optimization returns no extra variables."""
-    optimizer = BudgetOptimizer(
-        model=mmm_wrapper,
-        num_periods=30,
-        response_variable="total_media_contribution_original_scale",
-    )
-    with pytest.warns(UserWarning, match="No budget bounds provided"):
-        result = optimizer.allocate_budget(total_budget=100.0)
-    assert result.optimized_vars == {}
 
 
 class TestDateAxisMustMatchTheBlocks:

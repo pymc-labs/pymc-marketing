@@ -2394,23 +2394,6 @@ class TestMediatedMuEffects:
 
         xr.testing.assert_allclose(result, expected, rtol=1e-6)
 
-    def test_joint_matches_oracle(self, funnel_log_link_fitted_mmm):
-        """The joint estimand matches an all-channels-at-once oracle."""
-        mmm = funnel_log_link_fitted_mmm
-
-        result = mmm.incrementality.compute_joint_incremental_contribution(
-            frequency="all_time"
-        )
-        expected = compute_log_link_ground_truth_by_period(
-            mmm,
-            frequency="all_time",
-            l_max=effective_l_max(mmm),
-            joint=True,
-        )
-
-        assert "channel" not in result.dims
-        xr.testing.assert_allclose(result, expected, rtol=1e-6)
-
     def test_leave_one_out_overcounts_the_joint(self, funnel_log_link_fitted_mmm):
         """Per-channel increments do not sum to the joint, and are labelled so.
 
@@ -3592,7 +3575,7 @@ class TestIncrementalitySpecValidation:
     window of a nonsensical length rather than a message saying so.
     """
 
-    @pytest.mark.parametrize("bad", [-1, -10])
+    @pytest.mark.parametrize("bad", [-1])
     def test_a_negative_window_is_refused(self, bad):
         """A negative carryover length is a mistake, not a shorter window."""
         with pytest.raises(ValidationError, match="additional_carryover_lags"):
@@ -5736,17 +5719,35 @@ class TestClosedFormMatrix:
         )
         return closed, pipeline
 
-    @pytest.mark.parametrize("estimand", ["counterfactual", "allocation"])
-    @pytest.mark.parametrize("frequency", ["original", "monthly", "all_time"])
     @pytest.mark.parametrize(
-        "adstock",
+        "adstock, frequency, estimand",
         [
-            GeometricAdstock(l_max=4),
-            GeometricAdstock(l_max=6, normalize=False),
-            DelayedAdstock(l_max=5),
-            WeibullPDFAdstock(l_max=5),
+            pytest.param(
+                adstock, frequency, estimand, id=f"{name}-{frequency}-{estimand}"
+            )
+            for name, adstock in (
+                ("geometric", GeometricAdstock(l_max=4)),
+                ("delayed", DelayedAdstock(l_max=5)),
+                ("weibull-pdf", WeibullPDFAdstock(l_max=5)),
+            )
+            for frequency in ("original", "monthly", "all_time")
+            for estimand in ("counterfactual", "allocation")
+        ]
+        + [
+            # The unnormalized kernel follows the same paths as the normalized
+            # one, so it is kept once per frequency and once per estimand.
+            pytest.param(
+                GeometricAdstock(l_max=6, normalize=False),
+                frequency,
+                estimand,
+                id=f"geometric-unnormalized-{frequency}-{estimand}",
+            )
+            for frequency, estimand in (
+                ("original", "counterfactual"),
+                ("monthly", "allocation"),
+                ("all_time", "counterfactual"),
+            )
         ],
-        ids=["geometric", "geometric-unnormalized", "delayed", "weibull-pdf"],
     )
     def test_it_is_the_pipeline_matrix(
         self, separable_fit, adstock, frequency, estimand

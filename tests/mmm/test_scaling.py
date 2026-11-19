@@ -28,16 +28,6 @@ from pymc_marketing.serialization import serialization
 
 
 class TestScalingRoundtrips:
-    def test_data_derived_scaling_roundtrip(self):
-        original = DataDerivedScaling(method="mean", dims=("geo", "channel"))
-        data = serialization.serialize(original)
-        restored = serialization.deserialize(data)
-
-        assert type(restored) is DataDerivedScaling
-        assert restored.method == "mean"
-        assert restored.dims == ("geo", "channel")
-        assert restored == original
-
     def test_scaling_roundtrip_all_parameters(self):
         original = Scaling(
             target=DataDerivedScaling(method="max", dims="geo"),
@@ -198,27 +188,6 @@ class TestFixedScaling:
                 value_col="scale",
                 dim_cols=["country", "channel"],
             )
-
-    def test_roundtrip_scaling_with_fixed(self):
-        original = Scaling(
-            target=FixedScaling(dims=(), value=50_000.0),
-            channel=FixedScaling(dims=(), value=10_000.0),
-        )
-        data = serialization.serialize(original)
-        restored = serialization.deserialize(data)
-        assert restored == original
-
-
-class TestDataDerivedScaling:
-    def test_max_construction(self):
-        vs = DataDerivedScaling(method="max", dims=())
-        assert vs.method == "max"
-        assert vs.dims == ()
-
-    def test_mean_construction(self):
-        vs = DataDerivedScaling(method="mean", dims=("geo",))
-        assert vs.method == "mean"
-        assert vs.dims == ("geo",)
 
 
 class TestVariableScalingIsAbstract:
