@@ -2865,6 +2865,15 @@ def test_constraint_scale_from_jacobian(jacobian, size, expected):
     assert scale == expected
 
 
+def test_entry_sizes_without_a_total_uses_the_money_bounds():
+    """A minimum-spend problem may pass no total, so money takes its size from its bounds."""
+    variables = _hand_optimizer().optimization_variables
+    size = price_schedule_module.entry_sizes(
+        variables, np.array([0.0, 0.0]), np.array([20.0, 35.0]), 0.0
+    )
+    np.testing.assert_array_equal(size, [20.0, 35.0])
+
+
 @pytest.mark.parametrize("scale", [0.0, np.nan, True, "2"])
 def test_constraint_refuses_a_scale_that_is_not_positive_and_finite(scale):
     with pytest.raises(ValueError, match="scale"):
