@@ -2741,7 +2741,220 @@ def test_allocate_budget_is_invariant_to_response_units(
         )
 
 
-def _steep_channel_optimizer() -> tuple[BudgetOptimizer, list[str]]:
+@pytest.mark.parametrize(
+    "unit_scale, total_budget",
+    [
+        pytest.param(1e8, 20.0, id="1e8-units"),
+        pytest.param(1e12, 0.0, id="1e12-units-no-total"),
+    ],
+)
+def test_allocate_budget_meets_a_response_floor_in_any_response_units(
+    mmm_wrapper, dummy_idata, unit_scale, total_budget
+):
+    """The least spend that reaches a response floor does not depend on the response units.
+
+    SLSQP compares the summed constraint violation with ``ftol`` in the
+    constraint's own units, so a floor of ``unit_scale * 30`` response units
+    left the default solve unable to certify the optimum it had reached
+    (#3397). Multiplying ``saturation_beta`` and the floor by ``unit_scale``
+    changes the units only: the plan is the optimum a tight solve finds in
+    the original units, the floor holds to a relative ``1e-8``, the
+    constraint history reads the floor in the caller's units, and the
+    multipliers, spend per response unit, are divided by ``unit_scale``. A
+    minimum-spend problem has no use for ``total_budget``, so ``0`` with
+    explicit bounds must work as well.
+    """
+    budget_bounds = {"channel_1": (0.0, 20.0), "channel_2": (0.0, 20.0)}
+    posterior = dummy_idata["posterior"].to_dataset()
+
+    def solve(beta_scale, minimize_kwargs=None):
+        optimizer = BudgetOptimizer(
+            model=CustomModelWrapper(
+                base_model=mmm_wrapper.base_model,
+                idata=_scaled(posterior, beta_scale),
+                channels=mmm_wrapper.channel_columns,
+            ),
+            num_periods=30,
+            response_variable="total_media_contribution_original_scale",
+            utility_function=lambda samples, budgets: -budgets.sum(),
+            constraints=[_response_floor_constraint(30.0 * beta_scale)],
+        )
+        result = optimizer.allocate_budget(
+            total_budget=total_budget,
+            budget_bounds=budget_bounds,
+            minimize_kwargs=minimize_kwargs,
+            callback=True,
+        )
+        return optimizer, result
+
+    _, optimum = solve(1.0, {"options": {"ftol": 1e-12}})
+    _, reference = solve(1.0)
+    optimizer, rescaled = solve(unit_scale)
+
+    np.testing.assert_allclose(
+        reference.budgets.values, optimum.budgets.values, rtol=1e-6
+    )
+    np.testing.assert_allclose(
+        rescaled.budgets.values, reference.budgets.values, rtol=1e-6
+    )
+    residuals = optimizer.evaluate_plan(
+        rescaled.budgets, total_budget=total_budget
+    ).constraint_residuals
+    assert residuals is not None
+    assert residuals["response_floor"]["value"] >= -1e-8 * 30.0 * unit_scale
+    np.testing.assert_allclose(
+        rescaled.constraint_history["response_floor"][-1]["jac"],
+        unit_scale * reference.constraint_history["response_floor"][-1]["jac"],
+        rtol=1e-4,
+    )
+    # SLSQP reports the KKT multipliers from SciPy 1.16.
+    if "multipliers" in reference.scipy_result:
+        np.testing.assert_allclose(
+            rescaled.scipy_result.multipliers,
+            reference.scipy_result.multipliers / unit_scale,
+            rtol=1e-4,
+        )
+
+
+@pytest.mark.parametrize(
+    "minimize_kwargs, channel_1_bounds, floor_read",
+    [
+        pytest.param(None, (0.0, 100.0), -0.09, id="default"),
+        pytest.param({"options": {"ftol": 1e-9}}, (0.0, 100.0), -9.0, id="ftol"),
+        pytest.param(None, (50.0, 50.0), -9.0, id="default-fixed-entry"),
+    ],
+)
+def test_the_constraints_slsqp_reads(
+    mmm_wrapper, monkeypatch, minimize_kwargs, channel_1_bounds, floor_read
+):
+    """Only the default tolerance divides a constraint by its scale.
+
+    The budget sum is built with ``scale=1``, so SLSQP reads it in money
+    whatever the tolerance: ``-97`` at a plan of ``[1, 2]`` against a total
+    of 100. A floor of 10 on ``channel_1`` has no scale of its own: under the
+    default tolerance SLSQP reads it divided by its steepest entry times that
+    entry's size, ``1 * 100``, so ``-0.09``. A ``ftol`` the caller passes is
+    absolute in each constraint's own units, so with one SLSQP reads ``-9``.
+    So it does when the bounds fix ``channel_1``: an entry the solve cannot
+    move does not count towards the scale.
+    """
+    real_minimize = budget_optimizer_module.minimize
+    seen: list[list[dict]] = []
+
+    def recorded_minimize(*args, **kwargs):
+        seen.append(kwargs["constraints"])
+        return real_minimize(*args, **kwargs)
+
+    monkeypatch.setattr(budget_optimizer_module, "minimize", recorded_minimize)
+    floor = Constraint(
+        key="floor",
+        constraint_type="ineq",
+        constraint_fun=lambda budgets_sym, total_budget_sym, optimizer: (
+            budgets_sym.isel(channel=0) - 10.0
+        ),
+    )
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+        constraints=[floor, build_default_sum_constraint()],
+    )
+    optimizer.allocate_budget(
+        total_budget=100.0,
+        budget_bounds={"channel_1": channel_1_bounds, "channel_2": (0.0, 100.0)},
+        minimize_kwargs=minimize_kwargs,
+    )
+
+    assert seen
+    plan = np.array([1.0, 2.0])
+    for constraints in seen:
+        read = {c["key"]: float(c["fun"](plan)) for c in constraints}
+        assert read == pytest.approx({"floor": floor_read, "default": -97.0})
+
+
+@pytest.mark.parametrize(
+    "jacobian, size, expected",
+    [
+        pytest.param([2.0, -3.0], [10.0, 20.0], 60.0, id="steepest-entry-times-size"),
+        pytest.param([0.01, -0.02], [10.0, 20.0], 1.0, id="floored-at-one"),
+        pytest.param([5.0, 1.0], [0.0, 20.0], 20.0, id="zero-size-entry"),
+        pytest.param([np.nan, 1.0], [10.0, 20.0], 1.0, id="not-finite"),
+    ],
+)
+def test_constraint_scale_from_jacobian(jacobian, size, expected):
+    """The largest move one entry across its size makes in the constraint, at least one."""
+    scale = price_schedule_module.constraint_scale_from_jacobian(
+        np.array(jacobian), np.array(size)
+    )
+    assert scale == expected
+
+
+def test_entry_sizes_without_a_total_uses_the_money_bounds():
+    """A minimum-spend problem may pass no total, so money takes its size from its bounds."""
+    variables = _hand_optimizer().optimization_variables
+    size = price_schedule_module.entry_sizes(
+        variables, np.array([0.0, 0.0]), np.array([20.0, 35.0]), 0.0
+    )
+    np.testing.assert_array_equal(size, [20.0, 35.0])
+
+
+@pytest.mark.parametrize("scale", [0.0, np.nan, True, "2"])
+def test_constraint_refuses_a_scale_that_is_not_positive_and_finite(scale):
+    with pytest.raises(ValueError, match="scale"):
+        Constraint(
+            key="floor",
+            constraint_type="ineq",
+            constraint_fun=lambda budgets_sym, total_budget_sym, optimizer: (
+                budgets_sym.sum()
+            ),
+            scale=scale,
+        )
+
+
+def test_allocate_budget_reports_multipliers_in_each_constraints_units(mmm_wrapper):
+    """The multipliers come back per unit of each constraint as written.
+
+    SciPy lists the equality multipliers first. The cap is declared first and
+    written in thousandths of a money unit, so its scale is ``1000 * 100``
+    while the budget sum's is 1: pairing the scales in declaration order
+    would put both multipliers off by a factor of ``1e5``. A solve with a
+    caller ``ftol`` divides nothing and gives the reference.
+    """
+    cap = Constraint(
+        key="cap",
+        constraint_type="ineq",
+        constraint_fun=lambda budgets_sym, total_budget_sym, optimizer: (
+            1000.0 * (40.0 - budgets_sym.isel(channel=0))
+        ),
+    )
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+        constraints=[cap, build_default_sum_constraint()],
+    )
+    budget_bounds = {"channel_1": (0.0, 100.0), "channel_2": (0.0, 100.0)}
+
+    default = optimizer.allocate_budget(total_budget=100.0, budget_bounds=budget_bounds)
+    unscaled = optimizer.allocate_budget(
+        total_budget=100.0,
+        budget_bounds=budget_bounds,
+        minimize_kwargs={"options": {"ftol": 1e-12}},
+    )
+
+    # Unconstrained, channel_1 would take 59 of the 100.
+    np.testing.assert_allclose(default.budgets.values, [40.0, 60.0], atol=1e-6)
+    np.testing.assert_allclose(unscaled.budgets.values, [40.0, 60.0], atol=1e-6)
+    # SLSQP reports the KKT multipliers from SciPy 1.16.
+    if "multipliers" in unscaled.scipy_result:
+        np.testing.assert_allclose(
+            default.scipy_result.multipliers,
+            unscaled.scipy_result.multipliers,
+            rtol=1e-4,
+        )
+
+
+def _steep_channel_optimizer(**kwargs) -> tuple[BudgetOptimizer, list[str]]:
     """Optimizer where ``c1`` is about 1e5 times steeper than ``c2`` and ``c3`` at x0.
 
     ``c1`` saturates on the way to the optimum, so the default solve rescales
@@ -2785,6 +2998,7 @@ def _steep_channel_optimizer() -> tuple[BudgetOptimizer, list[str]]:
         ),
         num_periods=8,
         response_variable="total_media_contribution_original_scale",
+        **kwargs,
     )
     return optimizer, channels
 
@@ -2820,6 +3034,52 @@ def test_allocate_budget_converges_when_one_channel_is_far_steeper_at_x0(monkeyp
     assert result.scipy_result.nit == first.nit + polish.nit
     assert result.scipy_result.nfev == first.nfev + polish.nfev
     assert result.scipy_result.njev == first.njev + polish.njev
+    # KKT, in objective units with the kept solve's scale: the budget multiplier
+    # equals the common marginal response of the funded channels.
+    if "multipliers" in result.scipy_result:
+        np.testing.assert_allclose(
+            result.scipy_result.multipliers[0],
+            result.scipy_result.jac[[0, 2]],
+            rtol=1e-3,
+        )
+
+
+def test_the_second_solve_reads_the_constraints_as_the_first_did(monkeypatch):
+    """The second solve changes the objective's scale, not the constraints'.
+
+    The cap on ``c1`` is written in thousandths of a money unit and has no
+    scale of its own, so both solves read it divided by the scale taken at
+    the start: at the solution they read the same value.
+    """
+    cap = Constraint(
+        key="cap",
+        constraint_type="ineq",
+        constraint_fun=lambda budgets_sym, total_budget_sym, optimizer: (
+            1000.0 * (59.0 - budgets_sym.isel(channel=0))
+        ),
+    )
+    optimizer, channels = _steep_channel_optimizer(
+        constraints=[cap, build_default_sum_constraint()]
+    )
+    real_minimize = budget_optimizer_module.minimize
+    seen: list[list[dict]] = []
+
+    def recorded_minimize(*args, **kwargs):
+        seen.append(kwargs["constraints"])
+        return real_minimize(*args, **kwargs)
+
+    monkeypatch.setattr(budget_optimizer_module, "minimize", recorded_minimize)
+    result = optimizer.allocate_budget(
+        total_budget=60.0,
+        budget_bounds={channel: (0.0, 60.0) for channel in channels},
+    )
+
+    assert len(seen) == 2
+    first, second = (
+        {c["key"]: float(c["fun"](result.scipy_result.x)) for c in constraints}
+        for constraints in seen
+    )
+    assert second == first
 
 
 def test_allocate_budget_keeps_the_first_solve_when_the_second_fails(monkeypatch):
@@ -3955,10 +4215,53 @@ class TestExactPasses:
         )
         assert {entry["solve"] for entry in result.callback_info} == {0, 1}
 
-    def test_a_cell_started_on_the_wrong_piece_is_let_go(self, monkeypatch):
+    def test_a_response_floor_in_large_units_settles_like_one_in_small_units(self):
+        """The least spend that reaches a response floor puts ``a`` on its breakpoint.
+
+        The response is ``400 * sum_c (1 - exp(-0.1 * u_c))``. At ``b = 7`` its
+        marginal response per unit of money, ``40 exp(-0.7) = 19.9``, lies between
+        ``a``'s slopes below and above 4, ``40 exp(-0.4) = 26.8`` and ``13.4``, so the
+        floor reached at ``a = 4``, ``b = 7`` costs least. With the response and the
+        floor in units ``1e12`` times larger, the passes end the same way on the same
+        plan: neither the solves nor the check that lets a cell leave its breakpoint
+        may depend on the constraint's units.
+        """
+        floor = 400.0 * ((1.0 - np.exp(-0.4)) + (1.0 - np.exp(-0.7)))
+
+        def settle(scale):
+            return _hand_optimizer(
+                A_ON_FOUR,
+                beta=(100.0 * scale, 100.0 * scale),
+                utility_function=lambda samples, budgets: -budgets.sum(),
+                constraints=[_response_floor_constraint(floor * scale)],
+            ).allocate_budget(total_budget=20.0)
+
+        reference = settle(1.0)
+        rescaled = settle(1e12)
+
+        assert reference.scipy_result["breakpoint_status"] in {"certified", "settled"}
+        assert (
+            rescaled.scipy_result["breakpoint_status"]
+            == reference.scipy_result["breakpoint_status"]
+        )
+        for result in (reference, rescaled):
+            assert result.budgets.sel(channel="a").item() == 4.0
+            np.testing.assert_allclose(
+                result.budgets.sel(channel="b").item(), 7.0, atol=1e-6
+            )
+
+    @pytest.mark.parametrize(
+        "budget_bounds",
+        [None, _hand_bounds([0.0, 0.0], [1e12, 1e12])],
+        ids=["default-bounds", "bounds-far-above-the-total"],
+    )
+    def test_a_cell_started_on_the_wrong_piece_is_let_go(
+        self, monkeypatch, budget_bounds
+    ):
         """The check lets a pinned cell go to the piece on the side that gains, once: the
         pass after the release finds the optimum off the breakpoint, so no closing pass
-        follows."""
+        follows. Bounds far above the total do not change how close to a bound a cell
+        must be to count as held there: that is measured against the total."""
 
         def misplace(index, result):
             if index == 0:
@@ -3966,7 +4269,7 @@ class TestExactPasses:
 
         _record_minimize(monkeypatch, edit=misplace)
         result = _hand_optimizer(A_ON_FOUR).allocate_budget(
-            total_budget=20.0, callback=True
+            total_budget=20.0, budget_bounds=budget_bounds, callback=True
         )
         assert result.scipy_result.success
         np.testing.assert_allclose(
