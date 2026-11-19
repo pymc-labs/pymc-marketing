@@ -1,0 +1,688 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2026, PyMC Labs
+# This file is distributed under the same license as the PyMC-Marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyMC-Marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:10003
+#: 35414754c60f41a6b0e14fa633e5b0b5
+msgid "Building funnel-aware MMMs from YAML"
+msgstr "Construcción de MMM con estructura de embudo a partir de YAML"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:10005
+#: b47c7bcfb4274b47963dee6b576c438b
+msgid ""
+"Most production MMM specs are YAML files: channels, adstock, saturation, "
+"and a call to `build_mmm_from_yaml`. That workflow is quick to iterate on"
+" and easy to version. **This notebook is about extending it** when your "
+"causal story is not a flat list of direct channel effects — without "
+"giving up the YAML path."
+msgstr ""
+"La mayoría de las especificaciones de MMM en producción son archivos YAML: "
+"canales, adstock, saturación y una llamada a `build_mmm_from_yaml`. Ese "
+"flujo de trabajo es rápido de iterar y fácil de versionar. **Este cuaderno "
+"trata de extenderlo** cuando su historia causal no es una lista plana de "
+"efectos directos de los canales, sin renunciar a la vía YAML."
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:10007
+#: 7c1f19d69da44e858104f884af0a1649
+msgid ""
+"Three ideas show up together in funnel specs, but they are not equally "
+"central here. The sections below separate them so you know what to read "
+"here versus elsewhere."
+msgstr ""
+"En las especificaciones de embudo aparecen juntas tres ideas, pero aquí no "
+"son igual de centrales. Las secciones siguientes las separan para que sepa "
+"qué leer aquí y qué leer en otros lugares."
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:10009
+#: f391314c433b4166bb4b976bbcc41f7a
+msgid "Funnel-aware structure (background)"
+msgstr "Estructura con enfoque de embudo (contexto)"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:10011
+#: a826ec085c804950a72c8270221bda96
+msgid ""
+"Upper-funnel TV and lower-funnel search rarely behave like independent "
+"knobs on revenue. A funnel-aware MMM encodes **indirect paths** and "
+"**measurement links**, not only direct channel-to-target effects, so "
+"spend at one stage can influence the target through intermediate "
+"structure. Some topologies introduce **unobserved mediators** — "
+"deterministic functions of parent variables, not stochastic latents — "
+"together with noisy indicators on observed funnel metrics; others use "
+"different node layouts entirely. What you need depends on the causal "
+"claims, not on a single funnel template."
+msgstr ""
+"La televisión de la parte superior del embudo y la búsqueda de la parte "
+"inferior rara vez se comportan como controles independientes sobre los "
+"ingresos. Un MMM con enfoque de embudo codifica **rutas indirectas** y "
+"**vínculos de medición**, no solo efectos directos de los canales sobre el "
+"objetivo, de modo que el gasto en una etapa puede influir en el objetivo a "
+"través de una estructura intermedia. Algunas topologías introducen "
+"**mediadores no observados** (funciones deterministas de las variables "
+"padre, no latentes estocásticas) junto con indicadores ruidosos sobre las "
+"métricas observadas del embudo; otras usan disposiciones de nodos "
+"completamente distintas. Lo que usted necesita depende de las afirmaciones "
+"causales, no de una única plantilla de embudo."
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:10013
+#: 23f967b616f04402be0ab5eca393dcc5
+#, python-brace-format
+msgid ""
+"We do **not** derive those graphs or fit full models in this notebook. "
+"For the causal story, priors, sampling, and ROAS interpretation, see "
+"{ref}`mmm_funnel_mueffect` (national topology) and "
+"{ref}`mmm_funnel_mueffect_advanced` (geo panel). Treat those notebooks as"
+" the reference implementations for design. **Here we walk through two "
+"specific topologies** as YAML wiring examples — not a catalogue of every "
+"funnel shape."
+msgstr ""
+"**No** derivamos esos grafos ni ajustamos modelos completos en este "
+"cuaderno. Para la historia causal, los priors, el muestreo y la "
+"interpretación del ROAS, consulte {ref}`mmm_funnel_mueffect` (topología "
+"nacional) y {ref}`mmm_funnel_mueffect_advanced` (panel geográfico). "
+"Considere esos cuadernos como las implementaciones de referencia para el "
+"diseño. **Aquí recorremos dos topologías concretas** como ejemplos de "
+"conexión en YAML, no un catálogo de todas las formas de embudo."
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:10015
+#: 7200664330a742579eedd5d09821a150
+msgid ""
+"Each topology is implemented as a **custom `MuEffect` subclass** that "
+"`build_mmm_from_yaml` pulls in through `effects:` and `REGISTRY`. The "
+"next section describes that wiring loop."
+msgstr ""
+"Cada topología se implementa como una **subclase personalizada de "
+"`MuEffect`** que `build_mmm_from_yaml` incorpora mediante `effects:` y "
+"`REGISTRY`. La siguiente sección describe ese ciclo de conexión."
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:10017
+#: 33f4424ac7bd476fab90f2ce62f8a543
+msgid "Custom `MuEffect` classes (wiring, not design)"
+msgstr "Clases `MuEffect` personalizadas (conexión, no diseño)"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:10019
+#: b1737ed4bd9242d0ad6fed7f40605873
+msgid ""
+"Funnel structure lives in Python subclasses of `MuEffect` that assemble a"
+" subgraph inside the larger MMM. The YAML file names the class; "
+"`REGISTRY` resolves it at build time. **Designing** those subgraphs — "
+"which nodes exist, which adstock applies where, incrementality links — is"
+" the work of the funnel notebooks linked above."
+msgstr ""
+"La estructura del embudo reside en subclases de `MuEffect` en Python que "
+"ensamblan un subgrafo dentro del MMM más grande. El archivo YAML nombra la "
+"clase; `REGISTRY` la resuelve en el momento de la construcción. **Diseñar** "
+"esos subgrafos (qué nodos existen, qué adstock se aplica en cada lugar, los "
+"vínculos de incrementalidad) es el trabajo de los cuadernos de embudo "
+"enlazados arriba."
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:10021
+#: 2cc8544e81d6464ea64f1ec34ad2c6fd
+msgid ""
+"Here we define **notebook-local** classes only to demonstrate the YAML "
+"wiring pattern."
+msgstr ""
+"Aquí definimos clases **locales del cuaderno** únicamente para demostrar el "
+"patrón de conexión de YAML."
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:10024
+#: 12d08f422eaf420ab55de78d5808576a
+#, python-brace-format
+msgid ""
+"**Where to read first.** {ref}`mmm_build_from_yml_example` for YAML and "
+"`build_mmm_from_yaml`; {ref}`mmm_funnel_mueffect` and "
+"{ref}`mmm_funnel_mueffect_advanced` for funnel causal graphs and effect-"
+"class design."
+msgstr ""
+"**Por dónde empezar a leer.** {ref}`mmm_build_from_yml_example` para YAML y "
+"`build_mmm_from_yaml`; {ref}`mmm_funnel_mueffect` y "
+"{ref}`mmm_funnel_mueffect_advanced` para los grafos causales de embudo y el "
+"diseño de las clases de efecto."
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:10028
+#: 892da531e5754ba6b3dacd65b7d132b7
+msgid ""
+"`MeasuredMediatorEffect` and `BudgetDualIndicatorEffect` are **notebook-"
+"local** names for the two topologies below — not general funnel builders."
+" The YAML specs (`funnel_intro.yml`, `funnel_advanced.yml`) register "
+"those classes on `REGISTRY` for this demo only; that is not a supported "
+"public API."
+msgstr ""
+"`MeasuredMediatorEffect` y `BudgetDualIndicatorEffect` son nombres **locales"
+" del cuaderno** para las dos topologías siguientes; no son constructores "
+"generales de embudos. Las especificaciones YAML (`funnel_intro.yml`, "
+"`funnel_advanced.yml`) registran esas clases en `REGISTRY` solo para esta "
+"demostración; no es una API pública compatible."
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:10032
+#: 131ddb759a87444ea4f1b79a1700954b
+msgid ""
+"**Reading the causal DAGs.** Grey-filled nodes are observed. Dashed-"
+"outline nodes are **unobserved mediators** (node **D**): deterministic "
+"combinations of parents, implemented as `pm.Deterministic` in PyMC — not "
+"stochastic latents we integrate over. Some YAML kwargs and PyMC names "
+"still use `hub` as shorthand for this node (for example `hub_adstock`, "
+"`mediator_hub`). Dashed or dotted edges mark measurement or indicator "
+"links."
+msgstr ""
+"**Cómo leer los DAG causales.** Los nodos rellenos de gris son observados. "
+"Los nodos con contorno discontinuo son **mediadores no observados** (nodo "
+"**D**): combinaciones deterministas de sus padres, implementadas como "
+"`pm.Deterministic` en PyMC, no latentes estocásticas sobre las que "
+"integremos. Algunos kwargs de YAML y nombres de PyMC todavía usan `hub` como"
+" abreviatura de este nodo (por ejemplo `hub_adstock`, `mediator_hub`). Las "
+"aristas discontinuas o punteadas marcan vínculos de medición o de "
+"indicadores."
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:10035
+#: f095cbf5638e4264adf7dbc8360740b3
+msgid "Building models from YAML (focus of this notebook)"
+msgstr "Construcción de modelos a partir de YAML (enfoque de este cuaderno)"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:10037
+#: a3a25bbcd0e544dd8ca91c6b25288272
+#, python-brace-format
+msgid ""
+"If YAML-based MMMs are new to you, start with "
+"{ref}`mmm_build_from_yml_example`. That example is the baseline: every "
+"spend column under `channel_columns`, standard adstock and saturation, "
+"and `build_mmm_from_yaml` on a tabular `X` — a flat causal graph where "
+"each channel points straight at the target."
+msgstr ""
+"Si los MMM basados en YAML son nuevos para usted, comience con "
+"{ref}`mmm_build_from_yml_example`. Ese ejemplo es la línea base: cada "
+"columna de gasto bajo `channel_columns`, adstock y saturación estándar, y "
+"`build_mmm_from_yaml` sobre una `X` tabular, es decir, un grafo causal plano"
+" en el que cada canal apunta directamente al objetivo."
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:10039
+#: b48ff61a5cd84e0faec62322bcb51f75
+msgid ""
+"**This notebook keeps the same builder** and shows what changes when the "
+"graph is not flat:"
+msgstr ""
+"**Este cuaderno mantiene el mismo constructor** y muestra qué cambia cuando "
+"el grafo no es plano:"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:10041
+#: 1cad391f635e4736bdc4179f2a49ccc1
+msgid "`effects:` entries that reference custom `MuEffect` subclasses"
+msgstr ""
+"entradas `effects:` que hacen referencia a subclases personalizadas de "
+"`MuEffect`"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:10042
+#: 147000188a864b95bae2f86725c6788a
+msgid ""
+"`extra_vars` for columns that are not channels or controls but must still"
+" reach the model graph (for example mediator indicators)"
+msgstr ""
+"`extra_vars` para las columnas que no son canales ni controles pero que aun "
+"así deben llegar al grafo del modelo (por ejemplo, los indicadores de los "
+"mediadores)"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:10044
+#: 0909cbe3538c433fbf12320ad53b68c3
+msgid ""
+"You will see **one naive flat baseline**, then **the two funnel "
+"topologies** introduced above, each expressed as YAML beside its causal "
+"DAG and PyMC graph. Placeholder `X` / `y` supply the right columns and "
+"dimensions; nothing is fit here."
+msgstr ""
+"Verá **una línea base plana e ingenua** y luego **las dos topologías de "
+"embudo** presentadas arriba, cada una expresada en YAML junto a su DAG "
+"causal y su grafo de PyMC. Los marcadores de posición `X` / `y` proporcionan"
+" las columnas y dimensiones correctas; aquí no se ajusta nada."
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:10046
+#: 2de4f930131f4b58b75499ebb8ce1af8
+msgid "Every example below follows the same loop:"
+msgstr "Cada ejemplo siguiente sigue el mismo ciclo:"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:10048
+#: 124d9492e86645f5a783b7027ae78808
+msgid ""
+"**Causal DAG** — the claims the specification makes about the world "
+"(hand-drawn for now; see issue #2886)"
+msgstr ""
+"**DAG causal** — las afirmaciones que la especificación hace sobre el mundo "
+"(dibujado a mano por ahora; véase el issue #2886)"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:10049
+#: e44843ecd7854472aa5900d29d0154a9
+msgid ""
+"**Effect class** — the `MuEffect` subclass that builds that subgraph "
+"(defined beside this notebook, not in the library yet)"
+msgstr ""
+"**Clase de efecto** — la subclase de `MuEffect` que construye ese subgrafo "
+"(definida junto a este cuaderno, todavía no en la biblioteca)"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:10050
+#: 26df3a81997a4feda6548b31bba55fe3
+msgid "**YAML** — the configuration file referencing the class through `REGISTRY`"
+msgstr ""
+"**YAML** — el archivo de configuración que hace referencia a la clase a "
+"través de `REGISTRY`"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:10051
+#: d2f77e00180641a2b18f298530b54e4c
+msgid "**PyMC graph** — the computational graph `build_mmm_from_yaml` produces"
+msgstr ""
+"**Grafo de PyMC** — el grafo computacional que produce `build_mmm_from_yaml`"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:20002
+#: b7510b5f856945a28e0898049d944861
+msgid "First some notebook setup:"
+msgstr "Primero, la configuración del cuaderno:"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:40002
+#: e4d512e798314d50818a35d5652348c5
+msgid "And we'll define some helper functions:"
+msgstr "Y definiremos algunas funciones auxiliares:"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:60002
+#: cda6ff62edd1435b92a9c9e924a4ccc3
+msgid "Finally, we'll create some placeholder data:"
+msgstr "Por último, crearemos algunos datos de marcador de posición:"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:80002
+#: 08b023381e904979b6dc64cfa142869f
+msgid "Naive baseline — everything is a direct channel"
+msgstr "Línea base ingenua — todo es un canal directo"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:80004
+#: 936c206735f24774b7d49fe77d840ce8
+msgid ""
+"The simplest YAML pattern lists every spend column under "
+"`channel_columns`. That is easy to write, but the implied causal graph is"
+" flat: each channel points straight at the target with no mediation."
+msgstr ""
+"El patrón YAML más simple enumera cada columna de gasto bajo "
+"`channel_columns`. Es fácil de escribir, pero el grafo causal implícito es "
+"plano: cada canal apunta directamente al objetivo sin mediación."
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:80006
+#: b40684b61a104c84aa6260849ee6c8fd
+msgid ""
+"We keep **one** such example here as a contrast point. The funnel "
+"sections below need custom effect classes because this baseline cannot "
+"express their structure."
+msgstr ""
+"Mantenemos **un** ejemplo de este tipo como punto de contraste. Las "
+"secciones de embudo siguientes necesitan clases de efecto personalizadas "
+"porque esta línea base no puede expresar su estructura."
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:90002
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:150008
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:230006
+#: 628887927c884f0eb6b060158b8299b9 a189b44a8be64ae3818e7bc3983381b8
+#: f75f2e62732a4340a6345da6b11526ad
+msgid "Causal DAG"
+msgstr "DAG causal"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:110002
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:190002
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:290002
+#: acf7e2522e5b46208cabbac6363b0915 e9a8686db1874728904adcd0812837d6
+#: ee0aaf35c0b844fd865f8af0944347dc
+msgid "YAML"
+msgstr "YAML"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:120002
+#: b07e0c8414a94656a404939d0181a421
+msgid "**`funnel_intro_naive_a.yml`**"
+msgstr "**`funnel_intro_naive_a.yml`**"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:130002
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:210002
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:310002
+#: 1852512a38744ff3b5cb7cad2d18f077 3e6024d2f7f345b497f8386f75758f62
+#: 63794c6428d4469b9a5292100d4b06d6
+msgid "PyMC graph"
+msgstr "Grafo de PyMC"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:140002
+#: 039604d91f2a412a9283912e655522b4
+msgid "**Naive baseline** — PyMC graph"
+msgstr "**Línea base ingenua** — grafo de PyMC"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:150002
+#: 3032ea9ace014342b3ffd33272945453
+msgid "Part 1 — National funnel"
+msgstr "Parte 1 — Embudo nacional"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:150004
+#: e13224a1a38c41b98890593fd04a82ee
+#, python-brace-format
+msgid ""
+"{ref}`mmm_funnel_mueffect` encodes upper spend driving an **unobserved "
+"demand mediator** (**D** in the DAG below), with observed lower spend as "
+"a noisy proxy. The target receives both a direct upper-funnel path (base "
+"`MMM`) and an indirect path through that mediator "
+"(`MeasuredMediatorEffect`)."
+msgstr ""
+"{ref}`mmm_funnel_mueffect` codifica un gasto superior que impulsa un "
+"**mediador de demanda no observado** (**D** en el DAG siguiente), con el "
+"gasto inferior observado como proxy ruidoso. El objetivo recibe tanto una "
+"ruta directa desde la parte superior del embudo (el `MMM` base) como una "
+"ruta indirecta a través de ese mediador (`MeasuredMediatorEffect`)."
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:150006
+#: 8f644bf9b22948978d76a94adce881ab
+msgid ""
+"This is the first topology where the naive YAML path is not enough. You "
+"need **two artifacts written together**: a custom `MuEffect` subclass "
+"(the subgraph in Python) and a YAML file whose `effects:` block names "
+"that class and passes kwargs that match its fields. The class decides "
+"*what* can be configured and *which* columns the subgraph reads; the YAML"
+" decides *how* each knob is instantiated (adstock class, `l_max`, "
+"prefixes, and so on). Part 2 reuses the same pairing with a different "
+"class."
+msgstr ""
+"Esta es la primera topología en la que la vía YAML ingenua no es suficiente."
+" Necesita **dos artefactos escritos en conjunto**: una subclase "
+"personalizada de `MuEffect` (el subgrafo en Python) y un archivo YAML cuyo "
+"bloque `effects:` nombra esa clase y pasa kwargs que coinciden con sus "
+"campos. La clase decide *qué* se puede configurar y *qué* columnas lee el "
+"subgrafo; el YAML decide *cómo* se instancia cada control (clase de adstock,"
+" `l_max`, prefijos, etc.). La Parte 2 reutiliza el mismo emparejamiento con "
+"una clase distinta."
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:170002
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:270002
+#: 7933579511c346a5858d641631398b5d a2bd20a0035b4c2693fb857cbc84d8ac
+msgid "Effect class"
+msgstr "Clase de efecto"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:170004
+#: 26ab0b2ec82b4b9f8e47903a0066854f
+msgid ""
+"`MeasuredMediatorEffect` is the class we need to build this structure: "
+"one unobserved mediator (**D**), one measurement (**D → M**), and a "
+"mediated contribution into `μ` (**D → Y**). Direct **U → Y** paths stay "
+"in base `MMM` via `channel_columns`."
+msgstr ""
+"`MeasuredMediatorEffect` es la clase que necesitamos para construir esta "
+"estructura: un mediador no observado (**D**), una medición (**D → M**) y una"
+" contribución mediada hacia `μ` (**D → Y**). Las rutas directas **U → Y** "
+"permanecen en el `MMM` base mediante `channel_columns`."
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:170006
+#: b3347172eeb74965b335fbd2110c4a2b
+msgid ""
+"Register the class on `REGISTRY` so `build_mmm_from_yaml` can resolve the"
+" name in YAML. Each Pydantic field on the class (`hub_adstock`, "
+"`data_vars`, …) is a slot the YAML file must fill (or inherit defaults "
+"for). Change the causal graph — add a parent, a measurement, a new column"
+" — in Python; change adstock lengths, transformation classes, or variable"
+" prefixes in YAML."
+msgstr ""
+"Registre la clase en `REGISTRY` para que `build_mmm_from_yaml` pueda "
+"resolver el nombre en el YAML. Cada campo de Pydantic de la clase "
+"(`hub_adstock`, `data_vars`, …) es un espacio que el archivo YAML debe "
+"completar (o para el que debe heredar valores predeterminados). Cambie el "
+"grafo causal (agregar un padre, una medición, una columna nueva) en Python; "
+"cambie las longitudes de adstock, las clases de transformación o los "
+"prefijos de las variables en el YAML."
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:170008
+#: b4fcd3c9493046efbd37502f0abc67c1
+msgid ""
+"The kwargs table maps **YAML keys → subgraph edges**. Names prefixed with"
+" `hub_` refer to the unobserved mediator **D** (see the terminology note "
+"in the introduction):"
+msgstr ""
+"La tabla de kwargs asigna **claves de YAML → aristas del subgrafo**. Los "
+"nombres con prefijo `hub_` se refieren al mediador no observado **D** "
+"(consulte la nota terminológica de la introducción):"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:10031
+#: 2d669c63de01469ab125b085b6c6ffa6 57ecb95429684b1ab4806c720e9b7c95
+msgid "Kwarg"
+msgstr "Kwarg"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:10031
+#: 2b6c0f2ceb2e4843acd9c9f3adeaf1fa c0a62ca53767429abe240a46e003ce93
+msgid "Subgraph edge"
+msgstr "Arista del subgrafo"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:10031
+#: d05d3376e8fa4d948402ef55f6fb76c3
+msgid "`hub_adstock`, `hub_saturation`"
+msgstr "`hub_adstock`, `hub_saturation`"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:10031
+#: 08497f1b82e948968fc603a7ef641f5e
+msgid "parent **U → D** (into the mediator)"
+msgstr "padre **U → D** (hacia el mediador)"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:10031
+#: 8f11538fca014059b6344bbee59c261c
+msgid "`contribution_adstock`, `contribution_saturation`"
+msgstr "`contribution_adstock`, `contribution_saturation`"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:10031
+#: 4a37518f59a740f688553d5871335ee5
+msgid "**D → μ**"
+msgstr "**D → μ**"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:190004
+#: 7cbf33056b46499e9f8d4cf43a83270c
+msgid ""
+"`funnel_intro.yml` is the other half of the spec. The `effects:` entry "
+"must use the **same class name** as on `REGISTRY` "
+"(`MeasuredMediatorEffect`). Every key under `kwargs:` corresponds to a "
+"field on that class — unknown keys or missing required fields fail at "
+"build time."
+msgstr ""
+"`funnel_intro.yml` es la otra mitad de la especificación. La entrada "
+"`effects:` debe usar el **mismo nombre de clase** que en `REGISTRY` "
+"(`MeasuredMediatorEffect`). Cada clave bajo `kwargs:` corresponde a un campo"
+" de esa clase; las claves desconocidas o los campos obligatorios que falten "
+"provocan un error en el momento de la construcción."
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:190006
+#: 3f42203d493649399559202d639e398e
+msgid ""
+"`extra_vars` must list every column in the class's `data_vars` "
+"(`lower_spend`, `lower_control`). Those columns are not in "
+"`channel_columns` or control columns, but the effect still reads them "
+"from the xarray Dataset built from `X`."
+msgstr ""
+"`extra_vars` debe enumerar cada columna de `data_vars` de la clase "
+"(`lower_spend`, `lower_control`). Esas columnas no están en "
+"`channel_columns` ni en las columnas de control, pero el efecto igualmente "
+"las lee del Dataset de xarray construido a partir de `X`."
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:190008
+#: 4ea7add8b4884a7683f8e43a0d7e5438
+msgid ""
+"As things stand, you cannot read this YAML in isolation and recover the "
+"causal DAG above. The file names transformations and columns, not claims "
+"about **D**, measurement links, or which paths are direct vs mediated. It"
+" is the **combination** of `MeasuredMediatorEffect` (which encodes that "
+"structure in code) and this YAML configuration (which selects how each "
+"subgraph piece is built) that fully specifies the model "
+"`build_mmm_from_yaml` assembles."
+msgstr ""
+"Tal como están las cosas, no se puede leer este YAML de forma aislada y "
+"recuperar el DAG causal de arriba. El archivo nombra transformaciones y "
+"columnas, no afirmaciones sobre **D**, los vínculos de medición o cuáles "
+"rutas son directas y cuáles mediadas. Es la **combinación** de "
+"`MeasuredMediatorEffect` (que codifica esa estructura en código) y esta "
+"configuración YAML (que selecciona cómo se construye cada pieza del "
+"subgrafo) la que especifica por completo el modelo que ensambla "
+"`build_mmm_from_yaml`."
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:200002
+#: 5bf5c35546dd4632947db344e64e44fb
+msgid "**`funnel_intro.yml`**"
+msgstr "**`funnel_intro.yml`**"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:220002
+#: 19f56aaa16674036840ae7de626bcebf
+msgid "**National funnel** — PyMC graph"
+msgstr "**Embudo nacional** — grafo de PyMC"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:230002
+#: 24ea099790d34c66a0e3d35b7271c62b
+msgid "Part 2 — Geo panel funnel"
+msgstr "Parte 2 — Embudo con panel geográfico"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:230004
+#: 3a58e698ca584d19aedaa4687ef24cf2
+#, python-brace-format
+msgid ""
+"The advanced topology from {ref}`mmm_funnel_mueffect_advanced` is **not**"
+" the national graph with a `geo` dimension bolted on. It adds category "
+"demand, a budget-linked structural spend node, **two** indicator "
+"likelihoods, and routes the mediated contribution through that spend node"
+" rather than through demand directly."
+msgstr ""
+"La topología avanzada de {ref}`mmm_funnel_mueffect_advanced` **no** es el "
+"grafo nacional con una dimensión `geo` añadida a la fuerza. Incorpora la "
+"demanda de la categoría, un nodo de gasto estructural vinculado al "
+"presupuesto, **dos** verosimilitudes de indicadores, y hace pasar la "
+"contribución mediada por ese nodo de gasto en lugar de hacerlo directamente "
+"por la demanda."
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:250002
+#: 288c3e3facc24f0da78c3a4161315bee
+msgid ""
+"Placeholder panel data with geo, channel, and lower-funnel columns "
+"referenced by `extra_vars`."
+msgstr ""
+"Datos de panel de marcador de posición con las columnas de geografía, canal "
+"y parte inferior del embudo a las que hace referencia `extra_vars`."
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:270004
+#: fe6bc529b01a40f89a48d452688b3a7f
+msgid ""
+"`BudgetDualIndicatorEffect` matches this **different** subgraph: the "
+"unobserved mediator **D** feeds structural spend through a budget term, "
+"lower spend measures that spend node (not **D**), search volume is a "
+"second indicator on **D**, and the mediated contribution routes through "
+"spend."
+msgstr ""
+"`BudgetDualIndicatorEffect` corresponde a este subgrafo **distinto**: el "
+"mediador no observado **D** alimenta el gasto estructural a través de un "
+"término de presupuesto, el gasto inferior mide ese nodo de gasto (no **D**),"
+" el volumen de búsqueda es un segundo indicador de **D**, y la contribución "
+"mediada pasa por el gasto."
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:270006
+#: c7e61d09a9ae485e9739531b2bee0f0a
+msgid "As in Part 1, `hub_`-prefixed kwargs target the unobserved mediator **D**:"
+msgstr ""
+"Como en la Parte 1, los kwargs con prefijo `hub_` apuntan al mediador no "
+"observado **D**:"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:10031
+#: 46a3d1399ff34779b495ddd4a0578ff4
+msgid "`hub_input_transform`"
+msgstr "`hub_input_transform`"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:10031
+#: 7fa6b94f5e4b4529a5a1fac924f4e34b
+msgid "channel parents **→ D** (into the mediator)"
+msgstr "padres del canal **→ D** (hacia el mediador)"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:10031
+#: 5eada19ee0dc447ebcd98001424e4cf5
+msgid "`contribution_transform`"
+msgstr "`contribution_transform`"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:10031
+#: cf5453fe86de44f6b769cb09400b17ff
+msgid "structural spend **→ μ**"
+msgstr "gasto estructural **→ μ**"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:290004
+#: 8078444138a84c729fae4ed4ecab49d1
+msgid ""
+"Same pattern: `extra_vars` carries lower-funnel and structural columns "
+"that `BudgetDualIndicatorEffect` reads from the Dataset."
+msgstr ""
+"Mismo patrón: `extra_vars` contiene las columnas de la parte inferior del "
+"embudo y las estructurales que `BudgetDualIndicatorEffect` lee del Dataset."
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:300002
+#: 72a666b1035e4fa5b1e9a03586db2d56
+msgid "**`funnel_advanced.yml`**"
+msgstr "**`funnel_advanced.yml`**"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:320002
+#: 131018947f284184b93b3919ea085fe2
+msgid "**Geo panel funnel** — PyMC graph"
+msgstr "**Embudo con panel geográfico** — grafo de PyMC"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:330002
+#: 901424f6da3d468a8fc869a924b35fa9
+msgid "Summary"
+msgstr "Resumen"
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:330004
+#: 15bedf26dd9c4b2a89afcd91e1d79aae
+msgid ""
+"A flat YAML spec (`channel_columns` only) implies a direct-effects DAG — "
+"useful as a baseline, but it cannot represent mediated funnel structure."
+msgstr ""
+"Una especificación YAML plana (solo `channel_columns`) implica un DAG de "
+"efectos directos: es útil como línea base, pero no puede representar la "
+"estructura mediada de un embudo."
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:330005
+#: 132e56379a5f453c9ac744787ae7d0aa
+msgid ""
+"Funnel specs extend the builder with `effects:` and `extra_vars`. Class "
+"names (`MeasuredMediatorEffect`, `BudgetDualIndicatorEffect`) describe "
+"**subgraph topology**; “funnel” remains the **use case** in DAGs and "
+"narrative."
+msgstr ""
+"Las especificaciones de embudo extienden el constructor con `effects:` y "
+"`extra_vars`. Los nombres de clase (`MeasuredMediatorEffect`, "
+"`BudgetDualIndicatorEffect`) describen la **topología del subgrafo**; "
+"“embudo” sigue siendo el **caso de uso** en los DAG y en la narración."
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:330006
+#: 719d602e36b54a99a31a2bc727d028ab
+#, python-brace-format
+msgid ""
+"The repeatable loop is **causal DAG → effect class → YAML → PyMC graph**."
+" Fitting, priors, and ROAS interpretation stay in "
+"{ref}`mmm_funnel_mueffect` and {ref}`mmm_funnel_mueffect_advanced`."
+msgstr ""
+"El ciclo repetible es **DAG causal → clase de efecto → YAML → grafo de "
+"PyMC**. El ajuste, los priors y la interpretación del ROAS permanecen en "
+"{ref}`mmm_funnel_mueffect` y {ref}`mmm_funnel_mueffect_advanced`."
+
+#: ../source/notebooks/mmm/mmm_funnel_from_yml.ipynb:330009
+#: 8d3f123838614bec85c6679697135aa4
+msgid ""
+"In your own domain: which spend columns are true channels versus noisy "
+"proxies for unobserved demand? That distinction is exactly what these "
+"effect classes encode — and why one misnamed “FunnelEffect” was never "
+"going to cover every DAG."
+msgstr ""
+"En su propio dominio: ¿qué columnas de gasto son canales reales y cuáles son"
+" proxies ruidosos de una demanda no observada? Esa distinción es exactamente"
+" lo que codifican estas clases de efecto, y la razón por la que un "
+"“FunnelEffect” mal nombrado nunca iba a cubrir todos los DAG."
+
