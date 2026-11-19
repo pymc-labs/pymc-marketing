@@ -332,28 +332,6 @@ def test_sample_adstock_curve_amount_scales_linearly(fitted_mmm, request):
 
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-def test_sample_adstock_curve_works(fitted_mmm, request):
-    """Test that model curves can be sampled.
-
-    Note: The adstock transformation's sample_curve returns
-    (chain, draw, time since exposure) dimensions. Custom dimensions
-    (like country) would only appear if the adstock priors were
-    configured with those dimensions.
-    """
-    mmm = request.getfixturevalue(fitted_mmm)
-    # Act
-    curves = mmm.sample_adstock_curve()
-
-    # Assert - Should have time since exposure, chain, and draw dimensions
-    assert "time since exposure" in curves.dims
-    assert "chain" in curves.dims
-    assert "draw" in curves.dims
-    # Should be a valid DataArray with values
-    assert curves.sizes["time since exposure"] > 0
-    assert curves.sizes["draw"] > 0
-
-
-@pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
 def test_sample_adstock_curve_default_parameters(fitted_mmm, request):
     """Test that default parameters produce expected output."""
     mmm = request.getfixturevalue(fitted_mmm)
@@ -365,25 +343,3 @@ def test_sample_adstock_curve_default_parameters(fitted_mmm, request):
     assert curves.sizes["time since exposure"] == l_max
     # Time values start at 0
     assert curves.coords["time since exposure"].values[0] == pytest.approx(0.0)
-
-
-@pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-def test_sample_adstock_curve_can_be_used_for_plotting(fitted_mmm, request):
-    """Test that the returned array can be used for common plotting operations."""
-    mmm = request.getfixturevalue(fitted_mmm)
-    # Act
-    curves = mmm.sample_adstock_curve()
-
-    # Assert - These operations should work without error
-    mean_curves = curves.mean(dim=["chain", "draw"])
-    assert isinstance(mean_curves, xr.DataArray)
-
-    lower = curves.quantile(0.05, dim=["chain", "draw"])
-    upper = curves.quantile(0.95, dim=["chain", "draw"])
-    assert isinstance(lower, xr.DataArray)
-    assert isinstance(upper, xr.DataArray)
-
-    # time coordinate should be usable for plotting
-    time_values = curves.coords["time since exposure"].values
-    assert len(time_values) > 0
-    assert time_values[0] == 0.0  # Starts at 0

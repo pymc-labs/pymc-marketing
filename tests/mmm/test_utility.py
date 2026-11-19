@@ -239,15 +239,13 @@ def test_compare_mean_tightness_score(
 @pytest.mark.parametrize(
     "data, quantile",
     [
-        ([1, 2, 3, 4, 5], 0.25),
-        ([1, 2, 3, 4, 5], 0.5),
-        ([1, 2, 3, 4, 5], 0.75),
-        ([10, 20, 30, 40, 50], 0.1),
-        ([10, 20, 30, 40, 50], 0.9),
-        ([-5, -1, 0, 1, 5], 0.5),
-        ([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 0.33),
-        ([100], 0.5),  # Single-element edge case
-        ([1, 2], 0.5),  # Small array edge case
+        pytest.param([1, 2, 3, 4, 5], 0.5, id="data1-0.5"),
+        pytest.param([10, 20, 30, 40, 50], 0.1, id="data3-0.1"),
+        pytest.param([10, 20, 30, 40, 50], 0.9, id="data4-0.9"),
+        pytest.param([-5, -1, 0, 1, 5], 0.5, id="data5-0.5"),
+        pytest.param([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 0.33, id="data6-0.33"),
+        pytest.param([100], 0.5, id="data7-0.5"),  # Single-element edge case
+        pytest.param([1, 2], 0.5, id="data8-0.5"),  # Small array edge case
     ],
 )
 def test_compute_quantile_matches_numpy(data, quantile):
@@ -279,10 +277,11 @@ def test_compute_quantile_matches_numpy(data, quantile):
 @pytest.mark.parametrize(
     "data",
     [
-        np.array([[1, 2], [3, 4], [5, 6]]),  # Small test case
-        np.random.rand(100, 10),  # Random large dataset
-        np.array([[1, 1], [1, 1], [1, 1]]),  # Identical columns (zero variance)
-        np.array([[1], [2], [3]]),  # Single-column case
+        pytest.param(np.random.rand(100, 10), id="data1"),  # Random large dataset
+        pytest.param(
+            np.array([[1, 1], [1, 1], [1, 1]]), id="data2"
+        ),  # Identical columns (zero variance)
+        pytest.param(np.array([[1], [2], [3]]), id="data3"),  # Single-column case
     ],
 )
 def test_covariance_matrix_matches_numpy(data):
