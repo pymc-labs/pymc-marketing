@@ -3439,10 +3439,13 @@ def test_monthly_incrementality_evaluates_a_reduced_date_variable(
 def test_incrementality_on_a_classic_random_variable(
     fit_mmm_with_effect, scalar, frequency
 ):
-    """An effect's variable declared with ``pymc`` is conditioned on its draws.
+    """A request runs on an effect whose variable is declared with ``pymc``.
 
     The extraction used to replace it with an xtensor, which raised
-    ``AttributeError: 'TensorType' object has no attribute 'dims'`` (#3398).
+    ``AttributeError: 'TensorType' object has no attribute 'dims'`` (#3398).  The
+    level is additive, so it cancels in the increment: this checks only that the
+    request runs.  ``test_yearly_incrementality_on_a_variable_that_scales_spend``
+    checks the values.
     """
     mmm = fit_mmm_with_effect(_ClassicLevelEffect(scalar=scalar))
 
@@ -3461,7 +3464,9 @@ def test_budget_objective_through_a_classic_random_variable_is_optimized(
 
     The variable is one value for every date, so it can be evaluated on the
     optimizer's window.  Every way of building the optimizer reaches the same
-    extraction, which used to raise on it (#3398).
+    extraction, which used to raise on it (#3398).  A constant level does not
+    change the allocation, and the budget constraint fixes the total, so this
+    checks only that the optimization runs and returns a finite response.
     """
     X, y = single_dim_data
     mmm = _mmm_with_effects(_ClassicLevelEffect(scalar=True))
@@ -3476,18 +3481,22 @@ def test_budget_objective_through_a_classic_random_variable_is_optimized(
     )
 
     np.testing.assert_allclose(result.budgets.sum(), 10.0)
+    assert np.isfinite(result.scipy_result.fun)
 
 
 class _ScaledByDateLevelEffect(_ZeroEffect):
     """A free random variable over the dates that scales the channel contribution.
 
     With ``walk``, the variable holds the steps of a random walk, and the walk, their
-    cumulative sum over ``date``, is a Deterministic whether frozen or not.
+    cumulative sum over ``date``, is a Deterministic whether frozen or not.  With
+    ``classic``, the variable is declared with ``pymc`` and wrapped with
+    ``as_xtensor``.
     """
 
     prefix: str = "scaled"
     walk: bool = False
     freeze: bool = False
+    classic: bool = False
 
     def incrementality_spec(self) -> IncrementalitySpec:
         """Opt in: the effect reads the channel contribution."""
@@ -3506,35 +3515,52 @@ class _ScaledByDateLevelEffect(_ZeroEffect):
 
     def create_effect(self, mmm):
         """The channel contribution, times one free value per date or their walk."""
-        level = pmd.Normal(f"{self.prefix}_level", mu=1.0, sigma=0.5, dims="date")
+        name = f"{self.prefix}_level"
+        if self.classic:
+            level = as_xtensor(
+                pm.Normal(name, mu=1.0, sigma=0.5, dims="date"), dims=("date",)
+            )
+        else:
+            level = pmd.Normal(name, mu=1.0, sigma=0.5, dims="date")
         if self.walk:
             level = pmd.Deterministic(f"{self.prefix}_walk", level.cumsum("date"))
         contribution = mmm.model["channel_contribution"].sum("channel")
         return pmd.Deterministic(self.contribution_var_name, level * contribution)
 
 
+@pytest.mark.parametrize("classic", [False, True], ids=["dims", "classic"])
 @pytest.mark.parametrize("walk", [False, True], ids=["level", "random-walk"])
-def test_yearly_incrementality_on_a_variable_that_scales_spend(mock_pymc_sample, walk):
+def test_yearly_incrementality_on_a_variable_that_scales_spend(
+    mock_pymc_sample, walk, classic
+):
     """Unfrozen, a variable that scales spend gives the increments of its frozen path.
 
     The first year's window spans every fitted date and the second is padded to the
     same length, so no shape fails.  Unfrozen, the variable holds its draws over all
     fitted dates and every period is evaluated on the full date axis, with the
     horizon the probe measured.  Frozen at the path where it meets spend, it is cut
-    to each window.
+    to each window.  A variable declared with ``pymc`` gets the same draws from the
+    mock sampler, so its increments must equal those of the frozen ``pymc.dims``
+    path, which does not go through the classic branch of the extraction.  An
+    additive variable could not show this, since it cancels in the increment
+    (#3398).
     """
     from tests.mmm.conftest import _make_mmm_data
 
     data = _make_mmm_data(periods=18, freq="MS", n_channels=3, seed=99)
 
-    def yearly(freeze: bool) -> tuple[xr.DataArray, xr.Dataset]:
+    def yearly(
+        freeze: bool, classic: bool = classic
+    ) -> tuple[xr.DataArray, xr.Dataset]:
         mmm = MMM(
             date_column="date",
             target_column="target",
             channel_columns=["channel_1", "channel_2", "channel_3"],
             adstock=GeometricAdstock(l_max=6),
             saturation=LogisticSaturation(),
-        ).add_mu_effect(_ScaledByDateLevelEffect(walk=walk, freeze=freeze))
+        ).add_mu_effect(
+            _ScaledByDateLevelEffect(walk=walk, freeze=freeze, classic=classic)
+        )
         mmm.fit(data["X"], data["y"], draws=50, chains=1, random_seed=42)
         incrementality = mmm.incrementality
         return (
@@ -3556,6 +3582,11 @@ def test_yearly_incrementality_on_a_variable_that_scales_spend(mock_pymc_sample,
     )
     assert json.loads(unfrozen_split.attrs["assumptions"])["evaluation"] == "full_axis"
     assert "'scaled_level'" in unfrozen_split.attrs["warnings"]
+
+    if classic:
+        reference, reference_split = yearly(freeze=True, classic=False)
+        np.testing.assert_allclose(unfrozen, reference.transpose(*unfrozen.dims))
+        xr.testing.assert_allclose(unfrozen_split, reference_split)
 
 
 def test_no_full_axis_warning_where_the_mode_uses_the_full_axis_anyway(

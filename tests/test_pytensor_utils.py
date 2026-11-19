@@ -1436,6 +1436,44 @@ def test_extract_response_distribution_reads_a_classic_variable_by_dim_name(
 
 
 @pytest.mark.parametrize("make_shared_posterior", POSTERIOR_PATHS)
+def test_extract_response_distribution_reads_a_frozen_classic_deterministic_by_dim_name(
+    make_shared_posterior,
+):
+    """A frozen ``pm.Deterministic`` is bound as a plain tensor too, by dim name.
+
+    ``path`` is declared with ``pymc`` as ``(date, channel)`` and frozen, and the
+    posterior stores it as ``(channel, date)``.  The variable it is computed from
+    has zero draws, so only the frozen draws, read in the declared order, give
+    the expected values.
+    """
+    dates, channels = [0, 1, 2], ["a", "b"]
+    with pm.Model(coords={"date": dates, "channel": channels}) as model:
+        lam = pm.Normal("lam", dims=("date", "channel"))
+        path = pm.Deterministic("path", lam * 1.0, dims=("date", "channel"))
+        pmd.Deterministic(
+            "doubled", 2.0 * ptx.as_xtensor(path, dims=("date", "channel"))
+        )
+
+    values = np.arange(6.0).reshape(3, 2)  # date x channel
+    posterior = xr.Dataset(
+        {
+            "lam": (("chain", "draw", "date", "channel"), np.zeros((1, 1, 3, 2))),
+            "path": (("chain", "draw", "channel", "date"), values.T[None, None]),
+        },
+        coords={"date": dates, "channel": channels},
+    )
+    graph = extract_response_distribution(
+        model,
+        posterior,
+        "doubled",
+        frozen_deterministics=["path"],
+        shared_posterior=make_shared_posterior(),
+    )
+
+    np.testing.assert_allclose(function([], graph)(), 2.0 * values[None])
+
+
+@pytest.mark.parametrize("make_shared_posterior", POSTERIOR_PATHS)
 def test_extract_response_distribution_mixes_classic_and_dims_variables(
     make_shared_posterior,
 ):
