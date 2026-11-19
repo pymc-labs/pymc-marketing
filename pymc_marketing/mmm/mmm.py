@@ -2194,10 +2194,7 @@ class MMM(RegressionModelBuilder):
         substituted directly.
 
         They include the names each mu effect declares through
-        :attr:`MuEffect.frozen_deterministics`.  Once the model is built, a
-        Deterministic that only renames a free random variable is replaced by
-        that variable's name: PyMC drops the view when it clones the model, so a
-        cloned graph reads the variable, not the Deterministic.
+        :attr:`MuEffect.frozen_deterministics`.
         """
         names: list[str] = []
         if self.time_varying_intercept:
@@ -2214,15 +2211,7 @@ class MMM(RegressionModelBuilder):
             # A duck-typed effect, which the additive-effect module allows, may not
             # define the hook.
             names.extend(getattr(effect, "frozen_deterministics", []))
-        if not hasattr(self, "model"):
-            return names
-        free_rvs = set(self.model.free_RVs)
-        renamed = {
-            det.name: det.owner.inputs[0].name
-            for det in self.model.deterministics
-            if det.owner.inputs[0] in free_rvs
-        }
-        return [renamed.get(name, name) for name in names]
+        return names
 
     def _validate_idata_exists(self) -> None:
         """Validate that the idata exists."""
