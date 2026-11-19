@@ -1397,6 +1397,79 @@ def test_shared_posterior_aligns_coordinates_on_rebind():
     assert "1 not bound, 1 missing" in str(info.value)
 
 
+POSTERIOR_PATHS = [
+    pytest.param(lambda: None, id="constant"),
+    pytest.param(SharedPosterior, id="shared"),
+]
+
+
+@pytest.mark.parametrize("make_shared_posterior", POSTERIOR_PATHS)
+def test_extract_response_distribution_reads_a_classic_variable_by_dim_name(
+    make_shared_posterior,
+):
+    """A classic random variable over two dims is read by dim name, not position.
+
+    ``lam`` is declared with ``pymc`` as ``(date, channel)``, and the posterior
+    stores it as ``(channel, date)``.  A classic variable is bound as a plain
+    tensor, which is read by axis position, so the draws have to be put in the
+    variable's own axis order first.  The dims have different lengths, so a
+    transposed read could not pass.
+    """
+    dates, channels = [0, 1, 2], ["a", "b"]
+    with pm.Model(coords={"date": dates, "channel": channels}) as model:
+        lam = pm.Normal("lam", dims=("date", "channel"))
+        pmd.Deterministic(
+            "doubled", 2.0 * ptx.as_xtensor(lam, dims=("date", "channel"))
+        )
+
+    values = np.arange(6.0).reshape(3, 2)  # date x channel
+    posterior = xr.Dataset(
+        {"lam": (("chain", "draw", "channel", "date"), values.T[None, None])},
+        coords={"date": dates, "channel": channels},
+    )
+    graph = extract_response_distribution(
+        model, posterior, "doubled", shared_posterior=make_shared_posterior()
+    )
+
+    assert graph.type.dims == ("sample", "date", "channel")
+    np.testing.assert_allclose(function([], graph)(), 2.0 * values[None])
+
+
+@pytest.mark.parametrize("make_shared_posterior", POSTERIOR_PATHS)
+def test_extract_response_distribution_mixes_classic_and_dims_variables(
+    make_shared_posterior,
+):
+    """A classic and a ``pymc.dims`` variable share one ``sample`` dim.
+
+    The ``pymc.dims`` variable brings ``sample`` in as an xtensor dim and the
+    classic one as a tensor batch dim.  The two have to line up draw by draw,
+    not form two sample axes.
+    """
+    dates = [0, 1, 2]
+    with pm.Model(coords={"date": dates}) as model:
+        classic = pm.Normal("classic", dims="date")
+        dims = pmd.Normal("dims", dims="date")
+        pmd.Deterministic("total", ptx.as_xtensor(classic, dims=("date",)) + dims)
+
+    rng = np.random.default_rng(3398)
+    posterior = xr.Dataset(
+        {
+            name: (("chain", "draw", "date"), rng.normal(size=(2, 3, len(dates))))
+            for name in ("classic", "dims")
+        },
+        coords={"date": dates},
+    )
+    graph = extract_response_distribution(
+        model, posterior, "total", shared_posterior=make_shared_posterior()
+    )
+
+    stacked = posterior.stack(sample=("chain", "draw")).transpose("sample", "date")
+    assert graph.type.dims == ("sample", "date")
+    np.testing.assert_allclose(
+        function([], graph)(), (stacked["classic"] + stacked["dims"]).values
+    )
+
+
 def test_shared_posterior_realigns_permuted_multi_dim_variables():
     """A variable over two non-sample dims rebinds from a permuted, reordered layout.
 
