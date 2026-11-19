@@ -90,8 +90,10 @@ How it works
   introduce any needed ``pmd.Data``. Then ``create_effect`` must return a tensor with
   dims ``("date", *mmm.dims)`` that is added additively to the model mean.
 - Random variables in an effect may come from ``pymc.dims`` or from ``pymc``. Wrap a
-  ``pymc`` variable with ``as_xtensor`` and declare its ``dims``, so that analyses
-  conditioned on the posterior can match its draws to its axes by name.
+  ``pymc`` variable with ``as_xtensor``. Passing ``dims=`` to the ``pymc``
+  distribution lets analyses conditioned on the posterior read its draws by dim
+  name; without it they are read in storage order, which matches the axes for a
+  posterior from ``pm.sample``.
 - During posterior predictive, ``set_data`` is called with the cloned PyMC model
   and the new coordinates; update any ``pmd.Data`` you created using ``pm.set_data``.
 
