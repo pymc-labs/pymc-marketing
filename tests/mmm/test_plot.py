@@ -174,13 +174,13 @@ def test_contributions_over_time_with_dims_list(mock_suite: MMMPlotSuite):
 
 def test_contributions_over_time_with_multiple_dims_lists(mock_suite: MMMPlotSuite):
     """Test that passing multiple lists to dims creates a subplot for each combination."""
-    # Add a fake 'region' dim to the mock posterior for this test if not present
-    idata = mock_suite.idata
-    if "region" not in idata.posterior["intercept"].dims:
-        idata.posterior["intercept"] = idata.posterior["intercept"].expand_dims(
-            region=["X", "Y"]
-        )
-    fig, ax = mock_suite.contributions_over_time(
+    # Add a fake 'region' dim on a copy: the fixture is module-scoped, and
+    # later tests that read it must not see the extra dim.
+    idata = mock_suite.idata.copy()
+    idata.posterior["intercept"] = idata.posterior["intercept"].expand_dims(
+        region=["X", "Y"]
+    )
+    fig, ax = MMMPlotSuite(idata=idata).contributions_over_time(
         var=["intercept"],
         dims={"country": ["A", "B"], "region": ["X", "Y"]},
     )
@@ -651,21 +651,15 @@ class TestSaturationScatterplotDims:
         self, mock_suite_with_constant_data
     ):
         """Test saturation_scatterplot with multiple lists in dims (should create subplots for each combination)."""
-        # Add a fake 'region' dim to the mock constant_data for this test if not present
-        idata = mock_suite_with_constant_data.idata
-        if "region" not in idata.constant_data.channel_data.dims:
-            # Expand channel_data and posterior to add region
-            new_regions = ["X", "Y"]
-            channel_data = idata.constant_data.channel_data.expand_dims(
-                region=new_regions
-            )
-            idata.constant_data["channel_data"] = channel_data
-            for var in ["channel_contribution", "channel_contribution_original_scale"]:
-                if var in idata.posterior:
-                    idata.posterior[var] = idata.posterior[var].expand_dims(
-                        region=new_regions
-                    )
-        fig, axes = mock_suite_with_constant_data.saturation_scatterplot(
+        # Add a fake 'region' dim on a copy: the fixture is module-scoped, and
+        # later tests that read it must not see the extra dim.
+        idata = mock_suite_with_constant_data.idata.copy()
+        new_regions = ["X", "Y"]
+        channel_data = idata.constant_data.channel_data.expand_dims(region=new_regions)
+        idata.constant_data["channel_data"] = channel_data
+        for var in ["channel_contribution", "channel_contribution_original_scale"]:
+            idata.posterior[var] = idata.posterior[var].expand_dims(region=new_regions)
+        fig, axes = MMMPlotSuite(idata=idata).saturation_scatterplot(
             dims={"country": ["A", "B"], "region": ["X", "Y"]}
         )
         assert isinstance(fig, Figure)
@@ -825,21 +819,15 @@ class TestSaturationCurvesDims:
         self, mock_suite_with_constant_data, mock_saturation_curve
     ):
         """Test saturation_curves with multiple lists in dims (should create subplots for each combination)."""
-        # Add a fake 'region' dim to the mock constant_data for this test if not present
-        idata = mock_suite_with_constant_data.idata
-        if "region" not in idata.constant_data.channel_data.dims:
-            # Expand channel_data and posterior to add region
-            new_regions = ["X", "Y"]
-            channel_data = idata.constant_data.channel_data.expand_dims(
-                region=new_regions
-            )
-            idata.constant_data["channel_data"] = channel_data
-            for var in ["channel_contribution", "channel_contribution_original_scale"]:
-                if var in idata.posterior:
-                    idata.posterior[var] = idata.posterior[var].expand_dims(
-                        region=new_regions
-                    )
-        fig, axes = mock_suite_with_constant_data.saturation_curves(
+        # Add a fake 'region' dim on a copy: the fixture is module-scoped, and
+        # later tests that read it must not see the extra dim.
+        idata = mock_suite_with_constant_data.idata.copy()
+        new_regions = ["X", "Y"]
+        channel_data = idata.constant_data.channel_data.expand_dims(region=new_regions)
+        idata.constant_data["channel_data"] = channel_data
+        for var in ["channel_contribution", "channel_contribution_original_scale"]:
+            idata.posterior[var] = idata.posterior[var].expand_dims(region=new_regions)
+        fig, axes = MMMPlotSuite(idata=idata).saturation_curves(
             curve=mock_saturation_curve,
             n_samples=3,
             dims={"country": ["A", "B"], "region": ["X", "Y"]},
