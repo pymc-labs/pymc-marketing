@@ -307,6 +307,8 @@ class MediaConfig:
                     f"columns must contain only str column names, got {column!r} "
                     f"({type(column).__name__})."
                 )
+        # Plain str, so that ``to_dict()`` output also dumps to YAML for numpy string arrays.
+        self.columns = [str(column) for column in self.columns]
         if not self.columns:
             raise ValueError("columns must contain at least one column name.")
 

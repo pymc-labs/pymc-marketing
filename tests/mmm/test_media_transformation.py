@@ -439,4 +439,5 @@ def test_media_config_columns_stored_as_list(columns) -> None:
     )
 
     assert config.columns == ["tv", "radio"]
+    assert all(type(column) is str for column in config.columns)
     assert MediaConfig.from_dict(config.to_dict()) == config
