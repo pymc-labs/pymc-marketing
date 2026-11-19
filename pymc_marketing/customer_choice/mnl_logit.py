@@ -37,8 +37,6 @@ from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.names.customer_choice import Attr, Dim, Var
 from pymc_marketing.version import __version__
 
-HDI_ALPHA = 0.5
-
 
 @dataclass(frozen=True)
 class MNLogitPreprocessedData:

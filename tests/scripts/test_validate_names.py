@@ -21,6 +21,7 @@ import pytest
 # Add scripts to path for import
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "scripts"))
 
+import validate_names
 from validate_names import check_source, read_names
 
 NAMES = read_names()
@@ -67,42 +68,45 @@ def test_value_that_is_also_a_dim_gets_no_attribute_exemption() -> None:
 
 
 @pytest.mark.parametrize(
-    "expression", ['hasattr(obj, "date")', 'getattr(obj, "date", None)']
+    "expression, count",
+    [
+        ('hasattr(obj, "date")', 1),
+        ('getattr(obj, "date", None)', 1),
+        ('getattr(obj, "date")', 1),
+        ('obj.drop(columns=["date"], errors="ignore")', 1),
+        ('obj.transpose(dims=("date", "channel"), missing_dims="ignore")', 2),
+        ('obj.rename(index={"channel": "media"})', 1),
+        ('obj.setdefault("channel", [])', 1),
+        ('obj.drop(columns=["date"])', 1),
+        ('obj.rename({"date": "ds"})', 1),
+        ('obj.sum(dim="date")', 1),
+        ('obj.sum(dim=("control", "cv", "sweep"))', 3),
+    ],
 )
-def test_mmm_dim_in_a_silent_attribute_lookup_is_reported(expression) -> None:
-    assert len(problems(expression)) == 1
-
-
-def test_mmm_dim_in_getattr_without_default_raises_on_a_typo() -> None:
-    assert problems('getattr(obj, "date")') == []
+def test_mmm_dim_literal_is_reported_in_any_position(expression, count) -> None:
+    assert len(problems(expression)) == count
 
 
 @pytest.mark.parametrize(
-    "expression",
+    "expression, count, reported",
     [
-        'obj.drop(columns=["date"], errors="ignore")',
-        'obj.drop(columns="date", errors="ignore")',
-        'obj.transpose(dims=("date", "channel"), missing_dims="ignore")',
-        'obj.rename(columns={"date": "ds"})',
-        'obj.rename(index={"channel": "media"})',
-        'obj.setdefault("channel", [])',
+        ('obj.sum(dim="date")', 1, False),
+        ('obj.sum(dim="date") + obj.mean(dim="date")', 1, True),
+        ('obj.sum(dim="date")', 2, True),
     ],
 )
-def test_mmm_dim_where_pandas_or_a_dict_ignores_a_typo_is_reported(expression) -> None:
-    assert problems(expression)
-
-
-@pytest.mark.parametrize(
-    "expression",
-    [
-        'obj.drop(columns=["date"])',
-        'obj.rename(columns={"date": "ds"}, errors="raise")',
-        'obj.rename({"date": "ds"})',
-        'obj.sum(dim="date")',
-    ],
-)
-def test_mmm_dim_where_a_typo_raises_keeps_the_literal(expression) -> None:
-    assert problems(expression) == []
+def test_allowed_entry_matches_its_count_only(
+    monkeypatch, expression, count, reported
+) -> None:
+    monkeypatch.setitem(
+        validate_names.ALLOWED, "mmm/example.py", {"date": ("reason", count)}
+    )
+    found = problems(expression)
+    assert len(found) == int(reported)
+    assert all(
+        "(lines 2" in problem and f"ALLOWED lists {count}" in problem
+        for problem in found
+    )
 
 
 @pytest.mark.parametrize(

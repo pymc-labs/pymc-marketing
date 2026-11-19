@@ -51,6 +51,7 @@ from pymc_marketing.experimental.terms._data import (
 )
 from pymc_marketing.experimental.terms._graph import BuildContext
 from pymc_marketing.experimental.terms._optimizer_terms import (
+    _LOWER,
     _bind_terms,
     _coordinates,
     _data_dependencies,
@@ -64,7 +65,6 @@ from pymc_marketing.terms import ModelTerm, Product, Sum
 type _Term = ModelTerm | Product | Sum
 type _Callback = Callable[[Any, Mapping[str, Any]], Any]
 type _Array = float | xr.DataArray
-_LOWER = ("lower_xtensor", "canonicalize", "stabilize")
 
 
 def _align(value: Any, template: xr.DataArray, what: str) -> xr.DataArray:
@@ -515,10 +515,10 @@ def _construction_data(
                 coords={dim: context.model.coords[dim] for dim in dims},
             )
         if Dim.DATE in value.dims:
-            value = value.isel(date=np.arange(len(dates)) % value.sizes["date"])
+            value = value.isel(date=np.arange(len(dates)) % value.sizes[Dim.DATE])
             value = value.assign_coords(date=dates)
         arrays[name] = BuildContext._canonical_input(value, name, copy=True)
-    return xr.Dataset(arrays, coords={"date": dates})
+    return xr.Dataset(arrays, coords={Dim.DATE: dates})
 
 
 class _CallbackEvaluator:
@@ -533,16 +533,16 @@ class _CallbackEvaluator:
     ) -> None:
         self._evaluator = evaluator
         self._parameters = parameters
-        self._decided_length = len(evaluator.coords["date"])
+        self._decided_length = len(evaluator.coords[Dim.DATE])
         self._has_carryover = (
-            len(evaluator.output_coords["date"]) > self._decided_length
+            len(evaluator.output_coords[Dim.DATE]) > self._decided_length
         )
         self._date_windows: dict[Variable, str] = {}
         for value in decisions.values():
             self._register(value, "decided")
         for name, value in parameters.items():
             if Dim.DATE in value.dims:
-                size = parameter_templates[name].sizes["date"]
+                size = parameter_templates[name].sizes[Dim.DATE]
                 self._register(
                     value, "decided" if size == self._decided_length else "scored"
                 )
@@ -622,7 +622,9 @@ class _CallbackEvaluator:
         if Dim.DATE in value.dims:
             self._register(
                 result,
-                "decided" if value.sizes["date"] == self._decided_length else "scored",
+                "decided"
+                if value.sizes[Dim.DATE] == self._decided_length
+                else "scored",
             )
         return result
 
@@ -821,8 +823,8 @@ class Problem:
                 raise TypeError("Parameter names must be nonempty strings.")
             if isinstance(value, xr.DataArray):
                 reference = self._evaluator.coords
-                if Dim.DATE in value.dims and value.sizes["date"] != len(
-                    reference["date"]
+                if Dim.DATE in value.dims and value.sizes[Dim.DATE] != len(
+                    reference[Dim.DATE]
                 ):
                     reference = self._evaluator.output_coords
                 value = _align_labels(value, xr.Dataset(coords=_coordinates(reference)))
