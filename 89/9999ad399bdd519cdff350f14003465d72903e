@@ -1,0 +1,19 @@
+locales/es/LC_MESSAGES/notebooks/mmm/mmm_pareto_optimization.po
+  s_8ccfa4577307b8::t_13febb399c7b1f 1-3126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "899999ad399bdd519cdff350f14003465d72903e",
+  "prompts": {},
+  "sessions": {
+    "s_8ccfa4577307b8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4154fb27-2edb-4116-a287-c2ea711af525",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "daimon-pymclabs <daimon@pymc-labs.com>"
+    }
+  }
+}
