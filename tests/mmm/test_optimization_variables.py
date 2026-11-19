@@ -694,6 +694,13 @@ def test_x0_shares_one_budget_across_every_spending_variable():
     np.testing.assert_allclose(x0, np.full(6, 100.0 / 6))
 
 
+def test_a_lever_does_not_take_a_share_of_the_budget():
+    """Levers are optimized in their own units and stay out of the pot."""
+    variables = OptimizationVariables([_money("channel_data"), make_lever_variable()])
+
+    assert [v.name for v in variables.spending_variables()] == ["channel_data"]
+
+
 def test_a_national_spend_has_no_cells_to_scatter_into():
     """A budget decided over date alone is one number, not a masked tensor.
 

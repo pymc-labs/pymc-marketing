@@ -442,6 +442,24 @@ class TestSaturationCurvesHDI:
             polys = [c for c in ax.collections if "Poly" in type(c).__name__]
             assert len(polys) > 0, "HDI fill_between should be present"
 
+    def test_custom_hdi_prob(self, simple_plots, simple_curve):
+        """A 50% HDI band must be narrower than the default 94% band."""
+
+        def band_areas(hdi_prob):
+            _, axes = simple_plots.saturation_curves(
+                curves=simple_curve, hdi_prob=hdi_prob, n_samples=0
+            )
+            areas = []
+            for ax in axes.flat:
+                (band,) = [c for c in ax.collections if "Poly" in type(c).__name__]
+                x, y = band.get_paths()[0].to_polygons()[0].T
+                areas.append(
+                    0.5 * abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
+                )
+            return np.array(areas)
+
+        assert np.all(band_areas(0.50) < band_areas(0.94))
+
 
 class TestSaturationCurvesSamples:
     def test_sample_curves_drawn(self, simple_plots, simple_curve):
