@@ -1080,15 +1080,26 @@ def extract_response_distribution(
         ):
             posterior_da = posterior[placeholder.name].astype(placeholder.dtype)
             if shared_posterior is not None:
-                replace_dict[placeholder] = shared_posterior._get_or_create(
+                replacement = shared_posterior._get_or_create(
                     posterior_da, name=placeholder.name, dtype=placeholder.dtype
                 )
             else:
-                replace_dict[placeholder] = xtensor_constant(
+                replacement = xtensor_constant(
                     posterior_da.values,
                     name=placeholder.name,
                     dims=posterior_da.dims,
                 )
+            if not isinstance(placeholder, XTensorVariable):
+                # A variable declared with pymc rather than pymc.dims is a plain
+                # tensor, and its replacement has to be one too.  A plain tensor
+                # is read by axis position, so put "sample" first and the
+                # variable's own axes in their declared order, whatever order
+                # the posterior stores them in.
+                declared = pymc_model.named_vars_to_dims.get(placeholder.name)
+                if declared:
+                    replacement = replacement.transpose("sample", *declared)
+                replacement = replacement.values
+            replace_dict[placeholder] = replacement
 
         # Vectorize across samples.  vectorize_graph moves the new batch
         # dimension to the front of every output and raises on one that did not
@@ -1098,6 +1109,16 @@ def extract_response_distribution(
             not replace_dict.keys().isdisjoint(ancestors([var]))
             for var in response_vars
         ]
+        # A plain tensor replacement brings "sample" in as an unnamed leading
+        # axis, which has to be named.  Naming it when no replacement is a plain
+        # tensor makes vectorize_graph fail, so only ask when one is.
+        new_tensor_dims = (
+            ("sample",)
+            if any(
+                not isinstance(new, XTensorVariable) for new in replace_dict.values()
+            )
+            else ()
+        )
         vectorized = iter(
             vectorize_graph(
                 [
@@ -1106,6 +1127,7 @@ def extract_response_distribution(
                     if reads
                 ],
                 replace=replace_dict,
+                new_tensor_dims=new_tensor_dims,
             )
         )
         response_distribution = [
