@@ -198,7 +198,6 @@ from pymc.model.transform.optimization import freeze_dims_and_data
 from pymc.util import RandomState
 from pymc_extras.deserialize import DeserializableError
 from pymc_extras.prior import Prior
-from pytensor.compile.ops import ViewOp
 from pytensor.graph.traversal import ancestors
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
@@ -2218,18 +2217,12 @@ class MMM(RegressionModelBuilder):
         if not hasattr(self, "model"):
             return names
         free_rvs = set(self.model.free_RVs)
-        resolved: list[str] = []
-        for name in names:
-            var = self.model.named_vars.get(name)
-            if (
-                var is not None
-                and var.owner is not None
-                and isinstance(var.owner.op, ViewOp)
-                and var.owner.inputs[0] in free_rvs
-            ):
-                name = var.owner.inputs[0].name
-            resolved.append(name)
-        return resolved
+        renamed = {
+            det.name: det.owner.inputs[0].name
+            for det in self.model.deterministics
+            if det.owner.inputs[0] in free_rvs
+        }
+        return [renamed.get(name, name) for name in names]
 
     def _validate_idata_exists(self) -> None:
         """Validate that the idata exists."""

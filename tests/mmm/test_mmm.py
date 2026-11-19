@@ -3346,6 +3346,18 @@ def fit_mmm_with_effect(simple_mmm_data, mock_pymc_sample):
     return fit
 
 
+class _FrozenRenamedDateLevelEffect(_DateLevelEffect):
+    """``_DateLevelEffect`` with its contribution frozen.
+
+    The contribution is a Deterministic that only renames the free variable.
+    """
+
+    @property
+    def frozen_deterministics(self) -> list[str]:
+        """The contribution, a view of the free random variable."""
+        return [self.contribution_var_name]
+
+
 @pytest.mark.parametrize(
     "max_batch_elements",
     [
@@ -3354,9 +3366,18 @@ def fit_mmm_with_effect(simple_mmm_data, mock_pymc_sample):
         pytest.param(1, id="a-block-per-draw"),
     ],
 )
-@pytest.mark.parametrize("freeze", [False, True], ids=["unfrozen", "frozen"])
+@pytest.mark.parametrize(
+    "make_effect",
+    [
+        pytest.param(_DateLevelEffect, id="unfrozen"),
+        pytest.param(lambda: _DateLevelEffect(freeze=True), id="frozen"),
+        # A Deterministic that only renames the variable; PyMC drops the view when
+        # it clones the model, and freezing it used to raise ``KeyError``.
+        pytest.param(_FrozenRenamedDateLevelEffect, id="frozen-renamed"),
+    ],
+)
 def test_monthly_incrementality_on_a_date_variable(
-    fit_mmm_with_effect, monkeypatch, freeze, max_batch_elements
+    fit_mmm_with_effect, monkeypatch, make_effect, max_batch_elements
 ):
     """A free random variable over the dates gives each month's contribution.
 
@@ -3366,7 +3387,7 @@ def test_monthly_incrementality_on_a_date_variable(
     carryover, so each channel's increment on a month is its contribution summed
     over that month.
     """
-    mmm = fit_mmm_with_effect(_DateLevelEffect(freeze=freeze))
+    mmm = fit_mmm_with_effect(make_effect())
     if max_batch_elements is not None:
         monkeypatch.setattr(
             CounterfactualEvaluator, "MAX_BATCH_ELEMENTS", max_batch_elements
@@ -3394,18 +3415,6 @@ def test_monthly_incrementality_on_a_date_variable(
     assert json.loads(split.attrs["assumptions"])["evaluation"] == "window"
 
 
-class _FrozenRenamedDateLevelEffect(_DateLevelEffect):
-    """``_DateLevelEffect`` with its contribution frozen.
-
-    The contribution is a Deterministic that only renames the free variable.
-    """
-
-    @property
-    def frozen_deterministics(self) -> list[str]:
-        """The contribution, a view of the free random variable."""
-        return [self.contribution_var_name]
-
-
 def test_frozen_renaming_deterministic_resolves_to_its_variable(fit_mmm_with_effect):
     """Once built, the MMM freezes the variable the Deterministic renames."""
     effect = _FrozenRenamedDateLevelEffect()
@@ -3421,30 +3430,6 @@ def test_frozen_renaming_deterministic_resolves_to_its_variable(fit_mmm_with_eff
     mmm = fit_mmm_with_effect(_FrozenRenamedDateLevelEffect())
 
     assert mmm.frozen_deterministics == ["level_draws"]
-
-
-def test_monthly_incrementality_on_a_frozen_renaming_deterministic(
-    fit_mmm_with_effect,
-):
-    """Freezing a Deterministic that only renames the variable gives each month's contribution.
-
-    PyMC drops the renaming view when it clones the model, so the evaluator reads
-    the variable; freezing the Deterministic used to raise ``KeyError``.
-    """
-    mmm = fit_mmm_with_effect(_FrozenRenamedDateLevelEffect())
-
-    incremental = mmm.incrementality.compute_incremental_contribution(
-        frequency="monthly"
-    )
-
-    contribution = (
-        mmm.idata.posterior["channel_contribution"]
-        * mmm.idata.constant_data["target_scale"]
-    )
-    month_ends = contribution.indexes["date"].to_period("M").end_time.normalize()
-    expected = contribution.assign_coords(date=month_ends).groupby("date").sum()
-    assert incremental.indexes["date"].equals(expected.indexes["date"])
-    np.testing.assert_allclose(incremental, expected.transpose(*incremental.dims))
 
 
 def test_posterior_predictive_on_a_frozen_renaming_deterministic(
