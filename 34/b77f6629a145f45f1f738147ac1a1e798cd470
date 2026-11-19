@@ -1,0 +1,19 @@
+locales/es/LC_MESSAGES/notebooks/mmm/mmm_chronos.po
+  s_8ccfa4577307b8::t_7fbb5fd8420d66 1-1697
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "34b77f6629a145f45f1f738147ac1a1e798cd470",
+  "prompts": {},
+  "sessions": {
+    "s_8ccfa4577307b8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4154fb27-2edb-4116-a287-c2ea711af525",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "daimon-pymclabs <daimon@pymc-labs.com>"
+    }
+  }
+}
