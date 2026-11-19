@@ -4788,7 +4788,9 @@ def test_fixed_scaling_dataarray_model_uses_scale_by_label(
 
     Regression test for issue #3223: a DataArray-valued FixedScaling whose
     label or dimension order differs from the model's coordinates was applied
-    by position, so cells received each other's scale.
+    by position, so cells received each other's scale.  The scale stored on
+    ``mmm.scalers``, which ``get_scales_as_xarray`` and the lift-test scaling
+    read, has to match by label as well.
     """
     X, y = request.getfixturevalue(data_fixture)
     value = make_value()
@@ -4810,13 +4812,16 @@ def test_fixed_scaling_dataarray_model_uses_scale_by_label(
     )
     mmm.build_model(X, y)
 
-    used = _model_scale_by_label(mmm, f"{variable}_scale")
-    expected = (
-        value.sel({dim: used.coords[dim].values for dim in value.dims})
-        .broadcast_like(used)
-        .transpose(*used.dims)
-    )
-    np.testing.assert_allclose(used.values, expected.values)
+    for got in (
+        _model_scale_by_label(mmm, f"{variable}_scale"),
+        mmm.scalers[f"_{variable}"],
+    ):
+        expected = (
+            value.sel({dim: got.coords[dim].values for dim in value.dims})
+            .broadcast_like(got)
+            .transpose(*got.dims)
+        )
+        np.testing.assert_allclose(got.values, expected.values)
 
 
 @pytest.mark.parametrize(
