@@ -1,0 +1,971 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2026, PyMC Labs
+# This file is distributed under the same license as the PyMC-Marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyMC-Marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:10003
+#: f01b652d58ce43a0bd2775819d529187
+msgid "Introduction: Measuring Upper-Funnel Impact with PyMC‑Marketing"
+msgstr ""
+"Introducción: medición del impacto de la parte superior del embudo con "
+"PyMC‑Marketing"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:10005
+#: 2078c74725f7435ebcb662c9aa6b4ea9
+#, python-brace-format
+msgid ""
+"In this notebook, we will walk through a simple example of how to use "
+"PyMC-Marketing to measure the impact of upper-funnel channels on a "
+"downstream business outcome. A very detailed and advanced version of this"
+" notebook is available in {ref}`mmm_upper_funnel_causal_approach`."
+msgstr ""
+"En este cuaderno, recorreremos un ejemplo sencillo de cómo usar PyMC-"
+"Marketing para medir el impacto de los canales de la parte superior del "
+"embudo sobre un resultado de negocio posterior. Una versión muy detallada y "
+"avanzada de este cuaderno está disponible en "
+"{ref}`mmm_upper_funnel_causal_approach`."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:20002
+#: 4fbc6bb179994d1986b364ac86ea27a4
+msgid "Business Challenge"
+msgstr "El desafío de negocio"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:20004
+#: 92a623dea2844f30bdc785beaa10a234
+msgid ""
+"Upper-funnel marketing investments (awareness campaigns, video ads, "
+"influencer partnerships) rarely drive immediate conversions. Leadership "
+"often asks: *\"Are our upper-funnel dollars doing anything?\"* Standard "
+"dashboards show weak direct correlations with sales, making these "
+"channels appear ineffective."
+msgstr ""
+"Las inversiones de marketing en la parte superior del embudo (campañas de "
+"notoriedad, anuncios en video, alianzas con influencers) rara vez generan "
+"conversiones inmediatas. La dirección suele preguntar: *\"¿Están haciendo "
+"algo nuestros dólares de la parte superior del embudo?\"* Los paneles "
+"estándar muestran correlaciones directas débiles con las ventas, lo que hace"
+" que estos canales parezcan ineficaces."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:20006
+#: 52764a59e3b149b0b16d09ad0c32ce77
+msgid ""
+"The challenge is that **upper-funnel channels work indirectly**. They "
+"build awareness that flows through mid-funnel engagement and eventually "
+"reaches high-intent channels (like brand search) that directly drive "
+"outcomes. Ignoring this mediation structure either under-credits upper-"
+"funnel impact or incorrectly attributes all lift to the final touchpoint."
+msgstr ""
+"El desafío es que **los canales de la parte superior del embudo actúan de "
+"forma indirecta**. Generan notoriedad que fluye a través del compromiso de "
+"la parte media del embudo y que finalmente llega a canales de alta intención"
+" (como la búsqueda de marca) que impulsan directamente los resultados. "
+"Ignorar esta estructura de mediación hace que se subestime el impacto de la "
+"parte superior del embudo o que se atribuya incorrectamente todo el lift al "
+"último punto de contacto."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:20008
+#: b3303043e68e4dc2a4448dfc3b594810
+msgid "**This notebook shows how to:**"
+msgstr "**Este cuaderno muestra cómo:**"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:20009
+#: 90f84781212246bdb6803a1c2d2079c6
+msgid "Respect the causal structure of the marketing funnel"
+msgstr "Respetar la estructura causal del embudo de marketing"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:20010
+#: ebb463daf6a34138b0887e8ed7047659
+msgid "Measure indirect effects through mediation modeling"
+msgstr "Medir los efectos indirectos mediante el modelado de mediación"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:20011
+#: 159d729239d543b2a19def72071cdc56
+msgid "Generate counterfactual predictions to quantify upper-funnel impact"
+msgstr ""
+"Generar predicciones contrafactuales para cuantificar el impacto de la parte"
+" superior del embudo"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:20013
+#: ec96ca6baa7a4fe1bb0c0dc96b4bbb41
+#, python-brace-format
+msgid ""
+"For a detailed treatment including data generation and theoretical "
+"foundations, see {ref}`mmm_upper_funnel_causal_approach`."
+msgstr ""
+"Para un tratamiento detallado que incluye la generación de datos y los "
+"fundamentos teóricos, consulte {ref}`mmm_upper_funnel_causal_approach`."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:20016
+#: e66c04f2b86c4187b46a178cd1ce70ab
+msgid ""
+"This approach is very similar to the one presented in the blog post "
+"[Bayesian Media Mix Modeling using PyMC3, for Fun and "
+"Profit](https://engineering.hellofresh.com/bayesian-media-mix-modeling-"
+"using-pymc3-for-fun-and-profit-2bd4667504e6) by "
+"[HelloFresh](https://engineering.hellofresh.com/)."
+msgstr ""
+"Este enfoque es muy similar al presentado en la entrada del blog [Bayesian "
+"Media Mix Modeling using PyMC3, for Fun and "
+"Profit](https://engineering.hellofresh.com/bayesian-media-mix-modeling-"
+"using-pymc3-for-fun-and-profit-2bd4667504e6) de "
+"[HelloFresh](https://engineering.hellofresh.com/)."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:20019
+#: 235946ea45bb45e9944295275b11e011
+msgid ""
+"Funnel effects in marketing mix modeling are well-known, but not clearly "
+"explained how to tackle them with causal inference. Here, we want to "
+"bridge this gap."
+msgstr ""
+"Los efectos de embudo en el modelado de mezcla de marketing son bien "
+"conocidos, pero no se explica con claridad cómo abordarlos con inferencia "
+"causal. Aquí queremos cerrar esa brecha."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:20021
+#: 37b7e2cd823747c4bf3db726193417cc
+msgid ""
+"For instance, already in the well-known paper [Challenges and "
+"Opportunities in Media Mix Modeling](https://research.google/pubs"
+"/challenges-and-opportunities-in-media-mix-modeling/), by D. Chan, et "
+"al., (Google) they mention:"
+msgstr ""
+"Por ejemplo, ya en el conocido artículo [Challenges and Opportunities in "
+"Media Mix Modeling](https://research.google/pubs/challenges-and-"
+"opportunities-in-media-mix-modeling/), de D. Chan, et al., (Google), "
+"mencionan:"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:20023
+#: 98b12340eb8145f9a7c01804f1e03cd1
+msgid ""
+"*Selection bias arises when there are funnel effects in the media and the"
+" model is mis-specified. When an ad channel also impacts the level of "
+"another ad channel which simultaneously estimate the impact of all ad "
+"channels in one equation, will lead to biased estimates. An example is a "
+"TV campaign driving more related queries, which in turn increase volume "
+"of paid search ads. For a derivation of the size of the bias, see Angrist"
+" and Krueger (1999). The underlying reason for the bias in the mis-"
+"specified model is that the downstream ads were affected by the TV ads. "
+"In assessing the ROAS of TV, the linear regression model does not account"
+" for the changes in paid search ads caused by TV. Downstream ads should "
+"not be included with exogenously-determined ads in a single regression "
+"equation. Alternatives include graphical models (Pearl (2009)) and "
+"structural equation models. However, the problem isn’t only a matter of "
+"model form. Both these alternatives require estimating the causal effect "
+"of the upstream ads on the downstream ads, which has just as stringent "
+"data requirements as estimating the effect of an ad channel on sales.*"
+msgstr ""
+"*El sesgo de selección surge cuando hay efectos de embudo en los medios y el"
+" modelo está mal especificado. Cuando un canal publicitario también afecta "
+"el nivel de otro canal publicitario, estimar simultáneamente el impacto de "
+"todos los canales publicitarios en una sola ecuación conducirá a "
+"estimaciones sesgadas. Un ejemplo es una campaña de TV que genera más "
+"consultas relacionadas, lo que a su vez aumenta el volumen de anuncios de "
+"búsqueda pagada. Para una derivación del tamaño del sesgo, véase Angrist y "
+"Krueger (1999). La razón de fondo del sesgo en el modelo mal especificado es"
+" que los anuncios posteriores fueron afectados por los anuncios de TV. Al "
+"evaluar el ROAS de la TV, el modelo de regresión lineal no tiene en cuenta "
+"los cambios en los anuncios de búsqueda pagada causados por la TV. Los "
+"anuncios posteriores no deberían incluirse junto con los anuncios "
+"determinados de forma exógena en una única ecuación de regresión. Entre las "
+"alternativas se encuentran los modelos gráficos (Pearl (2009)) y los modelos"
+" de ecuaciones estructurales. Sin embargo, el problema no es solo una "
+"cuestión de la forma del modelo. Ambas alternativas requieren estimar el "
+"efecto causal de los anuncios anteriores sobre los anuncios posteriores, lo "
+"cual tiene requisitos de datos tan estrictos como estimar el efecto de un "
+"canal publicitario sobre las ventas.*"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:30002
+#: 80a7b49ae86946fb80a1733ec4b429af
+msgid "Prepare Notebook"
+msgstr "Preparar el cuaderno"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:50002
+#: 508e991cc7d1425b9984f4ca7abdf0a7
+msgid "Read Data"
+msgstr "Leer los datos"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:50004
+#: 8f519d3d81d24a17acfc85126920eedf
+#, python-brace-format
+msgid ""
+"Let's consider a simple example where we have a downstream business "
+"outcome (new users) and a set of upper-funnel channels (`impressions_x1`,"
+" `impressions_x2`, `impressions_x3`, `impressions_x4`) (this synthetic "
+"data is generated in the advanced version of this notebook "
+"{ref}`mmm_upper_funnel_causal_approach`)."
+msgstr ""
+"Consideremos un ejemplo sencillo en el que tenemos un resultado de negocio "
+"posterior (nuevos usuarios) y un conjunto de canales de la parte superior "
+"del embudo (`impressions_x1`, `impressions_x2`, `impressions_x3`, "
+"`impressions_x4`) (estos datos sintéticos se generan en la versión avanzada "
+"de este cuaderno {ref}`mmm_upper_funnel_causal_approach`)."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:70002
+#: 7f2a66005b3e49908f487bf8d9369f1a
+msgid "Let's look at the data:"
+msgstr "Veamos los datos:"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:90002
+#: 8ffb26402e334a8cb623e20cf1e93c9f
+msgid "We have a `target_var` that we want to predict."
+msgstr "Tenemos una variable `target_var` que queremos predecir."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:90003
+#: fac4f89831554e80818aa609db89f4c3
+msgid ""
+"We have 4 upper-funnel channels: `impressions_x1`, `impressions_x2`, "
+"`impressions_x3`, `impressions_x4`."
+msgstr ""
+"Tenemos 4 canales de la parte superior del embudo: `impressions_x1`, "
+"`impressions_x2`, `impressions_x3`, `impressions_x4`."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:90004
+#: d1a0c797b9e6433bbacfdd50ccdb721f
+msgid ""
+"We have some control variables: `holidays`, `trend`, `event_2020_09`, "
+"`event_2020_12`, `event_2021_09`, `event_2021_12`, `event_2022_09` "
+"(events look like Gaussian bumps)."
+msgstr ""
+"Tenemos algunas variables de control: `holidays`, `trend`, `event_2020_09`, "
+"`event_2020_12`, `event_2021_09`, `event_2021_12`, `event_2022_09` (los "
+"eventos parecen picos gaussianos)."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:100002
+#: 7c3ba2d593f54a918eb17444f961bb00
+msgid "Let us visualize the impressions data in detail:"
+msgstr "Visualicemos en detalle los datos de impresiones:"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:120002
+#: 995f101bede94ee0bde42e41ff4a653b
+msgid "Causal DAG"
+msgstr "DAG causal"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:120004
+#: 098dc5b915b6486389f03b1065fde072
+#, python-brace-format
+msgid ""
+"As described in the introduction, understanding the causal structure of "
+"the marketing funnel is key to correctly attribute the effect of each "
+"channel. A simple, put-all-channels-in-one-model approach will lead to "
+"biased estimates (see {ref}`mmm_upper_funnel_causal_approach` for a "
+"comparison)."
+msgstr ""
+"Como se describió en la introducción, comprender la estructura causal del "
+"embudo de marketing es clave para atribuir correctamente el efecto de cada "
+"canal. Un enfoque simple de poner todos los canales en un solo modelo "
+"conducirá a estimaciones sesgadas (véase "
+"{ref}`mmm_upper_funnel_causal_approach` para una comparación)."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:120006
+#: 644f42f4ada74d9f90a221cb812364b3
+#, python-brace-format
+msgid ""
+"A common and handy structure to encode causal relationships is the causal"
+" directed acyclic graph (DAG). Each node represents a variable, and each "
+"arrow represents a causal relationship. This DAG does not come from the "
+"data, but rather from our understanding of the marketing funnel for the "
+"concrete application (one can use causal discovery methods to learn some "
+"structure of the DAG from the data, but that is out of scope for this "
+"notebook, see {ref}`mmm_causal_reasoning_and_discovery`)."
+msgstr ""
+"Una estructura común y práctica para codificar relaciones causales es el "
+"grafo acíclico dirigido (DAG) causal. Cada nodo representa una variable y "
+"cada flecha representa una relación causal. Este DAG no proviene de los "
+"datos, sino de nuestra comprensión del embudo de marketing para la "
+"aplicación concreta (se pueden usar métodos de descubrimiento causal para "
+"aprender parte de la estructura del DAG a partir de los datos, pero eso "
+"queda fuera del alcance de este cuaderno, véase "
+"{ref}`mmm_causal_reasoning_and_discovery`)."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:120008
+#: 75ae2dd3636c41918681f8bfe6b73c73
+msgid ""
+"The DAG below shows our hypothesis about the structure of our marketing "
+"funnel. This diagram represents our understanding of how marketing "
+"channels influence each other and ultimately drive the outcome."
+msgstr ""
+"El DAG a continuación muestra nuestra hipótesis sobre la estructura de "
+"nuestro embudo de marketing. Este diagrama representa nuestra comprensión de"
+" cómo los canales de marketing se influyen entre sí y, en última instancia, "
+"impulsan el resultado."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:120010
+#: 36e1322501984fed9b377f1ee6d4a375
+msgid "**Key components:**"
+msgstr "**Componentes clave:**"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:120012
+#: ffa4b25dd3a54affbd27f51027736b22
+msgid ""
+"**X1 (impressions_x1)**: Upper-funnel awareness channel (e.g., video, "
+"display ads)"
+msgstr ""
+"**X1 (impressions_x1)**: canal de notoriedad de la parte superior del embudo"
+" (por ejemplo, video, anuncios display)"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:120013
+#: f309c242c2074e6c9073be726d6f9900
+msgid ""
+"**X2, X3 (impressions_x2, impressions_x3)**: Mid-funnel consideration "
+"channels (social engagement, remarketing)"
+msgstr ""
+"**X2, X3 (impressions_x2, impressions_x3)**: canales de consideración de la "
+"parte media del embudo (interacción en redes sociales, remarketing)"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:120014
+#: 6f747adad0ad43efbfab65591a4712f1
+msgid "**X4 (impressions_x4)**: Lower-funnel high-intent channel (brand search)"
+msgstr ""
+"**X4 (impressions_x4)**: canal de alta intención de la parte inferior del "
+"embudo (búsqueda de marca)"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:120015
+#: 5df559b15a884ea09d29a91c0906733e
+msgid "**Y (new users)**: Business outcome"
+msgstr "**Y (nuevos usuarios)**: resultado de negocio"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:120016
+#: a96947db87ba429cabf147bdcfc7c2f9
+msgid "**U1, U2, U3, U4**: Exogenous factors affecting each channel (unobserved)"
+msgstr ""
+"**U1, U2, U3, U4**: factores exógenos que afectan a cada canal (no "
+"observados)"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:120018
+#: 595ad429ca414ec8a4a8c5593dcb8b40
+msgid "**The funnel structure:**"
+msgstr "**La estructura del embudo:**"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:120020
+#: 6111f984d2e04cc4a456d9c396e68166
+msgid "X_1 \\to (X_2, X_3) \\to X_4 \\to Y"
+msgstr "X_1 \\to (X_2, X_3) \\to X_4 \\to Y"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:120022
+#: f672294d4fda487f888dc8d54f0e7903
+msgid ""
+"Notice that **X1 does not directly affect Y**. Its influence flows "
+"entirely through the downstream channels. This mediation structure is "
+"critical: if we model all channels as directly affecting Y (the \"throw "
+"everything in\" approach), we'll misattribute effects and either over- or"
+" under-credit upper-funnel investments."
+msgstr ""
+"Observe que **X1 no afecta directamente a Y**. Su influencia fluye por "
+"completo a través de los canales posteriores. Esta estructura de mediación "
+"es crítica: si modelamos todos los canales como si afectaran directamente a "
+"Y (el enfoque de \"meter todo\"), atribuiremos mal los efectos y "
+"sobreestimaremos o subestimaremos las inversiones de la parte superior del "
+"embudo."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:120024
+#: 3f7a64f10a2249b492f5aba696bf4ac6
+msgid ""
+"The dashed nodes represent unobserved factors (holidays, budget changes, "
+"competitor actions) that can shift channels independently."
+msgstr ""
+"Los nodos de línea discontinua representan factores no observados (feriados,"
+" cambios de presupuesto, acciones de la competencia) que pueden modificar "
+"los canales de forma independiente."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:140002
+#: 9fc69b4bc4ff455e80245f702d603822
+msgid ""
+"To measure the indirect effect of X1 (upper funnel) on Y (outcome), we "
+"use a **two-model approach**:"
+msgstr ""
+"Para medir el efecto indirecto de X1 (parte superior del embudo) sobre Y "
+"(resultado), usamos un **enfoque de dos modelos**:"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:140004
+#: e28a0f85e8e24f21b8abf0281e60f8aa
+msgid ""
+"**Direct Model (Outcome Model)**: Estimates how X4 (lower funnel) affects"
+" Y"
+msgstr ""
+"**Modelo directo (modelo del resultado)**: estima cómo X4 (parte inferior "
+"del embudo) afecta a Y"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:140005
+#: 76c49d44fecf44549834f2d62a98a8d8
+msgid "Includes adstock (carryover effects) and saturation (diminishing returns)"
+msgstr ""
+"Incluye adstock (efectos de arrastre) y saturación (rendimientos "
+"decrecientes)"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:140006
+#: 85cbfdaad34a42fd9a2f3c16d75dc2ac
+msgid "Only models the final step: $X_4 \\to Y$"
+msgstr "Solo modela el paso final: $X_4 \\to Y$"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:140008
+#: f1ac1a90304c4b6ab37b70d43412a970
+msgid ""
+"**Indirect Model (Mediation Model)**: Estimates how X1 (upper funnel) "
+"affects X4 (lower funnel)"
+msgstr ""
+"**Modelo indirecto (modelo de mediación)**: estima cómo X1 (parte superior "
+"del embudo) afecta a X4 (parte inferior del embudo)"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:140009
+#: 9049d1df31524539910075e8addc47e0
+msgid "Captures the propagation through the funnel: $X_1 \\to X_4$"
+msgstr "Captura la propagación a través del embudo: $X_1 \\to X_4$"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:140010
+#: 073aef9a1a614e41a295b1e7389688c6
+msgid "Uses simpler transformations since this link is more direct"
+msgstr "Usa transformaciones más simples, ya que este vínculo es más directo"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:140012
+#: b5a84207205249fd80df4ff75adf2fb5
+msgid "By separating these two relationships, we can:"
+msgstr "Al separar estas dos relaciones, podemos:"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:140013
+#: 9a20479c400a4deaa4bc0062353da9a3
+msgid "Respect the causal structure from our DAG"
+msgstr "Respetar la estructura causal de nuestro DAG"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:140014
+#: 59afc00be9724acfbd1e4e5279295b12
+msgid "Avoid confounding the indirect path with the direct effect"
+msgstr "Evitar confundir la ruta indirecta con el efecto directo"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:140015
+#: 0be6acc2818442819bfc702fb6c77803
+msgid "Generate counterfactuals to ask \"what if X1 had been zero?\""
+msgstr ""
+"Generar contrafactuales para preguntar \"¿qué habría pasado si X1 hubiera "
+"sido cero?\""
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:140017
+#: 23cba41ea0cb4cd7ac705b41d8aa8d05
+msgid ""
+"**Why not just include all channels in one model?** Because that approach"
+" ignores mediation. It would try to estimate a direct $X_1 \\to Y$ effect"
+" (which doesn't exist in our causal story) and would misattribute the "
+"propagated effect through $X_4$."
+msgstr ""
+"**¿Por qué no simplemente incluir todos los canales en un solo modelo?** "
+"Porque ese enfoque ignora la mediación. Intentaría estimar un efecto directo"
+" $X_1 \\to Y$ (que no existe en nuestra historia causal) y atribuiría mal el"
+" efecto propagado a través de $X_4$."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:150002
+#: c757e159690f4712a85c074eff267dc8
+msgid "Data Preparation"
+msgstr "Preparación de los datos"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:150004
+#: a4886e5219364a5795e08c98ffda58d5
+msgid ""
+"We split the data into training and test sets to evaluate how well our "
+"causal model generalizes. The training set will be used to fit both our "
+"outcome model and our mediation model."
+msgstr ""
+"Dividimos los datos en conjuntos de entrenamiento y de prueba para evaluar "
+"qué tan bien generaliza nuestro modelo causal. El conjunto de entrenamiento "
+"se usará para ajustar tanto nuestro modelo del resultado como nuestro modelo"
+" de mediación."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:170002
+#: de3cce77f5f541519263dc55c81de0a8
+msgid ""
+"**Control columns** include trend and event indicators. These represent "
+"factors that affect the outcome but are not marketing channels (holidays,"
+" seasonality, special events). Including them ensures we don't "
+"misattribute their effects to our channels."
+msgstr ""
+"**Las columnas de control** incluyen la tendencia y los indicadores de "
+"eventos. Estas representan factores que afectan al resultado pero que no son"
+" canales de marketing (feriados, estacionalidad, eventos especiales). "
+"Incluirlas garantiza que no atribuyamos erróneamente sus efectos a nuestros "
+"canales."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:190002
+#: 241357589772462baccbe09d3dc9681d
+msgid "Model Specification"
+msgstr "Especificación del modelo"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:190004
+#: 33d2a2c48cae4c7fafcdb8196b7ce9ee
+msgid "Now we are ready to specify both models in PyMC-Marketing."
+msgstr ""
+"Ahora estamos listos para especificar ambos modelos en PyMC-Marketing."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:200002
+#: a4335dde31ec434cb5ee361437d48b4c
+msgid "Direct Model"
+msgstr "Modelo directo"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:210002
+#: adbb2f0db2b64953989d402554ace8db
+msgid ""
+"The first model captures how the **lower-funnel channel (X4) drives the "
+"outcome (Y)**. This is the most direct relationship in our funnel and "
+"includes the dynamic effects we expect in marketing:"
+msgstr ""
+"El primer modelo captura cómo el **canal de la parte inferior del embudo "
+"(X4) impulsa el resultado (Y)**. Esta es la relación más directa de nuestro "
+"embudo e incluye los efectos dinámicos que esperamos en marketing:"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:210004
+#: d405ad3005754bd1be412f86d2226a23
+msgid ""
+"**Adstock (Geometric)**: Marketing effects don't disappear immediately. "
+"Today's exposure influences tomorrow's outcome with some decay rate "
+"$\\alpha$. The `l_max=24` parameter means we allow up to $24$ days of "
+"carryover."
+msgstr ""
+"**Adstock (geométrico)**: los efectos del marketing no desaparecen de "
+"inmediato. La exposición de hoy influye en el resultado de mañana con cierta"
+" tasa de decaimiento $\\alpha$. El parámetro `l_max=24` significa que "
+"permitimos hasta $24$ días de efecto de arrastre."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:210006
+#: d9e89071a8544b4db47a77b739ccf552
+msgid ""
+"**Saturation (Michaelis-Menten)**: Returns diminish as exposure "
+"increases. The first $1,000$ impressions might drive $100$ conversions, "
+"but the next $1,000$ might only drive $50$. Parameters $\\lambda$ and "
+"$\\alpha$ control the shape of this curve."
+msgstr ""
+"**Saturación (Michaelis-Menten)**: los rendimientos disminuyen a medida que "
+"aumenta la exposición. Las primeras $1,000$ impresiones podrían generar "
+"$100$ conversiones, pero las siguientes $1,000$ podrían generar solo $50$. "
+"Los parámetros $\\lambda$ y $\\alpha$ controlan la forma de esta curva."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:210008
+#: 5229b85f1c894b25b1bc17ebcf048423
+msgid ""
+"We model only X4 → Y here because, according to our DAG, X4 is the **sole"
+" marketing mediator** between all upstream channels and the outcome. By "
+"getting this relationship right first, we can later propagate upstream "
+"effects through it."
+msgstr ""
+"Aquí modelamos solo X4 → Y porque, según nuestro DAG, X4 es el **único "
+"mediador de marketing** entre todos los canales anteriores y el resultado. "
+"Al acertar primero con esta relación, más adelante podemos propagar a través"
+" de ella los efectos de los canales anteriores."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:250002
+#: 0b0f6c1989a24dbf8633d8fe99a78690
+msgid "Indirect Model"
+msgstr "Modelo indirecto"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:250004
+#: 34d4b18938a64da5bcc079222e9c4def
+msgid ""
+"The second model captures how **upper-funnel activity (X1) influences "
+"lower-funnel exposure (X4)**. This is the mediation link that allows us "
+"to trace indirect effects."
+msgstr ""
+"El segundo modelo captura cómo la **actividad de la parte superior del "
+"embudo (X1) influye en la exposición de la parte inferior del embudo (X4)**."
+" Este es el vínculo de mediación que nos permite rastrear los efectos "
+"indirectos."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:250006
+#: 97ce90e62e1f47ebb560cfaa175515dd
+msgid "**Why use differences?**"
+msgstr "**¿Por qué usar diferencias?**"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:250008
+#: 40363feed8d240e9a89a1730b1042026
+#, python-brace-format
+msgid ""
+"If X1 and X4 are both trending or have unit roots (common in marketing "
+"time series), a levels-on-levels regression $(X_{4,t} = \\alpha + \\beta "
+"X_{1,t} + \\varepsilon_t)$ can produce spurious correlations. Taking "
+"first differences removes trends and gives us a stationary relationship:"
+msgstr ""
+"Si X1 y X4 tienen tendencia o raíces unitarias (algo común en las series de "
+"tiempo de marketing), una regresión de niveles sobre niveles $(X_{4,t} = "
+"\\alpha + \\beta X_{1,t} + \\varepsilon_t)$ puede producir correlaciones "
+"espurias. Tomar primeras diferencias elimina las tendencias y nos da una "
+"relación estacionaria:"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:250010
+#: a5ae9124d5e64e7bb9304225df1239a5
+#, python-brace-format
+msgid "\\Delta X_{4,t} = \\beta \\cdot \\Delta X_{1,t} + \\varepsilon_t"
+msgstr "\\Delta X_{4,t} = \\beta \\cdot \\Delta X_{1,t} + \\varepsilon_t"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:250012
+#: 3b78a0b49b53449c98191dbc46195a2b
+msgid "or equivalently:"
+msgstr "o, de forma equivalente:"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:250014
+#: 0fa4d81d1269418489a822dfcea6573a
+#, python-brace-format
+msgid "X_{4,t} - X_{4,t-1} = \\beta \\cdot (X_{1,t} - X_{1,t-1})"
+msgstr "X_{4,t} - X_{4,t-1} = \\beta \\cdot (X_{1,t} - X_{1,t-1})"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:250016
+#: 8b23183cb4d44d159b40580782b20155
+msgid ""
+"This estimates the **instantaneous propagation**: when X1 increases by 1 "
+"unit, how much does X4 change?"
+msgstr ""
+"Esto estima la **propagación instantánea**: cuando X1 aumenta en 1 unidad, "
+"¿cuánto cambia X4?"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:250018
+#: 24a23b858f2d494cbc261b307bf0a2c8
+msgid ""
+"**No adstock or saturation here.** We're assuming the X1 → X4 link is "
+"approximately linear and immediate. All the nonlinear dynamics "
+"(saturation, carryover) happen in the X4 → Y step, which we already "
+"modeled above. This simplification keeps the mediation model "
+"interpretable."
+msgstr ""
+"**Aquí no hay adstock ni saturación.** Suponemos que el vínculo X1 → X4 es "
+"aproximadamente lineal e inmediato. Toda la dinámica no lineal (saturación, "
+"efecto de arrastre) ocurre en el paso X4 → Y, que ya modelamos arriba. Esta "
+"simplificación mantiene interpretable el modelo de mediación."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:270002
+#: 67b0965bc5ca40ac8fae7143cf4aff18
+msgid "Let's fit the mediation model:"
+msgstr "Ajustemos el modelo de mediación:"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:290002
+#: 8849251d08a44aeaba9fd4f528921006
+msgid ""
+"For the sake of comparison, let's plot the posterior distribution of the "
+"saturation parameter:"
+msgstr ""
+"Para comparar, grafiquemos la distribución posterior del parámetro de "
+"saturación:"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:310002
+#: 43b119c4f74141a1b1c3b23970a66b5e
+#, python-brace-format
+msgid ""
+"As shown in the advanced notebook "
+"({ref}`mmm_upper_funnel_causal_approach`), where we study the data "
+"generating process, the saturation parameter is correctly recovered."
+msgstr ""
+"Como se muestra en el cuaderno avanzado "
+"({ref}`mmm_upper_funnel_causal_approach`), donde estudiamos el proceso "
+"generador de datos, el parámetro de saturación se recupera correctamente."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:320002
+#: 2ec1752a83144766a3845b95cf3f4130
+msgid ""
+"Let's now look into the contribution of the upper funnel channel to the "
+"lower funnel channel."
+msgstr ""
+"Veamos ahora la contribución del canal de la parte superior del embudo al "
+"canal de la parte inferior del embudo."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:340002
+#: ca3e56c4509748b1b7c54e98af2c485b
+msgid ""
+"Again, from the data generating process, this contribution is correctly "
+"estimated."
+msgstr ""
+"De nuevo, a partir del proceso generador de datos, esta contribución se "
+"estima correctamente."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:350002
+#: 4ef644db757b41dc9ad3443124f8f0b2
+msgid ""
+"Finally, we can visualize the posterior predictive mean of the lower "
+"funnel channel."
+msgstr ""
+"Por último, podemos visualizar la media predictiva posterior del canal de la"
+" parte inferior del embudo."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:370002
+#: be4adfa2d20849b987782fc3dbffcb6c
+msgid ""
+"This baseline model is not fantastic, but it captures the general trend "
+"of the data."
+msgstr ""
+"Este modelo base no es fantástico, pero captura la tendencia general de los "
+"datos."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:380002
+#: 01ef410fa4344fcd936e1ecd00091c89
+msgid ""
+"Now that we have both fitted models, we can use them to make "
+"counterfactual predictions."
+msgstr ""
+"Ahora que tenemos ambos modelos ajustados, podemos usarlos para hacer "
+"predicciones contrafactuales."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:390002
+#: 69ab76e9880849848ba28943ac0a6727
+msgid "Counterfactual Predictions"
+msgstr "Predicciones contrafactuales"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:390004
+#: cc9eaeec4e544cca9d3b8f943745502c
+msgid ""
+"Now comes the key question: **What would have happened if we had set X1 "
+"to zero?** This is a **counterfactual prediction** — we use our models to"
+" simulate an intervention we didn't actually observe."
+msgstr ""
+"Ahora llega la pregunta clave: **¿qué habría pasado si hubiéramos fijado X1 "
+"en cero?** Esta es una **predicción contrafactual** — usamos nuestros "
+"modelos para simular una intervención que no observamos realmente."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:390006
+#: 510bca477e394c1e9b4f509b40d4af33
+msgid "The causal effect of X1 on Y flows through this path:"
+msgstr "El efecto causal de X1 sobre Y fluye a través de esta ruta:"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:390008
+#: fc40271d2e8f4d7f9e37b41d5cd85ed4
+msgid "X_1 \\to X_4 \\to Y"
+msgstr "X_1 \\to X_4 \\to Y"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:390010
+#: 74b6669873974101bd791510e1cbd004
+msgid "**Step-by-step counterfactual generation:**"
+msgstr "**Generación contrafactual paso a paso:**"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:390012
+#: 2bf50d7a984b4a4e80521a8a35990a07
+msgid ""
+"**Intervene on X1**: Set `impressions_x1 = 0` and compute "
+"`impressions_x1_diff`"
+msgstr ""
+"**Intervenir sobre X1**: fije `impressions_x1 = 0` y calcule "
+"`impressions_x1_diff`"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:390013
+#: dea63738dc08448d816bc672610f1def
+msgid ""
+"**Predict counterfactual X4**: Use the mediation model to predict what X4"
+" would have been without X1"
+msgstr ""
+"**Predecir el X4 contrafactual**: use el modelo de mediación para predecir "
+"cuál habría sido X4 sin X1"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:390014
+#: cb8261385f864dd08e334c71074e2021
+msgid ""
+"**Predict counterfactual Y**: Use the outcome model with the "
+"counterfactual X4 as input"
+msgstr ""
+"**Predecir el Y contrafactual**: use el modelo del resultado con el X4 "
+"contrafactual como entrada"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:390015
+#: c88c61f766e64d1b86d0539e92bfc5f3
+msgid ""
+"**Calculate effect**: Compare predictions under $do(X_1=1)$ vs. "
+"$do(X_1=0)$"
+msgstr ""
+"**Calcular el efecto**: compare las predicciones bajo $do(X_1=1)$ frente a "
+"$do(X_1=0)$"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:390017
+#: 2478b72028ce4848b84a6d870d7e7983
+msgid ""
+"This approach is called **g-computation** or **mediation formula** in "
+"causal inference. We're propagating the intervention through each step of"
+" the causal chain, respecting the dynamic transformations (adstock, "
+"saturation) at each stage."
+msgstr ""
+"Este enfoque se denomina **g-computation** o **fórmula de mediación** en "
+"inferencia causal. Estamos propagando la intervención a través de cada paso "
+"de la cadena causal, respetando las transformaciones dinámicas (adstock, "
+"saturación) en cada etapa."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:390020
+#: cfb3da391c994fd1a3b122e3d55bca74
+msgid ""
+"**Why does this work?** By modeling each link separately (X1→X4 and "
+"X4→Y), we can \"block\" X1's influence on X4, recompute X4, and see how "
+"that change ripples through to Y. The difference between the factual and "
+"counterfactual predictions is the **total causal effect** of X1 on Y."
+msgstr ""
+"**¿Por qué funciona esto?** Al modelar cada vínculo por separado (X1→X4 y "
+"X4→Y), podemos \"bloquear\" la influencia de X1 sobre X4, recalcular X4 y "
+"ver cómo ese cambio se propaga hasta Y. La diferencia entre las predicciones"
+" factuales y contrafactuales es el **efecto causal total** de X1 sobre Y."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:400002
+#: 600ba583b48d4947bec5f8bd3de8e06c
+msgid "Let's start setting `impressions_x1` to zero:"
+msgstr "Comencemos fijando `impressions_x1` en cero:"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:420002
+#: 84321a7861204b6b82ccde6bf35d1771
+msgid ""
+"Next, we used the fitted posterior to generate the counterfactual "
+"predictions:"
+msgstr ""
+"A continuación, usamos la posterior ajustada para generar las predicciones "
+"contrafactuales:"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:440002
+#: b4d59725877d4823815b77ee13d4fae0
+msgid ""
+"We can now plot the posterior predictive mean of the lower funnel channel"
+" with the counterfactual predictions and compare them with the original "
+"predictions."
+msgstr ""
+"Ahora podemos graficar la media predictiva posterior del canal de la parte "
+"inferior del embudo con las predicciones contrafactuales y compararlas con "
+"las predicciones originales."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:460002
+#: 99b16943810c4496ad61d83c0868fb90
+msgid ""
+"As expected, on average most of the predicted impressions under the "
+"counterfactual are lower than the original predictions."
+msgstr ""
+"Como era de esperar, en promedio la mayoría de las impresiones predichas "
+"bajo el contrafactual son menores que las predicciones originales."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:470002
+#: 5027d5041df84797801659c19fec73ee
+msgid ""
+"We now use these predictions to make counterfactual predictions for the "
+"outcome."
+msgstr ""
+"Ahora usamos estas predicciones para hacer predicciones contrafactuales del "
+"resultado."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:490002
+#: 090d3d4e02ca4c9eb197d1e4e9abc2ee
+msgid "Let's visualize the results:"
+msgstr "Visualicemos los resultados:"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:510002
+#: e0909cf446a044b3a326f84313d65e64
+msgid ""
+"Finally, we can calculate the difference between the original and "
+"counterfactual predictions and visualize the results:"
+msgstr ""
+"Por último, podemos calcular la diferencia entre las predicciones originales"
+" y las contrafactuales y visualizar los resultados:"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:540002
+#: a7ef4c16e6264b728f4a6bade2ddf417
+msgid "Conclusion"
+msgstr "Conclusión"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:540004
+#: ee5026aed81f4c238038ff9156324e8b
+msgid ""
+"In this notebook, we demonstrated how to measure **indirect upper-funnel "
+"effects** using a mediation modeling approach. The key insights are:"
+msgstr ""
+"En este cuaderno, mostramos cómo medir los **efectos indirectos de la parte "
+"superior del embudo** mediante un enfoque de modelado de mediación. Las "
+"ideas clave son:"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:540006
+#: 0342d0f31cae40b2a771995d1fd08693
+msgid ""
+"**Respect causal structure**: Upper-funnel channels often don't directly "
+"affect outcomes. Their influence flows through intermediate channels "
+"(mediators)."
+msgstr ""
+"**Respetar la estructura causal**: los canales de la parte superior del "
+"embudo a menudo no afectan directamente a los resultados. Su influencia "
+"fluye a través de canales intermedios (mediadores)."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:540008
+#: e17fb2d8ee0b42d8b9956ebb1241ccb3
+msgid ""
+"**Two-model approach**: By separating the mediation model (X1→X4) from "
+"the outcome model (X4→Y), we can correctly attribute effects without "
+"confounding."
+msgstr ""
+"**Enfoque de dos modelos**: al separar el modelo de mediación (X1→X4) del "
+"modelo del resultado (X4→Y), podemos atribuir correctamente los efectos sin "
+"confusión."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:540010
+#: ebe9002be6b448609ed96378c2808759
+msgid ""
+"**Counterfactual reasoning**: To answer \"what would happen if we changed"
+" X1?\", we propagate the intervention through each link of the causal "
+"chain: $X_1 \\to X_4 \\to Y$."
+msgstr ""
+"**Razonamiento contrafactual**: para responder \"¿qué pasaría si cambiáramos"
+" X1?\", propagamos la intervención a través de cada vínculo de la cadena "
+"causal: $X_1 \\to X_4 \\to Y$."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:540012
+#: 6d5bed60c56449d595cc892fce7a00ae
+msgid ""
+"**Dynamic effects matter**: The outcome model includes adstock and "
+"saturation because marketing effects carry over time and show diminishing"
+" returns."
+msgstr ""
+"**Los efectos dinámicos importan**: el modelo del resultado incluye adstock "
+"y saturación porque los efectos del marketing se arrastran en el tiempo y "
+"muestran rendimientos decrecientes."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:540014
+#: b4d68f2088044cb097420913b5fbfa3e
+msgid ""
+"**Key takeaway:** Standard MMMs that throw all channels into one model "
+"will misattribute upper-funnel contributions. A causal approach that "
+"models the funnel structure explicitly gives more accurate and defensible"
+" effect estimates."
+msgstr ""
+"**Idea clave:** los MMM estándar que meten todos los canales en un solo "
+"modelo atribuirán mal las contribuciones de la parte superior del embudo. Un"
+" enfoque causal que modela explícitamente la estructura del embudo ofrece "
+"estimaciones de efectos más precisas y defendibles."
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:540016
+#: f8f2ba911c7c4a628902afeaaabebbb6
+msgid "For a comprehensive treatment including:"
+msgstr "Para un tratamiento exhaustivo que incluye:"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:540017
+#: 4af29f74a95a42e2b6388ca196cc6189
+msgid "Detailed data generation process"
+msgstr "Proceso detallado de generación de datos"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:540018
+#: 2568c9de34db4f33a368f71495a8928a
+msgid "Theoretical foundations (backdoor criterion, structural causal models)"
+msgstr ""
+"Fundamentos teóricos (criterio de puerta trasera, modelos causales "
+"estructurales)"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:540019
+#: a4778e41a5de41e1ae5bc4ca6cd2f6a4
+msgid "Comparison with naive \"all-in\" models"
+msgstr "Comparación con modelos \"todo incluido\" ingenuos"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:540020
+#: 5997d3b89afc4ce1916b1837963d67a2
+msgid "Out-of-sample validation"
+msgstr "Validación fuera de muestra"
+
+#: ../source/notebooks/mmm/mmm_intro_upper_funnel.ipynb:540022
+#: e1dd13072f4e44c484d0e4279fb22dbc
+#, python-brace-format
+msgid "see the advanced version: {ref}`mmm_upper_funnel_causal_approach`."
+msgstr ""
+"consulte la versión avanzada: {ref}`mmm_upper_funnel_causal_approach`."
+
