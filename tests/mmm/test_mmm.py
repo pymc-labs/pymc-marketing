@@ -3447,6 +3447,23 @@ def test_monthly_incrementality_on_a_frozen_renaming_deterministic(
     np.testing.assert_allclose(incremental, expected.transpose(*incremental.dims))
 
 
+def test_posterior_predictive_on_a_frozen_renaming_deterministic(
+    fit_mmm_with_effect, simple_mmm_data
+):
+    """Posterior predictive sampling takes the variable's name in the frozen list.
+
+    It flattens only deterministics, so the variable stays conditioned on its
+    posterior draws.
+    """
+    mmm = fit_mmm_with_effect(_FrozenRenamedDateLevelEffect())
+
+    predictive = mmm.sample_posterior_predictive(
+        simple_mmm_data["X"], random_seed=1, progressbar=False
+    )
+
+    assert np.isfinite(predictive["y"]).all()
+
+
 def test_monthly_incrementality_evaluates_a_reduced_date_variable(
     fit_mmm_with_effect,
 ):
