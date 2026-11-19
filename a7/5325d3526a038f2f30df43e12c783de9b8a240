@@ -1,0 +1,19 @@
+locales/es/LC_MESSAGES/notebooks/mmm/plot_interactive.po
+  s_8ccfa4577307b8::t_74b9c0590d4bf0 1-849
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a75325d3526a038f2f30df43e12c783de9b8a240",
+  "prompts": {},
+  "sessions": {
+    "s_8ccfa4577307b8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4154fb27-2edb-4116-a287-c2ea711af525",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "daimon-pymclabs <daimon@pymc-labs.com>"
+    }
+  }
+}
