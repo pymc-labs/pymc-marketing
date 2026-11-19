@@ -1,0 +1,1335 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2026, PyMC Labs
+# This file is distributed under the same license as the PyMC-Marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyMC-Marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:10003
+#: d785f9ea5fac4a349b5612b27065a28b
+msgid "Current vs Future Media Value: Splitting Contributions by When They Land"
+msgstr ""
+"Valor actual vs futuro de los medios: dividir las contribuciones según "
+"cuándo se materializan"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:10005
+#: 31a99b85492048ec9277dfca930a6de3
+msgid ""
+"A media mix model (MMM) tells us how much each channel contributed. "
+"Finance and media teams then ask two different questions of that same "
+"number:"
+msgstr ""
+"Un modelo de mezcla de medios (MMM) nos dice cuánto aportó cada canal. "
+"Luego, los equipos de finanzas y de medios plantean dos preguntas distintas "
+"sobre ese mismo número:"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:10007
+#: 3ab10ba6279d4fd492d7487dc54a02cb
+msgid ""
+"**Media planning** asks: *what did this month's spend buy?* That includes"
+" the carryover that keeps arriving in the weeks after the spend."
+msgstr ""
+"**La planificación de medios** pregunta: *¿qué compró el gasto de este mes?*"
+" Eso incluye el efecto de arrastre que sigue llegando en las semanas "
+"posteriores al gasto."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:10008
+#: ac143d60f3be4d9e902efc1115b3374d
+msgid ""
+"**Finance** asks: *how much of that value showed up this month, and how "
+"much will show up later?* A quarter's spend that pays off in the next "
+"quarter should be booked there."
+msgstr ""
+"**Finanzas** pregunta: *¿cuánto de ese valor apareció este mes y cuánto "
+"aparecerá más adelante?* El gasto de un trimestre que rinde en el trimestre "
+"siguiente debería contabilizarse en este último."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:10010
+#: 7edb46b1555e47d0915a5abbea5a3c83
+msgid ""
+"Both questions are about *when* the effect of spend lands. Adstock "
+"spreads the response to one week's spend over the following weeks. So the"
+" value of a period's spend splits into two parts:"
+msgstr ""
+"Ambas preguntas tratan sobre *cuándo* se materializa el efecto del gasto. El"
+" adstock distribuye la respuesta al gasto de una semana a lo largo de las "
+"semanas siguientes. Así, el valor del gasto de un período se divide en dos "
+"partes:"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:10012
+#: a5a08938d9234c25b0657ef97cb7d6eb
+msgid ""
+"**Current value**: the part that lands in the same reporting period as "
+"the spend."
+msgstr ""
+"**Valor actual**: la parte que se materializa en el mismo período de reporte"
+" que el gasto."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:10013
+#: 6882949188c6464cb321c17747607d5c
+msgid "**Future value**: the carryover that lands after the period ends."
+msgstr ""
+"**Valor futuro**: el efecto de arrastre que se materializa después de que "
+"termina el período."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:10015
+#: 5411a2dedca04a21a45c13c95d665ff8
+msgid ""
+"In this notebook we fit an MMM on synthetic data where we know the truth,"
+" and walk from the model's contributions to that split, one step at a "
+"time. Then we repeat the split on real data, with the model of the case "
+"study:"
+msgstr ""
+"En este cuaderno ajustamos un MMM con datos sintéticos en los que conocemos "
+"la verdad, y pasamos de las contribuciones del modelo a esa división, paso a"
+" paso. Luego repetimos la división con datos reales, usando el modelo del "
+"estudio de caso:"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:10017
+#: 2754b6afbed64399a9dec5e7fb589646
+msgid "We fit the model and check the usual diagnostics."
+msgstr "Ajustamos el modelo y revisamos los diagnósticos habituales."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:10018
+#: f0465327db364295aa6ea51eb2266446
+msgid ""
+"We look at the two ways of reading a contribution: by the date it lands "
+"on, and by the spend period that caused it."
+msgstr ""
+"Examinamos las dos formas de leer una contribución: por la fecha en que se "
+"materializa y por el período de gasto que la causó."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:10019
+#: cb3ff17e54fc4bbcb02176360c514a95
+msgid ""
+"We lay both readings out in one object, the **carryover matrix**: rows "
+"are spend periods, columns are the dates the effect lands on."
+msgstr ""
+"Presentamos ambas lecturas en un solo objeto, la **matriz de arrastre**: las"
+" filas son los períodos de gasto y las columnas son las fechas en las que se"
+" materializa el efecto."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:10020
+#: f1318a6071144c48ad0ea6c8d3da27d7
+msgid ""
+"We reduce the matrix to current and future value, and compare the result "
+"with the truth."
+msgstr ""
+"Reducimos la matriz a valor actual y futuro, y comparamos el resultado con "
+"la verdad."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:10021
+#: ae65720bc6f24b639f16cdf5f9a0a90b
+msgid ""
+"We look at the shortcut behind it, the cumulative adstock weights, and at"
+" `method=\"closed_form\"`, which computes the same numbers without "
+"simulating each period."
+msgstr ""
+"Examinamos el atajo que hay detrás, los pesos acumulados del adstock, y "
+"`method=\"closed_form\"`, que calcula los mismos números sin simular cada "
+"período."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:10022
+#: 4638103a43794d609c08d0380ce213ef
+msgid ""
+"We fit the case study's model, which uses the default transformation "
+"order, `adstock_first=True`, and compare the two ways the split can be "
+"defined there."
+msgstr ""
+"Ajustamos el modelo del estudio de caso, que usa el orden de transformación "
+"predeterminado, `adstock_first=True`, y comparamos las dos formas en que "
+"puede definirse la división en ese caso."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:10024
+#: 365d75c4a05743e6910f6969f03dce17
+msgid ""
+"The methods we use are opt-in. They do not change any existing output of "
+"the model."
+msgstr ""
+"Los métodos que usamos son opcionales. No cambian ninguna salida existente "
+"del modelo."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:20002
+#: 6829f8069de84b5aa2eca3d8a528c2c5
+msgid "Prepare Notebook"
+msgstr "Preparar el cuaderno"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:50002
+#: 8741179238bb416395d8f603bed2a2f3
+msgid "The Idea in One Picture"
+msgstr "La idea en una imagen"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:50004
+#: 858226bc6f7e450083fd8a4529d4b2b7
+msgid ""
+"Take one channel with a geometric adstock. One unit of response to spend "
+"in week $s$ lands as $w_0$ in week $s$, $w_1$ in week $s+1$, and so on up"
+" to $w_{l_{\\max}-1}$. With `normalize=True` the weights sum to one, so "
+"they say *which share of the effect lands in which week*."
+msgstr ""
+"Tomemos un canal con un adstock geométrico. Una unidad de respuesta al gasto"
+" de la semana $s$ se materializa como $w_0$ en la semana $s$, $w_1$ en la "
+"semana $s+1$, y así sucesivamente hasta $w_{l_{\\max}-1}$. Con "
+"`normalize=True` los pesos suman uno, de modo que indican *qué proporción "
+"del efecto se materializa en cada semana*."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:50006
+#: 24c43c925de04439b20cac8283aaf3b6
+msgid ""
+"Now report monthly. Spend in the first week of January has three more "
+"January weeks to land in. Spend in the last week of January has none. The"
+" same kernel therefore gives a different current share depending on where"
+" in the month the spend falls."
+msgstr ""
+"Ahora reportemos por mes. El gasto de la primera semana de enero tiene tres "
+"semanas más de enero en las que materializarse. El gasto de la última semana"
+" de enero no tiene ninguna. Por lo tanto, el mismo kernel da una proporción "
+"actual distinta según en qué parte del mes caiga el gasto."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:70002
+#: ba057797d413495992bd299eb3b12411
+msgid ""
+"That is the whole idea. The rest of the notebook does the same "
+"bookkeeping with a fitted model, with posterior uncertainty, and on every"
+" channel and month at once."
+msgstr ""
+"Esa es toda la idea. El resto del cuaderno hace la misma contabilidad con un"
+" modelo ajustado, con incertidumbre posterior y para todos los canales y "
+"meses a la vez."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:80002
+#: 4828bf5b778d416ea34492563b466d46
+msgid "Synthetic Data"
+msgstr "Datos sintéticos"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:80004
+#: 70c98c5c84ac4711a1978ea0fac268f0
+msgid ""
+"We simulate three years of weekly sales with three channels that carry "
+"over at very different speeds:"
+msgstr ""
+"Simulamos tres años de ventas semanales con tres canales cuyo efecto de "
+"arrastre tiene velocidades muy distintas:"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb
+#: e3643baf52ea4070a744f69d32fb6095
+msgid "channel"
+msgstr "canal"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb
+#: 4f81b9ce316d43f097eb86dea663347e
+msgid "spend pattern"
+msgstr "patrón de gasto"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb
+#: a7996614595c43dabc8a077cc049d37d
+msgid "true adstock $\\alpha$"
+msgstr "adstock verdadero $\\alpha$"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb
+#: 46bdcc1a14654b7b8e9fd4cf3fc5eeae
+msgid "carryover"
+msgstr "arrastre"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb
+#: 2ac9eb2d21eb4056add66d37cc1dbcb3
+msgid "`tv`"
+msgstr "`tv`"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb
+#: 8ff0c31203c64cd596bddf1c8c9df3f7
+msgid "flighted: 5 weeks on, 8 weeks off"
+msgstr "en oleadas: 5 semanas activo, 8 semanas inactivo"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb
+#: 85ebae916eab4a44b69e26984bc1bb2a
+msgid "0.70"
+msgstr "0.70"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb
+#: 8e55b0796abd45eeb015f1349a33a35b
+msgid "slow"
+msgstr "lento"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb
+#: e6e4fe7053e241a69e697f079f57d28d
+msgid "`social`"
+msgstr "`social`"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb
+#: 0dc9ec9b53f24ee79667c6d2f7dcae9d
+#, python-format
+msgid "pulsed, on in about 60% of weeks"
+msgstr "por pulsos, activo en alrededor del 60% de las semanas"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb
+#: addaeb7804394c4395d7e29e0630eec0
+msgid "0.45"
+msgstr "0.45"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb
+#: 3c05ef1d063e4a688c82a82fcaf27a3d
+msgid "medium"
+msgstr "medio"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb
+#: 10a65ec6498c4085ab3ed1ddb11db0bf
+msgid "`search`"
+msgstr "`search`"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb
+#: 6d73ece0b6e84ebba9236a901685b6ab
+msgid "always on, with a yearly cycle"
+msgstr "siempre activo, con un ciclo anual"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb
+#: 157ab91ac0eb417b91e8acd05f1f51ef
+msgid "0.15"
+msgstr "0.15"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb
+#: 9b3582f8c1fc400db16c19cf922ff0cb
+msgid "fast"
+msgstr "rápido"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:80012
+#: aa9e44f529124afa9d84c396ed21a057
+msgid ""
+"The data generating process applies **saturation first and adstock "
+"second**. For channel $c$ in week $t$,"
+msgstr ""
+"El proceso generador de datos aplica **primero la saturación y después el "
+"adstock**. Para el canal $c$ en la semana $t$,"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:80014
+#: e37f707da3884f0e87543434baf069cd
+msgid ""
+"\n"
+"V_{c,t} = \\beta_c \\, \\frac{1 - e^{-\\lambda_c x_{c,t}}}{1 + "
+"e^{-\\lambda_c x_{c,t}}},\n"
+"\\qquad\n"
+"\\text{contribution}_{c,t} = \\sum_{l=0}^{l_{\\max}-1} w_{c,l} \\, "
+"V_{c,t-l},\n"
+msgstr ""
+"\n"
+"V_{c,t} = \\beta_c \\, \\frac{1 - e^{-\\lambda_c x_{c,t}}}{1 + e^{-\\lambda_c x_{c,t}}},\n"
+"\\qquad\n"
+"\\text{contribution}_{c,t} = \\sum_{l=0}^{l_{\\max}-1} w_{c,l} \\, V_{c,t-l},\n"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:80020
+#: caec300227cc4328992d849b0b12581c
+#, python-brace-format
+msgid ""
+"where $x_{c,t}$ is spend divided by its maximum and $w_{c,l}$ are the "
+"normalized geometric weights. Each week's spend saturates on its own, and"
+" its saturated value $V_{c,s}$ is then spread over the following weeks by"
+" the kernel. Sales add a baseline, a yearly cycle, a promotion effect and"
+" noise."
+msgstr ""
+"donde $x_{c,t}$ es el gasto dividido por su máximo y $w_{c,l}$ son los pesos"
+" geométricos normalizados. El gasto de cada semana se satura por sí solo, y "
+"su valor saturado $V_{c,s}$ se reparte luego entre las semanas siguientes "
+"mediante el kernel. Las ventas añaden una línea base, un ciclo anual, un "
+"efecto de promoción y ruido."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:110002
+#: 65aea3df27fb4f27a124778a99f63405
+msgid "Model Specification"
+msgstr "Especificación del modelo"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:110004
+#: 7831f175df314667b966f735ffdd2bb0
+msgid ""
+"We use `MMM` with the structure of the data generating process: a "
+"`GeometricAdstock` with `l_max=8`, a `LogisticSaturation`, the promotion "
+"as a control, two yearly Fourier modes, and `adstock_first=False` so that"
+" saturation is applied first."
+msgstr ""
+"Usamos `MMM` con la estructura del proceso generador de datos: un "
+"`GeometricAdstock` con `l_max=8`, una `LogisticSaturation`, la promoción "
+"como control, dos modos de Fourier anuales y `adstock_first=False` para que "
+"la saturación se aplique primero."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:110007
+#: dbb8ad7debc6485d87f29a4d32857b67
+#, python-brace-format
+msgid ""
+"The transformation order matters for this notebook. With saturation "
+"first, the model is additively separable across spend weeks: the response"
+" to one week's spend does not depend on any other week's spend. Then the "
+"two ways of attributing a date's contribution to the weeks that caused "
+"it, zeroing a period's spend (the *counterfactual*) and splitting the "
+"date's contribution by shares (the *allocation*), give the same numbers, "
+"and `method=\"closed_form\"` applies. With the default "
+"`adstock_first=True` the current/future split is still available through "
+"the pipeline, but the two estimands differ; a section near the end fits "
+"such a model. See "
+"{meth}`~pymc_marketing.mmm.incrementality.Incrementality.split_incremental_contribution_over_time`."
+msgstr ""
+"El orden de las transformaciones importa en este cuaderno. Con la saturación"
+" primero, el modelo es aditivamente separable entre las semanas de gasto: la"
+" respuesta al gasto de una semana no depende del gasto de ninguna otra "
+"semana. Entonces, las dos formas de atribuir la contribución de una fecha a "
+"las semanas que la causaron, poner en cero el gasto de un período (el "
+"*contrafactual*) y dividir la contribución de la fecha por proporciones (la "
+"*asignación*), dan los mismos números, y `method=\"closed_form\"` es "
+"aplicable. Con el valor predeterminado `adstock_first=True`, la división "
+"actual/futuro sigue estando disponible a través del pipeline, pero los dos "
+"estimandos difieren; una sección cerca del final ajusta un modelo así. "
+"Consulte "
+"{meth}`~pymc_marketing.mmm.incrementality.Incrementality.split_incremental_contribution_over_time`."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:130002
+#: e68085e6cc09485eb8aa8b6c6c844ef4
+msgid "Model Fitting"
+msgstr "Ajuste del modelo"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:130004
+#: 3705a5567aeb4b0b88ddfb342693d48c
+msgid "We fit on the full dataset with `nutpie`."
+msgstr "Ajustamos con el conjunto de datos completo usando `nutpie`."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:150002
+#: 97fa95bd27c542c794a5106572f245e8
+msgid "Diagnostics"
+msgstr "Diagnósticos"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:150004
+#: a885cb30c4f14dcfaf035a711803e128
+msgid ""
+"Before we read anything off the model, we check that the sampler did its "
+"job and that the model reproduces the data."
+msgstr ""
+"Antes de leer cualquier cosa del modelo, comprobamos que el muestreador hizo"
+" su trabajo y que el modelo reproduce los datos."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:180002
+#: 95852998ee2d48988596a8bda790f9f3
+#, python-brace-format
+msgid ""
+"No divergences, every $\\hat{R}$ below 1.01 and every effective sample "
+"size above 400. The lowest effective sample sizes belong to the "
+"saturation parameters of `search`: its spend is always on, so the data "
+"rarely show it near zero, and $\\beta$ and $\\lambda$ can trade off along"
+" a ridge. The adstock $\\alpha$, which drives everything in this "
+"notebook, mixes much better."
+msgstr ""
+"Sin divergencias, todos los $\\hat{R}$ por debajo de 1.01 y todos los "
+"tamaños de muestra efectivos por encima de 400. Los tamaños de muestra "
+"efectivos más bajos corresponden a los parámetros de saturación de `search`:"
+" su gasto está siempre activo, por lo que los datos rara vez lo muestran "
+"cerca de cero, y $\\beta$ y $\\lambda$ pueden compensarse a lo largo de una "
+"cresta. El $\\alpha$ del adstock, que impulsa todo en este cuaderno, mezcla "
+"mucho mejor."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:210002
+#: 9d5822c649d640379002f92c5f703312
+msgid ""
+"The adstock parameter is the one this notebook leans on most, so let's "
+"check that the model recovers it. The current/future split is mostly a "
+"statement about $\\alpha$."
+msgstr ""
+"El parámetro del adstock es en el que más nos apoyamos en este cuaderno, así"
+" que comprobemos que el modelo lo recupera. La división actual/futuro es "
+"sobre todo una afirmación sobre $\\alpha$."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:230002
+#: d232f61a725a4e4589c126bcb42d26e7
+msgid "Two Ways to Read a Contribution"
+msgstr "Dos formas de leer una contribución"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:230004
+#: 3acb45de872f4d6cab817f6bc20393a2
+msgid ""
+"The model's `channel_contribution` answers the question *how much did "
+"channel $c$ add to sales in week $t$?* Let's first check it against the "
+"truth."
+msgstr ""
+"El `channel_contribution` del modelo responde a la pregunta *¿cuánto añadió "
+"el canal $c$ a las ventas en la semana $t$?* Primero comprobémoslo con la "
+"verdad."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:250002
+#: 259f7ffaf9494699905d9844cdcd0b5a
+msgid ""
+"This is a **column** reading: everything that lands in week $t$, "
+"whichever week's spend caused it. A week of `tv` contribution includes "
+"carryover from several earlier flights."
+msgstr ""
+"Esta es una lectura por **columna**: todo lo que se materializa en la semana"
+" $t$, sea cual sea la semana de gasto que lo causó. Una semana de "
+"contribución de `tv` incluye el arrastre de varias oleadas anteriores."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:250004
+#: bb959fa1ed1a4bc8b92ea1389030a511
+#, python-brace-format
+msgid ""
+"The question a planner asks is the **row** reading: everything that one "
+"period's spend caused, whenever it lands. That is what "
+"{meth}`~pymc_marketing.mmm.incrementality.Incrementality.compute_incremental_contribution`"
+" returns. It zeroes the spend of one period at a time and records how "
+"much sales drop, over the period and the carryover window after it."
+msgstr ""
+"La pregunta que se hace un planificador es la lectura por **fila**: todo lo "
+"que causó el gasto de un período, cuando sea que se materialice. Eso es lo "
+"que devuelve "
+"{meth}`~pymc_marketing.mmm.incrementality.Incrementality.compute_incremental_contribution`."
+" Pone en cero el gasto de un período a la vez y registra cuánto caen las "
+"ventas, durante el período y la ventana de arrastre posterior."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:250006
+#: 0f6c3f37e0e74dca8e923917bd64b722
+msgid "Let's compare the two readings on monthly periods."
+msgstr "Comparemos las dos lecturas en períodos mensuales."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:270002
+#: 65c3d73523c7490dbddf7712e11c797a
+msgid ""
+"For `search`, whose carryover fades within a week or two, the two "
+"readings almost coincide. For `tv` they differ a lot: a flight month "
+"causes more than lands in it, and the months after a flight receive value"
+" they did not pay for. The difference between the two lines is exactly "
+"the carryover we want to split out."
+msgstr ""
+"Para `search`, cuyo arrastre se desvanece en una o dos semanas, las dos "
+"lecturas casi coinciden. Para `tv` difieren mucho: un mes de oleada causa "
+"más de lo que se materializa en él, y los meses posteriores a una oleada "
+"reciben valor que no pagaron. La diferencia entre las dos líneas es "
+"exactamente el efecto de arrastre que queremos separar."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:280002
+#: 1150234e641344baa36b567d53eeb01a
+msgid "The Carryover Matrix"
+msgstr "La matriz de arrastre"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:280004
+#: b412bb39fb7646e4ad054efdda11d61b
+msgid ""
+"Both readings are sums of one object. Let $A[s, u]$ be the part of "
+"channel $c$'s contribution that was caused by spend in period $s$ and "
+"lands on date $u$. Then"
+msgstr ""
+"Ambas lecturas son sumas de un mismo objeto. Sea $A[s, u]$ la parte de la "
+"contribución del canal $c$ que fue causada por el gasto del período $s$ y se"
+" materializa en la fecha $u$. Entonces"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:280006
+#: a950012c8b5c4922961b0746c425756d
+msgid ""
+"the **row sum** $\\sum_u A[s, u]$ is the value of period $s$'s spend (the"
+" row reading above), and"
+msgstr ""
+"la **suma por filas** $\\sum_u A[s, u]$ es el valor del gasto del período "
+"$s$ (la lectura por filas de arriba), y"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:280007
+#: 5139de86363a48b08fb631be2f3502fb
+msgid ""
+"the **column sum** $\\sum_s A[s, u]$ is the contribution on date $u$ (the"
+" column reading)."
+msgstr ""
+"la **suma por columnas** $\\sum_s A[s, u]$ es la contribución en la fecha "
+"$u$ (la lectura por columnas)."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:280009
+#: 8572a13d25a34d15a607e8aaf90315c7
+#, python-brace-format
+msgid ""
+"{meth}`~pymc_marketing.mmm.incrementality.Incrementality.split_incremental_contribution_over_time`"
+" returns $A$ with the posterior intact. Rows are spend periods at the "
+"requested frequency (`spend_date` is the period end), and columns are the"
+" data's own dates."
+msgstr ""
+"{meth}`~pymc_marketing.mmm.incrementality.Incrementality.split_incremental_contribution_over_time`"
+" devuelve $A$ con la posterior intacta. Las filas son períodos de gasto con "
+"la frecuencia solicitada (`spend_date` es el fin del período), y las "
+"columnas son las fechas propias de los datos."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:280011
+#: ef7165f9425f49089fc884005d811d9a
+msgid ""
+"We build it with `estimand=\"counterfactual\"`, the default, which zeroes"
+" one period's spend at a time. The other estimand, the allocation, is "
+"compared with it in \"The Default Order: Adstock First\" below."
+msgstr ""
+"Lo construimos con `estimand=\"counterfactual\"`, el valor predeterminado, "
+"que pone en cero el gasto de un período a la vez. El otro estimando, la "
+"asignación, se compara con este en \"El orden predeterminado: adstock "
+"primero\" más abajo."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:310002
+#: 1bb9b7d4c9a74ceea3e716777a44cd99
+msgid ""
+"Each row starts at the beginning of its month and fades over the "
+"following weeks. Flight months are bright, off months are empty. "
+"Everything left of the dashed diagonal lands in the spend month; "
+"everything right of it lands later."
+msgstr ""
+"Cada fila comienza al principio de su mes y se desvanece a lo largo de las "
+"semanas siguientes. Los meses de oleada son brillantes, los meses sin "
+"actividad están vacíos. Todo lo que queda a la izquierda de la diagonal "
+"discontinua se materializa en el mes de gasto; todo lo que queda a la "
+"derecha se materializa después."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:310004
+#: c22edcab742b4786afafd2b96befc859
+#, python-brace-format
+msgid ""
+"Let's verify the two reconciliations. Rows must sum to "
+"{meth}`~pymc_marketing.mmm.incrementality.Incrementality.compute_incremental_contribution`,"
+" draw by draw."
+msgstr ""
+"Verifiquemos las dos conciliaciones. Las filas deben sumar "
+"{meth}`~pymc_marketing.mmm.incrementality.Incrementality.compute_incremental_contribution`,"
+" muestra por muestra."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:330002
+#: 4959695370174633b76f425d5da4dcd3
+msgid ""
+"The columns should sum to `channel_contribution`. Here we use "
+"`estimand=\"allocation\"`, which keeps exactly the fitted dates as "
+"columns. Because the model applies saturation first, the allocation and "
+"the counterfactual matrix are the same numbers."
+msgstr ""
+"Las columnas deberían sumar `channel_contribution`. Aquí usamos "
+"`estimand=\"allocation\"`, que conserva exactamente las fechas ajustadas "
+"como columnas. Como el modelo aplica la saturación primero, la asignación y "
+"la matriz contrafactual son los mismos números."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:350002
+#: d1f030b0e3da41d9ae651bf7214d5814
+msgid ""
+"One more detail of the matrix matters for the split. The last months' "
+"carryover runs past the end of the data. The matrix extends its columns "
+"to those dates, but the cells are `NaN` and marked `observed=False`: the "
+"model knows the effect is there, but the data cannot show it."
+msgstr ""
+"Un detalle más de la matriz importa para la división. El arrastre de los "
+"últimos meses se extiende más allá del final de los datos. La matriz "
+"extiende sus columnas hasta esas fechas, pero las celdas son `NaN` y están "
+"marcadas como `observed=False`: el modelo sabe que el efecto existe, pero "
+"los datos no pueden mostrarlo."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:370002
+#: 758d42a389b241b09c0aec11284838b7
+msgid "Current vs Future Value"
+msgstr "Valor actual vs futuro"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:370004
+#: 784e99693ad84330b27abdbd30b1c556
+#, python-brace-format
+msgid ""
+"With the matrix in hand, the split is a reduction of each row: "
+"**current** sums the dates inside the spend month, **future** sums the "
+"dates after it. "
+"{meth}`~pymc_marketing.mmm.incrementality.Incrementality.split_incremental_contribution_current_future`"
+" does exactly that, one row at a time, without materializing the matrix."
+msgstr ""
+"Con la matriz en mano, la división es una reducción de cada fila: **actual**"
+" suma las fechas dentro del mes de gasto, **futuro** suma las fechas "
+"posteriores. "
+"{meth}`~pymc_marketing.mmm.incrementality.Incrementality.split_incremental_contribution_current_future`"
+" hace exactamente eso, una fila a la vez, sin construir explícitamente la "
+"matriz."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:370007
+#: 003117453cb44481a8df490b332709e0
+msgid ""
+"We report monthly. The reporting period *is* the definition of current, "
+"and a month matches this kernel: `l_max=8` weeks of carryover often "
+"crosses a month boundary, so the split shows how the timing within the "
+"month matters. We come back to the choice of frequency below."
+msgstr ""
+"Reportamos por mes. El período de reporte *es* la definición de actual, y un"
+" mes se ajusta a este kernel: `l_max=8` semanas de arrastre a menudo cruzan "
+"el límite de un mes, por lo que la división muestra cómo importa el momento "
+"dentro del mes. Volveremos a la elección de la frecuencia más abajo."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:400002
+#: fbfe6c1e225d4456aa59895240c1875f
+msgid ""
+"About a third of a `tv` month's value lands after the month, while "
+"`search` is almost all current. In the grey months the carryover runs "
+"past the data, so `future` is `NaN` and only the current part is drawn."
+msgstr ""
+"Alrededor de un tercio del valor de un mes de `tv` se materializa después "
+"del mes, mientras que `search` es casi todo actual. En los meses grises el "
+"arrastre se extiende más allá de los datos, por lo que `future` es `NaN` y "
+"solo se dibuja la parte actual."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:400004
+#: 9de5e6008fab45b29caa31c382591a98
+msgid ""
+"To get **one future share per channel**, sum future and total value over "
+"the months first, and divide afterwards. Averaging monthly shares would "
+"weight a quiet month like a busy one. We keep the complete months only, "
+"since `future` is `NaN` on the others, and we do it draw by draw so the "
+"posterior carries through."
+msgstr ""
+"Para obtener **una proporción futura por canal**, primero sumamos el valor "
+"futuro y el valor total a lo largo de los meses, y dividimos después. "
+"Promediar las proporciones mensuales daría el mismo peso a un mes tranquilo "
+"que a uno de mucha actividad. Conservamos solo los meses completos, ya que "
+"`future` es `NaN` en los demás, y lo hacemos muestra por muestra para que la"
+" incertidumbre de la posterior se propague."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:420002
+#: a6b4feb38cc34b21bf6c8891e28fe1e8
+msgid ""
+"How does that compare with the truth? We know the true saturated spend "
+"$V$ and the true kernels, so we can build the true carryover matrix and "
+"split it the same way."
+msgstr ""
+"¿Cómo se compara eso con la verdad? Conocemos el gasto saturado verdadero "
+"$V$ y los kernels verdaderos, así que podemos construir la matriz de "
+"arrastre verdadera y dividirla de la misma manera."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:450002
+#: 26c688491781448695dacce58e4e2e4a
+msgid "The Frequency Is the Definition of Current"
+msgstr "La frecuencia es la definición de actual"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:450004
+#: a0c99d3a69854e9094a21bd7c3277c9f
+msgid ""
+"A future share belongs to a channel *and* a reporting period. The same "
+"model and the same spend give different shares at different frequencies, "
+"because a longer period keeps more of the carryover inside it:"
+msgstr ""
+"Una proporción futura pertenece a un canal *y* a un período de reporte. El "
+"mismo modelo y el mismo gasto dan proporciones distintas con frecuencias "
+"distintas, porque un período más largo conserva más arrastre dentro de sí:"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:470002
+#: c217d1f1ebc84826b85716025d7f38ca
+msgid ""
+"At the weekly frequency each week is its own period, so only the first "
+"kernel weight is current and the future share is $1 - C(0)$: most of "
+"`tv`'s value then counts as future. A quarter holds almost all of an "
+"eight-week kernel, so very little is left for the future. Neither number "
+"is more correct than the other. Always report the future share together "
+"with the period it refers to."
+msgstr ""
+"Con frecuencia semanal cada semana es su propio período, así que solo el "
+"primer peso del kernel es actual y la proporción futura es $1 - C(0)$: "
+"entonces la mayor parte del valor de `tv` cuenta como futuro. Un trimestre "
+"contiene casi todo un kernel de ocho semanas, así que queda muy poco para el"
+" futuro. Ningún número es más correcto que el otro. Reporte siempre la "
+"proporción futura junto con el período al que se refiere."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:480002
+#: 8aa0ce53b4354e0998d60255f671cda0
+msgid "A Fixed Window and the Cumulative Weights"
+msgstr "Una ventana fija y los pesos acumulados"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:480004
+#: 6dcbb08a959f4ef9acb81edded6cfbc9
+msgid ""
+"Monthly reporting is one definition of \"current\". Media planning often "
+"prefers a fixed window instead: *what lands within $h$ weeks of the "
+"spend?* Pass `horizon` at the data's own frequency:"
+msgstr ""
+"El reporte mensual es una definición de \"actual\". La planificación de "
+"medios suele preferir en su lugar una ventana fija: *¿qué se materializa "
+"dentro de las $h$ semanas posteriores al gasto?* Pase `horizon` con la "
+"frecuencia propia de los datos:"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:500002
+#: 2ba45da20bcf41979746ed0b2de9e5d4
+#, python-brace-format
+msgid ""
+"With a fixed window the bookkeeping becomes very simple. When saturation "
+"comes first, week $s$'s spend is worth $V_s \\sum_l w_l$ in total, and "
+"the part within $h$ weeks is $V_s \\sum_{l \\le h} w_l$. So the current "
+"share is"
+msgstr ""
+"Con una ventana fija la contabilidad se vuelve muy sencilla. Cuando la "
+"saturación va primero, el gasto de la semana $s$ vale $V_s \\sum_l w_l$ en "
+"total, y la parte dentro de $h$ semanas es $V_s \\sum_{l \\le h} w_l$. Así, "
+"la proporción actual es"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:500004
+#: 9094e4bd6f614ca8a6278d8b6acd0e90
+msgid ""
+"\n"
+"C(h) = \\frac{\\sum_{l \\le h} w_l}{\\sum_{l < l_{\\max}} w_l},\n"
+msgstr ""
+"\n"
+"C(h) = \\frac{\\sum_{l \\le h} w_l}{\\sum_{l < l_{\\max}} w_l},\n"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:500008
+#: e55493de73284cd792b28e324ae44000
+#, python-brace-format
+msgid ""
+"one number per channel and posterior draw, the same for every week and "
+"every spend level. "
+"{meth}`~pymc_marketing.mmm.components.adstock.AdstockTransformation.cumulative_weights`"
+" returns it. Called without a `horizon`, it returns the whole curve."
+msgstr ""
+"un número por canal y muestra de la posterior, el mismo para cada semana y "
+"cada nivel de gasto. "
+"{meth}`~pymc_marketing.mmm.components.adstock.AdstockTransformation.cumulative_weights`"
+" lo devuelve. Si se llama sin `horizon`, devuelve la curva completa."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:520002
+#: 08bc96017dc04174b5f67bbfdd9261ed
+msgid ""
+"The current value of a complete week is $C(h)$ times that week's total "
+"value, draw by draw. Let's check it on `horizon=1`:"
+msgstr ""
+"El valor actual de una semana completa es $C(h)$ veces el valor total de esa"
+" semana, muestra por muestra. Comprobémoslo con `horizon=1`:"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:540003
+#: 0dc11d18115f45db82e4489b57a663d3
+msgid ""
+"Multiply $C(h)$ by the value **per draw** and summarize last. $C(h)$ and "
+"the value come from the same posterior draws, so the product of their "
+"means is not the mean of their product."
+msgstr ""
+"Multiplique $C(h)$ por el valor **por muestra** y resuma al final. $C(h)$ y "
+"el valor provienen de las mismas muestras de la posterior, por lo que el "
+"producto de sus medias no es la media de su producto."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:550002
+#: 2a567ee6948a4d3588c452030f0f7e97
+msgid "The Closed Form"
+msgstr "La forma cerrada"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:550004
+#: 379ea5032f204165a772131c4f386aee
+msgid ""
+"Everything so far used the default `method=\"pipeline\"`: the model is "
+"evaluated once per spend period with that period's spend set to zero. "
+"That is exact for every supported model, including `adstock_first=True`, "
+"log links and mediated effects."
+msgstr ""
+"Todo lo anterior usó el `method=\"pipeline\"` predeterminado: el modelo se "
+"evalúa una vez por cada período de gasto, con el gasto de ese período puesto"
+" en cero. Eso es exacto para todo modelo compatible, incluidos "
+"`adstock_first=True`, los enlaces logarítmicos y los efectos mediados."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:550006
+#: a81bb9f9c861472d997eb20663a39377
+msgid ""
+"For a model like ours there is a shortcut. The matrix is $A[s, s+l] = w_l"
+" V_s$: the kernel times how much week $s$'s saturated spend changes "
+"between the actual and the counterfactual spend,"
+msgstr ""
+"Para un modelo como el nuestro hay un atajo. La matriz es $A[s, s+l] = w_l "
+"V_s$: el kernel multiplicado por cuánto cambia el gasto saturado de la "
+"semana $s$ entre el gasto real y el gasto contrafactual,"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:550008
+#: 2ff77635de04427cba0aab8370318480
+msgid ""
+"\n"
+"V_s = \\beta\\, g(x_s) - \\beta\\, g(f\\, x_s),\n"
+msgstr ""
+"\n"
+"V_s = \\beta\\, g(x_s) - \\beta\\, g(f\\, x_s),\n"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:550012
+#: 44d8efaeedc74b06aee0ab115791679c
+msgid ""
+"where $f$ is `counterfactual_spend_factor`. With the default $f = 0$ that"
+" is the saturated spend less its value at zero spend. Our logistic "
+"saturation is zero at zero spend, so here it is exactly the $V_s$ of the "
+"data generating process."
+msgstr ""
+"donde $f$ es `counterfactual_spend_factor`. Con el valor predeterminado $f ="
+" 0$ eso es el gasto saturado menos su valor con gasto cero. Nuestra "
+"saturación logística es cero con gasto cero, así que aquí es exactamente el "
+"$V_s$ del proceso generador de datos."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:550014
+#: 94c19abc73eb4423b3a0a67b18a90ad7
+msgid ""
+"`method=\"closed_form\"` reads both pieces off the posterior. It "
+"evaluates the saturation once for all weeks, at both spend levels, "
+"instead of simulating each period. For the current/future split it reads "
+"the cumulative weights off the same kernel and never builds the matrix."
+msgstr ""
+"`method=\"closed_form\"` lee ambas piezas de la posterior. Evalúa la "
+"saturación una sola vez para todas las semanas, con ambos niveles de gasto, "
+"en lugar de simular cada período. Para la división actual/futuro, lee los "
+"pesos acumulados del mismo kernel y nunca construye la matriz."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:570002
+#: ede20ff62a95480b8feed78475a03888
+msgid ""
+"The two methods return the same numbers, `NaN` for `NaN`. The closed form"
+" is faster when there are many periods, as here with weekly rows. At "
+"coarse frequencies such as quarters there are few periods to simulate, "
+"and the two cost about the same."
+msgstr ""
+"Los dos métodos devuelven los mismos números, `NaN` por `NaN`. La forma "
+"cerrada es más rápida cuando hay muchos períodos, como aquí con filas "
+"semanales. Con frecuencias gruesas como los trimestres hay pocos períodos "
+"que simular, y ambos cuestan más o menos lo mismo."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:570004
+#: e931461daee94898af59675f1bb234ee
+msgid ""
+"The closed form is only exact when the model is additively separable "
+"across spend periods, so it raises on any other model. It requires "
+"`adstock_first=False`, an identity link, one of the library's adstocks "
+"with `ConvMode.After`, no `time_varying_media` and no channel-dependent "
+"`mu_effects`. Before reading the closed form, it also asks the spend "
+"probe whether the media transform carries spend over a window or mixes "
+"channels, and whether the effect of spend dies out within the fitted "
+"dates. Carryover longer than the data fails that last check: the pipeline"
+" still evaluates such a model, the closed form refuses it."
+msgstr ""
+"La forma cerrada solo es exacta cuando el modelo es aditivamente separable "
+"entre los períodos de gasto, por lo que lanza un error con cualquier otro "
+"modelo. Requiere `adstock_first=False`, un enlace identidad, uno de los "
+"adstocks de la biblioteca con `ConvMode.After`, sin `time_varying_media` y "
+"sin `mu_effects` que dependan del canal. Antes de leer la forma cerrada, "
+"también consulta a la sonda de gasto si la transformación de medios arrastra"
+" el gasto a lo largo de una ventana o mezcla canales, y si el efecto del "
+"gasto se extingue dentro de las fechas ajustadas. Un efecto de arrastre más "
+"largo que los datos no pasa esta última comprobación: el pipeline sigue "
+"evaluando un modelo así, pero la forma cerrada lo rechaza."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:570006
+#: 73de9af76139447489ec0e0ff3e436b9
+#, python-format
+msgid ""
+"The counterfactual does not have to be zero spend. Because the closed "
+"form evaluates the saturation at both spend levels, it answers *what if "
+"each period's spend had been 10% lower?* exactly too:"
+msgstr ""
+"El contrafactual no tiene por qué ser gasto cero. Como la forma cerrada "
+"evalúa la saturación con ambos niveles de gasto, también responde con "
+"exactitud a *¿qué pasaría si el gasto de cada período hubiera sido un 10% "
+"menor?*:"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:590002
+#: 526533610ff94b0792ba4e20423a1b38
+msgid ""
+"The allocation is the exception. It splits each date's contribution "
+"against zero spend whichever method computes it, so a different spend "
+"level is refused:"
+msgstr ""
+"La asignación es la excepción. Divide la contribución de cada fecha frente a"
+" gasto cero sea cual sea el método que la calcule, por lo que se rechaza un "
+"nivel de gasto distinto:"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:610002
+#: 8852f01bd8694a23a338a02e8667d3ca
+msgid "The Default Order: Adstock First"
+msgstr "El orden predeterminado: adstock primero"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:610004
+#: cb38a5c952da4ea0bf81e929cf627646
+msgid ""
+"So far the model applied saturation before the adstock, the case where "
+"everything lines up. `MMM`'s default is the other order, "
+"`adstock_first=True`: the adstock first sums each week's carryover from "
+"earlier spend, and the saturation then acts on that sum,"
+msgstr ""
+"Hasta ahora el modelo aplicó la saturación antes del adstock, el caso en el "
+"que todo encaja. El valor predeterminado de `MMM` es el otro orden, "
+"`adstock_first=True`: el adstock primero suma el arrastre de cada semana "
+"proveniente del gasto anterior, y la saturación actúa después sobre esa "
+"suma,"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:610006
+#: 18fe811eea8e46118c21fda312cf5cf9
+#, python-brace-format
+msgid ""
+"\n"
+"\\text{contribution}_t = \\beta\\, g\\Big(\\sum_{l} w_l\\, x_{t-l}\\Big)."
+"\n"
+msgstr ""
+"\n"
+"\\text{contribution}_t = \\beta\\, g\\Big(\\sum_{l} w_l\\, x_{t-l}\\Big).\n"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:610010
+#: 6eaabd3292824b18b9ca0912a06ce85f
+msgid ""
+"The saturation now sees every cohort at once, so what one week's spend "
+"adds depends on the other weeks' spend. The model is no longer additively"
+" separable, and the two ways of attributing a date's contribution to the "
+"spend behind it give different numbers:"
+msgstr ""
+"Ahora la saturación ve todas las cohortes a la vez, así que lo que añade el "
+"gasto de una semana depende del gasto de las demás semanas. El modelo ya no "
+"es aditivamente separable, y las dos formas de atribuir la contribución de "
+"una fecha al gasto que la originó dan números distintos:"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:610012
+#: e0c9e4d2759f4bbeac3f73723132afbd
+msgid ""
+"`estimand=\"counterfactual\"` (the default) zeroes one period's spend and"
+" records what drops. Its rows reconcile with "
+"`compute_incremental_contribution`; its columns do not add up to "
+"`channel_contribution`."
+msgstr ""
+"`estimand=\"counterfactual\"` (el valor predeterminado) pone en cero el "
+"gasto de un período y registra lo que cae. Sus filas concilian con "
+"`compute_incremental_contribution`; sus columnas no suman "
+"`channel_contribution`."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:610013
+#: 6140bb08f82340459f9bfd204eee2f5f
+msgid ""
+"`estimand=\"allocation\"` splits each date's `channel_contribution` among"
+" the cohorts in proportion to their part of the adstocked spend, an "
+"Aumann-Shapley split. Its columns reconcile with `channel_contribution`; "
+"its rows do not add up to the incremental contribution."
+msgstr ""
+"`estimand=\"allocation\"` divide el `channel_contribution` de cada fecha "
+"entre las cohortes en proporción a su parte del gasto con adstock, una "
+"división de Aumann-Shapley. Sus columnas concilian con "
+"`channel_contribution`; sus filas no suman la contribución incremental."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:610015
+#: 83e2072a4294405cbdf68abea47a2d6a
+#, python-brace-format
+msgid ""
+"To see how much this matters on real data, we refit the model of the "
+"{ref}`mmm_case_study` on its weekly sales data, with its default "
+"transformation order, its priors and its holiday controls. This time "
+"there is no known truth, so instead of checking recovery we compare the "
+"two estimands."
+msgstr ""
+"Para ver cuánto importa esto con datos reales, reajustamos el modelo del "
+"{ref}`mmm_case_study` con sus datos de ventas semanales, con su orden de "
+"transformación predeterminado, sus priors y sus controles de días festivos. "
+"Esta vez no hay una verdad conocida, así que en lugar de comprobar la "
+"recuperación comparamos los dos estimandos."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:630002
+#: 4ed62d05f44042d9950cefaf404c5315
+#, python-brace-format
+msgid ""
+"We use the case study's model as it is: spend shares as the scale of the "
+"$\\beta$ priors, a `GeometricAdstock` with `l_max=6`, a "
+"`LogisticSaturation` and five yearly Fourier modes. We fit it on all the "
+"data, and sample a little longer than the case study, with "
+"`target_accept=0.95`, so that every $\\hat{R}$ stays below 1.01."
+msgstr ""
+"Usamos el modelo del estudio de caso tal cual: proporciones de gasto como "
+"escala de los priors de $\\beta$, un `GeometricAdstock` con `l_max=6`, una "
+"`LogisticSaturation` y cinco modos de Fourier anuales. Lo ajustamos con "
+"todos los datos y muestreamos un poco más que el estudio de caso, con "
+"`target_accept=0.95`, para que todos los $\\hat{R}$ se mantengan por debajo "
+"de 1.01."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:650002
+#: 98b96a697a4740ca8d70bf2ae6236793
+msgid ""
+"The case study covers this model's fit and diagnostics in full, so we go "
+"straight to the split."
+msgstr ""
+"El estudio de caso cubre en detalle el ajuste y los diagnósticos de este "
+"modelo, así que vamos directo a la división."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:650004
+#: 3a220bbac2ed4e2dbab624f7ac622cf9
+msgid ""
+"With 9,000 posterior draws and seven channels, a monthly carryover matrix"
+" holds about 5.2 GB per estimand. We work on a subsample of 1,002 draws "
+"instead: `num_samples=1_000` is rounded up to a multiple of the six "
+"chains, 167 draws each. An integer `random_state` picks the same draws in"
+" every call, so all the objects below are computed on the same draws, and"
+" we select the same draws of `channel_contribution`, by label, to compare"
+" with them."
+msgstr ""
+"Con 9,000 muestras de la posterior y siete canales, una matriz de arrastre "
+"mensual ocupa unos 5.2 GB por estimando. En su lugar trabajamos con una "
+"submuestra de 1,002 muestras: `num_samples=1_000` se redondea hacia arriba a"
+" un múltiplo de las seis cadenas, 167 muestras cada una. Un `random_state` "
+"entero elige las mismas muestras en cada llamada, de modo que todos los "
+"objetos de abajo se calculan sobre las mismas muestras, y seleccionamos las "
+"mismas muestras de `channel_contribution`, por etiqueta, para compararlas "
+"con ellos."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:670002
+#: 5fa79150f8844928a871e2844b4baa4b
+msgid ""
+"Each estimand reconciles with the quantity it is defined against, and not"
+" with the other one:"
+msgstr ""
+"Cada estimando concilia con la cantidad contra la que se define, y no con la"
+" otra:"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:690002
+#: 99f3f7a8c73f473ab64432c2bb074a49
+msgid ""
+"The first two hold to rounding error. The last two show the cost of "
+"choosing: on this model, the counterfactual columns and the allocation "
+"rows miss the other quantity by a percent or two in total."
+msgstr ""
+"Las dos primeras se cumplen hasta el error de redondeo. Las dos últimas "
+"muestran el costo de elegir: en este modelo, las columnas contrafactuales y "
+"las filas de asignación se alejan de la otra cantidad en un uno o dos por "
+"ciento en total."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:690004
+#: 80e306ff1fb14f93b7efcb09458b21ec
+#, python-brace-format
+msgid ""
+"Now the current/future split under each estimand. For the counterfactual "
+"it is "
+"{meth}`~pymc_marketing.mmm.incrementality.Incrementality.split_incremental_contribution_current_future`."
+" For the allocation we reduce the matrix ourselves, with the same "
+"definition of current: the dates from the start of the spend month to its"
+" end. As before, we keep the complete months and sum before dividing, "
+"draw by draw."
+msgstr ""
+"Veamos ahora la división actual/futuro bajo cada estimando. Para el "
+"contrafactual es "
+"{meth}`~pymc_marketing.mmm.incrementality.Incrementality.split_incremental_contribution_current_future`."
+" Para la asignación reducimos la matriz nosotros mismos, con la misma "
+"definición de actual: las fechas desde el inicio del mes de gasto hasta su "
+"fin. Como antes, conservamos los meses completos y sumamos antes de dividir,"
+" muestra por muestra."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:720002
+#: 2fef101fd0594b21838250682cd80e48
+msgid ""
+"On this model the two estimands tell the same story: every channel lands "
+"mostly in its own month, `Direct Mail` has the largest future share by "
+"posterior mean, and the allocation puts a slightly larger share in the "
+"future than the counterfactual. The gap is under a percentage point here."
+" The two estimands can only differ through the saturation that follows "
+"the adstock, so we would expect a larger gap on a model with stronger "
+"saturation, though this notebook does not show it. Report the estimand "
+"that matches the question, and say which one it is."
+msgstr ""
+"En este modelo los dos estimandos cuentan la misma historia: cada canal se "
+"materializa sobre todo en su propio mes, `Direct Mail` tiene la mayor "
+"proporción futura según la media posterior, y la asignación pone en el "
+"futuro una proporción ligeramente mayor que el contrafactual. La diferencia "
+"es de menos de un punto porcentual aquí. Los dos estimandos solo pueden "
+"diferir a través de la saturación que sigue al adstock, así que esperaríamos"
+" una diferencia mayor en un modelo con una saturación más fuerte, aunque "
+"este cuaderno no lo muestra. Reporte el estimando que corresponda a la "
+"pregunta, e indique cuál es."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:720004
+#: f3f7ea3e867a49b8838872b366855e60
+msgid ""
+"The intervals are the bigger story. Each future share is uncertain from "
+"about 0 to between 0.2 and 0.4, many times the gap between the estimands."
+" The reason is the adstock decay: let's compare its posterior with its "
+"prior."
+msgstr ""
+"Los intervalos son la noticia más importante. Cada proporción futura es "
+"incierta, desde alrededor de 0 hasta entre 0.2 y 0.4, muchas veces la "
+"diferencia entre los estimandos. La razón es el decaimiento del adstock: "
+"comparemos su posterior con su prior."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:740002
+#: c581c239c22f41af97c462f4f1c677d0
+#, python-brace-format
+msgid ""
+"Every channel's posterior for $\\alpha$ still spans most of its prior: "
+"four years of weekly sales say little about how fast these channels "
+"decay. A future share is a statement about that decay, so it inherits the"
+" uncertainty. Before reporting a future share from a model like this one,"
+" look at its interval. Narrowing it takes information about the decay "
+"itself, such as a better informed prior on `adstock_alpha` from earlier "
+"studies or from experiments that track sales after a campaign has ended. "
+"A different estimand will not narrow it, and neither will a lift test as "
+"{ref}`mmm_lift_test` uses one, which calibrates the saturation curve "
+"rather than the carryover."
+msgstr ""
+"La posterior de $\\alpha$ de cada canal sigue abarcando la mayor parte de su"
+" prior: cuatro años de ventas semanales dicen poco sobre qué tan rápido "
+"decaen estos canales. Una proporción futura es una afirmación sobre ese "
+"decaimiento, así que hereda su incertidumbre. Antes de reportar una "
+"proporción futura de un modelo como este, observe su intervalo. Reducirlo "
+"requiere información sobre el propio decaimiento, como un prior mejor "
+"informado sobre `adstock_alpha` a partir de estudios anteriores o de "
+"experimentos que sigan las ventas después de que termina una campaña. Un "
+"estimando distinto no lo reducirá, ni tampoco una prueba de elevación tal "
+"como la usa {ref}`mmm_lift_test`, que calibra la curva de saturación y no el"
+" arrastre."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:740004
+#: b869ea58a11c45dc9da492b04bc460bd
+msgid ""
+"The closed form is not available for this model. Saturation after the "
+"adstock is exactly the case it cannot split, so it refuses:"
+msgstr ""
+"La forma cerrada no está disponible para este modelo. La saturación después "
+"del adstock es exactamente el caso que no puede dividir, así que lo rechaza:"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:760002
+#: 558fd921babe4e8b91ddb4439e095df9
+msgid "Reading the Numbers Responsibly"
+msgstr "Cómo leer los números con responsabilidad"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:760004
+#: b8d6b9e52ebb4497b7a14b49f4d04085
+msgid "A few things to keep in mind when these numbers leave the notebook:"
+msgstr ""
+"Algunas cosas que conviene tener en cuenta cuando estos números salen del "
+"cuaderno:"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:760006
+#: 022c507513e14db0be4a1138cd501ff1
+#, python-brace-format
+msgid ""
+"**\"Future\" means future within the adstock window.** The kernel stops "
+"at `l_max`, so nothing after `l_max - 1` weeks is attributed. With "
+"`l_max=8` weekly, future value is future within two months. Do not raise "
+"`l_max` to make the future bucket bigger. Long adstock windows are weakly"
+" identified by typical MMM data, and the extra tail would come from the "
+"prior rather than the data. A genuinely long-term effect is a modeling "
+"question (see {ref}`mmm_brand_metrics_long_term`)."
+msgstr ""
+"**\"Futuro\" significa futuro dentro de la ventana del adstock.** El kernel "
+"se detiene en `l_max`, así que no se atribuye nada posterior a `l_max - 1` "
+"semanas. Con `l_max=8` semanal, el valor futuro es futuro dentro de dos "
+"meses. No aumente `l_max` para hacer más grande la parte futura. Los datos "
+"típicos de MMM identifican débilmente las ventanas largas de adstock, y la "
+"cola adicional provendría del prior y no de los datos. Un efecto "
+"genuinamente de largo plazo es una cuestión de modelado (consulte "
+"{ref}`mmm_brand_metrics_long_term`)."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:760007
+#: 746871a5804b4fa1890dfcde5ff177f0
+msgid ""
+"**Shares are shares of modelled value.** Even with `normalize=True`, the "
+"weights sum to one over the truncated kernel, not over the true tail."
+msgstr ""
+"**Las proporciones son proporciones del valor modelado.** Incluso con "
+"`normalize=True`, los pesos suman uno sobre el kernel truncado, no sobre la "
+"cola verdadera."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:760008
+#: 7c31c83c1d5a49058e1f847b432b0abe
+msgid ""
+"**The last periods are incomplete.** Their carryover runs past the data. "
+"`future` is `NaN` there, and `complete` tells you which periods to leave "
+"out of an aggregate."
+msgstr ""
+"**Los últimos períodos están incompletos.** Su arrastre se extiende más allá"
+" de los datos. `future` es `NaN` ahí, y `complete` indica qué períodos "
+"excluir de un agregado."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:760009
+#: 116ef4fb073f4de4a13b2ce7aec1a84e
+msgid ""
+"**At an aggregated frequency, the share depends on timing.** A month with"
+" spend early in the month has a larger current share than one with spend "
+"at the end, as the first figure showed. Aggregate by summing current and "
+"future first, then divide."
+msgstr ""
+"**Con una frecuencia agregada, la proporción depende del momento.** Un mes "
+"con gasto a principios de mes tiene una proporción actual mayor que uno con "
+"gasto al final, como mostró la primera figura. Agregue sumando primero el "
+"valor actual y el futuro, y divida después."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:760010
+#: ff3764853ff342bfab6491da21fc7b99
+msgid ""
+"**The estimand matters when saturation comes after adstock.** With "
+"`adstock_first=True`, zeroing a period's spend (the counterfactual) and "
+"splitting a date's contribution (the allocation) give different numbers. "
+"Pick the one that matches your question: `estimand=\"counterfactual\"` "
+"reconciles with incremental contribution, `estimand=\"allocation\"` "
+"reconciles with `channel_contribution`. On the case study model above the"
+" two differ by under a percentage point; on another model they may differ"
+" more."
+msgstr ""
+"**El estimando importa cuando la saturación va después del adstock.** Con "
+"`adstock_first=True`, poner en cero el gasto de un período (el "
+"contrafactual) y dividir la contribución de una fecha (la asignación) dan "
+"números distintos. Elija el que corresponda a su pregunta: "
+"`estimand=\"counterfactual\"` concilia con la contribución incremental, "
+"`estimand=\"allocation\"` concilia con `channel_contribution`. En el modelo "
+"del estudio de caso de arriba los dos difieren en menos de un punto "
+"porcentual; en otro modelo podrían diferir más."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:770002
+#: a4648795f12f4d88a47e82f7b3f20182
+msgid "Conclusion"
+msgstr "Conclusión"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:770004
+#: 1f99033135db4d419db765ede2aa2f53
+msgid ""
+"We fitted an MMM with three channels that carry over at different speeds "
+"and went from its contributions to a current/future split:"
+msgstr ""
+"Ajustamos un MMM con tres canales cuyo arrastre tiene velocidades distintas "
+"y pasamos de sus contribuciones a una división actual/futuro:"
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:770006
+#: 481b2fec3fc847089b5b70b5afedc87f
+msgid ""
+"`channel_contribution` reads value by the week it lands in; incremental "
+"contribution reads it by the period whose spend caused it."
+msgstr ""
+"`channel_contribution` lee el valor según la semana en que se materializa; "
+"la contribución incremental lo lee según el período cuyo gasto lo causó."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:770007
+#: ce22d29818e7451290beaff380e0a624
+msgid ""
+"The carryover matrix holds both readings: its rows sum to incremental "
+"contribution and its columns to `channel_contribution`."
+msgstr ""
+"La matriz de arrastre contiene ambas lecturas: sus filas suman la "
+"contribución incremental y sus columnas, `channel_contribution`."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:770008
+#: 2742da543f03428f848d614f437149da
+msgid ""
+"Current and future value are a reduction of each row, and they recover "
+"the true split on this synthetic data."
+msgstr ""
+"El valor actual y el futuro son una reducción de cada fila, y recuperan la "
+"división verdadera en estos datos sintéticos."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:770009
+#: 0db0ad4024dc424e97169387722a5979
+msgid ""
+"For a fixed window, the current share is the cumulative adstock weight "
+"$C(h)$, per channel and per draw."
+msgstr ""
+"Para una ventana fija, la proporción actual es el peso acumulado del adstock"
+" $C(h)$, por canal y por muestra."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:770010
+#: e3d56c8304bb47afa6f7298fd8195420
+msgid ""
+"When the model is separable across spend periods, "
+"`method=\"closed_form\"` gives the same numbers without simulating each "
+"period."
+msgstr ""
+"Cuando el modelo es separable entre los períodos de gasto, "
+"`method=\"closed_form\"` da los mismos números sin simular cada período."
+
+#: ../source/notebooks/mmm/mmm_current_vs_future_value.ipynb:770011
+#: 30dcc6d97c4849b59b2aa02c7164ba6e
+msgid ""
+"With the default `adstock_first=True` the split still works, but the "
+"counterfactual and the allocation differ, and each reconciles with a "
+"different quantity."
+msgstr ""
+"Con el valor predeterminado `adstock_first=True` la división sigue "
+"funcionando, pero el contrafactual y la asignación difieren, y cada uno "
+"concilia con una cantidad distinta."
+
