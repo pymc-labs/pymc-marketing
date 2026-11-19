@@ -3325,26 +3325,6 @@ class _DateLevelEffect(_ZeroEffect):
         return pmd.Deterministic(self.contribution_var_name, level)
 
 
-class _ClassicLevelEffect(_ZeroEffect):
-    """A level declared with ``pymc``, not ``pymc.dims``, added to ``mu``.
-
-    ``scalar`` makes it one value for every date; otherwise it is one per date.
-    """
-
-    prefix: str = "classic"
-    scalar: bool = False
-
-    def create_effect(self, mmm):
-        """The classic variable, wrapped with ``as_xtensor``."""
-        name = f"{self.prefix}_draws"
-        if self.scalar:
-            zeros = as_xtensor(pt.zeros(mmm.model.dim_lengths["date"]), dims=("date",))
-            level = zeros + as_xtensor(pm.Normal(name, sigma=0.1), dims=())
-        else:
-            level = as_xtensor(pm.Normal(name, sigma=0.1, dims="date"), dims=("date",))
-        return pmd.Deterministic(self.contribution_var_name, level)
-
-
 @pytest.fixture
 def fit_mmm_with_effect(simple_mmm_data, mock_pymc_sample):
     """Fit an MMM carrying the effects it is given."""
@@ -3434,56 +3414,6 @@ def test_monthly_incrementality_evaluates_a_reduced_date_variable(
     assert json.loads(split.attrs["assumptions"])["evaluation"] == "window"
 
 
-@pytest.mark.parametrize("scalar", [False, True], ids=["over-date", "scalar"])
-@pytest.mark.parametrize("frequency", ["all_time", "monthly"])
-def test_incrementality_on_a_classic_random_variable(
-    fit_mmm_with_effect, scalar, frequency
-):
-    """A request runs on an effect whose variable is declared with ``pymc``.
-
-    The extraction used to replace it with an xtensor, which raised
-    ``AttributeError: 'TensorType' object has no attribute 'dims'`` (#3398).  The
-    level is additive, so it cancels in the increment: this checks only that the
-    request runs.  ``test_yearly_incrementality_on_a_variable_that_scales_spend``
-    checks the values.
-    """
-    mmm = fit_mmm_with_effect(_ClassicLevelEffect(scalar=scalar))
-
-    incremental = mmm.incrementality.compute_incremental_contribution(
-        frequency=frequency
-    )
-
-    assert np.isfinite(incremental).all()
-
-
-@pytest.mark.parametrize("entry_point", BUDGET_ENTRY_POINTS)
-def test_budget_objective_through_a_classic_random_variable_is_optimized(
-    single_dim_data, mock_pymc_sample, entry_point
-):
-    """The total response reaches an effect's classic variable, and is optimized.
-
-    The variable is one value for every date, so it can be evaluated on the
-    optimizer's window.  Every way of building the optimizer reaches the same
-    extraction, which used to raise on it (#3398).  A constant level does not
-    change the allocation, and the budget constraint fixes the total, so this
-    checks only that the optimization runs and returns a finite response.
-    """
-    X, y = single_dim_data
-    mmm = _mmm_with_effects(_ClassicLevelEffect(scalar=True))
-    mmm.fit(X.iloc[:9], y.iloc[:9], draws=50, chains=1, random_seed=42)
-
-    result = _optimize_budget(
-        entry_point,
-        mmm,
-        "2023-01-10",
-        "2023-01-14",
-        response_variable="total_response_original_scale",
-    )
-
-    np.testing.assert_allclose(result.budgets.sum(), 10.0)
-    assert np.isfinite(result.scipy_result.fun)
-
-
 class _ScaledByDateLevelEffect(_ZeroEffect):
     """A free random variable over the dates that scales the channel contribution.
 
@@ -3539,19 +3469,13 @@ def test_yearly_incrementality_on_a_variable_that_scales_spend(
     same length, so no shape fails.  Unfrozen, the variable holds its draws over all
     fitted dates and every period is evaluated on the full date axis, with the
     horizon the probe measured.  Frozen at the path where it meets spend, it is cut
-    to each window.  A variable declared with ``pymc`` gets the same draws from the
-    mock sampler, so its increments must equal those of the frozen ``pymc.dims``
-    path, which does not go through the classic branch of the extraction.  An
-    additive variable could not show this, since it cancels in the increment
-    (#3398).
+    to each window.  The same holds for a variable declared with ``pymc`` (#3398).
     """
     from tests.mmm.conftest import _make_mmm_data
 
     data = _make_mmm_data(periods=18, freq="MS", n_channels=3, seed=99)
 
-    def yearly(
-        freeze: bool, classic: bool = classic
-    ) -> tuple[xr.DataArray, xr.Dataset]:
+    def yearly(freeze: bool) -> tuple[xr.DataArray, xr.Dataset]:
         mmm = MMM(
             date_column="date",
             target_column="target",
@@ -3582,11 +3506,6 @@ def test_yearly_incrementality_on_a_variable_that_scales_spend(
     )
     assert json.loads(unfrozen_split.attrs["assumptions"])["evaluation"] == "full_axis"
     assert "'scaled_level'" in unfrozen_split.attrs["warnings"]
-
-    if classic:
-        reference, reference_split = yearly(freeze=True, classic=False)
-        np.testing.assert_allclose(unfrozen, reference.transpose(*unfrozen.dims))
-        xr.testing.assert_allclose(unfrozen_split, reference_split)
 
 
 def test_no_full_axis_warning_where_the_mode_uses_the_full_axis_anyway(
