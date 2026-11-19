@@ -1,0 +1,19 @@
+locales/es/LC_MESSAGES/notebooks/mmm/mmm_brand_metrics_long_term.po
+  s_8ccfa4577307b8::t_35417b58b3879c 1-3112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "58066a38cb6ad33fc37020cfe497524f30c76fc2",
+  "prompts": {},
+  "sessions": {
+    "s_8ccfa4577307b8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4154fb27-2edb-4116-a287-c2ea711af525",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "daimon-pymclabs <daimon@pymc-labs.com>"
+    }
+  }
+}
