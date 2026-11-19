@@ -365,6 +365,7 @@ from pymc_marketing.mmm.spend_reach import (
     _PKG_PREFIX,
     ProbeStatistics,
     SpendProbe,
+    TemporalReach,
     completeness_tolerance,
     linear_predictor,
     refuse_blocked_spend_paths,
@@ -689,9 +690,9 @@ def kernel_trailing_lags(l_max: int, mode: ConvMode) -> int:
 
     The one definition of how far a plain kernel carries.  :class:`Incrementality`
     passes it to :meth:`~pymc_marketing.mmm.spend_reach.SpendProbe.measure` as
-    the floor under the measured horizon, and, where the probe could not bound
-    the reach and so measured no horizon, uses it as a lower bound on how far a
-    period's carryover runs.
+    the floor under the measured horizon, and, where no horizon is reported,
+    uses it as the floor under the lower bound on how far a period's carryover
+    runs.
 
     Parameters
     ----------
@@ -1286,11 +1287,13 @@ class ReadoutContext:
         order callers see.
     tail_lags : int
         Lags after a period's last fitted spend date that its carryover is
-        known to reach: the measured
-        :attr:`~pymc_marketing.mmm.spend_reach.SpendReach.max_lag`, or where
-        the probe could not bound it, the kernel's own trailing lags.
-        Required, so that no readout gets a band without its unobserved tail
-        by leaving it out; a total does not read it.
+        known to reach: the longest lag the probe measured for a node whose
+        reach it bounded, floored at the kernel's own trailing lags; see
+        :meth:`~pymc_marketing.mmm.spend_reach.TemporalReach.longest_bounded_lag`.
+        Under a window that is the measured
+        :attr:`~pymc_marketing.mmm.spend_reach.SpendReach.max_lag`.  Required,
+        so that no readout gets a band without its unobserved tail by leaving
+        it out; a total does not read it.
     freq_offset : BaseOffset
         The data's date frequency, which ``lags`` and *tail_lags* are counted
         in.
@@ -2995,9 +2998,10 @@ class Incrementality:
               where the period's carryover runs past the end of the fitted data.
               Those entries are ``NaN``, and they run from the first date after
               the last fitted date to the period's last spend date plus
-              ``effective_horizon``.  The allocation never has such entries:
-              its ``realization_date`` is the fitted dates, and ``observed`` is
-              ``True`` throughout.
+              ``effective_horizon``, or, where no ``effective_horizon`` is
+              reported, plus the lags described below.  The allocation never
+              has such entries: its ``realization_date`` is the fitted dates,
+              and ``observed`` is ``True`` throughout.
             - ``complete`` on ``spend_date``, for ``estimand="allocation"``
               only: ``False`` for a period whose carryover runs past the last
               fitted date, so that its row is the part of its effect the data
@@ -3024,13 +3028,24 @@ class Incrementality:
             ``ConvMode.Before`` and ``ConvMode.Overlap`` a row runs from the
             start of the axis to its end.
 
-            Second, when the probe could not bound the reach, no horizon was
-            measured, so the unobserved tail runs to the period's last spend
-            date plus the kernel's own trailing lags
+            Second, when the reach needs the full axis, because the probe
+            could not bound it or an effect declares
+            ``evaluation_mode="full"``, no horizon is reported, and the
+            unobserved tail runs to the period's last spend date plus the
+            longest lag the probe measured for a node whose reach it bounded,
+            or plus the kernel's own trailing lags if those are longer
             (``l_max - 1`` under ``After``, ``l_max // 2`` under ``Overlap``,
-            none under ``Before``).  ``observed=False`` is then a lower bound
-            on what the data cannot show, because a node that reduces over
-            ``date``, or a mediated path, can carry the effect further.
+            none under ``Before``).  A node whose reach the probe could not
+            bound does not count.  One still moving at the last date only
+            shows that the axis ended first.  One that reduces over ``date``
+            moves dates that carryover does not reach: dividing spend by its
+            date-mean moves every date that carries spend.  One that moves
+            earlier dates through a ``Before`` or ``Overlap`` kernel, such as an
+            effect whose term reads ``channel_contribution``, is left out as
+            well, even though its forward lag is carryover: the probe keeps one
+            flag for both kinds of backward move.  ``observed=False`` is then a
+            lower bound on what the data cannot show, because such a node can
+            carry the effect further.
             ``observed`` only ever marks the trailing side: a leading kernel's
             mass before the first fitted date has no date on the axis to mark.
 
@@ -5372,11 +5387,13 @@ class Incrementality:
         notes = list(notes)
         if reach.requires_full_axis:
             note = (
-                "The spend probe could not bound the perturbation's reach, so each "
-                "period was evaluated on the full date axis.  There is no "
-                "measured carryover horizon: observed=False marks only the "
-                "adstock kernel's own trailing lags past the fitted axis, a lower "
-                "bound on what the data cannot show."
+                "The spend probe could not bound the perturbation's reach, or an "
+                "effect asks for evaluation_mode='full', so each period was "
+                "evaluated on the full date axis.  No carryover horizon is "
+                "reported.  observed=False marks the dates past the fitted axis "
+                "up to the longest lag the probe measured for a node whose reach "
+                "it could bound, and at least the adstock kernel's own trailing "
+                "lags.  This is a lower bound on what the data cannot show."
             )
             if self.model.adstock.mode == ConvMode.After:
                 # Under a leading kernel the dates before a period are kept, and
@@ -5863,7 +5880,7 @@ class Incrementality:
             # copy without it would leave the probe holding the predictor.
             baseline.pop(Var.MU, None)
             # The adstock kernel's own trailing lags: the floor under the measured
-            # horizon, and the lower bound on the unobserved tail when the probe
+            # horizon, and the floor under the unobserved tail when the probe
             # sends every period to the full date axis.
             trailing_lags = kernel_trailing_lags(
                 self.model.adstock.l_max, self.model.adstock.mode
@@ -6315,12 +6332,12 @@ class Incrementality:
                 dim: data_order.coords[dim].values for dim in self.model.dims
             },
             # How far past a period's last spend date its carryover is known to
-            # land: the measured reach, or, where the probe could not bound it,
-            # the kernel's own trailing lags, which bound it from below.
-            tail_lags=(
-                probed.reach.max_lag
-                if probed.reach.max_lag is not None
-                else probed.trailing_lags
+            # land: the measured horizon under a window, a lower bound on the
+            # full axis.  Where no probe could be placed nothing was measured,
+            # and this is the kernel's lags alone: a declared carryover can
+            # overstate the reach, which a lower bound must not.
+            tail_lags=TemporalReach.longest_bounded_lag(
+                probed.reach.measured.values(), floor=probed.trailing_lags
             ),
             freq_offset=prepared.freq_offset,
         )
@@ -7907,9 +7924,10 @@ class Incrementality:
         partway through lies past any spend there is.  When the probe bounded
         the reach, *tail_lags* is the reach it measured, on a window or on the
         full axis.  When it could not, no horizon was measured, and *tail_lags*
-        is the kernel's own trailing lags, so the appended dates are a lower
-        bound on what the data cannot show: a node that reduces over ``date``,
-        or a mediated path, can reach further.
+        is the longest lag it measured for a node whose reach it bounded,
+        floored at the kernel's own trailing lags, so the appended dates are a
+        lower bound on what the data cannot show: a node it could not bound,
+        such as one that reduces over ``date``, can reach further.
 
         Only the trailing side is extended.  A kernel with leading mass also
         loses the mass that falls before the first fitted date, which no date
