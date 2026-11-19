@@ -1,0 +1,702 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2026, PyMC Labs
+# This file is distributed under the same license as the PyMC-Marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyMC-Marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:10002
+#: c68a0e82c40e483aba857e0d14d328a1
+msgid "Bayesian BLP on the Nevo (2000) Cereal Panel"
+msgstr "BLP bayesiano sobre el panel de cereales de Nevo (2000)"
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:10004
+#: 1d89a939adfb4b2a9988fba7a5f00ae1
+msgid ""
+"This notebook applies `BayesianBLP` to the canonical aggregate-share "
+"demand dataset from Nevo's *\"A Practitioner's Guide to Estimation of "
+"Random Coefficients Logit Models of Demand\"*: 24 ready-to-eat cereal "
+"brands across 47 US cities × 2 quarters, with prices, two product "
+"characteristics (sugar content, mushy indicator), and Nevo's five "
+"Hausman-style instruments (`z6`..`z10`)."
+msgstr ""
+"Este cuaderno aplica `BayesianBLP` al conjunto de datos canónico de cuotas "
+"agregadas de demanda de *\"A Practitioner's Guide to Estimation of Random "
+"Coefficients Logit Models of Demand\"* de Nevo: 24 marcas de cereales listos"
+" para consumir en 47 ciudades de EE. UU. × 2 trimestres, con precios, dos "
+"características de producto (contenido de azúcar, indicador mushy) y los "
+"cinco instrumentos de estilo Hausman de Nevo (`z6`..`z10`)."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:10006
+#: 5396343abde64dd6b6f6959ecd396083
+msgid "We will:"
+msgstr "Vamos a:"
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:10008
+#: 0a9b42762226479283191135da03d162
+msgid "Load and clean the public Nevo panel."
+msgstr "Cargar y limpiar el panel público de Nevo."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:10009
+#: d1dd3dc2f3f7429a9d880b1881a1a6c3
+msgid "Synthesize the outside-good rows (Nevo's data ships without one)."
+msgstr ""
+"Sintetizar las filas del bien externo (los datos de Nevo no incluyen "
+"ninguna)."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:10010
+#: 4fe2a5f1ec7f47d591b75892ee4e9001
+msgid "Fit `BayesianBLP` with `nutpie` on a tractable subset of cities."
+msgstr ""
+"Ajustar `BayesianBLP` con `nutpie` sobre un subconjunto manejable de "
+"ciudades."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:10011
+#: 6c8d56bbff344c46a2c891537e81d326
+#, python-brace-format
+msgid "Check posterior diagnostics ($\\hat{R}$ and ESS)."
+msgstr ""
+"Revisar los diagnósticos de la distribución posterior ($\\hat{R}$ y ESS)."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:10012
+#: a12de460b7ea4bd3b901b95c5474abe8
+msgid "Show the IV correction holds on real data."
+msgstr ""
+"Mostrar que la corrección por variables instrumentales se sostiene con datos"
+" reales."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:10013
+#: c48b5e92944548e59038b8a67fc03193
+msgid ""
+"Inspect own-price elasticities and run two counterfactuals (panel-wide "
+"and time-targeted)."
+msgstr ""
+"Inspeccionar las elasticidades propias del precio y ejecutar dos "
+"contrafactuales (para todo el panel y dirigido a un período)."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:10014
+#: 84583b4208af4cfd8e91210224b41239
+msgid ""
+"Read the per-market taste profiles to see which consumer types each "
+"market relies on."
+msgstr ""
+"Leer los perfiles de gustos por mercado para ver en qué tipos de "
+"consumidores se apoya cada mercado."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:10016
+#: c2fc471add4c49c89a955a671ccf1eed
+msgid ""
+"**Note on the data.** Nevo (2000) states that the Practitioner's Guide "
+"dataset is *simulated data calibrated to the cereal market*, not actual "
+"scanner data. The real empirical results are in Nevo (2001, "
+"Econometrica). We use the simulated panel because it is the standard "
+"teaching example."
+msgstr ""
+"**Nota sobre los datos.** Nevo (2000) indica que el conjunto de datos de la "
+"Practitioner's Guide son *datos simulados y calibrados al mercado de "
+"cereales*, no datos reales de escáner. Los resultados empíricos reales están"
+" en Nevo (2001, Econometrica). Usamos el panel simulado porque es el ejemplo"
+" didáctico estándar."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:20002
+#: 7cbc7088550549f9bb304d6cc4460b03
+msgid ""
+"**Before you read this notebook.** The methodology, prior structure, IV "
+"decomposition, hierarchical pooling, and counterfactual mechanics are "
+"introduced in [`bayesian_blp.ipynb`](bayesian_blp.ipynb) using a "
+"synthetic panel with known truth. This notebook assumes you have read "
+"that one. Here we apply the same model to the canonical empirical dataset"
+" and check that it reproduces the elasticity range published in the "
+"literature."
+msgstr ""
+"**Antes de leer este cuaderno.** La metodología, la estructura de los "
+"priors, la descomposición de las variables instrumentales, la agrupación "
+"jerárquica y la mecánica de los contrafactuales se presentan en "
+"[`bayesian_blp.ipynb`](bayesian_blp.ipynb) usando un panel sintético con "
+"verdad conocida. Este cuaderno asume que usted ha leído aquel. Aquí "
+"aplicamos el mismo modelo al conjunto de datos empírico canónico y "
+"comprobamos que reproduce el rango de elasticidades publicado en la "
+"literatura."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:40002
+#: 792f4683ee974cb6bcf1ef047cf78838
+msgid "1. Load and inspect the Nevo panel"
+msgstr "1. Cargar e inspeccionar el panel de Nevo"
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:40004
+#: b4193963b5244b6a87d596d61827b40e
+msgid ""
+"The CSV ships with European decimal formatting (`\",\"` as the decimal "
+"separator), so we pass `decimal=\",\"` to `pd.read_csv`. The raw layout "
+"is *inside-products only*: the outside good's share is implicit, equal to"
+" `1 - sum(inside_shares)` per market."
+msgstr ""
+"El CSV viene con formato decimal europeo (`\",\"` como separador decimal), "
+"por lo que pasamos `decimal=\",\"` a `pd.read_csv`. El formato original "
+"contiene *solo productos internos*: la cuota del bien externo es implícita y"
+" es igual a `1 - sum(inside_shares)` por mercado."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:60002
+#: 8191c82ee0024a58a6e91d27d0f3e3f2
+msgid "2. Build the `BayesianBLP` input"
+msgstr "2. Construir la entrada de `BayesianBLP`"
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:60004
+#: 0bcd32137858472fb83586c44ab85cd1
+msgid "Three transformations:"
+msgstr "Tres transformaciones:"
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:60006
+#: 55d3a79b47ed49bb8e1447f7ffd6248c
+#, python-brace-format
+msgid ""
+"**Subset.** The full 94-market × 24-brand panel produces a 2256-cell "
+"$\\tilde{\\xi}$ block whose joint geometry with $(\\rho, \\sigma_\\xi)$ "
+"makes a CPU fit expensive (≈15 min). We subset to 8 cities × 2 quarters ="
+" 16 markets so the notebook fits in a few minutes. The methodology is "
+"identical at full scale."
+msgstr ""
+"**Subconjunto.** El panel completo de 94 mercados × 24 marcas produce un "
+"bloque $\\tilde{\\xi}$ de 2256 celdas cuya geometría conjunta con $(\\rho, "
+"\\sigma_\\xi)$ hace costoso un ajuste en CPU (≈15 min). Tomamos un "
+"subconjunto de 8 ciudades × 2 trimestres = 16 mercados para que el cuaderno "
+"se ajuste en pocos minutos. La metodología es idéntica a escala completa."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:60008
+#: 3063f209708349918ad2410a70c20981
+msgid ""
+"**Rescale price.** Nevo's published price scale is \"share of category "
+"dollar sales per serving\" (≈0.05–0.22). The default `α ~ Normal(0, 2)` "
+"prior assumes a roughly unit-variance price scale, so on the raw Nevo "
+"scale the implied $\\alpha \\cdot p$ term in utility is too small and the"
+" posterior collapses to near-zero own-price elasticities. We multiply "
+"price by 100 (cents) so $|\\alpha|$ naturally lands in the prior support."
+msgstr ""
+"**Reescalar el precio.** La escala de precios publicada por Nevo es "
+"\"participación en las ventas en dólares de la categoría por porción\" "
+"(≈0.05–0.22). El prior por defecto `α ~ Normal(0, 2)` asume una escala de "
+"precios de varianza aproximadamente unitaria, así que en la escala original "
+"de Nevo el término $\\alpha \\cdot p$ implícito en la utilidad es demasiado "
+"pequeño y la distribución posterior colapsa hacia elasticidades propias del "
+"precio cercanas a cero. Multiplicamos el precio por 100 (centavos) para que "
+"$|\\alpha|$ caiga de forma natural dentro del soporte del prior."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:60010
+#: d911e75c1c56408899d3a87220c15c43
+msgid ""
+"**Synthesize outside rows.** One row per market and time, `share = 1 - "
+"Σ(inside)`, all characteristics, instruments, and price set to zero. This"
+" matches the convention used by the synthetic-data generator."
+msgstr ""
+"**Sintetizar las filas externas.** Una fila por mercado y momento, `share = "
+"1 - Σ(inside)`, con todas las características, los instrumentos y el precio "
+"igualados a cero. Esto coincide con la convención usada por el generador de "
+"datos sintéticos."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:70002
+#: 2f60e068ea86427b8ab62ff8fd3c1d67
+msgid ""
+"**Caveat on the fabricated market size (`n=1,000`).** Nevo's dataset "
+"reports market *shares* but not market sizes (number of potential "
+"consumers). The log-share-ratio likelihood needs a per-cell variance "
+"scale, so we fill in a constant `n=1,000`. This is a methodological "
+"placeholder: posterior elasticity *magnitudes* scale with the assumed "
+"`n`, so absolute levels are not directly comparable with published Nevo "
+"results. Substitution patterns and elasticity *ratios* are unaffected."
+msgstr ""
+"**Advertencia sobre el tamaño de mercado inventado (`n=1,000`).** El "
+"conjunto de datos de Nevo reporta *cuotas* de mercado pero no tamaños de "
+"mercado (número de consumidores potenciales). La verosimilitud de la razón "
+"de log-cuotas necesita una escala de varianza por celda, así que fijamos un "
+"`n=1,000` constante. Es un valor provisional metodológico: la *magnitud* de "
+"las elasticidades posteriores escala con el `n` supuesto, por lo que los "
+"niveles absolutos no son directamente comparables con los resultados "
+"publicados de Nevo. Los patrones de sustitución y las *razones* entre "
+"elasticidades no se ven afectados."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:90002
+#: cc8412e3da53482d95f4533024994d5e
+msgid "3. Construct and fit the model"
+msgstr "3. Construir y ajustar el modelo"
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:90004
+#: 5437f898256341798400494ecf45095f
+#, python-brace-format
+msgid ""
+"We declare `region_col=\"region\"` and `time_col=\"period\"` so cities "
+"pool hierarchically on $\\alpha_r$, and the period coordinate is exposed "
+"for time-targeted counterfactuals. The five instruments enable the "
+"conditional decomposition $\\tilde{\\xi} \\mid \\eta \\sim N(\\rho "
+"\\sigma_\\xi / \\sigma_\\eta \\cdot \\eta, \\, \\sigma_\\xi "
+"\\sqrt{1-\\rho^2})$ that corrects for price endogeneity, the headline "
+"empirical concern in Nevo's paper."
+msgstr ""
+"Declaramos `region_col=\"region\"` y `time_col=\"period\"` para que las "
+"ciudades se agrupen jerárquicamente en $\\alpha_r$ y para exponer la "
+"coordenada de período en los contrafactuales dirigidos a un período. Los "
+"cinco instrumentos habilitan la descomposición condicional $\\tilde{\\xi} "
+"\\mid \\eta \\sim N(\\rho \\sigma_\\xi / \\sigma_\\eta \\cdot \\eta, \\, "
+"\\sigma_\\xi \\sqrt{1-\\rho^2})$ que corrige la endogeneidad del precio, la "
+"principal preocupación empírica del artículo de Nevo."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:120002
+#: 5e091aea74bd4eb583772dbf409eed28
+msgid "4. Posterior diagnostics"
+msgstr "4. Diagnósticos de la distribución posterior"
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:140002
+#: cfda01638ecf4885ac79662ee7b8e2af
+msgid "**Read this table for two things:**"
+msgstr "**Lea esta tabla atendiendo a dos cosas:**"
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:140004
+#: b330aa32ff274dacaed72dd35010508b
+#, python-brace-format
+msgid ""
+"$\\hat{R}$ close to 1 (≤ 1.02 ideal). Values 1.05–1.20 indicate chains "
+"that haven't fully mixed. This fit (4 chains × 2000 draws) should sit at "
+"≈ 1.00 throughout."
+msgstr ""
+"$\\hat{R}$ cercano a 1 (≤ 1.02 es lo ideal). Los valores entre 1.05 y 1.20 "
+"indican cadenas que no se han mezclado por completo. Este ajuste (4 cadenas "
+"× 2000 muestras) debería situarse en ≈ 1.00 en todos los parámetros."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:140005
+#: 7c09cde899ba49d9b94afb6913092417
+#, python-brace-format
+msgid ""
+"`ess_bulk` should be ≥ 100 for parameters you want to report. Note the "
+"wide HDI on `beta_pop[mushy]`: with characteristics that are constant per"
+" brand across markets (sugar and mushy never vary within a brand), the "
+"characteristic coefficients are nearly collinear with the brand fixed "
+"effects $\\xi_j$, so `beta_pop` is identified mostly through the "
+"shrinkage prior on $\\sigma_{\\xi_j}$. The brand fixed effects absorb the"
+" same variation — this is the Bayesian analogue of the brand-dummy "
+"identification problem Nevo (2000) handles with a minimum-distance second"
+" stage."
+msgstr ""
+"`ess_bulk` debería ser ≥ 100 para los parámetros que se quieran reportar. "
+"Note el HDI amplio de `beta_pop[mushy]`: como las características son "
+"constantes por marca entre mercados (el azúcar y mushy nunca varían dentro "
+"de una marca), los coeficientes de las características son casi colineales "
+"con los efectos fijos de marca $\\xi_j$, de modo que `beta_pop` se "
+"identifica sobre todo a través del prior de contracción sobre "
+"$\\sigma_{\\xi_j}$. Los efectos fijos de marca absorben la misma variación —"
+" este es el análogo bayesiano del problema de identificación con variables "
+"ficticias de marca que Nevo (2000) resuelve con una segunda etapa de "
+"distancia mínima."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:150002
+#: 301ba9bdd71f4c74989a98d1cf952cfe
+msgid "5. Endogeneity correction holds up on Nevo"
+msgstr "5. La corrección de endogeneidad se sostiene con los datos de Nevo"
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:150004
+#: 0148cf26afd7462eabff63cf54b7aef3
+msgid ""
+"The synthetic notebook showed that dropping instruments biases $\\alpha$ "
+"toward zero by a known amount. The same comparison on Nevo serves as a "
+"real-data check: if the IV correction is doing its job, the no-IV fit "
+"produces a price coefficient closer to zero, and the IV fit's "
+"$\\rho_{\\text{price},\\xi}$ should sit away from zero in the posterior."
+msgstr ""
+"El cuaderno sintético mostró que omitir los instrumentos sesga $\\alpha$ "
+"hacia cero en una magnitud conocida. La misma comparación con los datos de "
+"Nevo sirve como verificación con datos reales: si la corrección por "
+"variables instrumentales cumple su función, el ajuste sin instrumentos "
+"produce un coeficiente de precio más cercano a cero, y el "
+"$\\rho_{\\text{price},\\xi}$ del ajuste con instrumentos debería situarse "
+"lejos de cero en la distribución posterior."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:180002
+#: 46f2568c63454f6485d92c275136933d
+msgid ""
+"Note that $\\alpha$ is estimated on the cents scale (price × 100). "
+"Multiply by 100 to recover the dollar-scale coefficient comparable to "
+"Nevo's $\\alpha \\sim -30$."
+msgstr ""
+"Note que $\\alpha$ se estima en la escala de centavos (precio × 100). "
+"Multiplique por 100 para recuperar el coeficiente en escala de dólares, "
+"comparable con el $\\alpha \\sim -30$ de Nevo."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:190002
+#: 1531623cbeb8470f990f8ae5d68cb01e
+msgid "6. Own-price elasticities and counterfactuals"
+msgstr "6. Elasticidades propias del precio y contrafactuales"
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:190004
+#: 3d05a83ddeb647e99dbacbecf4f4050d
+msgid ""
+"The headline test of any BLP demand estimator: do own-price elasticities "
+"land in a *plausible* range? For ready-to-eat cereal Nevo and the wider "
+"literature put the typical own-price elasticity in $[-2, -4]$."
+msgstr ""
+"La prueba principal de cualquier estimador de demanda BLP: ¿las "
+"elasticidades propias del precio caen en un rango *plausible*? Para los "
+"cereales listos para consumir, Nevo y el resto de la literatura sitúan la "
+"elasticidad propia del precio típica en $[-2, -4]$."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:230002
+#: 24493e72bb9c406fa0d59cae8f61ae44
+msgid "7. Taste profiles across markets"
+msgstr "7. Perfiles de gustos entre mercados"
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:230004
+#: 9e4193ff4d114ed5bb272eb0a290aab7
+msgid ""
+"The model integrates over consumer taste types to predict aggregate "
+"shares. With three random coefficients each consumer is a vector "
+"$\\bm{\\nu}_i = (\\nu_{\\text{price}}, \\nu_{\\text{sugar}}, "
+"\\nu_{\\text{mushy}})$. The stacked area chart below sorts consumers "
+"along $\\nu_{\\text{price}}$ only and gives a *price-marginal* view: at "
+"each x-coordinate the other two taste dimensions vary across the Halton "
+"grid. The fully multi-dimensional buyer characterisation comes from the "
+"heatmap further down (Lens 1)."
+msgstr ""
+"El modelo integra sobre los tipos de gustos de los consumidores para "
+"predecir las cuotas agregadas. Con tres coeficientes aleatorios, cada "
+"consumidor es un vector $\\bm{\\nu}_i = (\\nu_{\\text{price}}, "
+"\\nu_{\\text{sugar}}, \\nu_{\\text{mushy}})$. El gráfico de áreas apiladas "
+"que sigue ordena a los consumidores solo a lo largo de "
+"$\\nu_{\\text{price}}$ y ofrece una vista *marginal en el precio*: en cada "
+"coordenada x, las otras dos dimensiones de gustos varían a lo largo de la "
+"cuadrícula de Halton. La caracterización multidimensional completa del "
+"comprador proviene del mapa de calor que aparece más abajo (Lente 1)."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:260002
+#: 17a532b4ab5a4fb8b05fe2906cb21ed3
+msgid "Reading the four markets"
+msgstr "Lectura de los cuatro mercados"
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:260004
+#: c8f3ee38a53249b88fd6689f9c63e0e6
+msgid ""
+"Twenty-four brands is a lot of colour. Three patterns are worth picking "
+"out:"
+msgstr ""
+"Veinticuatro marcas son muchos colores. Vale la pena destacar tres patrones:"
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:260006
+#: 85ddc2e2e26c4a499e9b69d27118f58e
+msgid ""
+"**Cheapest market (low avg price): inside demand is diversified.** The "
+"outside good (beige) shrinks quickly as $\\nu$ rises and several brands "
+"take meaningful slices. No single product dominates because at this price"
+" level the characteristic differences between brands matter more than any"
+" individual brand's unobserved-quality advantage."
+msgstr ""
+"**Mercado más barato (precio promedio bajo): la demanda interna está "
+"diversificada.** El bien externo (beige) se reduce rápidamente a medida que "
+"$\\nu$ aumenta y varias marcas se quedan con porciones significativas. "
+"Ningún producto domina por sí solo porque, a este nivel de precios, las "
+"diferencias de características entre marcas importan más que la ventaja de "
+"calidad no observada de cualquier marca individual."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:260008
+#: db14337c10494e7c94115635218c2921
+msgid ""
+"**A one-brand-dominates market.** Look for the panel where, at $\\nu > "
+"0$, almost the entire stack is a single colour. This signature appears "
+"when one product has a very large posterior $\\xi$ in that market (high "
+"unobserved quality given its price). The model can only explain a 40%+ "
+"inside share for one brand at moderate price by attributing it to $\\xi$;"
+" consumers who can tolerate the price then almost all pick that brand. "
+"This is the model recovering a brand-level outlier from the share data "
+"alone."
+msgstr ""
+"**Un mercado dominado por una sola marca.** Busque el panel donde, con $\\nu"
+" > 0$, casi toda la pila es de un único color. Esta firma aparece cuando un "
+"producto tiene un $\\xi$ posterior muy grande en ese mercado (alta calidad "
+"no observada dado su precio). El modelo solo puede explicar una cuota "
+"interna superior al 40% para una marca a un precio moderado atribuyéndola a "
+"$\\xi$; los consumidores que toleran el precio casi todos eligen entonces "
+"esa marca. Es el modelo recuperando un valor atípico a nivel de marca "
+"únicamente a partir de los datos de cuotas."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:260010
+#: 52ee92850eb444a182cd8497db1ed723
+#, python-format
+msgid ""
+"**Most expensive market: outside good never disappears.** Even at $\\nu "
+"\\approx 2$ the outside good still holds 30–50% of the allocation. Price "
+"sensitivity remains binding at the top of the $\\nu$ distribution. "
+"Compare this to the cheapest market, where the outside good is almost "
+"gone by $\\nu = 0$."
+msgstr ""
+"**Mercado más caro: el bien externo nunca desaparece.** Incluso con $\\nu "
+"\\approx 2$, el bien externo todavía retiene entre el 30% y el 50% de la "
+"asignación. La sensibilidad al precio sigue siendo determinante en el "
+"extremo superior de la distribución de $\\nu$. Compare esto con el mercado "
+"más barato, donde el bien externo casi ha desaparecido para $\\nu = 0$."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:260012
+#: 809dfd5e4f824425ac7223577c1b5c5f
+#, python-brace-format
+msgid ""
+"The demand-share table below quantifies the same story. The flat-logit "
+"baseline (no random coefficients) would be `{sensitive: 0.16, modal: "
+"0.68, insensitive: 0.16}`, the population weights of the three $\\nu$ "
+"buckets. Wherever the observed `insensitive_pct` exceeds 0.16, the random"
+" coefficient on price is doing real work: that market's inside demand "
+"leans on consumers who can absorb the price, and a flat-logit "
+"substitution pattern would mis-predict who switches when prices change."
+msgstr ""
+"La tabla de cuotas de demanda que sigue cuantifica la misma historia. La "
+"línea base de logit plano (sin coeficientes aleatorios) sería `{sensitive: "
+"0.16, modal: 0.68, insensitive: 0.16}`, los pesos poblacionales de los tres "
+"grupos de $\\nu$. Siempre que el `insensitive_pct` observado supere 0.16, el"
+" coeficiente aleatorio del precio está haciendo un trabajo real: la demanda "
+"interna de ese mercado se apoya en consumidores que pueden absorber el "
+"precio, y un patrón de sustitución de logit plano predeciría mal quién "
+"cambia de producto cuando los precios varían."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:270002
+#: 8f04b16a7d6f410a92e26470fcefdc78
+msgid "Who is the average inside-good buyer?"
+msgstr "¿Quién es el comprador promedio del bien interno?"
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:270004
+#: b5a0c35040044c11923997aa2dac980a
+msgid ""
+"The stacked plot is qualitative. To characterise each market by a full "
+"taste vector with posterior uncertainty, compute"
+msgstr ""
+"El gráfico apilado es cualitativo. Para caracterizar cada mercado mediante "
+"un vector completo de gustos con incertidumbre posterior, calculamos"
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:270006
+#: 59074f0dc6174f17bf32af27f2d69a51
+msgid ""
+"\n"
+"\\bar\\nu_{m,d} \\;=\\; E[\\nu_d \\mid \\text{buys inside in } m]\n"
+"\\;=\\; \\frac{\\sum_r \\nu_{r,d} \\cdot s^{\\text{in}}_{m,r}}{\\sum_r "
+"s^{\\text{in}}_{m,r}}\n"
+msgstr ""
+"\n"
+"\\bar\\nu_{m,d} \\;=\\; E[\\nu_d \\mid \\text{buys inside in } m]\n"
+"\\;=\\; \\frac{\\sum_r \\nu_{r,d} \\cdot s^{\\text{in}}_{m,r}}{\\sum_r s^{\\text{in}}_{m,r}}\n"
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:270011
+#: cfbc2c0d29ee42a1b67488dfcbd21902
+msgid ""
+"per posterior sample, for each dimension $d \\in \\{\\text{price}, "
+"\\text{sugar}, \\text{mushy}\\}$. One scalar per (sample, market, "
+"dimension) gives a posterior over \"the average customer who actually "
+"buys in this market\", decomposed by taste axis."
+msgstr ""
+"por muestra de la distribución posterior, para cada dimensión $d \\in "
+"\\{\\text{price}, \\text{sugar}, \\text{mushy}\\}$. Un escalar por (muestra,"
+" mercado, dimensión) da una distribución posterior sobre \"el cliente "
+"promedio que efectivamente compra en este mercado\", descompuesta por eje de"
+" gustos."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:290002
+#: 2de1b9f8f8ce47098084349f09ea41bb
+msgid ""
+"Each row is a market sorted by average cereal price; each column is one "
+"of the three taste dimensions. Red means the typical buyer scores *above-"
+"modal* on that dimension (price-insensitive, or strong positive "
+"preference for the characteristic). Blue means *below-modal*."
+msgstr ""
+"Cada fila es un mercado ordenado por el precio promedio de los cereales; "
+"cada columna es una de las tres dimensiones de gustos. El rojo significa que"
+" el comprador típico puntúa *por encima de lo modal* en esa dimensión "
+"(insensible al precio, o con una fuerte preferencia positiva por la "
+"característica). El azul significa *por debajo de lo modal*."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:290004
+#: aedb34121f7c4ace9739f1732429b0ff
+msgid ""
+"The $\\bar\\nu_{\\text{price}}$ column should shift from blue at the top "
+"(cheap markets attract price-sensitive buyers) to red at the bottom "
+"(expensive markets keep only insensitive buyers). The "
+"$\\bar\\nu_{\\text{sugar}}$ and $\\bar\\nu_{\\text{mushy}}$ columns then "
+"add the characteristic story on top: a row that is red on sugar but blue "
+"on mushy is a market whose buyers prefer sugary cereals and avoid mushy "
+"ones, on top of their price-tolerance position."
+msgstr ""
+"La columna $\\bar\\nu_{\\text{price}}$ debería pasar del azul en la parte "
+"superior (los mercados baratos atraen a compradores sensibles al precio) al "
+"rojo en la parte inferior (los mercados caros solo retienen a compradores "
+"insensibles). Las columnas $\\bar\\nu_{\\text{sugar}}$ y "
+"$\\bar\\nu_{\\text{mushy}}$ añaden entonces la historia de las "
+"características: una fila que es roja en azúcar pero azul en mushy es un "
+"mercado cuyos compradores prefieren los cereales azucarados y evitan los "
+"mushy, además de su posición de tolerancia al precio."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:290006
+#: c81311ae04c449908e707a65106bbb61
+msgid ""
+"The scalar \"average buyer $\\nu$\" picture said \"this market is served "
+"by price-insensitive consumers\". The three-column picture says \"this "
+"market is served by consumers who are price-insensitive *and* high-sugar "
+"preference *and* mushy-averse\". That is the multi-dimensional taste "
+"profile the BLP machinery is designed to recover."
+msgstr ""
+"La imagen escalar del \"$\\nu$ del comprador promedio\" decía \"este mercado"
+" es atendido por consumidores insensibles al precio\". La imagen de tres "
+"columnas dice \"este mercado es atendido por consumidores que son "
+"insensibles al precio *y* con alta preferencia por el azúcar *y* reacios a "
+"lo mushy\". Ese es el perfil de gustos multidimensional que la maquinaria "
+"BLP está diseñada para recuperar."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:300002
+#: 8701640906a6406481ac4a15b52bae32
+msgid "Brand-level buyer profile (price dimension)"
+msgstr "Perfil del comprador por marca (dimensión del precio)"
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:300004
+#: 7351c6b0fb844a73904e3f58fc437b15
+msgid ""
+"The heatmap above gives the market-level taste profile. We can also drill"
+" into individual brands: in each market, who is the typical buyer of each"
+" brand? The same construction restricted to a single product gives"
+msgstr ""
+"El mapa de calor anterior da el perfil de gustos a nivel de mercado. También"
+" podemos profundizar en marcas individuales: en cada mercado, ¿quién es el "
+"comprador típico de cada marca? La misma construcción restringida a un solo "
+"producto da"
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:300006
+#: 56d1846c867d4222a4bd1ead887cb24d
+#, python-brace-format
+msgid ""
+"\n"
+"\\bar\\nu_{m,j,d} \\;=\\; E[\\nu_d \\mid \\text{buys brand } j \\text{ in"
+" market } m]\n"
+msgstr ""
+"\n"
+"\\bar\\nu_{m,j,d} \\;=\\; E[\\nu_d \\mid \\text{buys brand } j \\text{ in market } m]\n"
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:300010
+#: 403570816cc740fcb04129fdde757f3d
+#, python-brace-format
+msgid ""
+"To keep the visualisation 2D we restrict to the price dimension ($d = "
+"\\text{price}$). The same construction extends to sugar and mushy by "
+"changing the slice of `model._halton`."
+msgstr ""
+"Para mantener la visualización en 2D, la restringimos a la dimensión del "
+"precio ($d = \\text{price}$). La misma construcción se extiende a sugar y "
+"mushy cambiando el segmento de `model._halton`."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:320002
+#: 7b82a1f78500499bb3b8259ea2ba142e
+msgid ""
+"Brands on the left of the heatmap (blue) serve more price-sensitive "
+"consumers; brands on the right (red) serve insensitive consumers. Two "
+"things to look for:"
+msgstr ""
+"Las marcas a la izquierda del mapa de calor (azul) atienden a consumidores "
+"más sensibles al precio; las marcas a la derecha (rojo) atienden a "
+"consumidores insensibles. Hay dos cosas que buscar:"
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:320004
+#: 4c8fa3dc7a6d4379bf399c65f65c2104
+msgid ""
+"**Vertical stripes.** A brand whose column is uniformly coloured serves "
+"the same kind of customer everywhere. A brand whose column shifts colour "
+"from market to market changes its customer profile based on the local "
+"competitive context."
+msgstr ""
+"**Franjas verticales.** Una marca cuya columna tiene un color uniforme "
+"atiende al mismo tipo de cliente en todas partes. Una marca cuya columna "
+"cambia de color de un mercado a otro modifica su perfil de cliente según el "
+"contexto competitivo local."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:320005
+#: 46165f24187d42ccb7654d42737506a4
+msgid ""
+"**Horizontal stripes.** A market whose row varies wildly across brands "
+"offers products that serve different consumer slices; a market whose row "
+"is flat offers a homogeneous brand mix targeting one type of buyer."
+msgstr ""
+"**Franjas horizontales.** Un mercado cuya fila varía mucho entre marcas "
+"ofrece productos que atienden a distintos segmentos de consumidores; un "
+"mercado cuya fila es plana ofrece una mezcla homogénea de marcas dirigida a "
+"un solo tipo de comprador."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:320007
+#: 00dee2acfc2f46dc9dc3396cfa3e6d10
+msgid ""
+"Combined with the market-level $\\bar\\nu_m$ from the previous lens, this"
+" gives a two-tier characterization: the average buyer in each market, and"
+" the buyer mix across brands within that market."
+msgstr ""
+"Combinado con el $\\bar\\nu_m$ a nivel de mercado de la lente anterior, esto"
+" da una caracterización en dos niveles: el comprador promedio de cada "
+"mercado y la mezcla de compradores entre las marcas dentro de ese mercado."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:330002
+#: 5dba11a230cd49f68e5d1531b79b3d39
+msgid "8. Caveats"
+msgstr "8. Limitaciones"
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:330004
+#: fcbe6fbb363541f4bbae7c7caa8286f3
+msgid ""
+"**Subset.** We fit on 8/47 cities. The full panel would deliver more "
+"statistical power, but the qualitative result (textbook elasticity range,"
+" identified $\\rho$) is robust."
+msgstr ""
+"**Subconjunto.** Ajustamos con 8 de las 47 ciudades. El panel completo daría"
+" más potencia estadística, pero el resultado cualitativo (rango de "
+"elasticidades de libro de texto, $\\rho$ identificado) es robusto."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:330005
+#: 8d76837a37ff45df8618344d4433586f
+msgid ""
+"**Outside-good `n_jt`.** Nevo's published data lacks per-market serving "
+"counts. The `n=1,000` placeholder enters only the heteroskedastic-Normal "
+"variance term, so it does not bias point estimates. It does compress "
+"posterior intervals slightly relative to a fit with true serving counts."
+msgstr ""
+"**`n_jt` del bien externo.** Los datos publicados de Nevo carecen de conteos"
+" de porciones vendidas por mercado. El valor provisional `n=1,000` entra "
+"solo en el término de varianza de la Normal heterocedástica, por lo que no "
+"sesga las estimaciones puntuales. Sí comprime ligeramente los intervalos "
+"posteriores en comparación con un ajuste que use los conteos reales."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:330006
+#: 6616fbcaaf53482e949433ae750fdaee
+msgid ""
+"**Demographics.** Nevo's *original* paper enriches consumer heterogeneity"
+" with demographic interactions (income, age, child presence) drawn from "
+"CPS. Our model uses the basic mixed-logit form with random coefficients "
+"on price, sugar, and mushy, but no demographic interactions."
+msgstr ""
+"**Demografía.** El artículo *original* de Nevo enriquece la heterogeneidad "
+"de los consumidores con interacciones demográficas (ingreso, edad, presencia"
+" de niños) tomadas del CPS. Nuestro modelo usa la forma básica de logit "
+"mixto con coeficientes aleatorios en price, sugar y mushy, pero sin "
+"interacciones demográficas."
+
+#: ../source/notebooks/customer_choice/bayesian_blp_nevo.ipynb:330007
+#: 74a1f427149b45c197100aa95df15fdd
+msgid ""
+"**Simulated data.** Nevo (2000) states the Practitioner's Guide dataset "
+"is simulated data calibrated to the cereal market. The real empirical "
+"results are in Nevo (2001, Econometrica). Results here should not be "
+"cited as findings from real market observations."
+msgstr ""
+"**Datos simulados.** Nevo (2000) indica que el conjunto de datos de la "
+"Practitioner's Guide son datos simulados y calibrados al mercado de "
+"cereales. Los resultados empíricos reales están en Nevo (2001, "
+"Econometrica). Los resultados aquí presentados no deben citarse como "
+"hallazgos de observaciones de mercados reales."
+
