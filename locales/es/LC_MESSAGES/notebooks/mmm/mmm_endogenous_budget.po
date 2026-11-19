@@ -1,0 +1,2059 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2026, PyMC Labs
+# This file is distributed under the same license as the PyMC-Marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyMC-Marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10003
+#: 868e16778ef04351afb60aa025899438
+msgid "Endogenous Budgets: Separating Designed from Chosen Spend"
+msgstr "Presupuestos endógenos: separar el gasto diseñado del gasto elegido"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10005
+#: 045ffece1b8f48289681aeb98c126c09
+msgid ""
+"An MMM regresses sales on spend, but the causal meaning of that "
+"regression depends on how spend was assigned. Marketing teams rarely set "
+"budgets at random. They spend more when they expect a busy season, when a"
+" planner's forecast looks strong, or when a competitor goes quiet. If "
+"that expectation carries information about demand the model cannot see, "
+"spend and the sales error share a cause, and the MMM credits each channel"
+" with the demand its budget followed."
+msgstr ""
+"Un MMM regresa las ventas sobre el gasto, pero el significado causal de esa "
+"regresión depende de cómo se asignó el gasto. Los equipos de marketing rara "
+"vez fijan los presupuestos al azar. Gastan más cuando esperan una temporada "
+"de mucha actividad, cuando el pronóstico de un planificador se ve sólido o "
+"cuando un competidor se queda en silencio. Si esa expectativa contiene "
+"información sobre una demanda que el modelo no puede ver, el gasto y el "
+"error de las ventas comparten una causa, y el MMM atribuye a cada canal la "
+"demanda que su presupuesto siguió."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10007
+#: 779302e96a26437f9afaffa4ffd15028
+#, python-brace-format
+msgid ""
+"Lift tests are the usual remedy, and PyMC-Marketing adds them to the "
+"model as an extra likelihood term (see {ref}`mmm_lift_test` and "
+"{ref}`mmm_roas`). That term constrains the saturation curve near the "
+"tested spend, but it has to argue with the whole confounded history, "
+"which keeps pulling the other way. This tutorial shows a complementary "
+"approach:"
+msgstr ""
+"Las pruebas de elevación son el remedio habitual, y PyMC-Marketing las añade"
+" al modelo como un término de verosimilitud adicional (consulte "
+"{ref}`mmm_lift_test` y {ref}`mmm_roas`). Ese término restringe la curva de "
+"saturación cerca del gasto probado, pero tiene que competir con todo el "
+"historial confundido, que sigue tirando en sentido contrario. Este tutorial "
+"muestra un enfoque complementario:"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10009
+#: 4876064bf9034aeb87f13b59e24c70b0
+msgid ""
+"model how budgets are set, jointly with sales, and add a *control "
+"function* to the sales equation that absorbs the demand carried by "
+"unexplained budget moves;"
+msgstr ""
+"modelar cómo se fijan los presupuestos, conjuntamente con las ventas, y "
+"añadir una *función de control* a la ecuación de ventas que absorba la "
+"demanda contenida en los movimientos inexplicados del presupuesto;"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10010
+#: 45bbefb9bb124baa840604c6685c4b3a
+msgid ""
+"treat the lift test's **known designed spend change** as the exogenous "
+"variation that separates the response curve from that demand;"
+msgstr ""
+"tratar el **cambio de gasto diseñado y conocido** de la prueba de elevación "
+"como la variación exógena que separa la curva de respuesta de esa demanda;"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10011
+#: 6be601cb0bf14563929823a8fe48d426
+msgid ""
+"read the control-function coefficient as a diagnostic of whether spend "
+"was exogenous in the first place."
+msgstr ""
+"leer el coeficiente de la función de control como un diagnóstico de si el "
+"gasto era exógeno en primer lugar."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10013
+#: 5b89f453dc624f67a9f7ce69ed4657d7
+#, python-brace-format
+msgid ""
+"All three are provided by "
+"{class}`~pymc_marketing.mmm.budget_model.BudgetModelEffect`. The tutorial"
+" has two parts:"
+msgstr ""
+"Las tres cosas las proporciona "
+"{class}`~pymc_marketing.mmm.budget_model.BudgetModelEffect`. El tutorial "
+"tiene dos partes:"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10015
+#: be24515002814990b7bba6f674192ffa
+msgid ""
+"**Part 1** introduces the method on one way budgets can depend on demand,"
+" a planner's unrecorded forecast. It compares a plain MMM, lift-"
+"likelihood calibration and the budget model, then shows the diagnostic "
+"and how predictions and counterfactuals behave."
+msgstr ""
+"La **Parte 1** presenta el método con una forma en que los presupuestos "
+"pueden depender de la demanda, un pronóstico no registrado de los "
+"planificadores. Compara un MMM simple, la calibración con verosimilitud de "
+"elevación y el modelo de presupuesto, y luego muestra el diagnóstico y cómo "
+"se comportan las predicciones y los contrafactuales."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10016
+#: 0ef730ea10b14fc2bfd9ab58199fd50f
+msgid ""
+"**Part 2** applies the same workflow to three other mechanisms. They "
+"qualify Part 1: the bias can go in either direction, capped spend strains"
+" the correction, and when the existing controls already suffice the "
+"correction costs accuracy."
+msgstr ""
+"La **Parte 2** aplica el mismo flujo de trabajo a otros tres mecanismos. "
+"Estos matizan la Parte 1: el sesgo puede ir en cualquier dirección, el gasto"
+" con tope pone a prueba la corrección y, cuando los controles existentes ya "
+"son suficientes, la corrección cuesta precisión."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10018
+#: 41be42dc9c7f4341a29f9c6c09631b8a
+msgid "The final section brings the guidance together."
+msgstr "La sección final reúne las recomendaciones."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10020
+#: 587b786e9d1546dda591ab81feefdf6e
+msgid "**Contents**"
+msgstr "**Contenido**"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10022
+#: 9e35d9fb9bb443d787ab77bace193728
+#, python-brace-format
+msgid "{ref}`Prepare notebook <mmm_endogenous_budget_setup>`"
+msgstr "{ref}`Prepare notebook <mmm_endogenous_budget_setup>`"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10023
+#: 0c20dc2e1492421fb2476a0356caa3fa
+#, python-brace-format
+msgid ""
+"{ref}`Part 1: Understanding and using the budget model "
+"<mmm_endogenous_budget_part1>`"
+msgstr ""
+"{ref}`Part 1: Understanding and using the budget model "
+"<mmm_endogenous_budget_part1>`"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10024
+#: fa8f41003803411e8cc613097e5b9392
+#, python-brace-format
+msgid "{ref}`The business problem <mmm_endogenous_budget_business_problem>`"
+msgstr "{ref}`The business problem <mmm_endogenous_budget_business_problem>`"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10025
+#: 6d246a3b66924fa29d28ae1ada0ab82a
+#, python-brace-format
+msgid "{ref}`A market where budgets chase demand <mmm_endogenous_budget_market>`"
+msgstr ""
+"{ref}`A market where budgets chase demand <mmm_endogenous_budget_market>`"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10026
+#: f35227ac687e44e1ba0a04ab9d5c6c7d
+#, python-brace-format
+msgid ""
+"{ref}`Three ways to use the same experiment "
+"<mmm_endogenous_budget_three_fits>`"
+msgstr ""
+"{ref}`Three ways to use the same experiment "
+"<mmm_endogenous_budget_three_fits>`"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10027
+#: 6b918e18a5d840b498d1c95464cebc29
+#, python-brace-format
+msgid ""
+"{ref}`Comparing the marginal return of TV "
+"<mmm_endogenous_budget_comparison>`"
+msgstr ""
+"{ref}`Comparing the marginal return of TV "
+"<mmm_endogenous_budget_comparison>`"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10028
+#: 76a2ac07772f4dbfaeb09038b96dd9cd
+#, python-brace-format
+msgid "{ref}`Replicating across markets <mmm_endogenous_budget_replication>`"
+msgstr "{ref}`Replicating across markets <mmm_endogenous_budget_replication>`"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10029
+#: 34de7ad7517a4cd4804cf321c08ec4e6
+#, python-brace-format
+msgid "{ref}`What the control function absorbs <mmm_endogenous_budget_absorbs>`"
+msgstr ""
+"{ref}`What the control function absorbs <mmm_endogenous_budget_absorbs>`"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10030
+#: b085b851b75c48bf98ae10c5861f77ae
+#, python-brace-format
+msgid ""
+"{ref}`The control function as an exogeneity check "
+"<mmm_endogenous_budget_exogeneity>`"
+msgstr ""
+"{ref}`The control function as an exogeneity check "
+"<mmm_endogenous_budget_exogeneity>`"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10031
+#: da6e2a25eb4542919ad0c7281daeaa41
+#, python-brace-format
+msgid "{ref}`Predictions and counterfactuals <mmm_endogenous_budget_predictions>`"
+msgstr ""
+"{ref}`Predictions and counterfactuals <mmm_endogenous_budget_predictions>`"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10032
+#: 94f85cfd7fc54fcebbe82d80d59f7164
+#, python-brace-format
+msgid ""
+"{ref}`Part 2: When does the budget model help? "
+"<mmm_endogenous_budget_scenarios>`"
+msgstr ""
+"{ref}`Part 2: When does the budget model help? "
+"<mmm_endogenous_budget_scenarios>`"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10033
+#: 4b42d33377c641259d66b54c94cd42b2
+#, python-brace-format
+msgid ""
+"{ref}`Scenario 1: budgets that chase targets "
+"<mmm_endogenous_budget_target_chasing>`"
+msgstr ""
+"{ref}`Scenario 1: budgets that chase targets "
+"<mmm_endogenous_budget_target_chasing>`"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10034
+#: 96428ac7ebbe4996ad42f221913c4cdb
+#, python-brace-format
+msgid ""
+"{ref}`Scenario 2: spend that follows search demand "
+"<mmm_endogenous_budget_search>`"
+msgstr ""
+"{ref}`Scenario 2: spend that follows search demand "
+"<mmm_endogenous_budget_search>`"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10035
+#: f8c9df7022174ea68888b803f16a98a5
+#, python-brace-format
+msgid ""
+"{ref}`Scenario 3: spend that follows only recorded drivers "
+"<mmm_endogenous_budget_observed_only>`"
+msgstr ""
+"{ref}`Scenario 3: spend that follows only recorded drivers "
+"<mmm_endogenous_budget_observed_only>`"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:10036
+#: 6418b2c3daa2404fbba7f209e5273f8e
+#, python-brace-format
+msgid "{ref}`Practical guidance and limitations <mmm_endogenous_budget_guidance>`"
+msgstr ""
+"{ref}`Practical guidance and limitations <mmm_endogenous_budget_guidance>`"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:20003
+#: 2f5aaa7d166b409eb970e7b8bcc32da4
+msgid "Prepare Notebook"
+msgstr "Preparar el cuaderno"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:50003
+#: d49732ae8b57420da3a5489f2073f8df
+msgid "Part 1: Understanding and Using the Budget Model"
+msgstr "Parte 1: comprender y usar el modelo de presupuesto"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:50005
+#: 94ca8e73116942e9ba513a4227d17de8
+msgid ""
+"Part 1 follows one market from the business question to the diagnostic: "
+"why a plain MMM is biased there, what each way of using the experiment "
+"recovers, what the control function absorbs, and how the fitted model "
+"behaves in predictions and counterfactuals."
+msgstr ""
+"La Parte 1 sigue un mercado desde la pregunta de negocio hasta el "
+"diagnóstico: por qué un MMM simple está sesgado en ese mercado, qué recupera"
+" cada forma de usar el experimento, qué absorbe la función de control y cómo"
+" se comporta el modelo ajustado en las predicciones y los contrafactuales."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:60003
+#: ce846391a6414bd3ac6a2da990c43ff6
+msgid "The Business Problem"
+msgstr "El problema de negocio"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:60005
+#: 75d09dd97e614515b0b825c2e032a802
+msgid ""
+"A marketing team splits its weekly budget between TV and Digital and "
+"wants to know whether the next pound is better spent on TV. The question "
+"it brings to an MMM is a marginal one: **if we spend a little more or a "
+"little less on TV than we do now, how much do sales change?** The answer "
+"sets the budget split, and it feeds the optimizer, which moves money "
+"towards channels with high marginal returns until those returns equalise."
+msgstr ""
+"Un equipo de marketing reparte su presupuesto semanal entre TV y Digital y "
+"quiere saber si la próxima libra se gasta mejor en TV. La pregunta que lleva"
+" a un MMM es marginal: **si gastamos un poco más o un poco menos en TV de lo"
+" que gastamos ahora, ¿cuánto cambian las ventas?** La respuesta determina el"
+" reparto del presupuesto y alimenta al optimizador, que mueve dinero hacia "
+"los canales con rendimientos marginales altos hasta que esos rendimientos se"
+" igualan."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:60007
+#: 286a0e9bd2834de79e12b375807b7370
+msgid "The team has two sources of evidence:"
+msgstr "El equipo cuenta con dos fuentes de evidencia:"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:60009
+#: b53c307b0d9444149170977e9bbe0203
+msgid ""
+"**Two years of weekly history.** Plenty of data, but every budget in it "
+"was chosen by planners who were looking at how busy they expected the "
+"coming weeks to be. Weeks with high TV spend are also, in part, weeks the"
+" team expected to be strong."
+msgstr ""
+"**Dos años de historial semanal.** Hay muchos datos, pero cada presupuesto "
+"fue elegido por planificadores que observaban cuán activas esperaban que "
+"fueran las semanas siguientes. Las semanas con un gasto alto en TV son "
+"también, en parte, semanas que el equipo esperaba que fueran buenas."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:60010
+#: ecdc04b411dc4552a3bb915f9ca0117e
+msgid ""
+"**One four-week TV experiment.** The team deliberately cut TV spend by a "
+"fixed amount, so the experiment's spend change has nothing to do with "
+"demand. But it is short, and it covers one spend level."
+msgstr ""
+"**Un experimento de TV de cuatro semanas.** El equipo recortó "
+"deliberadamente el gasto en TV en una cantidad fija, de modo que el cambio "
+"de gasto del experimento no tiene nada que ver con la demanda. Pero es breve"
+" y cubre un solo nivel de gasto."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:60012
+#: 73dcd7bbf0a34064828e8fef3e9df609
+msgid ""
+"Neither source answers the question alone. The history is long but "
+"confounded: an MMM fitted to it credits TV with sales that would have "
+"happened anyway, and recommends spending too much on TV. The experiment "
+"is clean but short. The objective of this tutorial is to combine the two "
+"so that the clean variation from the experiment corrects the confounded "
+"variation in the history, and to give the team a check of whether the "
+"history was confounded in the first place."
+msgstr ""
+"Ninguna de las dos fuentes responde sola a la pregunta. El historial es "
+"largo pero está confundido: un MMM ajustado con él atribuye a la TV ventas "
+"que habrían ocurrido de todos modos y recomienda gastar demasiado en TV. El "
+"experimento es limpio pero breve. El objetivo de este tutorial es combinar "
+"ambos para que la variación limpia del experimento corrija la variación "
+"confundida del historial, y dar al equipo una forma de comprobar si el "
+"historial estaba confundido en primer lugar."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:60014
+#: f1d91dde7e54424f98c94ce64da136b6
+msgid ""
+"The quantity of interest throughout is TV's **marginal return** at the "
+"team's typical spend: the extra sales from one more unit of TV spend, the"
+" slope of TV's response curve at that spend, in original units. Because "
+"the market below is simulated, we know its true value and can score every"
+" approach against it."
+msgstr ""
+"La cantidad de interés en todo el tutorial es el **rendimiento marginal** de"
+" la TV en el gasto típico del equipo: las ventas adicionales por una unidad "
+"más de gasto en TV, es decir, la pendiente de la curva de respuesta de la TV"
+" en ese gasto, en unidades originales. Como el mercado de abajo es simulado,"
+" conocemos su valor verdadero y podemos puntuar cada enfoque frente a él."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:70003
+#: 913cead046054632b84d34d29587a17f
+msgid "A Market Where Budgets Chase Demand"
+msgstr "Un mercado donde los presupuestos persiguen la demanda"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:70005
+#: 312625bc253e491fb04a87a291577b39
+msgid ""
+"We simulate a market with two channels, TV and Digital. Sales depend on a"
+" latent *base demand*: part of it is driven by observed variables (the "
+"calendar, inflation, and unemployment), and part of it is a persistent "
+"shock nobody records. Before budgets are set, the marketing team forms an"
+" unrecorded view of how busy the coming weeks will be. That *anticipated "
+"demand* feeds both channel budgets. A shared *spend policy* shock also "
+"moves both channels together."
+msgstr ""
+"Simulamos un mercado con dos canales, TV y Digital. Las ventas dependen de "
+"una *demanda base* latente: una parte está determinada por variables "
+"observadas (el calendario, la inflación y el desempleo) y otra parte es un "
+"choque persistente que nadie registra. Antes de fijar los presupuestos, el "
+"equipo de marketing se forma una opinión no registrada sobre cuán activas "
+"serán las semanas siguientes. Esa *demanda anticipada* alimenta los "
+"presupuestos de ambos canales. Un choque compartido de *política de gasto* "
+"también mueve ambos canales a la vez."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:90002
+#: dd8fd04176ff47aaa724e8be7b584cda
+#, python-brace-format
+msgid ""
+"The path $\\text{TV} \\leftarrow \\text{Anticipated Demand} \\leftarrow "
+"\\text{Base Demand} \\rightarrow \\text{Sales}$ runs entirely through "
+"unobserved variables, so no set of observed controls closes it. The "
+"calendar and macro controls capture the *predictable* part of demand, but"
+" not the persistent shock that the planners anticipate."
+msgstr ""
+"El camino $\\text{TV} \\leftarrow \\text{Anticipated Demand} \\leftarrow "
+"\\text{Base Demand} \\rightarrow \\text{Sales}$ pasa íntegramente por "
+"variables no observadas, por lo que ningún conjunto de controles observados "
+"lo cierra. Los controles de calendario y macroeconómicos capturan la parte "
+"*predecible* de la demanda, pero no el choque persistente que anticipan los "
+"planificadores."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:90004
+#: 4c7450b4c2f34ed6ab5d67d8f975e6c2
+#, python-brace-format
+msgid ""
+"The market comes from "
+"{func}`~pymc_marketing.mmm.synthetic_data.simulate_endogenous_spend_market`"
+" with `scenario=\"forecast\"`. Base demand is"
+msgstr ""
+"El mercado proviene de "
+"{func}`~pymc_marketing.mmm.synthetic_data.simulate_endogenous_spend_market` "
+"con `scenario=\"forecast\"`. La demanda base es"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:90006
+#: 3d9bbc37982a4f9bbec0fded85ee3b0c
+#, python-brace-format
+msgid ""
+"\n"
+"d_t = 3\\,c_t + 2\\,\\text{inflation}_t - 2\\,\\text{unemployment}_t + "
+"u_t, \\qquad u_t = 0.8\\,u_{t-1} + \\sqrt{1 - 0.8^2}\\,\\epsilon_t,\n"
+msgstr ""
+"\n"
+"d_t = 3\\,c_t + 2\\,\\text{inflation}_t - 2\\,\\text{unemployment}_t + u_t, \\qquad u_t = 0.8\\,u_{t-1} + \\sqrt{1 - 0.8^2}\\,\\epsilon_t,\n"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:90010
+#: f698d27fc6694aa280aa6c0ea51ef4b9
+#, python-brace-format
+msgid ""
+"where $c_t$ is an annual calendar wave and $u_t$ the unrecorded shock. "
+"The planners' forecast is $a_t = 0.7\\,d_t + 0.5\\,c_t + \\text{noise}$, "
+"and budgets follow it:"
+msgstr ""
+"donde $c_t$ es una onda anual de calendario y $u_t$ el choque no registrado."
+" El pronóstico de los planificadores es $a_t = 0.7\\,d_t + 0.5\\,c_t + "
+"\\text{noise}$, y los presupuestos lo siguen:"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:90012
+#: 8277a87ded104be7abf321373a17e98c
+#, python-brace-format
+msgid ""
+"\n"
+"\\text{TV}_t = 5 + 0.5\\,a_t + 0.6\\,p_t + 0.15\\,c_t + \\text{noise}_t, "
+"\\qquad \\text{Digital}_t = 3 + 0.1\\,a_t + 0.42\\,p_t + 0.1\\,c_t + "
+"\\text{noise}_t,\n"
+msgstr ""
+"\n"
+"\\text{TV}_t = 5 + 0.5\\,a_t + 0.6\\,p_t + 0.15\\,c_t + \\text{noise}_t, \\qquad \\text{Digital}_t = 3 + 0.1\\,a_t + 0.42\\,p_t + 0.1\\,c_t + \\text{noise}_t,\n"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:90016
+#: 957829dc8c0643a98e910ee9304c9770
+#, python-brace-format
+msgid ""
+"with $p_t$ the shared policy shock. Sales are $50 + g_{TV} + g_D + "
+"2.5\\,d_t + 1.5\\,c_t + \\varepsilon_t$, with geometric adstock and "
+"Michaelis-Menten saturation for each channel."
+msgstr ""
+"con $p_t$ el choque de política compartido. Las ventas son $50 + g_{TV} + "
+"g_D + 2.5\\,d_t + 1.5\\,c_t + \\varepsilon_t$, con adstock geométrico y "
+"saturación de Michaelis-Menten para cada canal."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:90018
+#: 20ed1bec23394d909191afbef4dde134
+msgid ""
+"After two years of history, the team runs a four-week TV test that cuts "
+"spend by 1.5 units per week relative to the business-as-usual plan, and "
+"we keep observing the market for twelve more weeks. All spend and sales "
+"figures are in £10k per week. Besides the data, the simulator returns the"
+" experiment in the two forms the fits below use (a design table and a "
+"lift-test summary) and the answer key."
+msgstr ""
+"Tras dos años de historial, el equipo realiza una prueba de TV de cuatro "
+"semanas que reduce el gasto en 1.5 unidades por semana respecto al plan "
+"habitual, y seguimos observando el mercado durante doce semanas más. Todas "
+"las cifras de gasto y ventas están en £10k por semana. Además de los datos, "
+"el simulador devuelve el experimento en las dos formas que usan los ajustes "
+"siguientes (una tabla de diseño y un resumen de la prueba de elevación) y la"
+" clave de respuestas."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:120002
+#: 16588254083b46d7a8c4108f96efbcad
+msgid ""
+"TV and Digital move together because both follow the same forecast and "
+"policy shock. That co-movement is not the problem we focus on here; the "
+"problem is that the forecast also predicts sales directly."
+msgstr ""
+"La TV y Digital se mueven juntos porque ambos siguen el mismo pronóstico y "
+"el mismo choque de política. Ese movimiento conjunto no es el problema en el"
+" que nos centramos aquí; el problema es que el pronóstico también predice "
+"las ventas directamente."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:120004
+#: afb37a95f8e944bf921960a80363421a
+msgid ""
+"We evaluate TV's marginal return at its typical operating point, the "
+"average business-as-usual spend over the history."
+msgstr ""
+"Evaluamos el rendimiento marginal de la TV en su punto de operación típico, "
+"el gasto habitual promedio sin intervención durante el historial."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:140003
+#: 8ec0e26f4ed14950a31f698ca7ed76e9
+msgid "Three Ways to Use the Same Experiment"
+msgstr "Tres formas de usar el mismo experimento"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:140005
+#: 972f26c9cec24b27b2ea1a0b20d589da
+msgid ""
+"We now fit three models to this market. They share one outcome model and "
+"differ only in how the experiment enters, so any difference in their "
+"estimates comes from how they use the experiment."
+msgstr ""
+"Ahora ajustamos tres modelos a este mercado. Comparten un mismo modelo de "
+"resultado y difieren solo en cómo entra el experimento, por lo que cualquier"
+" diferencia en sus estimaciones proviene de cómo lo usan."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:140007
+#: c51945162a434c7e847825683cdd0727
+msgid ""
+"The shared outcome model has geometric adstock with logistic saturation "
+"for TV and Digital, the two standardised macro controls, and annual "
+"Fourier seasonality. The simulated market draws sales from a Michaelis-"
+"Menten curve, so the logistic curve is deliberately a little "
+"misspecified. Every comparison reads the curve's slope near typical "
+"spend, where the two families agree closely, and the logistic curve "
+"samples far better: with Michaelis-Menten saturation the budget model's "
+"posterior sits on a curved ridge between the curve's two parameters, and "
+"its chains mix slowly."
+msgstr ""
+"El modelo de resultado compartido tiene adstock geométrico con saturación "
+"logística para TV y Digital, los dos controles macroeconómicos "
+"estandarizados y estacionalidad anual de Fourier. El mercado simulado genera"
+" las ventas a partir de una curva de Michaelis-Menten, por lo que la curva "
+"logística está deliberadamente algo mal especificada. Cada comparación lee "
+"la pendiente de la curva cerca del gasto típico, donde ambas familias "
+"coinciden estrechamente, y la curva logística se muestrea mucho mejor: con "
+"saturación de Michaelis-Menten, la posterior del modelo de presupuesto se "
+"sitúa sobre una cresta curva entre los dos parámetros de la curva, y sus "
+"cadenas se mezclan lentamente."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:160002
+#: 49b20861e361477eafb780a588f47a2d
+msgid ""
+"Each of the three fits uses four chains of 2,000 draws. Sampling output "
+"is hidden throughout; instead, the fits are followed by a short sampler "
+"summary."
+msgstr ""
+"Cada uno de los tres ajustes usa cuatro cadenas de 2,000 muestras. La salida"
+" del muestreo se oculta en todo el cuaderno; en su lugar, tras los ajustes "
+"se muestra un breve resumen del muestreador."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:180002
+#: 35d312ae8a894c7c80edba8922c73141
+msgid "1. Plain MMM with the test weeks as data"
+msgstr "1. MMM simple con las semanas de la prueba como datos"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:180004
+#: f894060c3f5e4627b97fc7484f5624c2
+msgid ""
+"The simplest option is to give the MMM the whole series, test weeks "
+"included, and hope the designed variation speaks for itself."
+msgstr ""
+"La opción más sencilla es darle al MMM la serie completa, incluidas las "
+"semanas de la prueba, y esperar que la variación diseñada hable por sí sola."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:200002
+#: b549ebafdecc4d88a939ebb88294c8eb
+msgid "2. Plain MMM with a lift-test likelihood"
+msgstr "2. MMM simple con una verosimilitud de la prueba de elevación"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:200004
+#: 77147a164db24845a0873eea77a22cbc
+#, python-brace-format
+msgid ""
+"The usual calibration workflow summarises the experiment as a lift and "
+"adds it to the model with "
+"{meth}`~pymc_marketing.mmm.MMM.add_lift_test_measurements`. In practice "
+"the lift would come from a quasi-experimental analysis such as an "
+"interrupted time series in [CausalPy](https://causalpy.readthedocs.io/). "
+"The simulator reports the true lift plus measurement noise with a "
+"standard deviation of 1.0, roughly the precision of a four-week national "
+"test."
+msgstr ""
+"El flujo de calibración habitual resume el experimento como una elevación y "
+"la añade al modelo con "
+"{meth}`~pymc_marketing.mmm.MMM.add_lift_test_measurements`. En la práctica, "
+"la elevación provendría de un análisis cuasiexperimental, como una serie "
+"temporal interrumpida en [CausalPy](https://causalpy.readthedocs.io/). El "
+"simulador informa la elevación verdadera más un ruido de medición con una "
+"desviación estándar de 1.0, aproximadamente la precisión de una prueba "
+"nacional de cuatro semanas."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:200006
+#: d0f6ab9b482b49b9a4b3e68afe7cee08
+msgid ""
+"Because the lift already summarises the test weeks, we fit this model on "
+"the pre-test history only, so the experiment is not counted twice. The "
+"same rule applies to the budget model below: a test whose periods enter "
+"the data through a design should not also be added as a lift likelihood, "
+"and `add_lift_test_measurements` warns when the channels overlap."
+msgstr ""
+"Como la elevación ya resume las semanas de la prueba, ajustamos este modelo "
+"solo con el historial previo a la prueba, de modo que el experimento no se "
+"cuente dos veces. La misma regla se aplica al modelo de presupuesto de más "
+"abajo: una prueba cuyos períodos entran en los datos mediante un diseño no "
+"debería añadirse además como verosimilitud de elevación, y "
+"`add_lift_test_measurements` emite una advertencia cuando los canales se "
+"solapan."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:230002
+#: fbce11dba2824bbf9cc7d03664f6824a
+msgid "3. Budget model with the lift-test design"
+msgstr "3. Modelo de presupuesto con el diseño de la prueba de elevación"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:230004
+#: 21d6c5b10619496d9b37ad69c4fae030
+#, python-brace-format
+msgid ""
+"{class}`~pymc_marketing.mmm.budget_model.BudgetModelEffect` adds a spend "
+"equation for each channel. Budgets respond to the observed demand drivers"
+" (by default, the MMM's controls and a Fourier basis of the same order as"
+" its yearly seasonality), and whatever those drivers do not explain is "
+"the channel's *budget surprise*:"
+msgstr ""
+"{class}`~pymc_marketing.mmm.budget_model.BudgetModelEffect` añade una "
+"ecuación de gasto para cada canal. Los presupuestos responden a los "
+"impulsores de demanda observados (por defecto, los controles del MMM y una "
+"base de Fourier del mismo orden que su estacionalidad anual), y lo que esos "
+"impulsores no explican es la *sorpresa presupuestaria* del canal:"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:230006
+#: 3e18107ef20a4d21be2babd5d1025dcd
+msgid ""
+"\n"
+"\\text{spend}_{c,t} = \\underbrace{a_c + \\psi_c^\\top \\text{controls}_t"
+" + \\phi_c^\\top \\text{Fourier}_t}_{m_{c,t}} + v_{c,t},\n"
+"\\qquad v_{c,t} \\sim \\text{Normal}(0, s_c).\n"
+msgstr ""
+"\n"
+"\\text{spend}_{c,t} = \\underbrace{a_c + \\psi_c^\\top \\text{controls}_t + \\phi_c^\\top \\text{Fourier}_t}_{m_{c,t}} + v_{c,t},\n"
+"\\qquad v_{c,t} \\sim \\text{Normal}(0, s_c).\n"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:230011
+#: 16dfc776d1a6483591db039350a359b0
+msgid ""
+"The surprise mixes allocation noise, which is unrelated to demand, with "
+"the unrecorded forecast, which is not. If the surprises and the sales "
+"error are jointly Gaussian, the sales error splits into a part explained "
+"by the surprises and a remainder independent of them, so the sales mean "
+"gains a control-function term, linear in the surprises:"
+msgstr ""
+"La sorpresa mezcla el ruido de asignación, que no guarda relación con la "
+"demanda, con el pronóstico no registrado, que sí la guarda. Si las sorpresas"
+" y el error de las ventas son conjuntamente gaussianos, el error de las "
+"ventas se descompone en una parte explicada por las sorpresas y un resto "
+"independiente de ellas, de modo que la media de las ventas incorpora un "
+"término de función de control, lineal en las sorpresas:"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:230013
+#: 66e55622f9bb40eba0ebed41461ab333
+#, python-brace-format
+msgid ""
+"\n"
+"\\mu_t = \\text{MMM}_t + \\sum_c \\gamma_c\\, v_{c,t}.\n"
+msgstr ""
+"\n"
+"\\mu_t = \\text{MMM}_t + \\sum_c \\gamma_c\\, v_{c,t}.\n"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:230017
+#: a656190edf51488d92ed3ce68386028a
+#, python-brace-format, python-format
+msgid ""
+"Demand shocks persist, so last week's budget surprise also carries "
+"information about this week's demand. With `surprise_lags=1`, which we "
+"use throughout, the control function also includes $\\gamma_{c,1}\\, "
+"v_{c,t-1}$. In a simulation study over 50 markets "
+"(`scripts/budget_model/simulation_study.py`) it cuts the bias that "
+"remains with a contemporaneous control function alone from +0.75 to "
+"+0.35, and lifts coverage of the 94% interval from 74% to 94%. Lagged "
+"surprises also compete with the adstock carryover of past spend, so keep "
+"their number small."
+msgstr ""
+"Los choques de demanda persisten, por lo que la sorpresa presupuestaria de "
+"la semana pasada también contiene información sobre la demanda de esta "
+"semana. Con `surprise_lags=1`, que usamos en todo el cuaderno, la función de"
+" control incluye además $\\gamma_{c,1}\\, v_{c,t-1}$. En un estudio de "
+"simulación con 50 mercados (`scripts/budget_model/simulation_study.py`), "
+"reduce el sesgo que queda con una función de control puramente contemporánea"
+" de +0.75 a +0.35, y eleva la cobertura del intervalo del 94% del 74% al "
+"94%. Las sorpresas rezagadas también compiten con el efecto de arrastre del "
+"adstock del gasto pasado, así que mantenga pequeño su número."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:230019
+#: 740295a97db44135a654469145a9f1b1
+#, python-brace-format
+msgid ""
+"The control function removes the confounding but uses up variation: once "
+"$v_{c,t}$ enters the sales equation, what is left in spend is $m_{c,t}$, "
+"built from the same drivers that enter sales directly. This is "
+"deliberate. Any regressor in the spend equation that is *not* in the "
+"sales equation would act as an instrument for the response curve, valid "
+"only if it moves spend without moving sales. Seasonal spend is the "
+"classic trap: with seasonal terms in the spend equation but not in sales,"
+" seasonal budget moves would identify the curve from seasonal demand. So "
+"the defaults keep the spend equation's regressors inside the sales "
+"equation's. If planners respond to something recorded, such as a demand "
+"forecast, add it to the MMM's `control_columns`, where both equations see"
+" it; only variables that move spend without affecting sales in any other "
+"way, such as media-cost shocks, belong in the effect's `instruments`."
+msgstr ""
+"La función de control elimina la confusión pero consume variación: una vez "
+"que $v_{c,t}$ entra en la ecuación de ventas, lo que queda en el gasto es "
+"$m_{c,t}$, construido con los mismos impulsores que entran directamente en "
+"las ventas. Esto es deliberado. Cualquier regresor de la ecuación de gasto "
+"que *no* esté en la ecuación de ventas actuaría como instrumento de la curva"
+" de respuesta, válido solo si mueve el gasto sin mover las ventas. El gasto "
+"estacional es la trampa clásica: con términos estacionales en la ecuación de"
+" gasto pero no en la de ventas, los movimientos estacionales del presupuesto"
+" identificarían la curva a partir de la demanda estacional. Por eso los "
+"valores por defecto mantienen los regresores de la ecuación de gasto dentro "
+"de los de la ecuación de ventas. Si los planificadores responden a algo "
+"registrado, como un pronóstico de demanda, añádalo a las `control_columns` "
+"del MMM, donde ambas ecuaciones lo ven; solo las variables que mueven el "
+"gasto sin afectar a las ventas de ninguna otra manera, como los choques en "
+"el costo de los medios, pertenecen a los `instruments` del efecto."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:230021
+#: 2115d6ba032d4dc0a585d8a97bbf7c76
+msgid ""
+"The lift test supplies the missing variation. Its spend change is set by "
+"design, independently of demand, so the effect subtracts it *before* "
+"computing the surprise. The designed change is never mistaken for a "
+"budget choice, and the test weeks enter the sales likelihood as ordinary "
+"data with no lift likelihood."
+msgstr ""
+"La prueba de elevación aporta la variación que falta. Su cambio de gasto se "
+"fija por diseño, con independencia de la demanda, por lo que el efecto lo "
+"resta *antes* de calcular la sorpresa. El cambio diseñado nunca se confunde "
+"con una decisión de presupuesto, y las semanas de la prueba entran en la "
+"verosimilitud de las ventas como datos ordinarios, sin verosimilitud de "
+"elevación."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:230023
+#: c07de79a85e749dda3b3394c2dc25991
+msgid ""
+"The design is described with one row per experiment. `mode=\"shift\"` "
+"means spend moved by a known `delta_x` relative to what would otherwise "
+"have been chosen; the change must have been fully realised. Use "
+"`mode=\"set\"` for designs that fix spend outright, such as a holdout at "
+"zero, where spend in those cells carries no demand information and is "
+"masked out of the budget model. Designs act on contemporaneous spend "
+"while adstock carries spend from the weeks before the test into it, so "
+"tests should last several adstock half-lives."
+msgstr ""
+"El diseño se describe con una fila por experimento. `mode=\"shift\"` "
+"significa que el gasto se desplazó en un `delta_x` conocido respecto a lo "
+"que se habría elegido de otro modo; el cambio debe haberse realizado por "
+"completo. Use `mode=\"set\"` para los diseños que fijan el gasto de forma "
+"absoluta, como una exclusión (holdout) en cero, donde el gasto en esas "
+"celdas no contiene información sobre la demanda y se enmascara en el modelo "
+"de presupuesto. Los diseños actúan sobre el gasto contemporáneo mientras que"
+" el adstock arrastra a él el gasto de las semanas previas a la prueba, por "
+"lo que las pruebas deberían durar varias vidas medias del adstock."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:260003
+#: 11fd32bc90854052bbd7f85054a21cc7
+msgid "Comparing the Marginal Return of TV"
+msgstr "Comparación del rendimiento marginal de la TV"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:260005
+#: c550a1c79f674b67a9535e9adb073304
+msgid ""
+"Every comparison from here on reads TV's marginal return at the operating"
+" point. The MMM stores the logistic saturation parameters in scaled "
+"units, so the helper below differentiates the curve with respect to "
+"scaled spend and converts the slope back to sales per unit of spend. It "
+"returns one value per posterior draw, so each fit gives a full posterior "
+"for the marginal return, not just a point estimate. `as_posterior` wraps "
+"those draws so ArviZ can plot them."
+msgstr ""
+"A partir de aquí, cada comparación lee el rendimiento marginal de la TV en "
+"el punto de operación. El MMM almacena los parámetros de la saturación "
+"logística en unidades escaladas, por lo que la función auxiliar de abajo "
+"deriva la curva respecto al gasto escalado y convierte la pendiente de nuevo"
+" en ventas por unidad de gasto. Devuelve un valor por cada muestra de la "
+"posterior, de modo que cada ajuste da una posterior completa del rendimiento"
+" marginal, no solo una estimación puntual. `as_posterior` envuelve esas "
+"muestras para que ArviZ pueda graficarlas."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:280002
+#: 2c0c71fdea0f4b94927769bde8b3d0b4
+msgid ""
+"Before comparing estimates, check the samplers. `sampler_summary` "
+"reports, for each fit, the number of divergent transitions, the largest "
+"R-hat across the model's parameters, and R-hat and effective sample size "
+"for TV's marginal return, the quantity every comparison reads. We reuse "
+"it after the replication below and, through "
+"`marginal_return_diagnostics`, in the scenario tables of Part 2."
+msgstr ""
+"Antes de comparar las estimaciones, revisemos los muestreadores. "
+"`sampler_summary` informa, para cada ajuste, el número de transiciones "
+"divergentes, el mayor R-hat entre los parámetros del modelo, y el R-hat y el"
+" tamaño de muestra efectivo del rendimiento marginal de la TV, la cantidad "
+"que lee cada comparación. Lo reutilizamos después de la replicación de más "
+"abajo y, mediante `marginal_return_diagnostics`, en las tablas de escenarios"
+" de la Parte 2."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:310002
+#: 4c8e96e9b18f4ccd8695768b1e24c82d
+msgid ""
+"All three fits mix well for TV's marginal return (R-hat at most 1.004, "
+"effective sample sizes above 1,000 from 8,000 draws), and divergent "
+"transitions are rare, at most 13 per fit. The largest R-hat across all "
+"parameters, 1.023, is in the lift-likelihood fit. The differences between"
+" the fits below are therefore differences between the models, not "
+"sampling noise."
+msgstr ""
+"Los tres ajustes se mezclan bien para el rendimiento marginal de la TV "
+"(R-hat de 1.004 como máximo, tamaños de muestra efectivos superiores a 1,000"
+" con 8,000 muestras), y las transiciones divergentes son escasas, 13 por "
+"ajuste como máximo. El mayor R-hat entre todos los parámetros, 1.023, "
+"corresponde al ajuste con verosimilitud de elevación. Por tanto, las "
+"diferencias entre los ajustes que siguen son diferencias entre los modelos, "
+"no ruido de muestreo."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:340002
+#: 5cf18882b0bc400eb7b9276e589150bc
+#, python-format
+msgid ""
+"The plain MMM credits TV with the demand its budget followed: its "
+"posterior mean, 3.22, is far above the true 1.94, and its 94% interval, "
+"from 2.12 to 4.31, misses the truth. The four test weeks barely move it, "
+"because they are diluted among a hundred weeks in which spend chased "
+"demand. The lift likelihood pulls the estimate down only to 3.03 and "
+"narrows the interval, which still misses the truth. The budget model "
+"covers the true value but overshoots in the other direction, to 0.93, "
+"with a wide interval: in this market it attributes more of TV's apparent "
+"effect to demand than it should. Wide intervals are the honest price of "
+"one short test."
+msgstr ""
+"El MMM simple atribuye a la TV la demanda que su presupuesto siguió: su "
+"media posterior, 3.22, está muy por encima del valor verdadero de 1.94, y su"
+" intervalo del 94%, de 2.12 a 4.31, no contiene el valor verdadero. Las "
+"cuatro semanas de la prueba apenas lo mueven, porque quedan diluidas entre "
+"cien semanas en las que el gasto persiguió la demanda. La verosimilitud de "
+"elevación baja la estimación solo hasta 3.03 y estrecha el intervalo, que "
+"sigue sin contener el valor verdadero. El modelo de presupuesto cubre el "
+"valor verdadero pero se pasa en la otra dirección, hasta 0.93, con un "
+"intervalo amplio: en este mercado atribuye a la demanda más del efecto "
+"aparente de la TV de lo que debería. Los intervalos amplios son el precio "
+"honesto de una sola prueba breve."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:340005
+#: f5eadae59bdb452cbfa3446d2440862f
+msgid "Replicating Across Markets"
+msgstr "Replicación en varios mercados"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:340007
+#: 913f56e7e10d40abb3e6c6024803ca7e
+#, python-format
+msgid ""
+"One simulated market is one draw. Whether a method helps is a question "
+"about its behaviour across markets, so we repeat the whole exercise. We "
+"simulate six further markets from the same data-generating process with "
+"different seeds and fit all three models to each, with a lighter sampling"
+" budget of four chains of 1,000 draws. For every market we record the "
+"error of the posterior mean of TV's marginal return, whether the 94% "
+"interval covers the truth, and the number of divergent transitions. Six "
+"markets show the pattern but cannot pin down coverage; "
+"`scripts/budget_model/simulation_study.py` in the repository repeats the "
+"comparison over 50 markets, and its docstring records the results to "
+"expect."
+msgstr ""
+"Un mercado simulado es una sola muestra. Si un método ayuda es una pregunta "
+"sobre su comportamiento en distintos mercados, así que repetimos todo el "
+"ejercicio. Simulamos seis mercados adicionales a partir del mismo proceso "
+"generador de datos con semillas diferentes y ajustamos los tres modelos a "
+"cada uno, con un presupuesto de muestreo más ligero de cuatro cadenas de "
+"1,000 muestras. Para cada mercado registramos el error de la media posterior"
+" del rendimiento marginal de la TV, si el intervalo del 94% cubre el valor "
+"verdadero y el número de transiciones divergentes. Seis mercados muestran el"
+" patrón pero no permiten fijar la cobertura con precisión; "
+"`scripts/budget_model/simulation_study.py`, en el repositorio, repite la "
+"comparación con 50 mercados, y su docstring registra los resultados "
+"esperados."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:360002
+#: fce72352457b4138bab21a24503dfddb
+#, python-format
+msgid ""
+"The forest plot shows, for each market, the posterior of each fit's error"
+" in TV's marginal return (estimate minus truth): the dot is the posterior"
+" mean, the thick bar the central 50% and the thin bar the 94% interval. "
+"An interval that crosses the dashed line at zero covers the truth."
+msgstr ""
+"El gráfico de bosque muestra, para cada mercado, la posterior del error de "
+"cada ajuste en el rendimiento marginal de la TV (estimación menos valor "
+"verdadero): el punto es la media posterior, la barra gruesa el 50% central y"
+" la barra fina el intervalo del 94%. Un intervalo que cruza la línea "
+"discontinua en cero cubre el valor verdadero."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:390002
+#: 9479d76d88f544b59dd1a5d2c3c80414
+#, python-brace-format
+msgid ""
+"Across the six markets neither plain fit's interval covers the truth; "
+"both overstate TV every time. The budget model covers it in five markets "
+"out of six and has the smallest average error, 0.70 against 1.67 for the "
+"lift likelihood and 2.33 for the plain MMM. Its intervals are almost "
+"twice as wide as the lift likelihood's, and it still sits above the truth"
+" in four of the six markets; in market 105 its whole interval does. The "
+"samplers behave: no fit's R-hat for TV's marginal return exceeds 1.02, "
+"and the only divergent transitions are in the budget model's fits (73 "
+"across its six fits of 4,000 draws, under 0.5%). Averaged over the "
+"markets, the posterior probability that $\\gamma_{TV} > 0$ is 0.95."
+msgstr ""
+"En los seis mercados, el intervalo de ninguno de los dos ajustes simples "
+"cubre el valor verdadero; ambos sobrestiman la TV siempre. El modelo de "
+"presupuesto lo cubre en cinco de los seis mercados y tiene el menor error "
+"promedio, 0.70 frente a 1.67 de la verosimilitud de elevación y 2.33 del MMM"
+" simple. Sus intervalos son casi el doble de anchos que los de la "
+"verosimilitud de elevación, y aun así queda por encima del valor verdadero "
+"en cuatro de los seis mercados; en el mercado 105, todo su intervalo lo "
+"está. Los muestreadores se comportan bien: el R-hat del rendimiento marginal"
+" de la TV de ningún ajuste supera 1.02, y las únicas transiciones "
+"divergentes están en los ajustes del modelo de presupuesto (73 en sus seis "
+"ajustes de 4,000 muestras, menos del 0.5%). Promediando entre los mercados, "
+"la probabilidad posterior de que $\\gamma_{TV} > 0$ es 0.95."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:390004
+#: 0a03a40a1f3c4a96ae1a7e887b5693d1
+#, python-format
+msgid ""
+"Six markets cannot pin down coverage. Over 50 markets from the same data-"
+"generating process, fitted as here (logistic saturation, four chains), "
+"`scripts/budget_model/simulation_study.py` finds that the configuration "
+"used here (design plus one lag) covers the truth in 94% of markets [83%, "
+"99%], its nominal rate, against 74% without the lag, 22% for the lift "
+"likelihood and 4% for the plain MMM. Its average bias is +0.35: it still "
+"leans towards overstating TV, as it does in most of the six markets "
+"above."
+msgstr ""
+"Seis mercados no permiten fijar la cobertura con precisión. Con 50 mercados "
+"del mismo proceso generador de datos, ajustados como aquí (saturación "
+"logística, cuatro cadenas), `scripts/budget_model/simulation_study.py` "
+"encuentra que la configuración usada aquí (diseño más un rezago) cubre el "
+"valor verdadero en el 94% de los mercados [83%, 99%], su tasa nominal, "
+"frente al 74% sin el rezago, el 22% de la verosimilitud de elevación y el 4%"
+" del MMM simple. Su sesgo promedio es +0.35: sigue inclinándose a "
+"sobrestimar la TV, como ocurre en la mayoría de los seis mercados "
+"anteriores."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:390007
+#: 7cce701783e84aa9a897429d4e55d1f8
+msgid "What the Control Function Absorbs"
+msgstr "Qué absorbe la función de control"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:390009
+#: 9b3edccb5a6040da98680180dfd87d6e
+msgid ""
+"The control-function term is stored as `budget_effect_contribution`. In "
+"the simulation we know the piece of sales driven by the unobserved demand"
+" shock, so we can compare the two. They should not match: budgets see "
+"only a noisy forecast of the shock, and the control function uses only "
+"this week's and last week's surprises, while the shock is persistent."
+msgstr ""
+"El término de la función de control se almacena como "
+"`budget_effect_contribution`. En la simulación conocemos la parte de las "
+"ventas impulsada por el choque de demanda no observado, así que podemos "
+"comparar ambos. No deberían coincidir: los presupuestos solo ven un "
+"pronóstico ruidoso del choque, y la función de control usa únicamente las "
+"sorpresas de esta semana y de la semana pasada, mientras que el choque es "
+"persistente."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:410002
+#: dc9a122e0939494ab6f17caed7c00ad2
+msgid ""
+"In this market the term tracks the shock only loosely (a correlation of "
+"0.30). It picks up the movements that reach TV budgets, this week and "
+"last, not the slower swings of the persistent shock."
+msgstr ""
+"En este mercado el término sigue al choque solo de forma laxa (una "
+"correlación de 0.30). Capta los movimientos que llegan a los presupuestos de"
+" TV, esta semana y la pasada, no las oscilaciones más lentas del choque "
+"persistente."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:410005
+#: 3c1adcc878894f0eb4f1dad7673144ce
+msgid "The Control Function as an Exogeneity Check"
+msgstr "La función de control como prueba de exogeneidad"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:410007
+#: 350b2c2cd6ed46558b79adad6200f852
+msgid ""
+"If spend were exogenous, the budget surprises would carry no demand "
+"information and every $\\gamma_c$ would be zero. The posterior for "
+"$\\gamma_c$ therefore measures how much weight the plain MMM's exogeneity"
+" assumption was carrying. This is a Bayesian analogue of the classical "
+"control-function (Durbin-Wu-Hausman) test for endogeneity [(Rivers & "
+"Vuong, 1988](https://doi.org/10.1016/0304-4076(88)90063-2); [Wooldridge, "
+"2015)](https://doi.org/10.3368/jhr.50.2.420)."
+msgstr ""
+"Si el gasto fuera exógeno, las sorpresas presupuestarias no contendrían "
+"información sobre la demanda y todo $\\gamma_c$ sería cero. Por tanto, la "
+"posterior de $\\gamma_c$ mide cuánto peso soportaba el supuesto de "
+"exogeneidad del MMM simple. Es un análogo bayesiano de la prueba clásica de "
+"endogeneidad de la función de control (Durbin-Wu-Hausman) [(Rivers & Vuong, "
+"1988](https://doi.org/10.1016/0304-4076(88)90063-2); [Wooldridge, "
+"2015)](https://doi.org/10.3368/jhr.50.2.420)."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:410009
+#: b4d6a0185cee447a8d7ea3c57143ebb4
+#, python-brace-format
+msgid ""
+"{func}`~pymc_marketing.mmm.budget_model.exogeneity_summary` reports it "
+"per channel. The interval columns are in scaled units; "
+"`gamma_per_spend_unit` converts to sales per unexplained unit of spend. "
+"`contraction` compares posterior and prior spread, and "
+"`identified_by_design` records whether a lift-test design supplied "
+"excluded variation for that coefficient. With `surprise_lags=1` there is "
+"one row per lag. Persistent demand can load on the lagged coefficient "
+"while the contemporaneous one stays near zero, so read the rows together,"
+" bearing in mind that two intervals give two chances of a false alarm."
+msgstr ""
+"{func}`~pymc_marketing.mmm.budget_model.exogeneity_summary` lo informa por "
+"canal. Las columnas de intervalos están en unidades escaladas; "
+"`gamma_per_spend_unit` convierte a ventas por cada unidad de gasto no "
+"explicada. `contraction` compara la dispersión posterior y la previa, e "
+"`identified_by_design` registra si un diseño de prueba de elevación aportó "
+"variación excluida para ese coeficiente. Con `surprise_lags=1` hay una fila "
+"por rezago. La demanda persistente puede cargarse sobre el coeficiente "
+"rezagado mientras el contemporáneo se mantiene cerca de cero, así que lea "
+"las filas en conjunto, teniendo presente que dos intervalos dan dos "
+"oportunidades de una falsa alarma."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:430002
+#: f80ca8a4e47a4ed995ba031634e23b44
+msgid ""
+"The same coefficients as a forest plot, contemporaneous and lagged, with "
+"zero marked:"
+msgstr ""
+"Los mismos coeficientes en un gráfico de bosque, contemporáneos y rezagados,"
+" con el cero marcado:"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:450002
+#: f5fbdde285974af58b8a967ef5c74dd2
+#, python-brace-format
+msgid ""
+"In this market TV's contemporaneous coefficient is clearly positive: its "
+"interval excludes zero, and the posterior probability that it is positive"
+" rounds to 1. The lagged coefficient points the same way (probability "
+"about 0.97 positive), and its interval only just excludes zero. "
+"Unexplained TV budget moves carried demand, so the plain MMM's exogeneity"
+" assumption was doing real work. Digital's coefficient has no designed "
+"variation, so the summary flags it. Its interval includes zero but leans "
+"negative (probability of about 0.70 below zero), the opposite sign to "
+"Digital's small true dependence on the forecast. Without a design the "
+"check still runs, but its verdict rests on functional-form assumptions "
+"and the priors, and it should be read as a sensitivity analysis rather "
+"than a test; the {ref}`negative control in Part 2 "
+"<mmm_endogenous_budget_observed_only>` shows what that means in practice."
+msgstr ""
+"En este mercado el coeficiente contemporáneo de la TV es claramente "
+"positivo: su intervalo excluye el cero, y la probabilidad posterior de que "
+"sea positivo se redondea a 1. El coeficiente rezagado apunta en el mismo "
+"sentido (probabilidad de aproximadamente 0.97 de ser positivo), y su "
+"intervalo apenas excluye el cero. Los movimientos inexplicados del "
+"presupuesto de TV contenían demanda, de modo que el supuesto de exogeneidad "
+"del MMM simple estaba haciendo un trabajo real. El coeficiente de Digital no"
+" tiene variación diseñada, por lo que el resumen lo señala. Su intervalo "
+"incluye el cero pero se inclina hacia lo negativo (probabilidad de "
+"aproximadamente 0.70 de ser negativo), el signo opuesto a la pequeña "
+"dependencia verdadera de Digital respecto al pronóstico. Sin un diseño la "
+"comprobación sigue funcionando, pero su veredicto descansa en supuestos de "
+"forma funcional y en los priors, y debe leerse como un análisis de "
+"sensibilidad y no como una prueba; el {ref}`negative control in Part 2 "
+"<mmm_endogenous_budget_observed_only>` muestra lo que eso significa en la "
+"práctica."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:450004
+#: 10b7bc093a8942faa808c71e905661de
+msgid ""
+"The check has two limits. It assumes the sales equation is correctly "
+"specified: the surprise is part of spend, so the control-function term "
+"and the channel's response curve compete for the same variation, and a "
+"misspecified curve (the wrong adstock, saturation family, or a missing "
+"trend) leaks into $\\gamma_c$. And spend and sales are fit jointly, which"
+" is efficient when both equations are right but lets the sales likelihood"
+" pull the spend equation towards surprises that fit sales residuals when "
+"they are not. A cheap check for the second is to refit with every "
+"$\\gamma$, contemporaneous and lagged, pinned near zero, which leaves the"
+" spend equation to the spend data alone, and compare."
+msgstr ""
+"La comprobación tiene dos límites. Supone que la ecuación de ventas está "
+"correctamente especificada: la sorpresa forma parte del gasto, por lo que el"
+" término de la función de control y la curva de respuesta del canal compiten"
+" por la misma variación, y una curva mal especificada (el adstock "
+"equivocado, la familia de saturación equivocada o una tendencia omitida) se "
+"filtra en $\\gamma_c$. Además, el gasto y las ventas se ajustan "
+"conjuntamente, lo cual es eficiente cuando ambas ecuaciones son correctas "
+"pero permite que la verosimilitud de las ventas empuje la ecuación de gasto "
+"hacia sorpresas que ajustan los residuos de las ventas cuando no lo son. Una"
+" comprobación barata para el segundo caso es reajustar con todos los "
+"$\\gamma$, contemporáneos y rezagados, fijados cerca de cero, lo que deja la"
+" ecuación de gasto solo en manos de los datos de gasto, y comparar."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:480002
+#: b4bf9e90d0064067b7f638edda29c519
+msgid ""
+"The two spend equations are indistinguishable: the surprise scales are "
+"the same height in both fits, and the largest gap between the fitted "
+"spend means is too small to see on the scale of the surprise itself. In "
+"this market the sales likelihood is not bending the spend equation to fit"
+" sales residuals."
+msgstr ""
+"Las dos ecuaciones de gasto son indistinguibles: las escalas de la sorpresa "
+"tienen la misma altura en ambos ajustes, y la mayor diferencia entre las "
+"medias de gasto ajustadas es demasiado pequeña para verse en la escala de la"
+" propia sorpresa. En este mercado la verosimilitud de las ventas no está "
+"deformando la ecuación de gasto para ajustar los residuos de las ventas."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:480005
+#: d467a88211d846c793f1800b9340af55
+msgid "Predictions and Counterfactuals"
+msgstr "Predicciones y contrafactuales"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:480007
+#: 089075dfd77a437ea59271549edee90c
+msgid ""
+"The control-function term represents demand that actually happened. "
+"Changing spend in a scenario is an intervention, and interventions are "
+"never budget surprises. The effect therefore computes surprises from a "
+"stored copy of the chosen spend rather than from the channel data:"
+msgstr ""
+"El término de la función de control representa la demanda que realmente "
+"ocurrió. Cambiar el gasto en un escenario es una intervención, y las "
+"intervenciones nunca son sorpresas presupuestarias. Por ello, el efecto "
+"calcula las sorpresas a partir de una copia almacenada del gasto elegido en "
+"lugar de los datos del canal:"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:480009
+#: aaade0cb6c3141c7aee113b0e59c4cbd
+#, python-brace-format
+msgid ""
+"counterfactuals from "
+"{class}`~pymc_marketing.mmm.incrementality.Incrementality` and the budget"
+" optimizer change the media response but hold the control-function term "
+"at its factual value;"
+msgstr ""
+"los contrafactuales de "
+"{class}`~pymc_marketing.mmm.incrementality.Incrementality` y del optimizador"
+" de presupuesto cambian la respuesta de los medios pero mantienen el término"
+" de la función de control en su valor factual;"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:480010
+#: 6c55c817936046db9c7b13a5172d9e3d
+msgid ""
+"on future dates the surprise is zero, its expectation for spend that has "
+"not been chosen yet. Forecast intervals therefore omit the variance the "
+"control function absorbed in-sample and are somewhat too narrow."
+msgstr ""
+"en fechas futuras la sorpresa es cero, su esperanza para un gasto que aún no"
+" se ha elegido. Por tanto, los intervalos de pronóstico omiten la varianza "
+"que la función de control absorbió dentro de la muestra y son algo demasiado"
+" estrechos."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:480012
+#: e6bb00f0206a4303b671ebbfb5ba8f2d
+msgid "We forecast eight weeks at the operating point:"
+msgstr "Pronosticamos ocho semanas en el punto de operación:"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:510002
+#: 720eeeccb64447ad92cac884ae9f2b32
+msgid ""
+"The control-function term is zero on every forecast date, so the forecast"
+" reflects only the media response and the baseline."
+msgstr ""
+"El término de la función de control es cero en todas las fechas del "
+"pronóstico, por lo que este refleja únicamente la respuesta de los medios y "
+"la línea base."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:510004
+#: 46720209fb6e41539606b164e9a01ee5
+msgid ""
+"Zero is the right surprise for planning, but not for scoring held-out "
+"weeks whose spend was actually chosen: there the budget model would forgo"
+" the demand information that realised spend carries, and score worse than"
+" a plain MMM even when it is closer to the causal truth. For that use, "
+"set `surprise_out_of_sample=\"observed\"`, which reads spend on new dates"
+" as realised choices (removing any design that falls on them), and keep a"
+" separate model with the default for scenarios and optimization; the "
+"optimizer warns if it is given an `\"observed\"` model."
+msgstr ""
+"Cero es la sorpresa adecuada para planificar, pero no para puntuar semanas "
+"reservadas cuyo gasto sí fue elegido: allí el modelo de presupuesto "
+"renunciaría a la información de demanda que contiene el gasto realizado, y "
+"puntuaría peor que un MMM simple aunque estuviera más cerca de la verdad "
+"causal. Para ese uso, establezca `surprise_out_of_sample=\"observed\"`, que "
+"lee el gasto en las fechas nuevas como decisiones realizadas (eliminando "
+"cualquier diseño que caiga en ellas), y mantenga un modelo aparte con el "
+"valor por defecto para los escenarios y la optimización; el optimizador "
+"emite una advertencia si recibe un modelo `\"observed\"`."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:510006
+#: 8a3666594495427fa874b57e2efbe548
+msgid "End of Part 1"
+msgstr "Fin de la Parte 1"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:510009
+#: 93e1cf39e66a4efc97092807dacf22fa
+#, python-brace-format
+msgid ""
+"Part 1 covers what you need to use the budget model: fitting it with an "
+"experiment's design, comparing it with a plain MMM, reading the "
+"exogeneity diagnostic, and predicting with it. Part 2 asks when the "
+"correction is worth making, using three other ways budgets follow demand."
+" To skip it, go to {ref}`Practical guidance and limitations "
+"<mmm_endogenous_budget_guidance>`."
+msgstr ""
+"La Parte 1 cubre lo que necesita para usar el modelo de presupuesto: "
+"ajustarlo con el diseño de un experimento, compararlo con un MMM simple, "
+"leer el diagnóstico de exogeneidad y hacer predicciones con él. La Parte 2 "
+"plantea cuándo vale la pena la corrección, usando otras tres formas en que "
+"los presupuestos siguen la demanda. Para omitirla, vaya a {ref}`Practical "
+"guidance and limitations <mmm_endogenous_budget_guidance>`."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:520003
+#: 61191ff8cd24455c9dd2d2660b582198
+msgid "Part 2: When Does the Budget Model Help?"
+msgstr "Parte 2: ¿cuándo ayuda el modelo de presupuesto?"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:520005
+#: 53f9197767824dfd9bec368209831b01
+msgid ""
+"Part 1 used one data-generating process: planners set budgets from an "
+"unrecorded forecast of demand. That process is close to the best case for"
+" a control function, because the budget surprise is roughly \"demand "
+"shock plus noise\". Budgets depend on demand in other ways that are just "
+"as common in marketing. Part 2 shows three of them:"
+msgstr ""
+"La Parte 1 usó un solo proceso generador de datos: los planificadores fijan "
+"los presupuestos a partir de un pronóstico no registrado de la demanda. Ese "
+"proceso se acerca al mejor caso para una función de control, porque la "
+"sorpresa presupuestaria es aproximadamente \"choque de demanda más ruido\". "
+"Los presupuestos dependen de la demanda de otras maneras que son igual de "
+"comunes en marketing. La Parte 2 muestra tres de ellas:"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:510006
+#: 84abde25d3d840629050e904fc6bf95f
+msgid "Scenario"
+msgstr "Escenario"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:510006
+#: d07b3c7d4a9c4675a7c6e5d24903c6c0
+msgid "How TV spend is set"
+msgstr "Cómo se fija el gasto en TV"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:510006
+#: 0aeef16ce35f4fcc977c811a3b73e713
+msgid "Bias in a plain MMM"
+msgstr "Sesgo en un MMM simple"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:510006
+#: 9ac5a6915941433abd5b1acfe770d731
+#, python-brace-format
+msgid "Expected $\\gamma_{TV}$"
+msgstr "$\\gamma_{TV}$ esperado"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:510006
+#: 290968c7aa5547319145db6d734d5d4a
+msgid "Target chasing"
+msgstr "Persecución de metas"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:510006
+#: 51a5cc860f684043b55ca61f8b3b68ab
+msgid "Reacts to last week's sales gap against plan"
+msgstr "Reacciona a la brecha de ventas de la semana pasada respecto al plan"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:510006
+#: 68bee5aafc3442b89e370726450adc59
+msgid "Understates TV"
+msgstr "Subestima la TV"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:510006
+#: 9fd432a7727d403aa3b0a753c982103c
+msgid "Negative"
+msgstr "Negativo"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:510006
+#: 8aa54fe0b2ae424aaaba9239cd11d234
+msgid "Search"
+msgstr "Búsqueda"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:510006
+#: da88a7bd73a14b1badfeddfea67f7574
+msgid "Follows demand mechanically, up to a weekly cap"
+msgstr "Sigue la demanda de forma mecánica, hasta un tope semanal"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:510006
+#: 42f027733d934d9382157b605bf6cc6e
+msgid "Overstates TV"
+msgstr "Sobrestima la TV"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:510006
+#: 7a770ac529f14cfa919330ab4805cb50
+msgid "Positive"
+msgstr "Positivo"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:510006
+#: aeba5bd8614c431c8904e8dafeacd1d2
+msgid "Observed drivers only"
+msgstr "Solo factores observados"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:510006
+#: c044f12b0990448ea1b1be3fb2efd516
+msgid "Follows demand only through recorded controls"
+msgstr "Sigue la demanda solo a través de los controles registrados"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:510006
+#: 73d7ed52886047a198b7ff88ea3d1ea3
+msgid "None"
+msgstr "Ninguno"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:510006
+#: fe06394ffae94fd09b739c38c8d44501
+msgid "Zero"
+msgstr "Cero"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:520013
+#: 91365191dd6f482288e308415e0c99c5
+msgid ""
+"The third scenario is a negative control. Spend moves with demand, but "
+"only through variables the MMM already controls for, so there is nothing "
+"to correct and a good diagnostic should say so."
+msgstr ""
+"El tercer escenario es un control negativo. El gasto se mueve con la "
+"demanda, pero solo a través de variables que el MMM ya controla, de modo que"
+" no hay nada que corregir y un buen diagnóstico debería decirlo."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:520015
+#: d51b373732694f40bac062faa1b93817
+msgid ""
+"Each scenario follows the same steps. We simulate one market, plot how TV"
+" spend tracks the unrecorded demand shock, fit the three models of Part 1"
+" with the lighter sampling budget, and compare their estimates of TV's "
+"marginal return. Scenario 1 introduces a small helper for each step, and "
+"the later scenarios reuse them. The three fits are:"
+msgstr ""
+"Cada escenario sigue los mismos pasos. Simulamos un mercado, graficamos cómo"
+" sigue el gasto en TV al choque de demanda no registrado, ajustamos los tres"
+" modelos de la Parte 1 con el presupuesto de muestreo más ligero y "
+"comparamos sus estimaciones del rendimiento marginal de la TV. El Escenario "
+"1 introduce una pequeña función auxiliar para cada paso, y los escenarios "
+"posteriores las reutilizan. Los tres ajustes son:"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:520017
+#: 04f4973881a449adb6403be93ea58772
+msgid "the plain MMM sees the whole series, experiment weeks included;"
+msgstr ""
+"el MMM simple ve la serie completa, incluidas las semanas del experimento;"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:520018
+#: 82418f102a4d4e5983898a28adbb36bd
+msgid ""
+"the lift-likelihood fit sees the pre-experiment history plus the "
+"experiment's lift summary, so it also forgoes the twelve follow-up weeks,"
+" and part of its gap to the other fits is sample size;"
+msgstr ""
+"el ajuste con verosimilitud de elevación ve el historial previo al "
+"experimento más el resumen de elevación del experimento, por lo que también "
+"renuncia a las doce semanas de seguimiento, y parte de su diferencia con los"
+" otros ajustes se debe al tamaño de la muestra;"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:520019
+#: 1c7113280f9741038ade00fd8b9bd0df
+msgid ""
+"the budget model sees the whole series plus the experiment's design, with"
+" one lagged surprise."
+msgstr ""
+"el modelo de presupuesto ve la serie completa más el diseño del experimento,"
+" con una sorpresa rezagada."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:520021
+#: 024e208fa65048f3b901fd7a3639f0c0
+#, python-brace-format
+msgid ""
+"One market is one draw, so these are illustrations of where the "
+"correction matters rather than a simulation study; {ref}`the replication "
+"in Part 1 <mmm_endogenous_budget_replication>` and the simulation study "
+"cover the forecast scenario across markets."
+msgstr ""
+"Un mercado es una sola muestra, así que esto son ilustraciones de dónde "
+"importa la corrección y no un estudio de simulación; {ref}`the replication "
+"in Part 1 <mmm_endogenous_budget_replication>` y el estudio de simulación "
+"cubren el escenario de pronóstico en varios mercados."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:530003
+#: c2e2270072e845f88f17e6d3f52b5368
+msgid "Scenario 1: Budgets That Chase Targets"
+msgstr "Escenario 1: presupuestos que persiguen metas"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:530005
+#: 77286fd39f214a07aaa5ae6fc6b31cc3
+msgid ""
+"Many teams steer spend by results. When last week's sales came in below "
+"plan they spend more, and when sales ran ahead they pull back:"
+msgstr ""
+"Muchos equipos dirigen el gasto según los resultados. Cuando las ventas de "
+"la semana pasada quedaron por debajo del plan, gastan más, y cuando las "
+"ventas superaron el plan, reducen el gasto:"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:530007
+#: 51d05b818851463f889316f94b9cce68
+#, python-brace-format
+msgid ""
+"\n"
+"\\text{TV}_t = 5 - 0.15\\,(y_{t-1} - \\text{plan}_{t-1}) + "
+"\\text{noise}_t .\n"
+msgstr ""
+"\n"
+"\\text{TV}_t = 5 - 0.15\\,(y_{t-1} - \\text{plan}_{t-1}) + \\text{noise}_t .\n"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:530011
+#: d8f07d4fffb04213b3f2c88b0b8c549b
+msgid ""
+"The plan covers the predictable part of demand, so the gap is driven by "
+"last week's demand shock. Because the shock is persistent, it also moves "
+"this week's sales. Spend is high when demand is weak, so a plain MMM "
+"*understates* TV, the opposite of the forecast scenario. This checks "
+"whether the diagnostic recovers the sign, rather than merely detecting an"
+" association between spend and sales."
+msgstr ""
+"El plan cubre la parte predecible de la demanda, por lo que la brecha está "
+"determinada por el choque de demanda de la semana pasada. Como el choque es "
+"persistente, también mueve las ventas de esta semana. El gasto es alto "
+"cuando la demanda es débil, por lo que un MMM simple *subestima* la TV, lo "
+"opuesto al escenario de pronóstico. Esto comprueba si el diagnóstico "
+"recupera el signo, en lugar de limitarse a detectar una asociación entre el "
+"gasto y las ventas."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:530013
+#: fc4c0559234b46afbbd16d4b03bf6a2b
+msgid ""
+"The experiment cuts TV by 1.5 per week, relative to what the rule would "
+"have chosen, for four weeks. The rule keeps reacting during the test, so "
+"the realised change is smaller than the design; the lift-test summary "
+"records the realised change."
+msgstr ""
+"El experimento reduce la TV en 1.5 por semana, respecto a lo que habría "
+"elegido la regla, durante cuatro semanas. La regla sigue reaccionando "
+"durante la prueba, por lo que el cambio realizado es menor que el diseño; el"
+" resumen de la prueba de elevación registra el cambio realizado."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:530015
+#: 7c55c1d2dc0e49e2b4f213ed61f19771
+msgid ""
+"This scenario also has a trap. Last week's sales are recorded, so it is "
+"tempting to pass them to the budget model as one of its `instruments`. An"
+" instrument enters the spend equation but not the sales equation, so it "
+"must be unrelated to this week's sales error. Lagged sales are not: they "
+"carry the same persistent shock. Leaving them out keeps that shock in the"
+" budget surprise, where the control function can absorb it."
+msgstr ""
+"Este escenario también tiene una trampa. Las ventas de la semana pasada "
+"están registradas, así que resulta tentador pasárselas al modelo de "
+"presupuesto como uno de sus `instruments`. Un instrumento entra en la "
+"ecuación de gasto pero no en la de ventas, por lo que no debe guardar "
+"relación con el error de las ventas de esta semana. Las ventas rezagadas sí "
+"la guardan: contienen el mismo choque persistente. Dejarlas fuera mantiene "
+"ese choque en la sorpresa presupuestaria, donde la función de control puede "
+"absorberlo."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:550002
+#: 3c55220fe9be41e2a79abcb15e9b113e
+msgid ""
+"**Step 1: the mechanism.** `plot_mechanism` plots TV spend and the "
+"unrecorded demand shock over the history, both standardised, so the sign "
+"and strength of their relationship can be read off directly. Its title "
+"reports their correlation."
+msgstr ""
+"**Paso 1: el mecanismo.** `plot_mechanism` grafica el gasto en TV y el "
+"choque de demanda no registrado a lo largo del historial, ambos "
+"estandarizados, de modo que el signo y la intensidad de su relación puedan "
+"leerse directamente. Su título informa de su correlación."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:580002
+#: 6721f8f891734b24901d96e587b561fe
+msgid ""
+"**Step 2: the three fits.** `fit_three` fits the plain MMM, the lift-"
+"likelihood MMM and the budget model to one market, exactly as in Part 1, "
+"and returns them by name."
+msgstr ""
+"**Paso 2: los tres ajustes.** `fit_three` ajusta el MMM simple, el MMM con "
+"verosimilitud de elevación y el modelo de presupuesto a un mercado, "
+"exactamente como en la Parte 1, y los devuelve por nombre."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:610002
+#: 1ee664d6108842fb9da8604fe055dc9c
+msgid ""
+"**Step 3: the comparison.** `plot_intervals` draws each fit's posterior "
+"for TV's marginal return as a forest plot, with the true value dashed. "
+"`scenario_table` gives the same posteriors as numbers, with each fit's "
+"divergences and the R-hat of its marginal return from "
+"`marginal_return_diagnostics`. The exogeneity summary for the budget "
+"model follows each table."
+msgstr ""
+"**Paso 3: la comparación.** `plot_intervals` dibuja la posterior de cada "
+"ajuste para el rendimiento marginal de la TV como un gráfico de bosque, con "
+"el valor verdadero en línea discontinua. `scenario_table` ofrece las mismas "
+"posteriores como números, con las divergencias de cada ajuste y el R-hat de "
+"su rendimiento marginal procedente de `marginal_return_diagnostics`. El "
+"resumen de exogeneidad del modelo de presupuesto sigue a cada tabla."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:660002
+#: 44b4e071ab1e4337b1795f10987950ba
+msgid ""
+"The plain MMM understates TV, as expected when spend runs against demand,"
+" and its interval excludes the truth. The lift likelihood moves the "
+"estimate up only a little, and its interval still excludes the truth, "
+"because the history keeps pulling the other way. The budget model moves "
+"most of the way to the truth (1.63 against 1.95), and its wide interval "
+"covers it: one four-week test of a feedback-driven budget does not pin "
+"the curve down tightly."
+msgstr ""
+"El MMM simple subestima la TV, como cabe esperar cuando el gasto va en "
+"contra de la demanda, y su intervalo excluye el valor verdadero. La "
+"verosimilitud de elevación sube la estimación solo un poco, y su intervalo "
+"sigue excluyendo el valor verdadero, porque el historial sigue tirando en "
+"sentido contrario. El modelo de presupuesto recorre la mayor parte del "
+"camino hacia el valor verdadero (1.63 frente a 1.95), y su intervalo amplio "
+"lo cubre: una prueba de cuatro semanas de un presupuesto dirigido por "
+"retroalimentación no fija la curva con precisión."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:660004
+#: 5064412e4abc4328b6881dad650c1f8f
+#, python-brace-format, python-format
+msgid ""
+"The control-function coefficient has the right sign. The posterior "
+"probability that the contemporaneous $\\gamma_{TV}$ is negative is about "
+"0.90, although its 94% interval reaches zero, and the lagged coefficient "
+"is close to zero, so the evidence for countercyclical spending in this "
+"market is moderate rather than decisive."
+msgstr ""
+"El coeficiente de la función de control tiene el signo correcto. La "
+"probabilidad posterior de que el $\\gamma_{TV}$ contemporáneo sea negativo "
+"es de aproximadamente 0.90, aunque su intervalo del 94% llega hasta el cero,"
+" y el coeficiente rezagado está cerca de cero, por lo que la evidencia de un"
+" gasto contracíclico en este mercado es moderada y no decisiva."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:670003
+#: f5d13ba2ac52490b9c6d69d81f679e66
+msgid "Scenario 2: Spend That Follows Search Demand"
+msgstr "Escenario 2: gasto que sigue la demanda de búsqueda"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:670005
+#: 914897479b2f4898a91566161ab92636
+msgid ""
+"In paid search and other auction channels, nobody decides to chase "
+"demand. Spend is query volume times cost per click, and query volume "
+"rises with demand, until the weekly budget cap binds:"
+msgstr ""
+"En la búsqueda de pago y otros canales de subasta, nadie decide perseguir la"
+" demanda. El gasto es el volumen de consultas multiplicado por el costo por "
+"clic, y el volumen de consultas aumenta con la demanda, hasta que se alcanza"
+" el tope del presupuesto semanal:"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:670007
+#: ee20ec1b90614e04a06a3a9e71b93555
+#, python-brace-format
+msgid ""
+"\n"
+"\\text{TV}_t = \\min\\left(\\text{cap},\\; 5\\, e^{0.12\\, d_t} \\cdot "
+"\\text{CPC}_t\\right).\n"
+msgstr ""
+"\n"
+"\\text{TV}_t = \\min\\left(\\text{cap},\\; 5\\, e^{0.12\\, d_t} \\cdot \\text{CPC}_t\\right).\n"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:670011
+#: b7b71648375445b3bda370576c84d43a
+msgid ""
+"(The channel keeps the name `tv` so all scenarios share one model "
+"specification.) The endogeneity is contemporaneous and strong. The cap "
+"also makes it nonlinear: once the cap binds, spend stops moving while "
+"demand keeps moving, which a control function that is linear in the "
+"surprises cannot fully capture."
+msgstr ""
+"(El canal conserva el nombre `tv` para que todos los escenarios compartan "
+"una misma especificación del modelo.) La endogeneidad es contemporánea y "
+"fuerte. El tope también la vuelve no lineal: una vez que se alcanza el tope,"
+" el gasto deja de moverse mientras la demanda sigue moviéndose, algo que una"
+" función de control lineal en las sorpresas no puede capturar por completo."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:670013
+#: c65f870c87bf4904889e9f31d059f351
+msgid ""
+"Search teams commonly test with holdouts, switching the channel off for a"
+" few weeks. That is a `mode=\"set\"` design: spend in those weeks is "
+"fixed by the experiment, carries no demand information, and is masked out"
+" of the budget model rather than shifted."
+msgstr ""
+"Los equipos de búsqueda suelen probar con exclusiones (holdouts), apagando "
+"el canal durante unas semanas. Es un diseño `mode=\"set\"`: el gasto en esas"
+" semanas lo fija el experimento, no contiene información sobre la demanda y "
+"se enmascara en el modelo de presupuesto en lugar de desplazarse."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:670015
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:750013
+#: 533928e1f3ca49e3a53d04d7da4eeced 65df6b9fac284d3dbd9453911d4d77f0
+msgid ""
+"As in Scenario 1, `plot_mechanism` shows the mechanism, `fit_three` fits "
+"the three models, and `plot_intervals` and `scenario_table` compare them."
+msgstr ""
+"Como en el Escenario 1, `plot_mechanism` muestra el mecanismo, `fit_three` "
+"ajusta los tres modelos, y `plot_intervals` y `scenario_table` los comparan."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:740002
+#: be3e854476064929be3e8d23711b3f0f
+#, python-brace-format, python-format
+msgid ""
+"Both plain fits overstate TV and are confident about it; neither interval"
+" covers the truth. With the holdout design, the budget model lands close "
+"to the truth (2.03 against 1.96) and its interval covers it, and "
+"$\\gamma_{TV}$ is positive with probability about 0.91, although its 94% "
+"interval just reaches zero. The budget model records 47 divergent "
+"transitions, about 1% of its draws."
+msgstr ""
+"Ambos ajustes simples sobrestiman la TV y lo hacen con confianza; ningún "
+"intervalo cubre el valor verdadero. Con el diseño de exclusión, el modelo de"
+" presupuesto queda cerca del valor verdadero (2.03 frente a 1.96) y su "
+"intervalo lo cubre, y $\\gamma_{TV}$ es positivo con una probabilidad de "
+"aproximadamente 0.91, aunque su intervalo del 94% apenas llega al cero. El "
+"modelo de presupuesto registra 47 transiciones divergentes, cerca del 1% de "
+"sus muestras."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:740004
+#: 51658f9d403b4e79a6a5cd32df538bba
+msgid ""
+"In this market the cap leaves no visible bias, but the interval is wide, "
+"and a control function that is linear in the surprises cannot in general "
+"absorb a capped relationship between demand and spend. For channels whose"
+" budgets bind, treat the corrected estimate as an improvement rather than"
+" a fix."
+msgstr ""
+"En este mercado el tope no deja un sesgo visible, pero el intervalo es "
+"amplio, y una función de control lineal en las sorpresas no puede, en "
+"general, absorber una relación con tope entre la demanda y el gasto. Para "
+"los canales cuyos presupuestos alcanzan el tope, trate la estimación "
+"corregida como una mejora y no como una solución."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:750003
+#: 53caac8350b5426fb6bb0e0e99f3a84e
+msgid "Scenario 3: Spend That Follows Only Recorded Drivers"
+msgstr "Escenario 3: gasto que sigue solo los factores registrados"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:750005
+#: 57284a9f9d3f4eb3afd126adb3026738
+msgid ""
+"Here budgets respond strongly to seasonality, inflation and unemployment,"
+" all of which the MMM controls for, and not at all to the unrecorded "
+"shock:"
+msgstr ""
+"Aquí los presupuestos responden con fuerza a la estacionalidad, la inflación"
+" y el desempleo, variables que el MMM controla, y no responden en absoluto "
+"al choque no registrado:"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:750007
+#: dba0b403e6b9423fb1b0e5f8cb522b96
+#, python-brace-format
+msgid ""
+"\n"
+"\\text{TV}_t = 5 + 0.25\\,(\\text{predictable demand})_t + "
+"\\text{noise}_t .\n"
+msgstr ""
+"\n"
+"\\text{TV}_t = 5 + 0.25\\,(\\text{predictable demand})_t + \\text{noise}_t .\n"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:750011
+#: 21e9727a0e074aafb2e46d6c28009191
+msgid ""
+"Spend and sales are strongly correlated, but the controls close the "
+"backdoor path, so a plain MMM is unbiased. This is the negative control. "
+"It asks two questions: whether the budget model raises a false alarm, and"
+" what the correction costs when there is nothing to correct."
+msgstr ""
+"El gasto y las ventas están fuertemente correlacionados, pero los controles "
+"cierran el camino de puerta trasera, por lo que un MMM simple es insesgado. "
+"Este es el control negativo. Plantea dos preguntas: si el modelo de "
+"presupuesto genera una falsa alarma, y cuánto cuesta la corrección cuando no"
+" hay nada que corregir."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:820002
+#: 5a8a93038db74be5a3946358b5b5c657
+#, python-brace-format
+msgid ""
+"There is no false alarm: all three fits cover the truth, and the interval"
+" for $\\gamma_{TV}$ includes zero. The correction is not free, though. "
+"The budget model's estimate moves away from the truth (2.34 against 1.94,"
+" where the plain MMM gave 1.88) and its interval is wider, and "
+"$\\gamma_{TV}$ leans negative (probability about 0.75 below zero). The "
+"lift-likelihood fit records 28 divergent transitions and an R-hat of 1.05"
+" for TV's marginal return here, so treat its interval as approximate."
+msgstr ""
+"No hay falsa alarma: los tres ajustes cubren el valor verdadero, y el "
+"intervalo de $\\gamma_{TV}$ incluye el cero. Sin embargo, la corrección no "
+"es gratuita. La estimación del modelo de presupuesto se aleja del valor "
+"verdadero (2.34 frente a 1.94, mientras que el MMM simple dio 1.88) y su "
+"intervalo es más amplio, y $\\gamma_{TV}$ se inclina hacia lo negativo "
+"(probabilidad de aproximadamente 0.75 de ser negativo). El ajuste con "
+"verosimilitud de elevación registra 28 transiciones divergentes y un R-hat "
+"de 1.05 para el rendimiento marginal de la TV, así que trate su intervalo "
+"como aproximado."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:820004
+#: a459b79199124579ae810a4ee40c2e9e
+msgid ""
+"When there is little to correct, the control-function terms and the slope"
+" of the response curve are both close to linear in recent spend, so they "
+"trade off against each other and the design does not fully separate them."
+" Digital, which is exogenous in every scenario and never tested, shows a "
+"related pattern: its lagged coefficient leans positive in all three "
+"markets (probabilities of 0.87 to 0.96 above zero)."
+msgstr ""
+"Cuando hay poco que corregir, los términos de la función de control y la "
+"pendiente de la curva de respuesta son ambos casi lineales en el gasto "
+"reciente, por lo que se compensan entre sí y el diseño no los separa por "
+"completo. Digital, que es exógeno en todos los escenarios y nunca se prueba,"
+" muestra un patrón relacionado: su coeficiente rezagado se inclina hacia lo "
+"positivo en los tres mercados (probabilidades de 0.87 a 0.96 de ser "
+"positivo)."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:820006
+#: a4787e50d5d84a59a49feea3f399a59d
+msgid "Without a design"
+msgstr "Sin un diseño"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:820008
+#: 7138def9b78548e0a31871780cb227b8
+msgid ""
+"The budget model can also be added with no experiment at all, as a check "
+"on a belief that spend is exogenous. We refit the same market without the"
+" design:"
+msgstr ""
+"El modelo de presupuesto también puede añadirse sin ningún experimento, como"
+" una comprobación de la creencia de que el gasto es exógeno. Reajustamos el "
+"mismo mercado sin el diseño:"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:850002
+#: 73d5d4c3508e4f66a7b2cdfd19fc068b
+#, python-brace-format
+msgid ""
+"Without the design, every coefficient is identified only by functional "
+"form and the priors, and the summary flags all four rows. There is still "
+"no false alarm: every interval includes zero. But TV's contemporaneous "
+"coefficient is barely informed. Its posterior standard deviation more "
+"than doubles (0.20 against 0.075 with the design), and its interval runs "
+"from −0.61 to 0.11. A check this weak cannot detect much either way: in "
+"the 50-market simulation study, the contemporaneous $\\gamma_{TV}$ "
+"without a design excluded zero in none of the markets where budgets "
+"chased demand, against 64% with one. Without designed variation, "
+"$\\gamma$ can trade off against a steeper response curve and the priors "
+"decide where it settles, so read the check as a sensitivity analysis, not"
+" a test. The same goes for any untested channel's $\\gamma$, such as "
+"Digital's."
+msgstr ""
+"Sin el diseño, cada coeficiente se identifica solo por la forma funcional y "
+"los priors, y el resumen señala las cuatro filas. Sigue sin haber falsa "
+"alarma: todos los intervalos incluyen el cero. Pero el coeficiente "
+"contemporáneo de la TV apenas recibe información. Su desviación estándar "
+"posterior más que se duplica (0.20 frente a 0.075 con el diseño), y su "
+"intervalo va de −0.61 a 0.11. Una comprobación tan débil no puede detectar "
+"mucho en ningún sentido: en el estudio de simulación de 50 mercados, el "
+"$\\gamma_{TV}$ contemporáneo sin diseño excluyó el cero en ninguno de los "
+"mercados donde los presupuestos perseguían la demanda, frente al 64% con "
+"diseño. Sin variación diseñada, $\\gamma$ puede compensarse con una curva de"
+" respuesta más pronunciada y los priors deciden dónde se asienta, así que "
+"lea la comprobación como un análisis de sensibilidad, no como una prueba. Lo"
+" mismo vale para el $\\gamma$ de cualquier canal no probado, como el de "
+"Digital."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:860003
+#: b44bd65301b7474e80cf5cb2f92032d7
+msgid "Practical Guidance and Limitations"
+msgstr "Recomendaciones prácticas y limitaciones"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:860005
+#: ac6afaf518f24cfbb09d08e07423b105
+msgid "What the two parts show, taken together:"
+msgstr "Lo que muestran las dos partes, en conjunto:"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:860007
+#: 6e8245ae59564de2a9e49b6b6e9d91ad
+msgid ""
+"**Endogenous spend is not one mechanism.** Budgets that follow a "
+"forecast, budgets that chase targets, and spend that follows demand "
+"mechanically all bias a plain MMM, and not always in the same direction. "
+"In the endogenous markets here, a lift likelihood narrowed the estimate "
+"without removing the bias."
+msgstr ""
+"**El gasto endógeno no es un único mecanismo.** Los presupuestos que siguen "
+"un pronóstico, los presupuestos que persiguen metas y el gasto que sigue la "
+"demanda de forma mecánica sesgan por igual a un MMM simple, y no siempre en "
+"la misma dirección. En los mercados endógenos de aquí, una verosimilitud de "
+"elevación estrechó la estimación sin eliminar el sesgo."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:860008
+#: 7dc904e72769490082d63421fe427a1d
+#, python-format
+msgid ""
+"**With an experiment's design and one lagged surprise, the budget model "
+"covered TV's true marginal return in all three single-market examples and"
+" in five of the six replication markets.** The price is wider intervals, "
+"which reflect what one short test can actually pin down. Over 50 markets "
+"in the forecast scenario the intervals reach their nominal coverage, "
+"covering the truth in 94% of markets, although the estimates still lean "
+"towards overstating TV (an average bias of +0.35; see the tables in "
+"`scripts/budget_model/simulation_study.py`)."
+msgstr ""
+"**Con el diseño de un experimento y una sorpresa rezagada, el modelo de "
+"presupuesto cubrió el rendimiento marginal verdadero de la TV en los tres "
+"ejemplos de un solo mercado y en cinco de los seis mercados de "
+"replicación.** El precio son intervalos más amplios, que reflejan lo que una"
+" sola prueba breve puede fijar realmente. Con 50 mercados en el escenario de"
+" pronóstico, los intervalos alcanzan su cobertura nominal, cubriendo el "
+"valor verdadero en el 94% de los mercados, aunque las estimaciones aún "
+"tienden a sobrestimar la TV (un sesgo promedio de +0.35; consulte las tablas"
+" en `scripts/budget_model/simulation_study.py`)."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:860009
+#: 1a6d696fb9cb43619b4ab4bed467d1e1
+msgid ""
+"**When the controls already close the backdoor, the correction costs "
+"accuracy.** In the negative control the budget model moved away from the "
+"truth (2.34 against 1.94, where the plain MMM gave 1.88), with a wider "
+"interval."
+msgstr ""
+"**Cuando los controles ya cierran la puerta trasera, la corrección cuesta "
+"precisión.** En el control negativo, el modelo de presupuesto se alejó del "
+"valor verdadero (2.34 frente a 1.94, mientras que el MMM simple dio 1.88), "
+"con un intervalo más amplio."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:860010
+#: 6f89ff32645844bd9d42fc16b77eb643
+#, python-brace-format, python-format
+msgid ""
+"**In a single market, $\\gamma$ alone does not separate these cases.** "
+"Its sign followed the mechanism (negative for target chasing, positive "
+"for search), but the negative control's $\\gamma_{TV}$ leans negative too"
+" (probability 0.75 below zero, against 0.90 for target chasing), and none"
+" of the three 94% intervals excludes zero. Read $\\gamma$ as a diagnostic"
+" that accumulates evidence across experiments and markets, not as a "
+"verdict from one fit."
+msgstr ""
+"**En un solo mercado, $\\gamma$ por sí solo no distingue estos casos.** Su "
+"signo siguió al mecanismo (negativo para la persecución de metas, positivo "
+"para la búsqueda), pero el $\\gamma_{TV}$ del control negativo también se "
+"inclina hacia lo negativo (probabilidad de 0.75 de ser negativo, frente a "
+"0.90 para la persecución de metas), y ninguno de los tres intervalos del 94%"
+" excluye el cero. Lea $\\gamma$ como un diagnóstico que acumula evidencia a "
+"través de experimentos y mercados, no como un veredicto de un solo ajuste."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:860012
+#: ea448c2619634f4a87ce07a4d362c0c1
+msgid ""
+"**In practice.** If budgets in your business plausibly follow demand in "
+"any of these ways, fit the budget model with your experiments' designs "
+"alongside the plain MMM, and compare the two. A tested channel whose "
+"$\\gamma$ interval clearly excludes zero is evidence that the plain MMM's"
+" attribution for it is biased; a leaning $\\gamma$ is not, because the "
+"correction can lean even when nothing needs correcting. Treat $\\gamma$ "
+"for untested channels as prior-sensitive."
+msgstr ""
+"**En la práctica.** Si es plausible que los presupuestos de su negocio sigan"
+" la demanda de alguna de estas maneras, ajuste el modelo de presupuesto con "
+"los diseños de sus experimentos junto con el MMM simple, y compare ambos. Un"
+" canal probado cuyo intervalo de $\\gamma$ excluye claramente el cero es "
+"evidencia de que la atribución del MMM simple para ese canal está sesgada; "
+"un $\\gamma$ inclinado no lo es, porque la corrección puede inclinarse "
+"incluso cuando no hay nada que corregir. Trate el $\\gamma$ de los canales "
+"no probados como sensible a los priors."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:860014
+#: 570c0a3ee42d4b9a83f5651b4952fa55
+msgid ""
+"What a single experiment buys is local. It pins down TV's response near "
+"the tested spend. The full response curve, and the causal effect of "
+"untested channels, still rest on the saturation curve, the priors, and "
+"the budget model's premises. Tests at different spend levels, and on "
+"other channels, remain the anchor."
+msgstr ""
+"Lo que compra un solo experimento es local. Fija la respuesta de la TV cerca"
+" del gasto probado. La curva de respuesta completa, y el efecto causal de "
+"los canales no probados, siguen dependiendo de la curva de saturación, los "
+"priors y las premisas del modelo de presupuesto. Las pruebas con distintos "
+"niveles de gasto, y en otros canales, siguen siendo el ancla."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:860016
+#: fc2be8554ead4472805b0f68e7579c89
+msgid ""
+"**The premises, and where each is discussed.** None of them can be "
+"checked from sales data alone."
+msgstr ""
+"**Las premisas, y dónde se discute cada una.** Ninguna de ellas puede "
+"comprobarse solo con datos de ventas."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:860018
+#: aee0f43c639c4bae95d8a67b34d12f78
+#, python-brace-format
+msgid ""
+"*The observed drivers capture the predictable part of budget setting*; "
+"recorded demand proxies go in `control_columns`, never in `instruments` "
+"({ref}`fit 3 <mmm_endogenous_budget_three_fits>`, {ref}`target chasing "
+"<mmm_endogenous_budget_target_chasing>`)."
+msgstr ""
+"*Los factores observados capturan la parte predecible de la fijación del "
+"presupuesto*; los indicadores de demanda registrados van en "
+"`control_columns`, nunca en `instruments` ({ref}`fit 3 "
+"<mmm_endogenous_budget_three_fits>`, {ref}`target chasing "
+"<mmm_endogenous_budget_target_chasing>`)."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:860019
+#: f7342c34ee38402086655220502fbfd8
+#, python-brace-format
+msgid ""
+"*The sales equation is correctly specified*; a misspecified response "
+"curve leaks into $\\gamma$ ({ref}`exogeneity check "
+"<mmm_endogenous_budget_exogeneity>`)."
+msgstr ""
+"*La ecuación de ventas está correctamente especificada*; una curva de "
+"respuesta mal especificada se filtra en $\\gamma$ ({ref}`exogeneity check "
+"<mmm_endogenous_budget_exogeneity>`)."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:860020
+#: 210e62d122d94b60a1ae284ce7ee52f9
+#, python-brace-format
+msgid ""
+"*The surprise relates to demand linearly*; capped or otherwise nonlinear "
+"spend strains the correction ({ref}`search "
+"<mmm_endogenous_budget_search>`)."
+msgstr ""
+"*La sorpresa se relaciona linealmente con la demanda*; el gasto con tope, o "
+"no lineal de otro modo, pone a prueba la corrección ({ref}`search "
+"<mmm_endogenous_budget_search>`)."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:860021
+#: 951f387c11dc472cb85a290437eea35d
+#, python-brace-format
+msgid ""
+"*Recent surprises carry the relevant demand information*; one lag covers "
+"most of the gap for persistent shocks, but keep the number small "
+"({ref}`fit 3 <mmm_endogenous_budget_three_fits>`)."
+msgstr ""
+"*Las sorpresas recientes contienen la información de demanda relevante*; un "
+"rezago cubre la mayor parte de la brecha en los choques persistentes, pero "
+"mantenga pequeño su número ({ref}`fit 3 "
+"<mmm_endogenous_budget_three_fits>`)."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:860022
+#: 7a748b55abf4498782d2fc0c15dcbfe7
+#, python-brace-format
+msgid ""
+"*Designs are known, fully realised and long enough*; use `mode=\"set\"` "
+"for tests that fix spend ({ref}`fit 3 "
+"<mmm_endogenous_budget_three_fits>`, {ref}`search "
+"<mmm_endogenous_budget_search>`)."
+msgstr ""
+"*Los diseños son conocidos, se realizan por completo y son suficientemente "
+"largos*; use `mode=\"set\"` para las pruebas que fijan el gasto ({ref}`fit 3"
+" <mmm_endogenous_budget_three_fits>`, {ref}`search "
+"<mmm_endogenous_budget_search>`)."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:860023
+#: 991cf4af229044e9af3e23b4a66296b9
+#, python-brace-format
+msgid ""
+"*The same experiment is not counted twice*; use the lift likelihood only "
+"for experiments whose periods or units are not in the MMM data ({ref}`fit"
+" 2 <mmm_endogenous_budget_three_fits>`)."
+msgstr ""
+"*El mismo experimento no se cuenta dos veces*; use la verosimilitud de "
+"elevación solo para experimentos cuyos períodos o unidades no estén en los "
+"datos del MMM ({ref}`fit 2 <mmm_endogenous_budget_three_fits>`)."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:860024
+#: ea1592cdcb224316972b1c46407d1e48
+#, python-brace-format
+msgid ""
+"*Out-of-sample surprises are zero for planning and realised for scoring*;"
+" keep separate models for the two uses ({ref}`predictions "
+"<mmm_endogenous_budget_predictions>`)."
+msgstr ""
+"*Las sorpresas fuera de muestra son cero para planificar y realizadas para "
+"puntuar*; mantenga modelos separados para los dos usos ({ref}`predictions "
+"<mmm_endogenous_budget_predictions>`)."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:860026
+#: 9792f90ad05a47d4bd73de856874ff25
+msgid "References"
+msgstr "Referencias"
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:860028
+#: 8151d3e1f99f4282b9732b18095403f3
+msgid ""
+"Manchanda, P., Rossi, P. E., & Chintagunta, P. K. (2004). Response "
+"modeling with nonrandom marketing-mix variables. *Journal of Marketing "
+"Research*, 41(4), 467-478."
+msgstr ""
+"Manchanda, P., Rossi, P. E., & Chintagunta, P. K. (2004). Response modeling "
+"with nonrandom marketing-mix variables. *Journal of Marketing Research*, "
+"41(4), 467-478."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:860029
+#: 3504ef1822044267b5dfc744af7e53a2
+msgid ""
+"Petrin, A., & Train, K. (2010). A control function approach to "
+"endogeneity in consumer choice models. *Journal of Marketing Research*, "
+"47(1), 3-13."
+msgstr ""
+"Petrin, A., & Train, K. (2010). A control function approach to endogeneity "
+"in consumer choice models. *Journal of Marketing Research*, 47(1), 3-13."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:860030
+#: 4d737c42a84b4143b3678def8b2cbf5f
+msgid ""
+"Rivers, D., & Vuong, Q. H. (1988). Limited information estimators and "
+"exogeneity tests for simultaneous probit models. *Journal of "
+"Econometrics*, 39(3), 347-366."
+msgstr ""
+"Rivers, D., & Vuong, Q. H. (1988). Limited information estimators and "
+"exogeneity tests for simultaneous probit models. *Journal of Econometrics*, "
+"39(3), 347-366."
+
+#: ../source/notebooks/mmm/mmm_endogenous_budget.ipynb:860031
+#: 55e544c6eb744242bad9bf8f19443f14
+msgid ""
+"Wooldridge, J. M. (2015). Control function methods in applied "
+"econometrics. *Journal of Human Resources*, 50(2), 420-445."
+msgstr ""
+"Wooldridge, J. M. (2015). Control function methods in applied econometrics. "
+"*Journal of Human Resources*, 50(2), 420-445."
+
