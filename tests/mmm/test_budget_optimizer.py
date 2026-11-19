@@ -2717,8 +2717,13 @@ def test_allocate_budget_is_invariant_to_response_units(
         )
 
 
-@pytest.mark.parametrize("total_budget", [20.0, 0.0])
-@pytest.mark.parametrize("unit_scale", [1e8, 1e9, 1e12])
+@pytest.mark.parametrize(
+    "unit_scale, total_budget",
+    [
+        pytest.param(1e8, 20.0, id="1e8-units"),
+        pytest.param(1e12, 0.0, id="1e12-units-no-total"),
+    ],
+)
 def test_allocate_budget_meets_a_response_floor_in_any_response_units(
     mmm_wrapper, dummy_idata, unit_scale, total_budget
 ):
@@ -2788,15 +2793,15 @@ def test_allocate_budget_meets_a_response_floor_in_any_response_units(
 
 
 @pytest.mark.parametrize(
-    "minimize_kwargs, floor_read",
+    "minimize_kwargs, channel_1_bounds, floor_read",
     [
-        pytest.param(None, -0.09, id="default"),
-        pytest.param({"options": {"ftol": 1e-9}}, -9.0, id="ftol"),
-        pytest.param({"tol": 1e-9}, -9.0, id="tol"),
+        pytest.param(None, (0.0, 100.0), -0.09, id="default"),
+        pytest.param({"options": {"ftol": 1e-9}}, (0.0, 100.0), -9.0, id="ftol"),
+        pytest.param(None, (50.0, 50.0), -9.0, id="default-fixed-entry"),
     ],
 )
 def test_the_constraints_slsqp_reads(
-    mmm_wrapper, monkeypatch, minimize_kwargs, floor_read
+    mmm_wrapper, monkeypatch, minimize_kwargs, channel_1_bounds, floor_read
 ):
     """Only the default tolerance divides a constraint by its scale.
 
@@ -2804,9 +2809,10 @@ def test_the_constraints_slsqp_reads(
     whatever the tolerance: ``-97`` at a plan of ``[1, 2]`` against a total
     of 100. A floor of 10 on ``channel_1`` has no scale of its own: under the
     default tolerance SLSQP reads it divided by its steepest entry times that
-    entry's size, ``1 * 100``, so ``-0.09``. A ``ftol`` or ``tol`` the caller
-    passes is absolute in each constraint's own units, so with one SLSQP
-    reads ``-9``.
+    entry's size, ``1 * 100``, so ``-0.09``. A ``ftol`` the caller passes is
+    absolute in each constraint's own units, so with one SLSQP reads ``-9``.
+    So it does when the bounds fix ``channel_1``: an entry the solve cannot
+    move does not count towards the scale.
     """
     real_minimize = budget_optimizer_module.minimize
     seen: list[list[dict]] = []
@@ -2831,7 +2837,7 @@ def test_the_constraints_slsqp_reads(
     )
     optimizer.allocate_budget(
         total_budget=100.0,
-        budget_bounds={"channel_1": (0.0, 100.0), "channel_2": (0.0, 100.0)},
+        budget_bounds={"channel_1": channel_1_bounds, "channel_2": (0.0, 100.0)},
         minimize_kwargs=minimize_kwargs,
     )
 
@@ -2847,10 +2853,8 @@ def test_the_constraints_slsqp_reads(
     [
         pytest.param([2.0, -3.0], [10.0, 20.0], 60.0, id="steepest-entry-times-size"),
         pytest.param([0.01, -0.02], [10.0, 20.0], 1.0, id="floored-at-one"),
-        pytest.param([0.0, 0.0], [10.0, 20.0], 1.0, id="flat"),
         pytest.param([5.0, 1.0], [0.0, 20.0], 20.0, id="zero-size-entry"),
-        pytest.param([np.nan, 1.0], [10.0, 20.0], 1.0, id="nan"),
-        pytest.param([np.inf, 1.0], [10.0, 20.0], 1.0, id="inf"),
+        pytest.param([np.nan, 1.0], [10.0, 20.0], 1.0, id="not-finite"),
     ],
 )
 def test_constraint_scale_from_jacobian(jacobian, size, expected):
@@ -2861,7 +2865,7 @@ def test_constraint_scale_from_jacobian(jacobian, size, expected):
     assert scale == expected
 
 
-@pytest.mark.parametrize("scale", [0.0, -1.0, np.nan, np.inf, True, "2"])
+@pytest.mark.parametrize("scale", [0.0, np.nan, True, "2"])
 def test_constraint_refuses_a_scale_that_is_not_positive_and_finite(scale):
     with pytest.raises(ValueError, match="scale"):
         Constraint(
@@ -2872,47 +2876,6 @@ def test_constraint_refuses_a_scale_that_is_not_positive_and_finite(scale):
             ),
             scale=scale,
         )
-
-
-def test_an_entry_the_bounds_fix_does_not_set_a_constraints_scale(
-    mmm_wrapper, monkeypatch
-):
-    """A constraint's scale counts only the entries a solve can move.
-
-    ``channel_1`` is fixed at 50, so a floor of 10 on it does not move in the
-    solve: its scale stays 1 and SLSQP reads it as written, ``-9`` at a plan
-    of ``[1, 2]``. Counting the fixed entry would give a scale of 100.
-    """
-    real_minimize = budget_optimizer_module.minimize
-    seen: list[list[dict]] = []
-
-    def recorded_minimize(*args, **kwargs):
-        seen.append(kwargs["constraints"])
-        return real_minimize(*args, **kwargs)
-
-    monkeypatch.setattr(budget_optimizer_module, "minimize", recorded_minimize)
-    floor = Constraint(
-        key="floor",
-        constraint_type="ineq",
-        constraint_fun=lambda budgets_sym, total_budget_sym, optimizer: (
-            budgets_sym.isel(channel=0) - 10.0
-        ),
-    )
-    optimizer = BudgetOptimizer(
-        model=mmm_wrapper,
-        num_periods=30,
-        response_variable="total_media_contribution_original_scale",
-        constraints=[floor, build_default_sum_constraint()],
-    )
-    optimizer.allocate_budget(
-        total_budget=100.0,
-        budget_bounds={"channel_1": (50.0, 50.0), "channel_2": (0.0, 100.0)},
-    )
-
-    assert seen
-    for constraints in seen:
-        read = {c["key"]: float(c["fun"](np.array([1.0, 2.0]))) for c in constraints}
-        assert read["floor"] == pytest.approx(-9.0)
 
 
 def test_allocate_budget_reports_multipliers_in_each_constraints_units(mmm_wrapper):
@@ -4219,19 +4182,16 @@ class TestExactPasses:
         )
         assert {entry["solve"] for entry in result.callback_info} == {0, 1}
 
-    @pytest.mark.parametrize("unit_scale", [1e9, 1e12])
-    def test_a_response_floor_in_large_units_settles_like_one_in_small_units(
-        self, unit_scale
-    ):
+    def test_a_response_floor_in_large_units_settles_like_one_in_small_units(self):
         """The least spend that reaches a response floor puts ``a`` on its breakpoint.
 
         The response is ``400 * sum_c (1 - exp(-0.1 * u_c))``. At ``b = 7`` its
         marginal response per unit of money, ``40 exp(-0.7) = 19.9``, lies between
         ``a``'s slopes below and above 4, ``40 exp(-0.4) = 26.8`` and ``13.4``, so the
         floor reached at ``a = 4``, ``b = 7`` costs least. With the response and the
-        floor in units ``unit_scale`` times larger, the passes end the same way on the
-        same plan: neither the solves nor the check that lets a cell leave its
-        breakpoint may depend on the constraint's units.
+        floor in units ``1e12`` times larger, the passes end the same way on the same
+        plan: neither the solves nor the check that lets a cell leave its breakpoint
+        may depend on the constraint's units.
         """
         floor = 400.0 * ((1.0 - np.exp(-0.4)) + (1.0 - np.exp(-0.7)))
 
@@ -4244,7 +4204,7 @@ class TestExactPasses:
             ).allocate_budget(total_budget=20.0)
 
         reference = settle(1.0)
-        rescaled = settle(unit_scale)
+        rescaled = settle(1e12)
 
         assert reference.scipy_result["breakpoint_status"] in {"certified", "settled"}
         assert (

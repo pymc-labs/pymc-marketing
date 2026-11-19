@@ -431,20 +431,21 @@ def _direction_constraints(
     )
     if equalities:
         arguments["A_eq"] = np.array(
-            [np.concatenate([row, -row]) for row in map(_unit_row, equalities)]
+            [
+                np.concatenate([row, -row]) / (np.max(np.abs(row), initial=0.0) or 1.0)
+                for row in equalities
+            ]
         )
         arguments["b_eq"] = np.zeros(len(equalities))
     if active_inequalities:
         arguments["A_ub"] = -np.array(
-            [np.concatenate([row, -row]) for row in map(_unit_row, active_inequalities)]
+            [
+                np.concatenate([row, -row]) / (np.max(np.abs(row), initial=0.0) or 1.0)
+                for row in active_inequalities
+            ]
         )
         arguments["b_ub"] = np.zeros(len(active_inequalities))
     return arguments
-
-
-def _unit_row(row: np.ndarray) -> np.ndarray:
-    """Return ``row`` divided by its largest absolute entry; a zero row as it is."""
-    return row / (float(np.max(np.abs(row), initial=0.0)) or 1.0)
 
 
 @dataclass(frozen=True)
