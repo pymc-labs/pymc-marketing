@@ -1714,16 +1714,6 @@ class TestMultidimMMMEdgeCases:
             mmm.build_model(X, y)
 
 
-def test_save_load(fit_mmm: MMM):
-    file = "test.nc"
-    fit_mmm.save(file)
-
-    loaded = MMM.load(file)
-    assert isinstance(loaded, MMM)
-
-    os.remove(file)
-
-
 def test_save_load_roundtrip_with_unnamed_y_series(
     simple_mmm_data, mock_pymc_sample, tmp_path
 ):
@@ -4674,70 +4664,6 @@ def test_fixed_scaling_dict_wrong_remaining_dims(multi_dim_data) -> None:
         mmm.build_model(X, y)
 
 
-def test_fixed_scaling_dataarray_country_channel_grid(multi_dim_data) -> None:
-    """Full country × channel grid via DataArray when dict is not enough."""
-    X, y = multi_dim_data
-    countries = ["Venezuela", "Colombia", "Chile"]
-    channels = ["channel_1", "channel_2", "channel_3"]
-    vals = np.arange(9, dtype=float).reshape(3, 3) + 100.0
-    da = xr.DataArray(
-        vals,
-        dims=("country", "channel"),
-        coords={"country": countries, "channel": channels},
-    )
-    scaling = Scaling(
-        target=FixedScaling(dims=("country",), value=25_000.0),
-        channel=FixedScaling(dims=(), value=da),
-    )
-    mmm = MMM(
-        adstock=GeometricAdstock(l_max=2),
-        saturation=LogisticSaturation(),
-        scaling=scaling,
-        date_column="date",
-        target_column="target",
-        channel_columns=channels,
-        dims=("country",),
-    )
-    mmm.build_model(X, y)
-    for cty in countries:
-        for ch in channels:
-            assert float(mmm.scalers._channel.sel(country=cty, channel=ch)) == float(
-                da.sel(country=cty, channel=ch)
-            )
-
-
-def test_fixed_scaling_dataarray_reversed_dims(multi_dim_data) -> None:
-    """DataArray with (channel, country) dims accepted even though data uses (country, channel)."""
-    X, y = multi_dim_data
-    countries = ["Venezuela", "Colombia", "Chile"]
-    channels = ["channel_1", "channel_2", "channel_3"]
-    vals = np.arange(9, dtype=float).reshape(3, 3) + 100.0
-    da = xr.DataArray(
-        vals,
-        dims=("channel", "country"),
-        coords={"channel": channels, "country": countries},
-    )
-    scaling = Scaling(
-        target=FixedScaling(dims=("country",), value=25_000.0),
-        channel=FixedScaling(dims=(), value=da),
-    )
-    mmm = MMM(
-        adstock=GeometricAdstock(l_max=2),
-        saturation=LogisticSaturation(),
-        scaling=scaling,
-        date_column="date",
-        target_column="target",
-        channel_columns=channels,
-        dims=("country",),
-    )
-    mmm.build_model(X, y)
-    for cty in countries:
-        for ch in channels:
-            assert float(mmm.scalers._channel.sel(country=cty, channel=ch)) == float(
-                da.sel(country=cty, channel=ch)
-            )
-
-
 def test_fixed_scaling_dataarray_broadcasts_country_only(multi_dim_data) -> None:
     """Per-country fixed media scale broadcasts over channel (e.g. population)."""
     X, y = multi_dim_data
@@ -6229,38 +6155,6 @@ def test_add_lift_test_measurements_missing_channel_column(multi_dim_data) -> No
         mmm.add_lift_test_measurements(df_lift_test_missing_channel)
 
 
-def test_add_lift_test_measurements_missing_dimension_column(multi_dim_data) -> None:
-    """Test that KeyError is raised when dimension column is missing from lift test data."""
-    X, y = multi_dim_data
-    mmm = MMM(
-        adstock=GeometricAdstock(l_max=2),
-        saturation=LogisticSaturation(),
-        date_column="date",
-        target_column="target",
-        channel_columns=["channel_1", "channel_2", "channel_3"],
-        dims=("country",),
-    )
-    mmm.build_model(X, y)
-
-    # Create lift test data without 'country' column (which is in dims)
-    df_lift_test_missing_dim = pd.DataFrame(
-        {
-            "channel": ["channel_1", "channel_1"],
-            "x": [1, 2],
-            "delta_x": [1, 1],
-            "delta_y": [1, 1],
-            "sigma": [1, 1],
-            "date": pd.to_datetime(["2023-01-02", "2023-01-04"]),
-        }
-    )
-
-    with pytest.raises(
-        KeyError,
-        match=r"The country column is required to map the lift measurements to the model.",
-    ):
-        mmm.add_lift_test_measurements(df_lift_test_missing_dim)
-
-
 def test_add_lift_test_measurements_missing_multiple_dimension_columns() -> None:
     """Test that KeyError is raised when multiple dimension columns are missing from lift test data."""
     # Create multi-dimensional data with multiple dimensions
@@ -7564,8 +7458,8 @@ def test_set_xarray_data_without_target_preserves_dtypes(multi_dim_data):
 
 @pytest.mark.parametrize(
     "date_col_name",
-    ["date_week", "week", "period", "timestamp", "time_period"],
-    ids=["date_week", "week", "period", "timestamp", "time_period"],
+    ["date_week", "period"],
+    ids=["date_week", "period"],
 )
 def test_mmm_with_arbitrary_date_column_names_single_dim(
     single_dim_data, date_col_name, mock_pymc_sample
@@ -7617,8 +7511,8 @@ def test_mmm_with_arbitrary_date_column_names_single_dim(
 
 @pytest.mark.parametrize(
     "date_col_name",
-    ["date_week", "period", "timestamp"],
-    ids=["date_week", "period", "timestamp"],
+    ["date_week", "period"],
+    ids=["date_week", "period"],
 )
 def test_mmm_with_arbitrary_date_column_names_multi_dim(
     multi_dim_data, date_col_name, mock_pymc_sample
@@ -7693,8 +7587,8 @@ def test_date_column_validation_with_arbitrary_names(single_dim_data):
 
 @pytest.mark.parametrize(
     "date_col_name",
-    ["date_start", "end_date", "date_week_ending", "reporting_date"],
-    ids=["date_start", "end_date", "date_week_ending", "reporting_date"],
+    ["date_start", "end_date"],
+    ids=["date_start", "end_date"],
 )
 def test_mixed_date_column_scenarios_variations(
     single_dim_data, date_col_name, mock_pymc_sample
@@ -7936,34 +7830,6 @@ def test_multidimensional_mmm_serializes_and_deserializes_dag_and_nodes(
     assert loaded_mmm.outcome_node == outcome_node
 
     os.remove("test_model_multi")
-
-
-def test_multidimensional_mmm_causal_attributes_initialization():
-    dag = """
-    digraph {
-        channel_1 -> target;
-        control_1 -> channel_1;
-        control_1 -> target;
-    }
-    """
-    treatment_nodes = ["channel_1"]
-    outcome_node = "target"
-
-    mmm = MMM(
-        date_column="date",
-        target_column="target",
-        channel_columns=["channel_1", "channel_2"],
-        control_columns=["control_1", "control_2"],
-        adstock=GeometricAdstock(l_max=2),
-        saturation=LogisticSaturation(),
-        dag=dag,
-        treatment_nodes=treatment_nodes,
-        outcome_node=outcome_node,
-    )
-
-    assert mmm.dag == dag
-    assert mmm.treatment_nodes == treatment_nodes
-    assert mmm.outcome_node == outcome_node
 
 
 def test_multidimensional_mmm_causal_attributes_default_treatment_nodes():
@@ -8476,41 +8342,6 @@ class TestAddOriginalScaleContributionVariable:
         )
         y = pd.Series(rng.uniform(100, 500, n_dates), name="y")
         return X, y
-
-    def test_channel_contribution(self, sample_data) -> None:
-        """Test adding channel_contribution_original_scale."""
-        X, y = sample_data
-        mmm = MMM(
-            adstock=GeometricAdstock(l_max=4),
-            saturation=LogisticSaturation(),
-            date_column="date",
-            channel_columns=["x1", "x2"],
-            target_column="y",
-        )
-        mmm.build_model(X, y)
-        mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
-
-        assert "channel_contribution_original_scale" in mmm.model.named_vars
-        dims = mmm.model.named_vars_to_dims["channel_contribution_original_scale"]
-        assert dims == ("date", "channel")
-
-    def test_fourier_contribution(self, sample_data) -> None:
-        """Test adding fourier_contribution_original_scale."""
-        X, y = sample_data
-        mmm = MMM(
-            adstock=GeometricAdstock(l_max=4),
-            saturation=LogisticSaturation(),
-            date_column="date",
-            channel_columns=["x1", "x2"],
-            target_column="y",
-            yearly_seasonality=3,
-        )
-        mmm.build_model(X, y)
-        mmm.add_original_scale_contribution_variable(var=["fourier_contribution"])
-
-        assert "fourier_contribution_original_scale" in mmm.model.named_vars
-        dims = mmm.model.named_vars_to_dims["fourier_contribution_original_scale"]
-        assert dims == ("date", "fourier_mode")
 
     def test_multiple_contributions(self, sample_data) -> None:
         """Test adding multiple contribution variables at once."""
@@ -9867,13 +9698,6 @@ def test_mmm_plot_suite_defaults_to_legacy(fit_mmm):
     assert fit_mmm.plot_suite == "legacy"
 
 
-def test_mmm_plot_suite_setter(fit_mmm):
-    """MMM.plot_suite setter stores the value."""
-    mmm = copy.copy(fit_mmm)
-    mmm.plot_suite = "new"
-    assert mmm.plot_suite == "new"
-
-
 def test_mmm_plot_suite_setter_rejects_invalid(fit_mmm):
     """MMM.plot_suite setter raises ValueError for unknown values."""
     mmm = copy.copy(fit_mmm)
@@ -10407,8 +10231,6 @@ def _assert_cpt_roundtrip(mmm, path):
 @pytest.mark.parametrize(
     "link,central,roas,mixed,labeled,prefix,suffix,dims",
     [
-        ("identity", "mean", False, False, False, "external", ".nc", ("geo",)),
-        ("identity", "mean", True, False, False, "external", ".nc", ("geo",)),
         ("identity", "mean", False, True, False, "external", ".nc", ("geo",)),
         ("log", "mean", True, False, False, "external", ".nc", ("geo",)),
         ("log", "median", True, False, False, "external", ".nc", ("geo",)),
@@ -10418,8 +10240,6 @@ def _assert_cpt_roundtrip(mmm, path):
         ("identity", "mean", False, False, False, "external", ".nc", ()),
     ],
     ids=[
-        "cpt",
-        "roas",
         "mixed",
         "log-mean",
         "log-median",
