@@ -1081,6 +1081,16 @@ def extract_response_distribution(
             key=lambda var: order.get(var.name, len(order)),
         ):
             posterior_da = posterior[placeholder.name].astype(placeholder.dtype)
+            # A variable declared with pymc rather than pymc.dims is a plain
+            # tensor, and its replacement has to be one too.  A plain tensor is
+            # read by axis position, so store the draws with "sample" first and
+            # the variable's own axes in their declared order, whatever order
+            # the posterior stores them in.
+            classic = not isinstance(placeholder, XTensorVariable)
+            if classic and (
+                declared := pymc_model.named_vars_to_dims.get(placeholder.name)
+            ):
+                posterior_da = posterior_da.transpose("sample", *declared)
             if shared_posterior is not None:
                 replacement = shared_posterior._get_or_create(
                     posterior_da, name=placeholder.name, dtype=placeholder.dtype
@@ -1091,17 +1101,7 @@ def extract_response_distribution(
                     name=placeholder.name,
                     dims=posterior_da.dims,
                 )
-            if not isinstance(placeholder, XTensorVariable):
-                # A variable declared with pymc rather than pymc.dims is a plain
-                # tensor, and its replacement has to be one too.  A plain tensor
-                # is read by axis position, so put "sample" first and the
-                # variable's own axes in their declared order, whatever order
-                # the posterior stores them in.
-                declared = pymc_model.named_vars_to_dims.get(placeholder.name)
-                if declared:
-                    replacement = replacement.transpose("sample", *declared)
-                replacement = replacement.values
-            replace_dict[placeholder] = replacement
+            replace_dict[placeholder] = replacement.values if classic else replacement
 
         # Vectorize across samples.  vectorize_graph moves the new batch
         # dimension to the front of every output and raises on one that did not
