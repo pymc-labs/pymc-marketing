@@ -168,9 +168,10 @@ def _pred_matrix_for_rows(
     n_samples = int(da_s.sizes["sample"])
     n_rows = len(rows_df)
     mat = np.empty((n_samples, n_rows))
+    date_column = _read_fold_date_column(cv_data, cv_label)
 
     for j, (_, row) in enumerate(rows_df.iterrows()):
-        sel_kwargs: dict[str, Any] = {Dim.DATE: row["date"]}
+        sel_kwargs: dict[str, Any] = {Dim.DATE: row[date_column]}
         for dim in extra_dims:
             if dim in row.index:
                 sel_kwargs[dim] = row[dim]

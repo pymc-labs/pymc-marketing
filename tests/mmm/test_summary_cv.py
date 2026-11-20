@@ -13,6 +13,8 @@
 #   limitations under the License.
 """Tests for MMMCVSummaryFactory summary DataFrames."""
 
+import warnings
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -153,6 +155,16 @@ class TestDateColumn:
             week.predictions(hdi_probs=[0.94]),
             cv_summary_factory.predictions(hdi_probs=[0.94]),
         )
+
+    def test_crps_reads_the_recorded_date_column(self, cv_summary_factory):
+        week = MMMCVSummaryFactory(_make_cv_results_idata(date_column="week"))
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            week_crps = week.crps()
+
+        assert week_crps["mean_crps"].notna().all()
+        pd.testing.assert_frame_equal(week_crps, cv_summary_factory.crps())
 
 
 class TestMMMCVPlotSuiteSummary:
