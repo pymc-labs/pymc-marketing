@@ -174,9 +174,9 @@ class TestsAdstockTransformers:
             x=as_xtensor(x, dims=("time",)), alpha=alpha, l_max=l_max, dim="time"
         )
         y_np = y.eval()
-        assert y_np[0] == x[0]
-        assert y_np[1] == x[1] + alpha * x[0]
-        assert y_np[2] == x[2] + alpha * x[1] + (alpha**2) * x[0]
+        expected = np.convolve(x, alpha ** np.arange(l_max))[: len(x)]
+        # Convolution may fuse multiply-adds or accumulate in a different order.
+        np.testing.assert_allclose(y_np, expected, rtol=1e-14, atol=0)
 
     @pytest.mark.parametrize(
         "alpha",
