@@ -1007,7 +1007,9 @@ def extract_response_distribution(
     pt.TensorVariable or list of pt.TensorVariable
         The response distribution graph.  A list -- matching
         ``response_variable`` element-wise -- when a sequence was passed, a
-        single variable otherwise.
+        single variable otherwise.  A response declared with ``pymc`` rather
+        than ``pymc.dims`` comes back as a plain tensor with ``sample`` as its
+        first axis and no dim names.
 
     Examples
     --------
