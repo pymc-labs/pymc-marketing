@@ -1007,7 +1007,9 @@ def extract_response_distribution(
     pt.TensorVariable or list of pt.TensorVariable
         The response distribution graph.  A list -- matching
         ``response_variable`` element-wise -- when a sequence was passed, a
-        single variable otherwise.
+        single variable otherwise.  A response declared with ``pymc`` rather
+        than ``pymc.dims`` comes back as a plain tensor with ``sample`` as its
+        first axis and no dim names.
 
     Examples
     --------
@@ -1079,16 +1081,27 @@ def extract_response_distribution(
             key=lambda var: order.get(var.name, len(order)),
         ):
             posterior_da = posterior[placeholder.name].astype(placeholder.dtype)
+            # A variable declared with pymc rather than pymc.dims is a plain
+            # tensor, and its replacement has to be one too.  A plain tensor is
+            # read by axis position, so store the draws with "sample" first and
+            # the variable's own axes in their declared order, whatever order
+            # the posterior stores them in.
+            classic = not isinstance(placeholder, XTensorVariable)
+            if classic and (
+                declared := pymc_model.named_vars_to_dims.get(placeholder.name)
+            ):
+                posterior_da = posterior_da.transpose("sample", *declared)
             if shared_posterior is not None:
-                replace_dict[placeholder] = shared_posterior._get_or_create(
+                replacement = shared_posterior._get_or_create(
                     posterior_da, name=placeholder.name, dtype=placeholder.dtype
                 )
             else:
-                replace_dict[placeholder] = xtensor_constant(
+                replacement = xtensor_constant(
                     posterior_da.values,
                     name=placeholder.name,
                     dims=posterior_da.dims,
                 )
+            replace_dict[placeholder] = replacement.values if classic else replacement
 
         # Vectorize across samples.  vectorize_graph moves the new batch
         # dimension to the front of every output and raises on one that did not
@@ -1098,6 +1111,16 @@ def extract_response_distribution(
             not replace_dict.keys().isdisjoint(ancestors([var]))
             for var in response_vars
         ]
+        # A plain tensor replacement brings "sample" in as an unnamed leading
+        # axis, which has to be named.  Naming it when no replacement is a plain
+        # tensor makes vectorize_graph fail, so only ask when one is.
+        new_tensor_dims = (
+            ("sample",)
+            if any(
+                not isinstance(new, XTensorVariable) for new in replace_dict.values()
+            )
+            else ()
+        )
         vectorized = iter(
             vectorize_graph(
                 [
@@ -1106,6 +1129,7 @@ def extract_response_distribution(
                     if reads
                 ],
                 replace=replace_dict,
+                new_tensor_dims=new_tensor_dims,
             )
         )
         response_distribution = [

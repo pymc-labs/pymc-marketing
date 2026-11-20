@@ -3408,12 +3408,15 @@ class _ScaledByDateLevelEffect(_ZeroEffect):
     """A free random variable over the dates that scales the channel contribution.
 
     With ``walk``, the variable holds the steps of a random walk, and the walk, their
-    cumulative sum over ``date``, is a Deterministic whether frozen or not.
+    cumulative sum over ``date``, is a Deterministic whether frozen or not.  With
+    ``classic``, the variable is declared with ``pymc`` and wrapped with
+    ``as_xtensor``.
     """
 
     prefix: str = "scaled"
     walk: bool = False
     freeze: bool = False
+    classic: bool = False
 
     def incrementality_spec(self) -> IncrementalitySpec:
         """Opt in: the effect reads the channel contribution."""
@@ -3432,22 +3435,31 @@ class _ScaledByDateLevelEffect(_ZeroEffect):
 
     def create_effect(self, mmm):
         """The channel contribution, times one free value per date or their walk."""
-        level = pmd.Normal(f"{self.prefix}_level", mu=1.0, sigma=0.5, dims="date")
+        name = f"{self.prefix}_level"
+        if self.classic:
+            level = as_xtensor(
+                pm.Normal(name, mu=1.0, sigma=0.5, dims="date"), dims=("date",)
+            )
+        else:
+            level = pmd.Normal(name, mu=1.0, sigma=0.5, dims="date")
         if self.walk:
             level = pmd.Deterministic(f"{self.prefix}_walk", level.cumsum("date"))
         contribution = mmm.model["channel_contribution"].sum("channel")
         return pmd.Deterministic(self.contribution_var_name, level * contribution)
 
 
+@pytest.mark.parametrize("classic", [False, True], ids=["dims", "classic"])
 @pytest.mark.parametrize("walk", [False, True], ids=["level", "random-walk"])
-def test_yearly_incrementality_on_a_variable_that_scales_spend(mock_pymc_sample, walk):
+def test_yearly_incrementality_on_a_variable_that_scales_spend(
+    mock_pymc_sample, walk, classic
+):
     """Unfrozen, a variable that scales spend gives the increments of its frozen path.
 
     The first year's window spans every fitted date and the second is padded to the
     same length, so no shape fails.  Unfrozen, the variable holds its draws over all
     fitted dates and every period is evaluated on the full date axis, with the
     horizon the probe measured.  Frozen at the path where it meets spend, it is cut
-    to each window.
+    to each window.  The same holds for a variable declared with ``pymc`` (#3398).
     """
     from tests.mmm.conftest import _make_mmm_data
 
@@ -3460,7 +3472,9 @@ def test_yearly_incrementality_on_a_variable_that_scales_spend(mock_pymc_sample,
             channel_columns=["channel_1", "channel_2", "channel_3"],
             adstock=GeometricAdstock(l_max=6),
             saturation=LogisticSaturation(),
-        ).add_mu_effect(_ScaledByDateLevelEffect(walk=walk, freeze=freeze))
+        ).add_mu_effect(
+            _ScaledByDateLevelEffect(walk=walk, freeze=freeze, classic=classic)
+        )
         mmm.fit(data["X"], data["y"], draws=50, chains=1, random_seed=42)
         incrementality = mmm.incrementality
         return (
