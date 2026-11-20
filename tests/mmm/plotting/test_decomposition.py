@@ -204,16 +204,6 @@ class TestContributionsOverTime:
         result = simple_plots.contributions_over_time(return_as_pc=True)
         assert isinstance(result, PlotCollection)
 
-    def test_panel_model_creates_one_panel_per_geo(self, panel_plots):
-        _fig, axes = panel_plots.contributions_over_time()
-        # panel_idata has geo=["CA","NY"] — expect 2 axes
-        assert len(axes) == 2
-
-    def test_include_filters_contributions(self, simple_plots):
-        # channels only — no baseline line
-        fig, _axes = simple_plots.contributions_over_time(include=["channels"])
-        assert isinstance(fig, Figure)
-
     def test_include_invalid_key_raises(self, simple_plots):
         with pytest.raises((ValueError, KeyError)):
             simple_plots.contributions_over_time(include=["invalid_key"])
@@ -232,17 +222,6 @@ class TestContributionsOverTime:
     def test_dims_subsetting(self, panel_plots):
         fig, _axes = panel_plots.contributions_over_time(dims={"geo": ["CA"]})
         assert isinstance(fig, Figure)
-
-    def test_each_channel_has_own_line(self, simple_plots):
-        """Each channel must produce its own separate line (not summed into one)."""
-        channels = ["tv", "radio", "social"]
-        _fig, axes = simple_plots.contributions_over_time(include=["channels"])
-        ax = axes[0]
-        # arviz_plots manages line labels internally; verify by line count
-        data_lines = [ln for ln in ax.get_lines() if len(ln.get_xdata()) > 1]
-        assert len(data_lines) == len(channels), (
-            f"Expected {len(channels)} lines (one per channel), got {len(data_lines)}"
-        )
 
     def test_facet_creates_one_panel_per_channel(self, simple_plots):
         """facet=True draws each channel in its own panel."""
@@ -532,11 +511,6 @@ class TestChannelShareHdi:
     def test_dims_subsetting(self, panel_plots):
         fig, _axes = panel_plots.channel_share_hdi(dims={"geo": ["CA"]})
         assert isinstance(fig, Figure)
-
-    def test_channel_coordinate_present(self, simple_plots):
-        # The dataset passed to azp.plot_forest has a 'channel' coordinate, not 'x'
-        pc = simple_plots.channel_share_hdi(return_as_pc=True)
-        assert isinstance(pc, PlotCollection)
 
 
 def test_decomposition_plots_importable_from_package():

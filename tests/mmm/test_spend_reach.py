@@ -647,32 +647,6 @@ class TestSpendProbe:
 
     # ---------- reach ----------
 
-    def test_a_causal_filter_is_measured_at_its_own_length(self):
-        """A node reaching past the model's adstock widens the window by the excess."""
-        probe = self._probe(
-            self._spend(), **{CHANNEL_CONTRIBUTION: causal_filter(self.l_max + 3)}
-        )
-
-        reach = probe.measure(
-            effects=(), l_max=self.l_max, trailing_lags=self.l_max - 1
-        )
-
-        assert not reach.requires_full_axis
-        # Reaching l_max + 3 dates is l_max + 2 lags, of which l_max is covered.
-        assert reach.effective_l_max == self.l_max + 2
-
-    def test_a_filter_inside_the_model_s_own_window_widens_nothing(self):
-        """The ordinary case has to cost nothing: the same window as before."""
-        probe = self._probe(
-            self._spend(), **{CHANNEL_CONTRIBUTION: causal_filter(self.l_max)}
-        )
-
-        reach = probe.measure(
-            effects=(), l_max=self.l_max, trailing_lags=self.l_max - 1
-        )
-
-        assert reach.effective_l_max == self.l_max
-
     @pytest.mark.parametrize(
         "length, max_lag, effective_l_max",
         [

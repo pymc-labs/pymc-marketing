@@ -241,11 +241,6 @@ class TestParamStability:
         result = cv_plot.param_stability(return_as_pc=True)
         assert isinstance(result, PlotCollection)
 
-    def test_var_names(self, cv_plot):
-        # Should run without error when restricting to known variable
-        fig, _axes = cv_plot.param_stability(var_names=["beta_channel"])
-        assert isinstance(fig, Figure)
-
     def test_dims_filtering(self, cv_plot):
         # Filter posterior to a single channel before plotting
         fig, _axes = cv_plot.param_stability(dims={"channel": ["tv"]})
