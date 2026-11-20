@@ -1,0 +1,896 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2026, PyMC Labs
+# This file is distributed under the same license as the PyMC-Marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyMC-Marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:10002
+#: 8a59e0323ad04ae894d97a926cfa9130
+msgid "MMMPlotSuite v2 Migration Guide"
+msgstr "Guía de migración de MMMPlotSuite v2"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:10004
+#: 228137a6df8e4081ad2b64e292884983
+msgid ""
+"PyMC-Marketing is moving from the monolithic `MMMPlotSuite` to a "
+"namespace-based plotting API backed by [arviz-plots](https://arviz-"
+"plots.readthedocs.io/). The new API uses `PlotCollection` for subplot "
+"layout, dimension-aware faceting, and multi-backend rendering. The legacy"
+" suite will be removed in **pymc-marketing 2.0.0**."
+msgstr ""
+"PyMC-Marketing está migrando del `MMMPlotSuite` monolítico a una API de "
+"gráficos basada en espacios de nombres y respaldada por [arviz-"
+"plots](https://arviz-plots.readthedocs.io/). La nueva API utiliza "
+"`PlotCollection` para la disposición de subgráficos, el facetado según las "
+"dimensiones y el renderizado con múltiples backends. La suite heredada se "
+"eliminará en **pymc-marketing 2.0.0**."
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:10006
+#: e1defea223d448a497c05fc5e9df19ae
+msgid "This guide covers how to opt in to the new API and what has changed."
+msgstr "Esta guía explica cómo optar por la nueva API y qué ha cambiado."
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:20002
+#: 55b60fda6ffd49a7a9f71f62dd4b697f
+msgid "Opting In"
+msgstr "Cómo optar por la nueva API"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:20004
+#: 866b9eaa084a4caaa7dd950073e698d3
+msgid ""
+"Set `plot_suite = \"new\"` on an existing instance to switch to the new "
+"API. Until set to `\"new\"`, accessing `mmm.plot` emits a "
+"`FutureWarning`."
+msgstr ""
+"Establezca `plot_suite = \"new\"` en una instancia existente para cambiar a "
+"la nueva API. Mientras no se establezca en `\"new\"`, acceder a `mmm.plot` "
+"emite un `FutureWarning`."
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:40002
+#: 072ca510804947bfb90592e890c005e9
+msgid "Common Arguments"
+msgstr "Argumentos comunes"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:40004
+#: ff0a00304ea640f98a7df685399ac0e6
+msgid ""
+"All methods share a consistent parameter set. These are explained once "
+"here; subsequent sections refer to them by name."
+msgstr ""
+"Todos los métodos comparten un conjunto coherente de parámetros. Se explican"
+" una sola vez aquí; las secciones siguientes se refieren a ellos por su "
+"nombre."
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 17541c4f12d44fb9aaa079c26102f007
+msgid "Argument"
+msgstr "Argumento"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: cadc0eb9b42b4020ada575e55f5f2fea
+msgid "Type"
+msgstr "Tipo"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 75f6e53f71b443a78b6ec6361ae6e97a
+msgid "Default"
+msgstr "Valor predeterminado"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 209b0ca58bc2479ab93432a669c65a1a
+msgid "Description"
+msgstr "Descripción"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 9f838dd192df4c6a923b9979bcfbe846
+msgid "`idata`"
+msgstr "`idata`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 8e152c0d37714318b356b600e07f6e8c
+msgid "`xr.DataTree | None`"
+msgstr "`xr.DataTree | None`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 7166c13acdcf4d6990929e6e4d5d6450 ba9109c2afa64aa6bb8b9f0ce440d4e7
+#: c70f56cc265a42f087ba2a96fa2eccb0 ca2e6168f09b429d9086d51988730ed6
+msgid "`None`"
+msgstr "`None`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: dcec5a991d7446f292ba3687c0426a13
+msgid ""
+"Override the model's fitted data for a single call. When `None`, uses the"
+" data stored on the model instance."
+msgstr ""
+"Sobrescribe los datos ajustados del modelo en una sola llamada. Cuando es "
+"`None`, utiliza los datos almacenados en la instancia del modelo."
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: b09e9ac9b2444e7d89e0488728ddf9b0
+msgid "`hdi_prob`"
+msgstr "`hdi_prob`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: b52c8eeac47443b685c3e45f374c6d7a
+msgid "`float`"
+msgstr "`float`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: d8d21549366a46a4b15e4c55b8903085
+msgid "`0.94`"
+msgstr "`0.94`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 961f3f0eed3e4daba6cbbc1a76fa4674
+msgid ""
+"Credible interval width. Replaces `hdi_probs: list[float]` — only one "
+"level per call."
+msgstr ""
+"Ancho del intervalo creíble. Reemplaza `hdi_probs: list[float]` — solo un "
+"nivel por llamada."
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 8f099ffa924943c0b248845ad1ba1b69
+msgid "`dims`"
+msgstr "`dims`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 56b2470aa13645f796220735173ef17b
+msgid "`dict[str, Any] | None`"
+msgstr "`dict[str, Any] | None`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: a97f228069fa448f8c8a436b96458287
+#, python-brace-format
+msgid ""
+"Subset coordinates, e.g. `{\"channel\": [\"tv\", \"radio\"]}`. Size-1 "
+"dims are preserved as facets rather than squeezed out."
+msgstr ""
+"Selecciona un subconjunto de coordenadas, por ejemplo `{\"channel\": "
+"[\"tv\", \"radio\"]}`. Las dimensiones de tamaño 1 se conservan como facetas"
+" en lugar de eliminarse."
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: f53a6646718943148cf26ec8a49bd924
+msgid "`figsize`"
+msgstr "`figsize`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 3c7b9c0e0a064050afdc5c8867da65a8
+msgid "`tuple[float, float] | None`"
+msgstr "`tuple[float, float] | None`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 37556461c929422b83af2277927a34a5
+#, python-brace-format
+msgid ""
+"Shorthand for `figure_kwargs={\"figsize\": ...}` passed to "
+"`PlotCollection`."
+msgstr ""
+"Atajo para `figure_kwargs={\"figsize\": ...}`, que se pasa a "
+"`PlotCollection`."
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 53109561f1db413782c7326aad7d899a
+msgid "`backend`"
+msgstr "`backend`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 822d89818f3f4c0bba4cef9ad2d3fcc1
+msgid "`str | None`"
+msgstr "`str | None`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: eff938e7380a474ca19923fbe340d375
+msgid "`None` (matplotlib)"
+msgstr "`None` (matplotlib)"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 2ea81891c34345f5b53c9eeabd379d9a
+msgid "Rendering backend: `\"matplotlib\"`, `\"plotly\"`, or `\"bokeh\"`."
+msgstr "Backend de renderizado: `\"matplotlib\"`, `\"plotly\"` o `\"bokeh\"`."
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 803aa1e17b41482ba9ccf337705b7869
+msgid "`return_as_pc`"
+msgstr "`return_as_pc`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 50d887de4e174fbfbb6102b23d7e3578
+msgid "`bool`"
+msgstr "`bool`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 9f1177cb38ef4411ae6fef8525b4e348
+msgid "`False`"
+msgstr "`False`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: cc6c8d39704e4a0bbd2760e5e63f6529
+msgid ""
+"Return a `PlotCollection` instead of `(Figure, NDArray[Axes])`. Required "
+"when `backend` is not `\"matplotlib\"`."
+msgstr ""
+"Devuelve un `PlotCollection` en lugar de `(Figure, NDArray[Axes])`. Es "
+"obligatorio cuando `backend` no es `\"matplotlib\"`."
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 7a3acb23de0a4f2b8b36d205b4077f48
+msgid "`**pc_kwargs`"
+msgstr "`**pc_kwargs`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 0861ad6145444498acce4204e8db45a1 09fcb9e4e4f044078f7de9e8c0c4b0c8
+#: 194da26ec19b4271a87c180f9dca9317 20c21d4474344620a434fe7724d37a9a
+#: 289a1be345594af582fea974593a67c2 3460d1f36d4c40aa9183240ca687a4e7
+#: 47ef39d7c1b54d78900d250aa7722899 52005520aeb0492cb850103be360d6dc
+#: 7f385aab579c440aa317150e806f9f6d 879c455eaf5d4024972d7dc1bbe853a4
+#: 8a8033d1d27b491f998724b1392d0245 aab710afd78145fe8bea32fcfff68dd6
+#: ab7e8ed6d5ba42019d79223ceb3f1984 c36520c24ca043c78b1debe5af0678f6
+#: c4ecacb98a1d4cc7827788b433e79152 d6aa938d74c54320a0c57a51f36b2b3b
+#: ec0c4c30c8854eb483fe1f1f7049ad97 ffce28f4f8574bddab466931d76d33bd
+msgid "—"
+msgstr "—"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 7e68fcf535964eb686ff48b2415c708f
+msgid ""
+"Forwarded to `PlotCollection.wrap()`. Controls `col_wrap`, layout, "
+"aesthetic mappings."
+msgstr ""
+"Se reenvían a `PlotCollection.wrap()`. Controlan `col_wrap`, la disposición "
+"y los mapeos estéticos."
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 5204914c2ad74bc186235e5e91738496
+msgid "`*_kwargs`"
+msgstr "`*_kwargs`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: e11357901e7147698880bcf77622da84
+msgid "`dict | None`"
+msgstr "`dict | None`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 93950d853b214863bd3a6fafc3cfbb30
+msgid ""
+"Per-visual-element kwargs e.g. `line_kwargs`, `hdi_kwargs`, "
+"`scatter_kwargs` — forwarded to the underlying arviz-plots visual."
+msgstr ""
+"kwargs por elemento visual, por ejemplo `line_kwargs`, `hdi_kwargs`, "
+"`scatter_kwargs` — se reenvían al elemento visual correspondiente de arviz-"
+"plots."
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:60002
+#: b6134c949d13417f9f41c030bcf10d1d
+msgid "Non-Matplotlib Backends (not fully supported)"
+msgstr "Backends distintos de Matplotlib (sin soporte completo)"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:60004
+#: dd835c9b977040158776ed8e46425b33
+msgid ""
+"Any method that accepts `backend` can render with Plotly or Bokeh instead"
+" of Matplotlib. When using a non-matplotlib backend you must pass "
+"`return_as_pc=True`, which returns a `PlotCollection` instead of a "
+"`(Figure, axes)` tuple."
+msgstr ""
+"Cualquier método que acepte `backend` puede renderizar con Plotly o Bokeh en"
+" lugar de Matplotlib. Al usar un backend distinto de matplotlib, debe pasar "
+"`return_as_pc=True`, lo que devuelve un `PlotCollection` en lugar de una "
+"tupla `(Figure, axes)`."
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:60006
+#: 317f5d2ec8ea49b7a2961f4d2a20e01a
+msgid ""
+"**Note:** Non-matplotlib backend support has not been fully tested and is"
+" likely to contain issues. Use at your own risk."
+msgstr ""
+"**Nota:** El soporte para backends distintos de matplotlib no se ha probado "
+"por completo y es probable que presente problemas. Úselo bajo su propio "
+"riesgo."
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:60008
+#: 47934686f74f4bcf8817cf22fa135022
+msgid ""
+"`waterfall()` in the decomposition namespace does not accept `backend` or"
+" `return_as_pc` — it always returns a matplotlib `(Figure, axes)` tuple."
+msgstr ""
+"`waterfall()` en el espacio de nombres de descomposición no acepta `backend`"
+" ni `return_as_pc` — siempre devuelve una tupla `(Figure, axes)` de "
+"matplotlib."
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:80002
+#: 7d8597d5a6bb44369aac6e8ccb2b38ef
+msgid "`mmm.plot.diagnostics`"
+msgstr "`mmm.plot.diagnostics`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:80004
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:100004
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:120004
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:140004
+#: 4a0db2827fb54fd79f5c193d19f2cf90 b03ebe4816e04212b8f5bd7fa6fde6df
+#: bffcdf665e9049ab8833cf2b8cfd3090 fa79b51982d34e1f9da5caffa23f5e04
+msgid "Method names"
+msgstr "Nombres de métodos"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 02bbd1912c2a47579179ef2235d2f175 600d0baa0855428cad9117f0622ebde8
+#: 8d88bfed790a48a3912e8010f252d283 ac7ae5c3f61c4f9ca6933383c4a7a2b4
+msgid "Legacy"
+msgstr "Heredado"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 1037069eedd14f3b92e36c5eb48981b1 12dc37e1a9c5421380bacb22b55ff158
+#: 1c0da8047f5e40cda03c7fae34464afe 2e323071572044398177561219f1e4b9
+#: 42eafce0a0124c15b539179c7ac8243c 51922ba411924f1d8eaa2553aa53c9d4
+#: 9204674efd1b431e90fe29c86f72747c aedd0b59e7604a71bcc5ddaa07d9d3f5
+#: df21f9b73a9349bb8cacc6acbb6bf7b1 e3e0261ed7534bd88c07342df03cd760
+msgid "New"
+msgstr "Nuevo"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 5ba574f51a8a45a19aa39663208ad5a6
+msgid "`mmm.plot.posterior_predictive(...)`"
+msgstr "`mmm.plot.posterior_predictive(...)`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: f72c522d52b54f9c8df91001f1e70dce
+msgid "`mmm.plot.diagnostics.posterior_predictive(...)`"
+msgstr "`mmm.plot.diagnostics.posterior_predictive(...)`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 9742904d79ad4711a5200606924044d5
+msgid "`mmm.plot.prior_predictive(...)`"
+msgstr "`mmm.plot.prior_predictive(...)`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 6b25cffb4db04fa58cdbf57218a64251
+msgid "`mmm.plot.diagnostics.prior_predictive(...)`"
+msgstr "`mmm.plot.diagnostics.prior_predictive(...)`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 958d8493e41b464588ebcb7e3a28b545
+msgid "`mmm.plot.residuals_over_time(...)`"
+msgstr "`mmm.plot.residuals_over_time(...)`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 52d43005024f42a09e5e6c9880a99011
+msgid "`mmm.plot.diagnostics.residuals_over_time(...)`"
+msgstr "`mmm.plot.diagnostics.residuals_over_time(...)`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: f66e4fe6f980413ba4e1e267206838da
+msgid "`mmm.plot.residuals_posterior_distribution(...)`"
+msgstr "`mmm.plot.residuals_posterior_distribution(...)`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: b34c8f1e9e5e458892e10ac45e725880
+msgid "`mmm.plot.diagnostics.residuals_distribution(...)`"
+msgstr "`mmm.plot.diagnostics.residuals_distribution(...)`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 3119082087b34c2a8d57e9034c7dcc60
+msgid "`mmm.plot.posterior_distribution(...)`"
+msgstr "`mmm.plot.posterior_distribution(...)`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 099c46a17cfa443880f2b87154753a04
+msgid "`mmm.plot.diagnostics.posterior(...)`"
+msgstr "`mmm.plot.diagnostics.posterior(...)`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 786124dcce814abbb30e86931e308dce
+msgid "`mmm.plot.prior_vs_posterior(...)`"
+msgstr "`mmm.plot.prior_vs_posterior(...)`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 8da0023e46f647fdbbec026d1d76a373
+msgid "`mmm.plot.diagnostics.prior_vs_posterior(...)`"
+msgstr "`mmm.plot.diagnostics.prior_vs_posterior(...)`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:80015
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:100012
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:120012
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:140011
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:160006
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:180006
+#: 9d5e8ff20b7c4daf915092a794102615 aa2132079a88416e90313ea01588a292
+#: af1366ca55934d83bc7bdb3658327077 c98e5519d93f40ae81b996d6d795dd99
+#: d8ec2c21febb4feb9b8c2c5a195a8ddf ec51f93d7fee4e22b32516bafbf765c5
+msgid "Argument changes"
+msgstr "Cambios en los argumentos"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 03a15263b3d74e4eb73d0dc1c0014d40 16f9578ec4a84a68ac7b9e64f009c3c8
+#: 17c36d91a37a402587c1b1ba6bf64e37 aa70999a15b54c2187fb1699055bb7ed
+#: b42102b8003d48bc967fdf8859da2f92 da24bbd92dfd40bba44590ef19f0d310
+msgid "Old"
+msgstr "Antiguo"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 1b196ac9292b4ca0861121c247a56603 4d9cd60eabbe49a1b841ff9b0e3ce102
+#: 5b021374eb8b4a8aa031164b48af8879 60cc81f506c2419db1292dc591fec222
+#: b3cbb8c7fe094e7c8f360e8517b49678 d1811519f4d440eca081ec9fd6200a6a
+msgid "Notes"
+msgstr "Notas"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 17fea47a1c094767b6f8f4dfb614ca31 586fef942fd444b68603b08c687506fd
+#: 739ede38a8a34e55b7f4211464478c38 8997f9099c12433db542c9c45c149410
+#: 92e7bf39ab8241c4bb0d3609e14cfdbc ce1c14235b844c6b84f844d2d5560621
+msgid "`hdi_probs: list[float]`"
+msgstr "`hdi_probs: list[float]`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 41eed78f70174e7ca1ad17c1579080f2 cbadc5a5e63544aaaf1a3b53c9f8e508
+#: f7ae8a4dfe3f4f2f810ee6b6aec2568d f7ecdad303af48539c541acfc86136a3
+#: f96dcf3094684c6fa1b6c5a8b938af0d
+msgid "`hdi_prob: float`"
+msgstr "`hdi_prob: float`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 1bbb4fb0da4c499285c1ba5d172c0c60 4d550d59943e4246bf25d1927fdbda23
+#: 66cd7ae1a18d44598a66205c9477dbe2 88f07fdaf0384537981150148b01a425
+#: a4fdd92365ef41b0be88a27db23850c0
+msgid "Single level per call"
+msgstr "Un solo nivel por llamada"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: da5a74335f3b41e19839e941759e8e07
+msgid "`var: list[str]` (on `posterior_distribution`)"
+msgstr "`var: list[str]` (en `posterior_distribution`)"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 5ec57b9ce203416e84009a99db98621d
+msgid "`var_names: list[str] | str | None`"
+msgstr "`var_names: list[str] | str | None`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: d3d6aa044f67474ca5c952aa6b4a9bd7
+msgid "Also accepts a single string"
+msgstr "También acepta una sola cadena de texto"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 9df9dc33ba544bdf95c625b7d705cba1
+msgid "`group: str = \"posterior\"`"
+msgstr "`group: str = \"posterior\"`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 4c67431ecfba45d69772ee22799bdde2
+msgid "New on `posterior()` — pass `\"prior\"` to plot prior instead"
+msgstr ""
+"Nuevo en `posterior()` — pase `\"prior\"` para trazar el prior en su lugar"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 630161911be84ae189efb88405c5faea
+msgid "`kind: str = \"kde\"`"
+msgstr "`kind: str = \"kde\"`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 4fa267c130494de28970df4cbc266e23
+msgid "New on `posterior()` and `prior_vs_posterior()` — controls plot type"
+msgstr ""
+"Nuevo en `posterior()` y `prior_vs_posterior()` — controla el tipo de "
+"gráfico"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 674004cdeb9b49db8dbcda966251dc47
+msgid "`aggregation`"
+msgstr "`aggregation`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 562d1c5e5201438db0db03fa98b026d3
+msgid "New on `residuals_distribution()` — dimension to aggregate over"
+msgstr ""
+"Nuevo en `residuals_distribution()` — dimensión sobre la que se agrega"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 0c6e643a86c24f5b9d6f62439403849f
+msgid "`quantiles`"
+msgstr "`quantiles`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 06e6ec5ec5d44661a5998b99262a28c5
+msgid "New on `residuals_distribution()` — quantile lines to overlay"
+msgstr ""
+"Nuevo en `residuals_distribution()` — líneas de cuantiles que se superponen"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:100002
+#: a8143574b5df4b1d8b89dbb0563063c8
+msgid "`mmm.plot.decomposition`"
+msgstr "`mmm.plot.decomposition`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 912712abc9194a0faceca4ed3a7cc535
+msgid "`mmm.plot.contributions_over_time(...)`"
+msgstr "`mmm.plot.contributions_over_time(...)`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 5a08c8597e3d49dc9a6f84c44c081776
+msgid "`mmm.plot.decomposition.contributions_over_time(...)`"
+msgstr "`mmm.plot.decomposition.contributions_over_time(...)`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 2d9b8abc01b546d5998a687a11eac05a
+msgid "`mmm.plot.waterfall_components_decomposition(...)`"
+msgstr "`mmm.plot.waterfall_components_decomposition(...)`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: b8ad6be0093f4fe1bc00a6756836ecbb
+msgid "`mmm.plot.decomposition.waterfall(...)`"
+msgstr "`mmm.plot.decomposition.waterfall(...)`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 589907ec41344c92aa4d71d747d4ea5c
+msgid "`mmm.plot.channel_parameter(...)`"
+msgstr "`mmm.plot.channel_parameter(...)`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: fc00e5c50adb47d7870c8afbeed89942
+msgid "`mmm.plot.decomposition.channel_share_hdi(...)`"
+msgstr "`mmm.plot.decomposition.channel_share_hdi(...)`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 133bb892b6b34bd0bfeadf4a9e5d94ee 7ce08f2e199e41e981104d78cf55dce8
+msgid "`original_scale: bool = False`"
+msgstr "`original_scale: bool = False`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 76d427698cf24cf2917c52309aa64fe4 92804e9046b24a4f9bbb5477093a58fb
+msgid "`original_scale: bool = True`"
+msgstr "`original_scale: bool = True`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: a8a0976ccca5458f926e85f2e6ac5cb6 f78c87a2eb77466f98a762f14d4e87e2
+msgid "Default flipped to True"
+msgstr "El valor predeterminado cambió a True"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: b188cdcc72e04ca684d8d51b53a0416d
+msgid ""
+"`include: list[Literal[\"channels\", \"baseline\", \"controls\", "
+"\"seasonality\"]] | None`"
+msgstr ""
+"`include: list[Literal[\"channels\", \"baseline\", \"controls\", "
+"\"seasonality\"]] | None`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: ce455d05a61340028f4967f75f420917
+msgid "New on `contributions_over_time()` — filter which components appear"
+msgstr ""
+"Nuevo en `contributions_over_time()` — filtra qué componentes aparecen"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:100020
+#: b31965b32eb240f9930c51ed20e10471
+msgid ""
+"`waterfall()` does not accept `backend` or `return_as_pc` — it always "
+"returns `(Figure, NDArray[Axes])`."
+msgstr ""
+"`waterfall()` no acepta `backend` ni `return_as_pc` — siempre devuelve "
+"`(Figure, NDArray[Axes])`."
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:120002
+#: 8d43941e54b94465ac937f18c312dfbd
+msgid "`mmm.plot.sensitivity`"
+msgstr "`mmm.plot.sensitivity`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: ad7dbb6376484a48a34234f050f9220a
+msgid "`mmm.plot.sensitivity_analysis(...)`"
+msgstr "`mmm.plot.sensitivity_analysis(...)`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 03a6f89c4a0446139eaed1d0e080ac79
+msgid "`mmm.plot.sensitivity.analysis(...)`"
+msgstr "`mmm.plot.sensitivity.analysis(...)`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 188605a87952412e9ba677bd9fe067fb
+msgid "`mmm.plot.uplift_curve(...)`"
+msgstr "`mmm.plot.uplift_curve(...)`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 22f62a235f8d4fbc89ca4d056a75c4bb
+msgid "`mmm.plot.sensitivity.uplift(...)`"
+msgstr "`mmm.plot.sensitivity.uplift(...)`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 4102fcf5ba2c4ba3934556e4da696be6
+msgid "`mmm.plot.marginal_curve(...)`"
+msgstr "`mmm.plot.marginal_curve(...)`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: fc0bd090783c436fbfe189cedc50ab07
+msgid "`mmm.plot.sensitivity.marginal(...)`"
+msgstr "`mmm.plot.sensitivity.marginal(...)`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: a75e049f8af247fea56d04344c4d86e0
+msgid "`x_sweep_axis: Literal[\"relative\", \"absolute\"] = \"relative\"`"
+msgstr "`x_sweep_axis: Literal[\"relative\", \"absolute\"] = \"relative\"`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 22454893cadb4b79ade8ed8b4d88be75
+msgid "New — controls x-axis scale"
+msgstr "Nuevo — controla la escala del eje x"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 4073c96be7c34f12b13a1a3bd1d59e0e 55b3ae576e744bacb8e25c5140bb93e0
+msgid "`apply_cost_per_unit: bool = True`"
+msgstr "`apply_cost_per_unit: bool = True`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: c7d869913379411ab277216f17fb6942
+msgid "New — scale spend axis by cost-per-unit"
+msgstr "Nuevo — escala el eje de gasto por el costo por unidad"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: ee6819382b394699849528b027d2bae1
+msgid "`aggregation: dict[str, str | list[str]] | None`"
+msgstr "`aggregation: dict[str, str | list[str]] | None`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 10c2e9c648ca427c93371768e172fa6f
+msgid "New — aggregate over dimensions before plotting"
+msgstr "Nuevo — agrega sobre dimensiones antes de trazar"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:140002
+#: 806e6fa19e0d482e99dd502dac3e98ab
+msgid "`mmm.plot.transformation`"
+msgstr "`mmm.plot.transformation`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 36513da264264425af2f8c71a84db672
+msgid "`mmm.plot.saturation_scatterplot(...)`"
+msgstr "`mmm.plot.saturation_scatterplot(...)`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: cf3868a113504fb2baee96a2a6880612
+msgid "`mmm.plot.transformation.saturation_scatterplot(...)`"
+msgstr "`mmm.plot.transformation.saturation_scatterplot(...)`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 5628d87703564a21a169252bd856cd4f
+msgid "`mmm.plot.saturation_curves(...)`"
+msgstr "`mmm.plot.saturation_curves(...)`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: fb53fed915db433d9e226561735c4f5c
+msgid "`mmm.plot.transformation.saturation_curves(...)`"
+msgstr "`mmm.plot.transformation.saturation_curves(...)`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 783baea487d5414c962f4433a0f92462
+msgid "`hdi_prob: float | None = 0.94`"
+msgstr "`hdi_prob: float | None = 0.94`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 27602af5fffd480c9ff0172af0b6b030
+msgid "Single level; pass `None` to suppress HDI band"
+msgstr "Un solo nivel; pase `None` para suprimir la banda del HDI"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 502f0467db1249c3b26f493c17b4d3c3
+msgid "New on both methods"
+msgstr "Nuevo en ambos métodos"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 1d9e573112084a99a99a9be2e45f731f
+msgid "`n_samples: int = 10`"
+msgstr "`n_samples: int = 10`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 73fa3f4132c547ef9439938f583ee449
+msgid "New on `saturation_curves()` — number of posterior draws to overlay"
+msgstr ""
+"Nuevo en `saturation_curves()` — número de muestras de la distribución "
+"posterior que se superponen"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 3fd6f225b7b641a4abd9a8c4f16e2fe4
+msgid "`random_seed`"
+msgstr "`random_seed`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: a43b42655e9c4bbd85e93a371e512459
+msgid "New on `saturation_curves()` — for reproducible sample selection"
+msgstr ""
+"Nuevo en `saturation_curves()` — para una selección reproducible de muestras"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: e42cd7e963ca4e71899197e39feea790
+msgid "`mean_curve_kwargs`"
+msgstr "`mean_curve_kwargs`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 47b718c966be4cfbb3b1af9e4559d377
+msgid "New on `saturation_curves()` — style the mean curve separately"
+msgstr ""
+"Nuevo en `saturation_curves()` — da estilo a la curva media por separado"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: b2deafa131984307830d9f02bf6f50dc
+msgid "`sample_curves_kwargs`"
+msgstr "`sample_curves_kwargs`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: a79642a6e87e4e1e8ff5a717fbe63442
+msgid "New on `saturation_curves()` — style individual sample curves"
+msgstr ""
+"Nuevo en `saturation_curves()` — da estilo a las curvas de muestra "
+"individuales"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: ce8ba935608741e5a092a8c9051b8c7c
+msgid "`curves: xr.DataArray`"
+msgstr "`curves: xr.DataArray`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: b8ba427ac0b0472ca8a9c714d4b66b32
+msgid "Now required positional arg on `saturation_curves()`"
+msgstr "Ahora es un argumento posicional obligatorio en `saturation_curves()`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:160002
+#: f50364b833554745b0d01802daa3da9a
+msgid "Budget Plots"
+msgstr "Gráficos de presupuesto"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:160004
+#: 3cb6201e3cfa4e1db512ced853235f08
+msgid ""
+"Budget plots have moved from `mmm.plot` to `optimizer.plot`. "
+"`BudgetPlots` is stateless — all data is passed per-call via `samples`."
+msgstr ""
+"Los gráficos de presupuesto se han movido de `mmm.plot` a `optimizer.plot`. "
+"`BudgetPlots` no tiene estado — todos los datos se pasan en cada llamada "
+"mediante `samples`."
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 38df17d653b942ca958d9a4d3706dc21
+msgid "`samples: xr.Dataset`"
+msgstr "`samples: xr.Dataset`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 0387d0312a51499e99d330623b462c32
+msgid "Required arg — output of `sample_response_distribution()`"
+msgstr "Argumento obligatorio — salida de `sample_response_distribution()`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:180002
+#: e6e1f26620ac48659c51286a9ae727e6
+msgid "Cross-Validation Plots"
+msgstr "Gráficos de validación cruzada"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:180004
+#: 34ad635277314030930d89f9a1c7ed61
+msgid "CV plots use `MMMCVPlotSuite` when `cv.plot_suite = \"new\"`."
+msgstr ""
+"Los gráficos de validación cruzada usan `MMMCVPlotSuite` cuando "
+"`cv.plot_suite = \"new\"`."
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: e472a790cf5e455ebddc39c15380fb70
+msgid "`var_names: list[str] | None`"
+msgstr "`var_names: list[str] | None`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: f3b8048503cc4ae5bdc31b6d009ff0f2
+msgid "New on `param_stability()` — filter which parameters appear"
+msgstr "Nuevo en `param_stability()` — filtra qué parámetros aparecen"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:200002
+#: 860ef452b5a743d1beeb3d22b11720c0
+msgid "Exporting plot data via `mmm.summary`"
+msgstr "Exportación de los datos de los gráficos mediante `mmm.summary`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:200004
+#: c9c024bb9f8d4c55992635900037c261
+msgid ""
+"For custom frontends, use `mmm.summary` (and `optimizer.summary` / "
+"`cv.summary`) instead of matplotlib figures. Issue "
+"[#2715](https://github.com/pymc-labs/pymc-marketing/issues/2715) proposed"
+" `return_data=True` on plots; the shipped design is the summary layer."
+msgstr ""
+"Para frontends personalizados, utilice `mmm.summary` (y `optimizer.summary` "
+"/ `cv.summary`) en lugar de figuras de matplotlib. El issue "
+"[#2715](https://github.com/pymc-labs/pymc-marketing/issues/2715) proponía "
+"`return_data=True` en los gráficos; el diseño que se publicó es la capa de "
+"resumen."
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 32cebf45b1c4407fb4857ca17982b937
+msgid "Plot"
+msgstr "Gráfico"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 2ad7198995de4374b1b157567cc8b311
+msgid "Summary"
+msgstr "Resumen"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: cdf445b5617149b2bd0ca1e80fab0255
+msgid "`mmm.plot.decomposition.waterfall`"
+msgstr "`mmm.plot.decomposition.waterfall`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 2295b4f290c746d9b034178835c2c799
+msgid "`mmm.summary.waterfall`"
+msgstr "`mmm.summary.waterfall`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: adc9da2c3bf14654a71aaf2ac28221c5
+msgid "`mmm.plot.diagnostics.posterior_predictive`"
+msgstr "`mmm.plot.diagnostics.posterior_predictive`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 0b681950b5584ce3b3c24a1d3329e196
+msgid "`mmm.summary.posterior_predictive`"
+msgstr "`mmm.summary.posterior_predictive`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 059a4c91b8bb47ddb7cf799860b9e5e7
+msgid "`optimizer.plot.allocation_roas(samples)`"
+msgstr "`optimizer.plot.allocation_roas(samples)`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 95295b0d8c324d7095ac0fec8234f395
+msgid "`optimizer.summary.allocation_roas(samples)`"
+msgstr "`optimizer.summary.allocation_roas(samples)`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: ebe1ec91312b45ff93ed956dae9a04df
+msgid "`cv.plot.predictions(cv_idata)`"
+msgstr "`cv.plot.predictions(cv_idata)`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+#: 27bbbcfe6610421a978d3813533a23f7
+msgid "`cv.summary.predictions()`"
+msgstr "`cv.summary.predictions()`"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:200015
+#: cd04155630c143c680db841c490909bc
+msgid ""
+"Full mapping: [Exporting MMM data for frontends](https://www.pymc-"
+"marketing.io/en/stable/guide/mmm/data_export.html)."
+msgstr ""
+"Mapeo completo: [Exportación de datos de MMM para "
+"frontends](https://www.pymc-"
+"marketing.io/en/stable/guide/mmm/data_export.html)."
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:210002
+#: feee54177a4f4c1a90be22e8b9731a2b
+msgid "Removal Timeline"
+msgstr "Cronograma de eliminación"
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:210004
+#: f2a817f88c2a4ff7adb0468bb167684e
+msgid ""
+"The legacy `MMMPlotSuite` (the default when `mmm.plot_suite` is not set) "
+"will be **removed in pymc-marketing 2.0.0**. Until then, accessing "
+"`mmm.plot` without opting in emits a `FutureWarning`."
+msgstr ""
+"El `MMMPlotSuite` heredado (el valor predeterminado cuando `mmm.plot_suite` "
+"no está establecido) se **eliminará en pymc-marketing 2.0.0**. Hasta "
+"entonces, acceder a `mmm.plot` sin optar por la nueva API emite un "
+"`FutureWarning`."
+
+#: ../source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb:210006
+#: be7968ed122e496eb9eb7ef41e60d0ac
+msgid "To suppress it: set `mmm.plot_suite = \"new\"`."
+msgstr "Para suprimirlo: establezca `mmm.plot_suite = \"new\"`."

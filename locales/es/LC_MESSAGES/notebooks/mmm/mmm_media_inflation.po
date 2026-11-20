@@ -1,0 +1,1002 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2026, PyMC Labs
+# This file is distributed under the same license as the PyMC-Marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyMC-Marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:10004
+#: 566c0813e30445dea1ef8fbadf248110
+msgid "Why and how to account for media inflation in your media mix model (MMM)"
+msgstr ""
+"Por qué y cómo tener en cuenta la inflación de medios en su modelo de mezcla"
+" de medios (MMM)"
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:10006
+#: adafd66cf1664a939a7bcc49be865004
+msgid ""
+"*Nominal spend can change meaning over time. This notebook shows how to "
+"choose a stable media input, adjust spend when necessary, and assess the "
+"effect on attribution.*"
+msgstr ""
+"*El gasto nominal puede cambiar de significado con el tiempo. Este cuaderno "
+"muestra cómo elegir una entrada de medios estable, ajustar el gasto cuando "
+"sea necesario y evaluar el efecto sobre la atribución.*"
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:10008
+#: 8906deb3115c46738e0d28d824126705
+msgid ""
+"Media inflation occurs when the cost of buying media increases over time."
+" For example, if CPM (cost per thousand impressions) rises faster than a "
+"budget, the same nominal spend buys fewer impressions. An MMM fitted "
+"directly on that spend may then confuse changes in media delivery with "
+"changes in baseline demand."
+msgstr ""
+"La inflación de medios ocurre cuando el costo de comprar medios aumenta con "
+"el tiempo. Por ejemplo, si el CPM (costo por mil impresiones) sube más "
+"rápido que el presupuesto, el mismo gasto nominal compra menos impresiones. "
+"Un MMM ajustado directamente sobre ese gasto puede entonces confundir los "
+"cambios en la entrega de medios con cambios en la demanda base."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:10010
+#: 61e8556b069642798d11b5ace4dc1834
+msgid ""
+"The practical goal is simple: give the model a media input whose units "
+"have a consistent interpretation across the modelling period. We first "
+"show why this matters with simulated data, then compare an MMM fitted on "
+"nominal spend with one fitted on spend converted to today's media-price "
+"units."
+msgstr ""
+"El objetivo práctico es simple: darle al modelo una entrada de medios cuyas "
+"unidades tengan una interpretación consistente a lo largo del período de "
+"modelado. Primero mostramos por qué esto importa con datos simulados y luego"
+" comparamos un MMM ajustado sobre el gasto nominal con uno ajustado sobre el"
+" gasto convertido a las unidades de precio de medios de hoy."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:10013
+#: 077af0d9cf054c299431c09b8ca6067f
+#, python-brace-format
+msgid ""
+"**Prerequisites.** You should have worked through {ref}`mmm_quickstart` "
+"or {ref}`mmm_example` and be able to build and fit an `MMM`. This "
+"notebook focuses on media-unit preprocessing rather than the general MMM "
+"workflow."
+msgstr ""
+"**Requisitos previos.** Debería haber trabajado con {ref}`mmm_quickstart` o "
+"{ref}`mmm_example` y ser capaz de construir y ajustar un `MMM`. Este "
+"cuaderno se centra en el preprocesamiento de las unidades de medios y no en "
+"el flujo de trabajo general de un MMM."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:10015
+#: 314a2e10ae54442d834a3ddd721edd51
+msgid ""
+"**Scope.** This notebook concerns **media-price inflation**, which "
+"changes how much delivery a given media spend buys. It is distinct from "
+"general consumer-price inflation: CPI is not a substitute for a media-"
+"cost index when adjusting the media input. If the KPI is revenue, general"
+" inflation (or, preferably, a relevant category or product price index) "
+"may separately inform whether to model nominal revenue, real revenue, or "
+"unit sales. Adjusting the KPI for that inflation is outside the scope of "
+"this notebook."
+msgstr ""
+"**Alcance.** Este cuaderno trata sobre la **inflación de precios de "
+"medios**, que cambia cuánta entrega compra un gasto de medios determinado. "
+"Es distinta de la inflación general de precios al consumidor: el IPC no "
+"sustituye a un índice de costos de medios al ajustar la entrada de medios. "
+"Si el KPI son los ingresos, la inflación general (o, preferiblemente, un "
+"índice de precios relevante de la categoría o del producto) puede servir por"
+" separado para decidir si modelar los ingresos nominales, los ingresos "
+"reales o las unidades vendidas. Ajustar el KPI por esa inflación queda fuera"
+" del alcance de este cuaderno."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:10017
+#: 882b6403be3f434bb7e8a816b799d84e
+msgid ""
+"The example uses one paid channel and simulated data with a known "
+"reference truth. The same reasoning applies to impressions, GRPs (gross "
+"rating points), and other measures of media delivery. In production, each"
+" channel may need its own media-cost index because auction inflation "
+"differs across formats."
+msgstr ""
+"El ejemplo usa un canal de pago y datos simulados con una verdad de "
+"referencia conocida. El mismo razonamiento se aplica a las impresiones, los "
+"GRP (puntos de rating bruto) y otras medidas de entrega de medios. En "
+"producción, cada canal puede necesitar su propio índice de costos de medios,"
+" porque la inflación de las subastas difiere entre formatos."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:20002
+#: bb9b72a412ee4968bd04264d9440e285
+msgid "Setup"
+msgstr "Configuración"
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:50002
+#: 0ee7417af0ca4bd7b72b675899eec5a5
+msgid "What media inflation changes"
+msgstr "Qué cambia la inflación de medios"
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:50004
+#: 9b5310f5c213424292c47f6d120eb07b
+msgid ""
+"Saturation maps the media input to an effective dose before it enters the"
+" outcome model. That mapping assumes a **time-invariant** relationship "
+"between the input and advertising exposure. In practice, delivery is "
+"linked to spend through a cost per unit:"
+msgstr ""
+"La saturación transforma la entrada de medios en una dosis efectiva antes de"
+" que entre en el modelo del resultado. Esa transformación supone una "
+"relación **invariante en el tiempo** entre la entrada y la exposición "
+"publicitaria. En la práctica, la entrega se vincula con el gasto a través de"
+" un costo por unidad:"
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:50006
+#: d9484d1ef092440ca23684ac784cc4a1
+msgid ""
+"\n"
+"\\text{delivery}_t \\propto \\frac{\\text{spend}_t}{\\text{cost per "
+"unit}_t}.\n"
+msgstr ""
+"\n"
+"\\text{delivery}_t \\propto \\frac{\\text{spend}_t}{\\text{cost per unit}_t}.\n"
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:50010
+#: 9a3d0049807b4b988db8c72ed04a0db7
+msgid ""
+"For paid social, cost per unit is CPM; for television, it may be cost per"
+" GRP. How spend and cost per unit move together determines what a spend-"
+"based MMM actually sees:"
+msgstr ""
+"En las redes sociales de pago, el costo por unidad es el CPM; en la "
+"televisión, puede ser el costo por GRP. La forma en que el gasto y el costo "
+"por unidad se mueven juntos determina lo que un MMM basado en el gasto "
+"realmente ve:"
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:50012
+#: b597fdc549de41b08de0a3d6b19dc696
+msgid ""
+"**Stable cost per unit.** Spend tracks delivery; a fixed saturation curve"
+" is appropriate."
+msgstr ""
+"**Costo por unidad estable.** El gasto sigue a la entrega; una curva de "
+"saturación fija es apropiada."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:50013
+#: d7b99408c4cb4bb39189dafdbd389fca
+msgid ""
+"**Constant nominal spend, rising cost per unit.** Budget is flat in "
+"currency terms but delivery falls. The model still sees a steady dose and"
+" may overstate past effectiveness or misattribute the shortfall to trend,"
+" seasonality, or other channels."
+msgstr ""
+"**Gasto nominal constante, costo por unidad en aumento.** El presupuesto es "
+"plano en términos monetarios, pero la entrega cae. El modelo sigue viendo "
+"una dosis constante y puede sobrestimar la efectividad pasada o atribuir "
+"erróneamente la caída a la tendencia, la estacionalidad u otros canales."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:50014
+#: 8ca166da432545689cfb9ad9a8b65039
+msgid ""
+"**Constant delivery (real-terms budget), rising cost per unit.** Nominal "
+"spend rises to hold impressions or GRPs flat. The model sees a growing "
+"dose where exposure is unchanged and can over-credit the channel."
+msgstr ""
+"**Entrega constante (presupuesto en términos reales), costo por unidad en "
+"aumento.** El gasto nominal sube para mantener constantes las impresiones o "
+"los GRP. El modelo ve una dosis creciente donde la exposición no ha cambiado"
+" y puede acreditar en exceso al canal."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:50015
+#: 2d3ab63886944f08bf2598585a0ea866
+msgid ""
+"**Spend rising faster than media inflation.** Delivery grows, but part of"
+" the nominal spend increase is price, not volume. Saturation treats every"
+" extra dollar as extra dose, which can inflate estimated returns."
+msgstr ""
+"**Gasto que crece más rápido que la inflación de medios.** La entrega crece,"
+" pero parte del aumento del gasto nominal es precio, no volumen. La "
+"saturación trata cada dólar adicional como una dosis adicional, lo que puede"
+" inflar los retornos estimados."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:50016
+#: c70f5afe07894ea7beb2eee32cbe3933
+msgid ""
+"**Spend rising slower than media inflation (or falling).** Nominal spend "
+"can still increase while delivery declines. The model may read a healthy "
+"budget trajectory when exposure is actually shrinking."
+msgstr ""
+"**Gasto que crece más lento que la inflación de medios (o que cae).** El "
+"gasto nominal aún puede aumentar mientras la entrega disminuye. El modelo "
+"puede interpretar una trayectoria saludable del presupuesto cuando en "
+"realidad la exposición se está reduciendo."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:50018
+#: a7a087bd44a14cf8b1f64b4f86311042
+msgid ""
+"In each drifting case, a model with **time-invariant** saturation cannot "
+"separate “the dollar buys less (or more) than it used to” from “the "
+"channel became less (or more) effective.” Without time-varying "
+"parameters, and without deflating spend by a cost index, the fit "
+"compensates by shifting attribution across media, baseline, and trend "
+"rather than isolating the unit-cost change."
+msgstr ""
+"En cada caso de deriva, un modelo con saturación **invariante en el tiempo**"
+" no puede separar “el dólar compra menos (o más) que antes” de “el canal se "
+"volvió menos (o más) efectivo”. Sin parámetros que varíen en el tiempo, y "
+"sin deflactar el gasto con un índice de costos, el ajuste compensa "
+"desplazando la atribución entre los medios, la línea base y la tendencia, en"
+" lugar de aislar el cambio del costo unitario."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:50020
+#: 2e22b38cf2f7404dacda7a8e16356cce
+msgid ""
+"Spend is not inherently the wrong input. When the cost per unit is "
+"stable, spend is proportional to delivery and a spend-based MMM can "
+"estimate a well-defined total effect of budget. What breaks is narrower: "
+"**the spend-to-delivery map drifts while saturation treats each dollar as"
+" the same dose.** A model that sees only nominal spend cannot distinguish"
+" that unit change from a change in media effectiveness or baseline "
+"demand."
+msgstr ""
+"El gasto no es en sí mismo la entrada equivocada. Cuando el costo por unidad"
+" es estable, el gasto es proporcional a la entrega y un MMM basado en el "
+"gasto puede estimar un efecto total bien definido del presupuesto. Lo que "
+"falla es más específico: **la relación entre gasto y entrega se desplaza "
+"mientras la saturación trata cada dólar como la misma dosis.** Un modelo que"
+" solo ve el gasto nominal no puede distinguir ese cambio de unidad de un "
+"cambio en la efectividad de los medios o en la demanda base."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:50022
+#: c179d179628d4df58f057bd483b4d6e2
+#, python-brace-format
+msgid ""
+"Many teams fit native delivery units such as impressions or GRPs when "
+"those series are stable and well measured, then use "
+"{ref}`mmm_cost_per_unit` for currency reporting. Others fit spend "
+"directly when the spend-to-delivery map is stable, or reconstruct "
+"delivery from spend and a smooth cost-per-unit series before fitting. "
+"That unit choice depends on your estimand, data quality, and how costs "
+"move over time; see {ref}`mmm_cost_per_unit` for a broader discussion. "
+"This notebook focuses on the spend-only path when delivery is "
+"unavailable: deflate spend with an external media-cost index, then test "
+"how sensitive attribution is to the assumed rate. A decision table with "
+"common workflows appears in the summary."
+msgstr ""
+"Muchos equipos ajustan unidades de entrega nativas, como impresiones o GRP, "
+"cuando esas series son estables y están bien medidas, y luego usan "
+"{ref}`mmm_cost_per_unit` para reportar en términos monetarios. Otros ajustan"
+" el gasto directamente cuando la relación entre gasto y entrega es estable, "
+"o reconstruyen la entrega a partir del gasto y de una serie suave de costo "
+"por unidad antes de ajustar. Esa elección de unidades depende de su "
+"estimando, de la calidad de los datos y de cómo se muevan los costos a lo "
+"largo del tiempo; consulte {ref}`mmm_cost_per_unit` para una discusión más "
+"amplia. Este cuaderno se centra en la vía que solo usa el gasto cuando no se"
+" dispone de la entrega: deflactar el gasto con un índice externo de costos "
+"de medios y luego probar qué tan sensible es la atribución a la tasa "
+"supuesta. En el resumen aparece una tabla de decisión con flujos de trabajo "
+"comunes."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:50024
+#: 2ed15e2f58ed4b1e88549a1d2825e702
+msgid ""
+"The simulated example is deliberately small: one market, one paid "
+"channel, and 156 weeks. Media cost is exogenous in the data-generating "
+"process; targeting feedback, demand-driven pricing, and causal "
+"confounding are out of scope here. Its known reference truth lets us "
+"check whether an MMM recovers the direction of media and trend "
+"contributions."
+msgstr ""
+"El ejemplo simulado es deliberadamente pequeño: un mercado, un canal de pago"
+" y 156 semanas. El costo de los medios es exógeno en el proceso generador de"
+" datos; la retroalimentación de la segmentación, los precios impulsados por "
+"la demanda y la confusión causal quedan fuera del alcance aquí. Su verdad de"
+" referencia conocida nos permite comprobar si un MMM recupera la dirección "
+"de las contribuciones de los medios y de la tendencia."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:50026
+#: de76a90a80cc41ca8ad383d8ce5bf7e7
+#, python-brace-format
+msgid ""
+"We use a constant intercept, mild yearly seasonality, and a few-"
+"changepoint {class}`~pymc_marketing.mmm.linear_trend.LinearTrend` in "
+"every fit. The model specification stays fixed so the comparison isolates"
+" the effect of changing the units of $X$."
+msgstr ""
+"Usamos un intercepto constante, una estacionalidad anual suave y una "
+"{class}`~pymc_marketing.mmm.linear_trend.LinearTrend` con pocos puntos de "
+"cambio en cada ajuste. La especificación del modelo permanece fija, de modo "
+"que la comparación aísla el efecto de cambiar las unidades de $X$."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:50028
+#: ef12a1941f2849bfaac45b6143480637
+msgid ""
+"The diagram below summarizes the data-generating structure for the "
+"simulation."
+msgstr ""
+"El diagrama siguiente resume la estructura generadora de datos de la "
+"simulación."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:70002
+#: 6d684e0cc77c45ea97da71a490437551
+msgid ""
+"**Caption:** Data-generating DAG: nominal spend and cost per unit "
+"determine delivery; delivery, baseline demand, and seasonality determine "
+"sales. Spend-only analysts observe spend and sales. Dashed borders mark "
+"latent nodes (cost per unit and delivery)."
+msgstr ""
+"**Leyenda:** DAG generador de datos: el gasto nominal y el costo por unidad "
+"determinan la entrega; la entrega, la demanda base y la estacionalidad "
+"determinan las ventas. Los analistas que solo tienen el gasto observan el "
+"gasto y las ventas. Los bordes discontinuos marcan los nodos latentes (costo"
+" por unidad y entrega)."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:80002
+#: fd5b8ba5ec6f48868adc26f9e3f81188
+msgid ""
+"The next cell generates this example. Nominal spend and cost per unit "
+"determine impressions. The analyst receives **date, nominal spend, and "
+"sales**; impressions and CPM are simulated reference columns for "
+"validation only."
+msgstr ""
+"La siguiente celda genera este ejemplo. El gasto nominal y el costo por "
+"unidad determinan las impresiones. El analista recibe **la fecha, el gasto "
+"nominal y las ventas**; las impresiones y el CPM son columnas de referencia "
+"simuladas, solo para validación."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:100002
+#: 34c1e2eb9d3f4a42a9c441bc4a695365
+msgid ""
+"Index nominal spend and impressions to week 1 (= 100) so the divergence "
+"between budget growth and delivery is easy to see."
+msgstr ""
+"Indexamos el gasto nominal y las impresiones a la semana 1 (= 100) para que "
+"la divergencia entre el crecimiento del presupuesto y la entrega sea fácil "
+"de ver."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:120002
+#: 9c2e91afd67c4d9899a2c1bc0ae81ed6
+msgid ""
+"**Caption:** Nominal paid-social spend and impressions indexed to week 1 "
+"(= 100). Spend increases with budget growth, while impressions decrease "
+"because CPM increases faster than spend."
+msgstr ""
+"**Leyenda:** Gasto nominal en redes sociales de pago e impresiones indexados"
+" a la semana 1 (= 100). El gasto aumenta con el crecimiento del presupuesto,"
+" mientras que las impresiones disminuyen porque el CPM aumenta más rápido "
+"que el gasto."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:130002
+#: e634c6512cee405187936740770e9b9d
+msgid ""
+"The four weekly series below show CPM, spend, impressions, and sales "
+"together."
+msgstr ""
+"Las cuatro series semanales siguientes muestran juntos el CPM, el gasto, las"
+" impresiones y las ventas."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:150002
+#: 3b0073ab2cce405faf5f94bdd997fdcb
+msgid ""
+"**Caption:** Weekly CPM (\\$), nominal paid-social spend (\\$), "
+"impressions, and sales over 156 weeks. CPM increases faster than spend, "
+"impressions decrease, and sales remain approximately stable apart from "
+"campaign flighting, seasonality, and noise."
+msgstr ""
+"**Leyenda:** CPM semanal (\\$), gasto nominal en redes sociales de pago "
+"(\\$), impresiones y ventas a lo largo de 156 semanas. El CPM aumenta más "
+"rápido que el gasto, las impresiones disminuyen y las ventas se mantienen "
+"aproximadamente estables, salvo por el flighting de las campañas, la "
+"estacionalidad y el ruido."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:160002
+#: 6013db814e9741b3be7f92747f8b12b5
+msgid "Deflate spend and fit the MMM"
+msgstr "Deflactar el gasto y ajustar el MMM"
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:160004
+#: 3fc3c4c05b7e41a8932c41b02ffa028e
+msgid ""
+"Saturation maps the media input to contribution. If that input is nominal"
+" spend, the model treats a nominal ad dollar in 2023 as equivalent to a "
+"nominal ad dollar today. When media prices rise, those two amounts can "
+"buy different amounts of delivery."
+msgstr ""
+"La saturación transforma la entrada de medios en contribución. Si esa "
+"entrada es el gasto nominal, el modelo trata un dólar nominal de publicidad "
+"en 2023 como equivalente a un dólar nominal de publicidad de hoy. Cuando los"
+" precios de los medios suben, esas dos cantidades pueden comprar cantidades "
+"distintas de entrega."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:160006
+#: 5d2158910b0d4cc097c3cff26d30bd76
+msgid ""
+"We convert historical spend to today's media-price units, where today "
+"means the last date in the sample:"
+msgstr ""
+"Convertimos el gasto histórico a las unidades de precio de medios de hoy, "
+"donde hoy significa la última fecha de la muestra:"
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:160008
+#: 1132591fc68344f99180a32553802dfe
+msgid ""
+"\n"
+"I_t = \\frac{p_t}{p_{\\text{today}}}, \\qquad x^{\\text{today}}_t = "
+"\\frac{x^{\\text{nom}}_t}{I_t}.\n"
+msgstr ""
+"\n"
+"I_t = \\frac{p_t}{p_{\\text{today}}}, \\qquad x^{\\text{today}}_t = \\frac{x^{\\text{nom}}_t}{I_t}.\n"
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:160012
+#: 7080b18058564b54ad5e9edca74fc376
+msgid ""
+"Here $I_t$ is a smooth media-cost index built from an assumed annual "
+"inflation rate. In production, that rate is an estimate from platform-"
+"reported CPM, aggregated auction data, or agency or industry benchmarks, "
+"not from CPI."
+msgstr ""
+"Aquí $I_t$ es un índice suave de costos de medios construido a partir de una"
+" tasa de inflación anual supuesta. En producción, esa tasa es una estimación"
+" basada en el CPM reportado por las plataformas, en datos agregados de "
+"subastas o en referencias de agencias o de la industria, no en el IPC."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:160014
+#: 6df235e0947240259892181dbd22cde5
+msgid "We fit the same MMM specification at three assumed annual rates:"
+msgstr ""
+"Ajustamos la misma especificación de MMM con tres tasas anuales supuestas:"
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:10012
+#: 89407c550fe742a3b2dd1fa41e71ee40
+msgid "Assumed rate"
+msgstr "Tasa supuesta"
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:10012
+#: 39dc774a2e9645f7b5bf52bfe682f371
+msgid "Role"
+msgstr "Rol"
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:10012
+#: 3c266d0e5ac749508675330ccbfc86df
+msgid "**0%**"
+msgstr "**0%**"
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:10012
+#: 0bda902cf0ae470a8e6b822fa8d9c813
+msgid "Nominal spend: no deflation"
+msgstr "Gasto nominal: sin deflactar"
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:10012
+#: 1d606331723e4bcd9da3de117b2df8b7
+msgid "**8%**"
+msgstr "**8%**"
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:10012
+#: 4eef5e83af70449f83bf62ff136492fb
+msgid "Exact simulated benchmark: best case when the index matches truth"
+msgstr ""
+"Referencia simulada exacta: el mejor caso, cuando el índice coincide con la "
+"verdad"
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:10012
+#: e1c4d289512f44198237b6e8aecce98d
+msgid "**16%**"
+msgstr "**16%**"
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:10012
+#: 211716ac284841b3aa82fba4aa216860
+msgid "Illustrative over-correction: sensitivity when the index is set too high"
+msgstr ""
+"Sobrecorrección ilustrativa: sensibilidad cuando el índice se fija demasiado"
+" alto"
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:160022
+#: e1c4e55a3fe3410aac524a28a21aac3a
+#, python-format
+msgid "The 8% rate is known only because this is simulated data."
+msgstr "La tasa del 8% se conoce solo porque se trata de datos simulados."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:160025
+#: 09dbb8a78d9d4e63afe4c747db17e1c2
+#, python-brace-format
+msgid ""
+"Calling {meth}`~pymc_marketing.mmm.mmm.MMM.set_cost_per_unit` on an "
+"already-fitted spend model only changes the denominator used for ROAS "
+"(return on ad spend). It does not rewrite the media input, so it cannot "
+"fix attribution. Deflate spend, or switch to a delivery-based media input"
+" that matches your workflow, *before* `fit`. For reporting and "
+"optimisation after fitting on delivery units, see "
+"{ref}`mmm_cost_per_unit`."
+msgstr ""
+"Llamar a {meth}`~pymc_marketing.mmm.mmm.MMM.set_cost_per_unit` sobre un "
+"modelo de gasto ya ajustado solo cambia el denominador usado para el ROAS "
+"(retorno del gasto publicitario). No reescribe la entrada de medios, por lo "
+"que no puede corregir la atribución. Deflacte el gasto, o cambie a una "
+"entrada de medios basada en la entrega que se ajuste a su flujo de trabajo, "
+"*antes* de `fit`. Para reportar y optimizar después de ajustar con unidades "
+"de entrega, consulte {ref}`mmm_cost_per_unit`."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:170002
+#: ecdd3a7b0aa04f3e93794a3a00e0931f
+msgid ""
+"We wrap the shared `MMM` specification in a helper so every inflation "
+"scenario uses identical model structure."
+msgstr ""
+"Envolvemos la especificación compartida de `MMM` en una función auxiliar "
+"para que cada escenario de inflación use exactamente la misma estructura de "
+"modelo."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:190002
+#: 0c4fd54a8cd74a9bb643ca4714e059ba
+msgid ""
+"These functions implement the media-cost index and deflation formula from"
+" above."
+msgstr ""
+"Estas funciones implementan el índice de costos de medios y la fórmula de "
+"deflación de más arriba."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:220002
+#: 92d8d9a9dbd14a7aa5a47a5d90194d94
+msgid ""
+"Fit one model per assumed inflation rate and store contribution datasets "
+"for comparison."
+msgstr ""
+"Ajustamos un modelo por cada tasa de inflación supuesta y guardamos los "
+"datasets de contribuciones para compararlos."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:240002
+#: f087136f349546bfbb281914c2134c9c
+msgid ""
+"Confirm that all three fits sampled without divergences before comparing "
+"attributions. This is a sampling check, not evidence for the correct "
+"index."
+msgstr ""
+"Confirmamos que los tres ajustes muestrearon sin divergencias antes de "
+"comparar las atribuciones. Esto es una comprobación del muestreo, no una "
+"evidencia a favor del índice correcto."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:260002
+#: 707d22d2cad34e32831d66b10af9a7f5
+msgid "Nominal spend shows the failure mode"
+msgstr "El gasto nominal muestra el modo de falla"
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:260004
+#: e50dd56c7300419982cc59df1bf50029
+#, python-brace-format
+msgid ""
+"Contributions are on the original scale of $y$, via "
+"{meth}`~pymc_marketing.mmm.mmm.MMM.compute_counterfactual_contributions_dataset`."
+" The black dashed line is the planted media contribution (gentle decline "
+"with delivery; flighting visible week to week), not a model output."
+msgstr ""
+"Las contribuciones están en la escala original de $y$, mediante "
+"{meth}`~pymc_marketing.mmm.mmm.MMM.compute_counterfactual_contributions_dataset`."
+" La línea negra discontinua es la contribución de medios plantada (descenso "
+"suave con la entrega; con el flighting visible de una semana a otra), no una"
+" salida del modelo."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:270002
+#: dc2f62fc294d4cffab87f15f1d84e7d9
+msgid ""
+"Plot fitted media and trend contributions from the nominal-spend model "
+"against the simulated reference."
+msgstr ""
+"Graficamos las contribuciones ajustadas de los medios y de la tendencia del "
+"modelo de gasto nominal frente a la referencia simulada."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:290002
+#: 0c60966d1d1b4da5b5c9324bd4da2884
+#, python-format
+msgid ""
+"**Caption:** Posterior mean and 94% highest-density interval (HDI) for "
+"paid-social media contribution (top) and model-implied `LinearTrend` "
+"contribution (bottom) when the MMM is fit on nominal spend. Black dashed "
+"lines show the simulated reference media contribution and the reference "
+"trend of zero."
+msgstr ""
+"**Leyenda:** Media posterior e intervalo de mayor densidad (HDI) del 94% "
+"para la contribución de los medios en redes sociales de pago (arriba) y para"
+" la contribución de `LinearTrend` implícita en el modelo (abajo) cuando el "
+"MMM se ajusta con el gasto nominal. Las líneas negras discontinuas muestran "
+"la contribución de medios de referencia simulada y la tendencia de "
+"referencia igual a cero."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:300002
+#: 32e82ecc97334844a62b0182e7471139
+msgid ""
+"Later weeks have higher nominal spend but fewer impressions. A time-"
+"invariant saturation curve maps the increasing dollars to an increasing "
+"fitted media contribution, even though the reference media contribution "
+"falls with delivery. Because total sales remain roughly flat, the model-"
+"implied trend contribution falls to offset the media contribution."
+msgstr ""
+"Las semanas posteriores tienen un gasto nominal mayor pero menos "
+"impresiones. Una curva de saturación invariante en el tiempo transforma los "
+"dólares crecientes en una contribución de medios ajustada creciente, aunque "
+"la contribución de medios de referencia cae con la entrega. Como las ventas "
+"totales se mantienen aproximadamente planas, la contribución de la tendencia"
+" implícita en el modelo cae para compensar la contribución de los medios."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:300004
+#: c07d5493082d431891ff40566017f195
+msgid ""
+"The declining trend is therefore not observed declining baseline sales. "
+"It is the model's decomposition of stable sales when the media input has "
+"not been adjusted for inflation."
+msgstr ""
+"Por lo tanto, la tendencia decreciente no es una caída observada en las "
+"ventas base. Es la descomposición que hace el modelo de unas ventas estables"
+" cuando la entrada de medios no se ha ajustado por la inflación."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:310002
+#: d29401328e6740f183851e8f4fa649f9
+msgid "Compare index assumptions"
+msgstr "Comparar los supuestos del índice"
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:310004
+#: 5c95f67eeb8d4fb597448603a16637fd
+msgid ""
+"The three fits share the same model specification: saturation, "
+"seasonality, trend, and sales data. Only the assumed inflation rate, and "
+"therefore the units of the media input, change. A good in-sample fit does"
+" not establish that the model recovered the correct mechanism; compare "
+"trajectories and posterior predictive bands, not only averages."
+msgstr ""
+"Los tres ajustes comparten la misma especificación de modelo: saturación, "
+"estacionalidad, tendencia y datos de ventas. Solo cambia la tasa de "
+"inflación supuesta y, con ella, las unidades de la entrada de medios. Un "
+"buen ajuste dentro de muestra no demuestra que el modelo haya recuperado el "
+"mecanismo correcto; compare las trayectorias y las bandas predictivas "
+"posteriores, no solo los promedios."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:320002
+#: 24bbe2c1297147f3bfd36b0316017494
+msgid ""
+"Draw posterior predictive samples for the nominal-spend and exact-index "
+"models to check whether comparable fits imply the same decomposition."
+msgstr ""
+"Generamos muestras predictivas posteriores para los modelos de gasto nominal"
+" y de índice exacto para comprobar si ajustes comparables implican la misma "
+"descomposición."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:350002
+#: 81e84df3eaec43fcb447c623fe75b642
+#, python-format
+msgid ""
+"**Caption:** Observed weekly sales (\\$) with posterior predictive mean "
+"and 94% HDI from the nominal-spend and exact 8% index models. Overlapping"
+" bands show that comparable in-sample fit does not identify the correct "
+"media-versus-trend split."
+msgstr ""
+"**Leyenda:** Ventas semanales observadas (\\$) con la media predictiva "
+"posterior y el HDI del 94% de los modelos de gasto nominal y de índice "
+"exacto del 8%. Las bandas superpuestas muestran que un ajuste dentro de "
+"muestra comparable no identifica la separación correcta entre medios y "
+"tendencia."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:360002
+#: edec3a77f2b742dcb0755d2f9358e7c1
+msgid ""
+"Overlay media and trend contributions from all three index assumptions "
+"against the planted reference. Panels are by component so the three rates"
+" can be compared on the same axes."
+msgstr ""
+"Superponemos las contribuciones de los medios y de la tendencia de los tres "
+"supuestos de índice frente a la referencia plantada. Los paneles se "
+"organizan por componente para que las tres tasas puedan compararse en los "
+"mismos ejes."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:380002
+#: 7219bf3c355440c4866df8cc022ffa50
+msgid ""
+"**Caption:** Posterior mean and 94% HDI for paid-social media "
+"contribution (top) and model-implied trend contribution (bottom) at 0%, "
+"8%, and illustrative 16% assumed annual inflation. Black dashed lines "
+"show the simulated reference media contribution and the reference trend "
+"of zero."
+msgstr ""
+"**Leyenda:** Media posterior y HDI del 94% para la contribución de los "
+"medios en redes sociales de pago (arriba) y para la contribución de la "
+"tendencia implícita en el modelo (abajo) con una inflación anual supuesta "
+"del 0%, del 8% y, de forma ilustrativa, del 16%. Las líneas negras "
+"discontinuas muestran la contribución de medios de referencia simulada y la "
+"tendencia de referencia igual a cero."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:390002
+#: c68daea071e94f5386d0804dd147ef5e
+#, python-format
+msgid ""
+"**Takeaway:** The 8% index recovers the declining media path and a near-"
+"zero trend. Nominal spend and 16% do not, even though the previous figure"
+" showed that in-sample sales fit can look similar."
+msgstr ""
+"**Conclusión clave:** El índice del 8% recupera la trayectoria decreciente "
+"de los medios y una tendencia cercana a cero. El gasto nominal y el 16% no "
+"lo logran, aunque la figura anterior mostró que el ajuste de las ventas "
+"dentro de muestra puede parecer similar."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:390004
+#: 3d5bab74a49e44ba9eab1a66bb676c46
+msgid ""
+"The table below summarizes the same comparison as mean weekly "
+"contributions by year. With nominal spend (0%), fitted media contribution"
+" increases while the reference decreases, and the model-implied trend "
+"becomes more negative to offset that difference. At 8%, media follows the"
+" reference delivery pattern more closely and the trend contribution is "
+"smaller. With too much deflation (16%), the trend correction overshoots. "
+"Average media contribution can still look plausible under the wrong "
+"index, so trajectories matter more than levels alone."
+msgstr ""
+"La tabla siguiente resume la misma comparación como contribuciones semanales"
+" medias por año. Con el gasto nominal (0%), la contribución ajustada de los "
+"medios aumenta mientras la de referencia disminuye, y la tendencia implícita"
+" en el modelo se vuelve más negativa para compensar esa diferencia. Con el "
+"8%, los medios siguen más de cerca el patrón de entrega de referencia y la "
+"contribución de la tendencia es menor. Con demasiada deflación (16%), la "
+"corrección de la tendencia se pasa de largo. La contribución media de los "
+"medios aún puede parecer plausible con un índice equivocado, por lo que las "
+"trayectorias importan más que los niveles por sí solos."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:410002
+#: ee2407e62d54485b84f3f6e2b58bf739
+msgid "Summary and practical guidance"
+msgstr "Resumen y recomendaciones prácticas"
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:410004
+#: 2c21a6296359482486ea8ea6afb01653
+msgid ""
+"There is no single right media input for every channel. The table below "
+"lists common workflows rather than universal rules."
+msgstr ""
+"No existe una única entrada de medios correcta para todos los canales. La "
+"tabla siguiente enumera flujos de trabajo comunes, no reglas universales."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:160024
+#: 79f43939f79f437f91bab15760175262
+msgid "Situation"
+msgstr "Situación"
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:160024
+#: deeddcbc29544a56b3cd62dd591d9919
+msgid "Common MMM input"
+msgstr "Entrada común del MMM"
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:160024
+#: 7d9e92cf558a4274be15d90c9391afe7
+msgid "Notes"
+msgstr "Notas"
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:160024
+#: 5c6d48197b7846b5b0c54052bf04d9f6
+msgid "Impressions or GRPs are available"
+msgstr "Se dispone de impresiones o GRP"
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:160024
+#: 73b2fb60d34d4aeb8c2da33fc5172820
+msgid "Often fit delivery units directly"
+msgstr "A menudo se ajustan directamente las unidades de entrega"
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:160024
+#: f972d294716747a5aebea9f5f675cb1d
+#, python-brace-format
+msgid ""
+"Puts saturation on a stable exposure measure when delivery is well "
+"measured. Tradeoffs include data quality, missing channels, and whether "
+"the estimand is budget or exposure; see {ref}`mmm_cost_per_unit`."
+msgstr ""
+"Sitúa la saturación sobre una medida de exposición estable cuando la entrega"
+" está bien medida. Entre las compensaciones están la calidad de los datos, "
+"los canales faltantes y si el estimando es el presupuesto o la exposición; "
+"consulte {ref}`mmm_cost_per_unit`."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:160024
+#: c721343061e24b6d9195c8a9f47c128d
+msgid "Spend and CPM or cost-per-GRP are available"
+msgstr "Se dispone del gasto y del CPM o del costo por GRP"
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:160024
+#: 5c86fc297f3e40a39ed6d94cb5afa77d
+msgid "Often reconstruct delivery before fitting"
+msgstr "A menudo se reconstruye la entrega antes de ajustar"
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:160024
+#: 9057f21272a2428b8c279186fba15f7a
+msgid ""
+"Uses a delivery measure while retaining observed cost information for "
+"reporting."
+msgstr ""
+"Usa una medida de entrega y conserva la información de costos observada para"
+" reportar."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:160024
+#: 71d60bfd68b943e483d8a805ea2e8a6e
+msgid "Spend only"
+msgstr "Solo gasto"
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:160024
+#: 8021090270a7400ab723d88bf6889685
+msgid "Deflate spend with a smooth external media-cost index before `fit`"
+msgstr ""
+"Deflactar el gasto con un índice externo suave de costos de medios antes de "
+"`fit`"
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:160024
+#: 98314009677c4b90b82c5fe81eeb6c58
+msgid ""
+"Makes historical currency values more comparable when media prices "
+"changed. Treat the index as an estimate and run sensitivity on the "
+"assumed rate."
+msgstr ""
+"Hace más comparables los valores monetarios históricos cuando los precios de"
+" los medios cambiaron. Trate el índice como una estimación y realice un "
+"análisis de sensibilidad sobre la tasa supuesta."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:160024
+#: 21e00bd358b04168b3dee751119cf6d5
+msgid "The question is specifically about budget or cost dynamics"
+msgstr ""
+"La pregunta trata específicamente sobre la dinámica del presupuesto o de los"
+" costos"
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:160024
+#: 3b716b0d9484467aa7ecfd49f1d6df51
+msgid "Model spend deliberately, with a clearly stated estimand"
+msgstr ""
+"Modelar el gasto de forma deliberada, con un estimando claramente definido"
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:160024
+#: 7be3f814d74748f5a19f52d4eb91f81f
+msgid ""
+"Different use case from estimating media exposure; may require an "
+"explicit cost or delivery model."
+msgstr ""
+"Es un caso de uso distinto de estimar la exposición a los medios; puede "
+"requerir un modelo explícito de costos o de entrega."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:410013
+#: 93b492251e0b49eab9ab81cbcc5fcd89
+msgid ""
+"Use a media-cost index, not consumer-price inflation (CPI). Deflation "
+"here is meant to put historical spend into comparable *media-price* "
+"units. CPI tracks a basket of consumer goods, not the cost of buying ads,"
+" and media prices typically move at a different rate and on a different "
+"calendar. Deflating an 8% media-price drift with a ~2% CPI series leaves "
+"most of the unit-cost change in $X$, which is close to not deflating."
+msgstr ""
+"Utilice un índice de costos de medios, no la inflación de precios al "
+"consumidor (IPC). La deflación aquí busca llevar el gasto histórico a "
+"unidades de *precio de medios* comparables. El IPC sigue una canasta de "
+"bienes de consumo, no el costo de comprar anuncios, y los precios de los "
+"medios suelen moverse a un ritmo distinto y en un calendario diferente. "
+"Deflactar una deriva del 8% en el precio de los medios con una serie de IPC "
+"de ~2% deja la mayor parte del cambio de costo unitario en $X$, lo que "
+"equivale casi a no deflactar."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:410015
+#: c15de43868ef46b7bc9ab5c2f1477df2
+msgid ""
+"Prefer an annual or quarterly media-cost index, not a jagged weekly CPM "
+"series. Week-to-week cost variation reflects auctions, mix, targeting, "
+"and seasonal competition rather than inflation. Dividing spend by that "
+"series injects high-frequency noise into the media input, and if the CPM "
+"is your own realized cost it is partly endogenous to bidding. If delivery"
+" is well measured, fit impressions or GRPs instead of reconstructing them"
+" from a noisy cost series."
+msgstr ""
+"Prefiera un índice de costos de medios anual o trimestral, no una serie "
+"irregular de CPM semanal. La variación semanal del costo refleja las "
+"subastas, la mezcla, la segmentación y la competencia estacional, más que la"
+" inflación. Dividir el gasto por esa serie inyecta ruido de alta frecuencia "
+"en la entrada de medios y, si el CPM es su propio costo realizado, es en "
+"parte endógeno a las pujas. Si la entrega está bien medida, ajuste las "
+"impresiones o los GRP en lugar de reconstruirlos a partir de una serie de "
+"costos ruidosa."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:410017
+#: 2d55eb65c08b4ad19a3c0a27b66f61dd
+msgid ""
+"Do not automatically provide spend and impressions as two independent "
+"media channels. Spend is upstream of delivery, so including both requires"
+" a separate modelling argument about any direct effect of spend on sales."
+msgstr ""
+"No proporcione automáticamente el gasto y las impresiones como dos canales "
+"de medios independientes. El gasto está aguas arriba de la entrega, por lo "
+"que incluir ambos requiere un argumento de modelado aparte sobre cualquier "
+"efecto directo del gasto sobre las ventas."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:410019
+#: 8d3f3e1c9e4447bc83835e92e1e20d23
+msgid ""
+"This example keeps the KPI (sales) in nominal dollars because the "
+"simulated baseline is flat. If your target is revenue and product prices "
+"are also inflating, decide whether the estimand is nominal revenue, real "
+"revenue, or unit sales and adjust $y$ or add price controls accordingly. "
+"Deflating $X$ while leaving a nominal revenue target unchanged is a "
+"deliberate mismatch only when revenue inflation matters."
+msgstr ""
+"Este ejemplo mantiene el KPI (las ventas) en dólares nominales porque la "
+"línea base simulada es plana. Si su objetivo son los ingresos y los precios "
+"de los productos también están subiendo, decida si el estimando son los "
+"ingresos nominales, los ingresos reales o las unidades vendidas, y ajuste "
+"$y$ o agregue controles de precio en consecuencia. Deflactar $X$ y dejar sin"
+" cambios un objetivo de ingresos nominales es un desajuste deliberado solo "
+"cuando la inflación de los ingresos importa."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:410021
+#: 6668ecb572cb47c88dc88b05593ba573
+msgid ""
+"Media inflation can make nominal spend rise while impressions or GRPs "
+"fall."
+msgstr ""
+"La inflación de medios puede hacer que el gasto nominal suba mientras las "
+"impresiones o los GRP caen."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:410022
+#: eede638332d04c529462533623f6e994
+msgid ""
+"A nominal-spend MMM may fit stable sales by increasing its media "
+"contribution and decreasing its model-implied trend. That declining trend"
+" is an inferred decomposition, not observed declining baseline sales."
+msgstr ""
+"Un MMM de gasto nominal puede ajustar unas ventas estables aumentando su "
+"contribución de medios y disminuyendo su tendencia implícita en el modelo. "
+"Esa tendencia decreciente es una descomposición inferida, no una caída "
+"observada en las ventas base."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:410023
+#: 0dd8589a99444fb194917f7d06bbaa77
+msgid ""
+"Comparable in-sample fit does not verify the correct decomposition; check"
+" contribution trajectories and index sensitivity."
+msgstr ""
+"Un ajuste dentro de muestra comparable no verifica que la descomposición sea"
+" la correcta; compruebe las trayectorias de las contribuciones y la "
+"sensibilidad al índice."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:410024
+#: 012d65ca835f4ac1a5320d75859bad78
+msgid ""
+"`set_cost_per_unit` changes ROAS denominators after fitting. It does not "
+"correct a media input specified in the wrong units."
+msgstr ""
+"`set_cost_per_unit` cambia los denominadores del ROAS después del ajuste. No"
+" corrige una entrada de medios especificada en las unidades equivocadas."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:410025
+#: 2627ec89273b45daaeddf22efe96da73
+#, python-brace-format
+msgid ""
+"For budget optimisation, pass a future `cost_per_unit` to "
+"{meth}`~pymc_marketing.mmm.mmm.MMM.optimize_budget` or fit on stable "
+"delivery units. See {ref}`mmm_cost_per_unit`."
+msgstr ""
+"Para la optimización del presupuesto, pase un `cost_per_unit` futuro a "
+"{meth}`~pymc_marketing.mmm.mmm.MMM.optimize_budget` o ajuste con unidades de"
+" entrega estables. Consulte {ref}`mmm_cost_per_unit`."
+
+#: ../source/notebooks/mmm/mmm_media_inflation.ipynb:410028
+#: 6dedd6cb0ef041438228717507624279
+#, python-brace-format
+msgid ""
+"Long-horizon optimisation and scenario planning need planned-horizon "
+"cost-per-unit assumptions because future dollars may buy less delivery. "
+"That workflow is documented in {ref}`mmm_cost_per_unit`; this notebook "
+"stops at attribution preprocessing."
+msgstr ""
+"La optimización a largo plazo y la planificación de escenarios necesitan "
+"supuestos de costo por unidad para el horizonte planificado, porque los "
+"dólares futuros pueden comprar menos entrega. Ese flujo de trabajo está "
+"documentado en {ref}`mmm_cost_per_unit`; este cuaderno se detiene en el "
+"preprocesamiento para la atribución."
