@@ -1,0 +1,1898 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2026, PyMC Labs
+# This file is distributed under the same license as the PyMC-Marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyMC-Marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:10003
+#: a0ab5bff25404faa91988bd6f1b2d61c
+msgid "Halo and Cannibalisation Effects in Multi-Dimensional MMMs"
+msgstr "Efectos de halo y canibalización en MMM multidimensionales"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:10005
+#: 174ad6acbf044ef8b7ff5b6a5d09ceee
+msgid "Motivation"
+msgstr "Motivación"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:10007
+#: f30d3fdf22dd422b808ef4ffe56284d6
+msgid ""
+"In a brand portfolio, advertising one product rarely affects only that "
+"product. A flagship campaign lifts awareness for the whole range, a "
+"promotion on the mid-tier line pulls shoppers away from the premium line,"
+" and two products sold side by side compete for the same basket. The lift"
+" is usually called a **halo** effect and the loss a **cannibalisation** "
+"effect, but they are the same quantity with opposite sign: the response "
+"of product $i$ to media spent on product $j$."
+msgstr ""
+"En un portafolio de marcas, anunciar un producto rara vez afecta solo a ese "
+"producto. Una campaña del producto insignia aumenta el conocimiento de marca"
+" de toda la gama, una promoción en la línea de nivel medio aleja a los "
+"compradores de la línea premium, y dos productos vendidos uno al lado del "
+"otro compiten por la misma cesta de compra. El aumento suele llamarse efecto"
+" **halo** y la pérdida efecto de **canibalización**, pero son la misma "
+"cantidad con signo opuesto: la respuesta del producto $i$ a los medios "
+"invertidos en el producto $j$."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:10015
+#: 2fae07e534794588a297173f1b07518e
+msgid ""
+"A standard MMM fitted per product sees none of this. Every cross-product "
+"effect has to be absorbed somewhere, and it lands in the intercept and in"
+" the product's own channel coefficients. The consequences are concrete:"
+msgstr ""
+"Un MMM estándar ajustado por producto no ve nada de esto. Todo efecto entre "
+"productos tiene que ser absorbido en algún lugar, y termina en el intercepto"
+" y en los coeficientes de los canales propios del producto. Las "
+"consecuencias son concretas:"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:10019
+#: cf8360653ae94cb8baa9874f55ee33da
+msgid ""
+"**ROAS is biased in both directions.** A flagship that drives portfolio-"
+"wide demand looks weaker than it is, because the sales it generates are "
+"booked against other products. A product that mostly steals from its "
+"siblings looks stronger than it is, because the offsetting loss is "
+"invisible."
+msgstr ""
+"**El ROAS está sesgado en ambas direcciones.** Un producto insignia que "
+"impulsa la demanda de todo el portafolio parece más débil de lo que es, "
+"porque las ventas que genera se contabilizan en otros productos. Un producto"
+" que mayormente les quita ventas a sus hermanos parece más fuerte de lo que "
+"es, porque la pérdida compensatoria es invisible."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:10023
+#: 3b19674c82d94d3a8ad6f4d01f54f038
+msgid ""
+"**Budget optimisation inherits the bias.** An optimiser fed per-product "
+"ROAS will under-fund the flagship and over-fund the cannibal."
+msgstr ""
+"**La optimización del presupuesto hereda el sesgo.** Un optimizador "
+"alimentado con el ROAS por producto financiará de menos al producto insignia"
+" y de más al caníbal."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:10025
+#: 384c921fad5a4aa3852cc02a3826b627
+msgid ""
+"**Portfolio questions cannot be asked at all.** \"What is a flagship "
+"campaign worth across the whole range?\" has no representation in the "
+"model."
+msgstr ""
+"**Las preguntas a nivel de portafolio no pueden plantearse en absoluto.** "
+"\"¿Cuánto vale una campaña del producto insignia en toda la gama?\" no tiene"
+" representación en el modelo."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:10028
+#: 0040e1ffbda2409480a2cc22c81da8b4
+msgid ""
+"This notebook builds a cross-product term that can answer those "
+"questions, and is candid about when it cannot be identified from the "
+"data."
+msgstr ""
+"Este cuaderno construye un término entre productos que puede responder esas "
+"preguntas, y es franco sobre cuándo no se puede identificar a partir de los "
+"datos."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:10031
+#: cc703c8cad1543c0af94264cca6ac86c
+msgid "There is no single halo model"
+msgstr "No existe un único modelo de halo"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:10033
+#: fcd2b3fdd9f646ef81b3d5e3f5de4556
+msgid ""
+"\"Halo\" names a family of mechanisms rather than one equation, and there"
+" is no canonical way to write it down. What follows is a set of worked "
+"examples: the parameterisations we reach for most often, fitted side by "
+"side so that their failure modes are visible. None of them is *the* halo "
+"model."
+msgstr ""
+"\"Halo\" nombra una familia de mecanismos y no una sola ecuación, y no hay "
+"una forma canónica de escribirlo. Lo que sigue es un conjunto de ejemplos "
+"resueltos: las parametrizaciones que usamos con más frecuencia, ajustadas "
+"lado a lado para que sus modos de fallo sean visibles. Ninguna de ellas es "
+"*el* modelo de halo."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:10038
+#: 19eb9e6f16fc4d9aafbd1ccc9aa1ff53
+#, python-brace-format
+msgid ""
+"The machinery underneath is deliberately generic. A cross-product effect "
+"is an additive term in the mean, built as a custom "
+"{class}`~pymc_marketing.mmm.additive_effect.MuEffect`, and it may read "
+"any quantity the model has already computed. Three independent choices "
+"define the mechanism it encodes:"
+msgstr ""
+"La maquinaria subyacente es deliberadamente genérica. Un efecto entre "
+"productos es un término aditivo en la media, construido como un "
+"{class}`~pymc_marketing.mmm.additive_effect.MuEffect` personalizado, y puede"
+" leer cualquier cantidad que el modelo ya haya calculado. Tres decisiones "
+"independientes definen el mecanismo que codifica:"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:10044
+#: 7d7789be705b41eb96f2adc280a86b15
+msgid ""
+"**What signal the cross term reads.** Here it is a source product's total"
+" media contribution, but it could be a single channel's contribution "
+"(separating a brand-building halo from a promotional loss), a lagged "
+"contribution (transfer that arrives weeks later), a competitor's spend, "
+"or a latent factor."
+msgstr ""
+"**Qué señal lee el término cruzado.** Aquí es la contribución total de "
+"medios de un producto de origen, pero podría ser la contribución de un solo "
+"canal (separando un halo de construcción de marca de una pérdida "
+"promocional), una contribución con rezago (una transferencia que llega "
+"semanas después), el gasto de un competidor o un factor latente."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:10049
+#: 288fd97edb5c43fc9273129372d7cd4d
+msgid ""
+"**Which pairs may interact.** A boolean mask over ordered `(receiver, "
+"source)` pairs. This is where business knowledge enters."
+msgstr ""
+"**Qué pares pueden interactuar.** Una máscara booleana sobre los pares "
+"ordenados `(receiver, source)`. Aquí es donde entra el conocimiento del "
+"negocio."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:10051
+#: 18b03e1d44eb49b7a4fd19c86d201022
+msgid ""
+"**How the coefficients are tied together.** A shared shrinkage scale, a "
+"per-pair prior scale driven by product similarity, a low-rank "
+"factorisation, or a hierarchy over pairs."
+msgstr ""
+"**Cómo se vinculan entre sí los coeficientes.** Una escala de contracción "
+"compartida, una escala del prior por par determinada por la similitud entre "
+"productos, una factorización de bajo rango o una jerarquía sobre los pares."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:10055
+#: 4667a44fe21947e5a19db0aa2e971136
+msgid ""
+"Combining those three choices, one effect class covers flagship halos, "
+"family blocks, premium-to-standard hierarchies, competitive response, "
+"cross-promotion and category expansion. We fit a handful of combinations "
+"below; the point is the mechanics, not the menu."
+msgstr ""
+"Combinando esas tres decisiones, una sola clase de efecto cubre halos del "
+"producto insignia, bloques por familia, jerarquías de premium a estándar, "
+"respuesta competitiva, promoción cruzada y expansión de categoría. A "
+"continuación ajustamos un puñado de combinaciones; lo importante es la "
+"mecánica, no el menú."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:10060
+#: 2ed331af2abc42209f3ee044ee4ec205
+msgid "Mechanisms and what they imply for the model"
+msgstr "Mecanismos y lo que implican para el modelo"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:10062
+#: c9d50a4b82394ef992341ab95d63c23f
+msgid ""
+"It helps to name the mechanism before choosing a parameterisation, "
+"because different mechanisms imply different structures and different "
+"failure modes. Three common ones, drawn as causal graphs below:"
+msgstr ""
+"Conviene nombrar el mecanismo antes de elegir una parametrización, porque "
+"mecanismos distintos implican estructuras distintas y modos de fallo "
+"distintos. Tres comunes, dibujados a continuación como grafos causales:"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:10066
+#: cf216845a1d14cec9ca695c2622b7b27
+msgid ""
+"**Shared response.** Products respond similarly to the same channel. This"
+" is *not* a halo effect, it is a pooling question, and the right answer "
+"is a hierarchical prior over the per-product channel coefficients. If you"
+" model it as a cross-product term you will find \"halo\" everywhere."
+msgstr ""
+"**Respuesta compartida.** Los productos responden de forma similar al mismo "
+"canal. Esto *no* es un efecto de halo, es una cuestión de agrupamiento "
+"(pooling), y la respuesta correcta es un prior jerárquico sobre los "
+"coeficientes de canal de cada producto. Si lo modela como un término entre "
+"productos, encontrará \"halo\" en todas partes."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:10070
+#: 8c4bb374f43043a89ca32b3921538257
+msgid ""
+"**A common latent driver.** One unobserved quantity (brand awareness, "
+"seasonality, distribution) moves all products together, and media feeds "
+"it. A rank-1 latent factor is the natural parameterisation."
+msgstr ""
+"**Un impulsor latente común.** Una cantidad no observada (conocimiento de "
+"marca, estacionalidad, distribución) mueve a todos los productos juntos, y "
+"los medios la alimentan. Un factor latente de rango 1 es la parametrización "
+"natural."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:10073
+#: b4a78fdbd1844ccb8e51226f448424e0
+msgid ""
+"**Directed product-to-product transfer.** Media on $j$ changes demand for"
+" $i$ specifically, with a direction and a sign. This is what people "
+"usually mean by halo and cannibalisation, and it needs an explicit cross "
+"term."
+msgstr ""
+"**Transferencia dirigida de producto a producto.** Los medios en $j$ cambian"
+" la demanda de $i$ específicamente, con una dirección y un signo. Esto es lo"
+" que la gente suele entender por halo y canibalización, y requiere un "
+"término cruzado explícito."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:10077
+#: a54e6c027fd14eed9c35976958e25a29
+msgid ""
+"Mechanisms 2 and 3 are what we model below. Mechanism 1 is a warning: "
+"check that a hierarchical baseline does not already explain the "
+"correlation before reaching for a cross-product matrix."
+msgstr ""
+"Los mecanismos 2 y 3 son los que modelamos a continuación. El mecanismo 1 es"
+" una advertencia: compruebe que una línea base jerárquica no explique ya la "
+"correlación antes de recurrir a una matriz entre productos."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:10081
+#: 7a099036b1994426833832f6fe967bd8
+msgid ""
+"The graphs make the distinction sharp. Only mechanism 3 has an arrow from"
+" one product's media into another product's demand. Mechanism 1 has no "
+"such arrow at all: the products are linked through a shared prior on "
+"their own coefficients, which is a statement about our uncertainty rather"
+" than about the world. Mechanism 2 routes every product's media through "
+"one shared node, so it cannot lift one sibling while hurting another."
+msgstr ""
+"Los grafos hacen nítida la distinción. Solo el mecanismo 3 tiene una flecha "
+"desde los medios de un producto hacia la demanda de otro producto. El "
+"mecanismo 1 no tiene ninguna flecha de ese tipo: los productos se vinculan "
+"mediante un prior compartido sobre sus propios coeficientes, lo cual es una "
+"afirmación sobre nuestra incertidumbre y no sobre el mundo. El mecanismo 2 "
+"canaliza los medios de todos los productos a través de un único nodo "
+"compartido, por lo que no puede impulsar a un producto hermano y perjudicar "
+"a otro."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:30003
+#: 6bf3e1b09d7d4d968ceabc9aa3cf6539
+msgid ""
+"**How to read the graphs.** *Filled* nodes are observed or computed by "
+"the model: spend (pink), the adstocked and saturated contribution $C$ "
+"(blue), and the target $y$ (green). A *dashed outline* marks a latent "
+"quantity that no dataset contains. *Dotted* arrows are prior links "
+"between parameters rather than causal edges. Red arrows are halos and "
+"blue arrows cannibalisation, matching the colour scale of the estimated "
+"cross-effect matrix at the end of the notebook."
+msgstr ""
+"**Cómo leer los grafos.** Los nodos *rellenos* son observados o calculados "
+"por el modelo: el gasto (rosa), la contribución con adstock y saturación $C$"
+" (azul) y el objetivo $y$ (verde). Un *contorno discontinuo* marca una "
+"cantidad latente que ningún conjunto de datos contiene. Las flechas "
+"*punteadas* son vínculos de prior entre parámetros y no aristas causales. "
+"Las flechas rojas son halos y las azules canibalización, en consonancia con "
+"la escala de colores de la matriz de efectos cruzados estimada al final del "
+"cuaderno."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:40002
+#: ce517e08e5594f4f933bf9f346ef6bd2
+msgid "The standard multi-dimensional MMM"
+msgstr "El MMM multidimensional estándar"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:40004
+#: 0486d941f4904ab5b5ecb2cc30a8f25f
+msgid "The `MMM` class with `dims=(\"product\",)` estimates"
+msgstr "La clase `MMM` con `dims=(\"product\",)` estima"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:40006
+#: 44d07157837d4a5094ebfd1d10c630ab
+msgid ""
+"\n"
+"y_{t,i} = \\alpha_i\n"
+"  + \\underbrace{\\sum_{m=1}^{M} \\beta_{m,i}\\, "
+"f_m\\!\\bigl(\\{x_{m,s,i}\\}_{s \\le t}\\bigr)}_{C_{t,i}}\n"
+"  + \\varepsilon_{t,i},\n"
+msgstr ""
+"\n"
+"y_{t,i} = \\alpha_i\n"
+"  + \\underbrace{\\sum_{m=1}^{M} \\beta_{m,i}\\, f_m\\!\\bigl(\\{x_{m,s,i}\\}_{s \\le t}\\bigr)}_{C_{t,i}}\n"
+"  + \\varepsilon_{t,i},\n"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:40012
+#: 313059544bec45b4b9b87506dd002ff6
+#, python-brace-format
+msgid ""
+"where $f_m$ chains adstock with saturation. We write $C_{t,i}$ for "
+"product $i$'s total media contribution at time $t$. The key structural "
+"fact is that $C_{t,i}$ depends only on product $i$'s own spend. There is "
+"no coupling."
+msgstr ""
+"donde $f_m$ encadena adstock con saturación. Escribimos $C_{t,i}$ para la "
+"contribución total de medios del producto $i$ en el tiempo $t$. El hecho "
+"estructural clave es que $C_{t,i}$ depende únicamente del gasto del propio "
+"producto $i$. No hay acoplamiento."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:50002
+#: 3d61478e0a1f4bee95879787ae7ad7c6
+msgid "Where the cross term belongs"
+msgstr "Dónde pertenece el término cruzado"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:50004
+#: 367f0bd050574cbcbc520f5c553207b0
+msgid ""
+"The design question is *what signal the cross term reads*, and this is "
+"the single most consequential choice in the notebook."
+msgstr ""
+"La pregunta de diseño es *qué señal lee el término cruzado*, y esta es la "
+"decisión más determinante del cuaderno."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:50007
+#: 98d63a9a27bc4d6694d8d3e5c9e2c0af
+#, python-brace-format
+msgid ""
+"**Read the transformed contribution, not raw spend.** The cross term "
+"should read $C_{t,j}$, the already-adstocked and already-saturated "
+"contribution of the source product, and apply a plain linear coefficient "
+"to it:"
+msgstr ""
+"**Lea la contribución transformada, no el gasto sin procesar.** El término "
+"cruzado debería leer $C_{t,j}$, la contribución ya transformada por adstock "
+"y saturación del producto de origen, y aplicarle un coeficiente lineal "
+"simple:"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:50011
+#: 4e46b0c2aa5043d0bfb28350ec2ffc5b
+#, python-brace-format
+msgid ""
+"\n"
+"y_{t,i} = \\alpha_i + C_{t,i}\n"
+"  + \\sum_{j \\neq i} \\gamma_{ij}\\, C_{t,j}\n"
+"  + \\varepsilon_{t,i}.\n"
+msgstr ""
+"\n"
+"y_{t,i} = \\alpha_i + C_{t,i}\n"
+"  + \\sum_{j \\neq i} \\gamma_{ij}\\, C_{t,j}\n"
+"  + \\varepsilon_{t,i}.\n"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:50017
+#: 7188dff8c16547a8b927ea7f26e8a666
+msgid ""
+"Transform once, read linearly many times. The carryover and diminishing-"
+"returns structure is estimated once per source product from that "
+"product's own response, and every downstream reader inherits it. No new "
+"adstock or saturation parameters have to be estimated for the cross term."
+msgstr ""
+"Transformar una vez, leer linealmente muchas veces. La estructura de efecto "
+"de arrastre y rendimientos decrecientes se estima una sola vez por producto "
+"de origen a partir de la respuesta de ese mismo producto, y cada lector "
+"posterior la hereda. No hay que estimar nuevos parámetros de adstock ni de "
+"saturación para el término cruzado."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:50019
+#: c6f0c21b4cac489695c3e34fdc990c8e
+#, python-brace-format
+msgid ""
+"This is a *short parametrization*, not a structurally different model. "
+"Write the fully general alternative as a second, independent pathway from"
+" the source's spend into the receiver, with its own adstock and its own "
+"saturation per channel. Because the amplitude $\\beta_{m,j}$ enters "
+"$C_{t,j} = \\sum_m \\beta_{m,j} f_m(\\cdot)$ linearly, the cross term is "
+"exactly that general model with the adstock and saturation shape "
+"parameters completely pooled with the source's own pathway, and only the "
+"amplitude left free:"
+msgstr ""
+"Esta es una *parametrización corta*, no un modelo estructuralmente distinto."
+" Escriba la alternativa totalmente general como una segunda vía "
+"independiente desde el gasto del origen hacia el receptor, con su propio "
+"adstock y su propia saturación por canal. Como la amplitud $\\beta_{m,j}$ "
+"entra linealmente en $C_{t,j} = \\sum_m \\beta_{m,j} f_m(\\cdot)$, el "
+"término cruzado es exactamente ese modelo general con los parámetros de "
+"forma del adstock y de la saturación completamente agrupados con los de la "
+"vía propia del origen, y con solo la amplitud libre:"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:50021
+#: 3d94a62141ca4eea87ee3699f74b7d60
+msgid ""
+"\n"
+"\\gamma_{ij}\\, C_{t,j}\n"
+"  = \\sum_{m} \\left(\\gamma_{ij}\\, \\beta_{m,j}\\right)\n"
+"  f_m\\!\\bigl(\\{x_{m,s,j}\\}_{s \\le t}\\bigr).\n"
+msgstr ""
+"\n"
+"\\gamma_{ij}\\, C_{t,j}\n"
+"  = \\sum_{m} \\left(\\gamma_{ij}\\, \\beta_{m,j}\\right)\n"
+"  f_m\\!\\bigl(\\{x_{m,s,j}\\}_{s \\le t}\\bigr).\n"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:50027
+#: fa5f9cfc4a844ef89d5477468fd475ae
+#, python-brace-format
+msgid ""
+"The cross pathway therefore still carries a full adstock and a full "
+"saturation per channel, the same curves as the own pathway rescaled, and "
+"the only new parameter per pair is the effective amplitude "
+"$\\gamma_{ij}\\beta_{m,j}$. What the pooling assumes is that spillover "
+"inherits the source's carryover and curvature; if a pair genuinely needs "
+"its own shape, that is the point at which to write the second "
+"transformation out explicitly, keeping a saturation on it for the reason "
+"below."
+msgstr ""
+"Por lo tanto, la vía cruzada sigue teniendo un adstock completo y una "
+"saturación completa por canal, las mismas curvas que la vía propia "
+"reescaladas, y el único parámetro nuevo por par es la amplitud efectiva "
+"$\\gamma_{ij}\\beta_{m,j}$. Lo que supone el agrupamiento es que el derrame "
+"hereda el efecto de arrastre y la curvatura del origen; si un par realmente "
+"necesita su propia forma, ese es el punto en el que conviene escribir "
+"explícitamente la segunda transformación, manteniendo en ella una saturación"
+" por la razón que se explica a continuación."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:50029
+#: a41eff68eff5437b8bffe3001caa2499
+msgid ""
+"The alternative, giving the cross term its own transformation of the "
+"source's raw spend, has a specific failure mode worth naming. A cross "
+"term on raw spend without saturation grows without bound while the own-"
+"effect saturates, so at high spend the model can always improve the fit "
+"by shovelling more lift into the halo term. The fitted halo then keeps "
+"rising exactly where the direct effect flattens, and a budget optimiser "
+"reading that model will push spend to the top of the range. If you do "
+"want a raw-spend cross term, keep a saturation on it."
+msgstr ""
+"La alternativa, darle al término cruzado su propia transformación del gasto "
+"sin procesar del origen, tiene un modo de fallo específico que vale la pena "
+"nombrar. Un término cruzado sobre el gasto sin procesar y sin saturación "
+"crece sin límite mientras el efecto propio se satura, de modo que con gasto "
+"alto el modelo siempre puede mejorar el ajuste metiendo más aumento en el "
+"término de halo. El halo ajustado sigue entonces subiendo justo donde el "
+"efecto directo se aplana, y un optimizador de presupuesto que lea ese modelo"
+" empujará el gasto hasta el extremo superior del rango. Si de verdad desea "
+"un término cruzado sobre el gasto sin procesar, mantenga una saturación en "
+"él."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:50038
+#: 830a60cb8d7a418cb6b60c8beb450f2b
+#, python-brace-format
+msgid ""
+"**Sign-free by default.** $\\gamma_{ij}$ carries a `Normal` prior centred"
+" at zero, not a `HalfNormal`. A positive-only prior cannot express "
+"cannibalisation, and worse, it does not fail loudly: the posterior simply"
+" piles up near zero and the model reports \"no effect\" for a product "
+"that is in fact being cannibalised. We demonstrate this failure "
+"explicitly below."
+msgstr ""
+"**Sin restricción de signo por defecto.** $\\gamma_{ij}$ lleva un prior "
+"`Normal` centrado en cero, no un `HalfNormal`. Un prior solo positivo no "
+"puede expresar canibalización y, peor aún, no falla de forma evidente: la "
+"posterior simplemente se concentra cerca de cero y el modelo informa "
+"\"ningún efecto\" para un producto que de hecho está siendo canibalizado. "
+"Demostramos este fallo explícitamente más adelante."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:50044
+#: a1e2eb21d1b245818aee852eec0052e6
+#, python-brace-format
+msgid ""
+"**One coefficient is a net, not a decomposition.** $\\gamma_{ij}$ is the "
+"net of every halo and every cannibalisation channel running from $j$ to "
+"$i$. A pair that has both a real awareness halo and a real substitution "
+"loss will report their difference. Splitting them requires channel-"
+"resolved sources (a brand-building channel and a promotional channel "
+"entering separately), not a finer prior."
+msgstr ""
+"**Un coeficiente es un neto, no una descomposición.** $\\gamma_{ij}$ es el "
+"neto de todos los canales de halo y de canibalización que van de $j$ a $i$. "
+"Un par que tiene tanto un halo real de conocimiento de marca como una "
+"pérdida real por sustitución informará su diferencia. Separarlos requiere "
+"orígenes resueltos por canal (un canal de construcción de marca y un canal "
+"promocional que entren por separado), no un prior más fino."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:50051
+#: 1c21706be3f640f197ce1726bee240b7
+#, python-brace-format
+msgid ""
+"**The diagonal is always masked out.** $\\gamma_{ii}$ and the own-effect "
+"$C_{t,i}$ read the same signal, so leaving both free makes them "
+"unidentifiable up to a shift. Own effects go through $C_{t,i}$; cross "
+"effects go through $\\gamma$; never both."
+msgstr ""
+"**La diagonal siempre se enmascara.** $\\gamma_{ii}$ y el efecto propio "
+"$C_{t,i}$ leen la misma señal, así que dejar ambos libres los vuelve no "
+"identificables salvo por un desplazamiento. Los efectos propios pasan por "
+"$C_{t,i}$; los efectos cruzados pasan por $\\gamma$; nunca por ambos."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:60002
+#: 1f984f7fa7f7497fbd51da730026e2c1
+msgid "The mask is the model"
+msgstr "La máscara es el modelo"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:60004
+#: e34433b4abff4107bc9a210dd7f16b7e
+msgid ""
+"With $P$ products, a free matrix has $P(P-1)$ off-diagonal parameters. At"
+" $P=3$ that is 6, at $P=12$ it is 132, and the data rarely support them. "
+"Rather than write a different class per structure, we write **one** "
+"effect that takes a boolean mask over ordered pairs `(product, "
+"product_source)` and estimates a coefficient only where the mask is "
+"`True`. Many of the structures in the literature are then a choice of "
+"mask:"
+msgstr ""
+"Con $P$ productos, una matriz libre tiene $P(P-1)$ parámetros fuera de la "
+"diagonal. Con $P=3$ son 6, con $P=12$ son 132, y los datos rara vez los "
+"respaldan. En lugar de escribir una clase distinta para cada estructura, "
+"escribimos **un** efecto que toma una máscara booleana sobre pares ordenados"
+" `(product, product_source)` y estima un coeficiente solo donde la máscara "
+"es `True`. Muchas de las estructuras de la literatura son entonces una "
+"elección de máscara:"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:30002
+#: eb700672ab3f461ba63c758acdadb82c
+msgid "Mask"
+msgstr "Máscara"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:30002
+#: 5c3605a63c77480a887383ac49f49d13
+msgid "Active entries"
+msgstr "Entradas activas"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:30002
+#: cb105605592b43188b1d2e467046a5ed
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:30002
+#: 9cc5cfe9498a40d7926f0705abacdc1a
+msgid "Assumption"
+msgstr "Supuesto"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:30002
+#: 41c3019dbd74460cbe04514e10569ff1
+msgid "Flagship"
+msgstr "Producto insignia"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:30002
+#: 77ed26e8dfe74de084391d24bbc5c746
+msgid "one source column"
+msgstr "una columna de origen"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:30002
+#: 04b3e8301183405cab0acddacc7dc333
+msgid "$P-1$"
+msgstr "$P-1$"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:30002
+#: 3390de96218a41b99c1e3a01cf346efa
+msgid "a single known awareness driver"
+msgstr "un único impulsor de conocimiento de marca conocido"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:30002
+#: cc9d6e86d26c46a085850ce618564f44
+msgid "Full spillover"
+msgstr "Derrame completo"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:30002
+#: 54ffa4de06224aee8224d80286a8b7ae
+msgid "all off-diagonal"
+msgstr "toda la parte fuera de la diagonal"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:30002
+#: 17da2a7cf2e3405ab6609d09fad205d8
+msgid "$P(P-1)$"
+msgstr "$P(P-1)$"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:30002
+#: 8ab2166990014d01a78ad0dbed0cb8b7
+msgid "any product may affect any other"
+msgstr "cualquier producto puede afectar a cualquier otro"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:30002
+#: fdfd56cb658b4279bd4344eba3e3a5d0
+msgid "Block / family"
+msgstr "Bloque / familia"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:30002
+#: 5f7aa12803914a3496c4645035d47a9a
+msgid "within-family blocks"
+msgstr "bloques dentro de cada familia"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:30002
+#: 350063f891ea4fc9a9754e535a240978
+msgid "$\\sum_f P_f(P_f-1)$"
+msgstr "$\\sum_f P_f(P_f-1)$"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:30002
+#: 5abf78fc887a41a286c332a900282888
+msgid "transfer happens inside a family"
+msgstr "la transferencia ocurre dentro de una familia"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:30002
+#: 6a204f04501b40b08131ed21cd54ac2e
+msgid "Hierarchy"
+msgstr "Jerarquía"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:30002
+#: f8be37073923414586166171996c8bd3
+msgid "upper-triangular"
+msgstr "triangular superior"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:30002
+#: 4e01b6e0789645c285a14942140ada91
+msgid "$P(P-1)/2$"
+msgstr "$P(P-1)/2$"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:30002
+#: b2942e2c4edf4893856d2bd4e2b1c138
+msgid "premium lifts standard, not the reverse"
+msgstr "el premium impulsa al estándar, no al revés"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:60018
+#: e3d909e632224f29840bddaefc97cbf6
+msgid ""
+"The mask is where business knowledge enters the model, and it is a "
+"stronger and more honest lever than a tighter prior: it says *this pair "
+"cannot interact*, which is usually a claim the business can actually "
+"defend, whereas *this coefficient is small* usually is not."
+msgstr ""
+"La máscara es donde el conocimiento del negocio entra en el modelo, y es una"
+" palanca más fuerte y más honesta que un prior más estrecho: dice *este par "
+"no puede interactuar*, que suele ser una afirmación que el negocio puede "
+"defender, mientras que *este coeficiente es pequeño* normalmente no lo es."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:60023
+#: c7c9cc891ae24000936bd847fcc4df99
+msgid ""
+"Masking alone is not enough at scale. We pair it with a global shrinkage "
+"hyperprior on the coefficient scale, so the active entries are pulled to "
+"zero unless the data argue otherwise."
+msgstr ""
+"Enmascarar por sí solo no basta a gran escala. Lo combinamos con un "
+"hiperprior de contracción global sobre la escala de los coeficientes, de "
+"modo que las entradas activas se acerquen a cero a menos que los datos "
+"indiquen lo contrario."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:60027
+#: cadb312a7d7b45ab8c6ffb47385554f0
+#, python-brace-format
+msgid ""
+"We also fit two contrasts: the **latent brand-awareness factor** "
+"(mechanism 2, a rank-1 approximation $\\gamma_{ij} \\approx \\lambda_i "
+"w_j$ with $2P$ sampled parameters), and the simplest available "
+"workaround, **other products' total spend as an extra channel**, which "
+"needs no new machinery at all but cannot say which product the spillover "
+"came from."
+msgstr ""
+"También ajustamos dos contrastes: el **factor latente de conocimiento de "
+"marca** (mecanismo 2, una aproximación de rango 1 $\\gamma_{ij} \\approx "
+"\\lambda_i w_j$ con $2P$ parámetros muestreados), y la alternativa más "
+"simple disponible, **el gasto total de los demás productos como un canal "
+"adicional**, que no necesita maquinaria nueva en absoluto pero no puede "
+"decir de qué producto proviene el derrame."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:70002
+#: 251031bd6bf94528bb08ca2cc042060c
+msgid "Simulation design"
+msgstr "Diseño de la simulación"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:70004
+#: 9507cc3662e24951b213b9f5fe5b009a
+msgid ""
+"We generate synthetic data from a known cross-product structure and check"
+" what each approach recovers."
+msgstr ""
+"Generamos datos sintéticos a partir de una estructura conocida entre "
+"productos y comprobamos qué recupera cada enfoque."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:70007
+#: 072266e7ac514dfaaf3320f7e88c2018
+msgid ""
+"Crucially, the ground truth contains **one positive and one negative** "
+"cross effect. Product B enjoys a halo from the flagship; product C is "
+"cannibalised by it. A notebook whose ground truth is all-positive cannot "
+"detect the sign-restriction failure that motivates most of the design "
+"above."
+msgstr ""
+"Lo fundamental es que la verdad de referencia contiene **un efecto cruzado "
+"positivo y uno negativo**. El producto B disfruta de un halo del producto "
+"insignia; el producto C es canibalizado por él. Un cuaderno cuya verdad de "
+"referencia fuera toda positiva no podría detectar el fallo de la restricción"
+" de signo que motiva gran parte del diseño anterior."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:70012
+#: e3a6c6bf1dfa43809d67b65005ba4e1a
+msgid ""
+"Generate spend, set ground-truth parameters by hand, forward-sample with "
+"`pymc.do()` + `sample_prior_predictive()`."
+msgstr ""
+"Generar el gasto, fijar a mano los parámetros de la verdad de referencia y "
+"muestrear hacia adelante con `pymc.do()` + `sample_prior_predictive()`."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:70014
+#: 5c19b3ea69f849889a9baeedf60575bc
+msgid "Fit a baseline MMM with no cross term."
+msgstr "Ajustar un MMM de línea base sin término cruzado."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:70015
+#: 79c1cb973a8f4b0c9c9692dc874f5fab
+msgid "Fit the aggregate-other-spend workaround."
+msgstr "Ajustar la alternativa del gasto agregado de los demás productos."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:70016
+#: 4f6fab33357b464494a465e142eb670c
+msgid ""
+"Fit the masked cross-product effect under the flagship mask and the full "
+"spillover mask."
+msgstr ""
+"Ajustar el efecto enmascarado entre productos con la máscara del producto "
+"insignia y con la máscara de derrame completo."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:70018
+#: 1971515cf0f44b3fb91f5b38aa481303
+msgid ""
+"Refit the flagship mask with a `HalfNormal` coefficient to show what a "
+"sign restriction costs."
+msgstr ""
+"Reajustar la máscara del producto insignia con un coeficiente `HalfNormal` "
+"para mostrar lo que cuesta una restricción de signo."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:70020
+#: 50efc63a1f8b4034bc5b73140c1c1aba
+msgid "Fit the latent brand-awareness factor."
+msgstr "Ajustar el factor latente de conocimiento de marca."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:70021
+#: b9b4f46cbe1a4b0b82f09d912a37cdbb
+msgid "Compare recovery, portfolio-level contribution bias, and identifiability."
+msgstr ""
+"Comparar la recuperación, el sesgo de la contribución a nivel de portafolio "
+"y la identificabilidad."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:80002
+#: c1fa09bf5fcd469d997733a8693926fc
+msgid "Prepare notebook"
+msgstr "Preparar el cuaderno"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:110002
+#: cd30c6681eb745e1921005843dc7e046
+msgid "Simulation parameters"
+msgstr "Parámetros de la simulación"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:130002
+#: a873839cb58b4ad3a0e39dced07581e0
+msgid "Synthetic data generation"
+msgstr "Generación de datos sintéticos"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:130004
+#: 37ee19a1d2004904ab41bd5b7c8e98eb
+#, python-brace-format
+msgid ""
+"We follow the `do()` + `sample_prior_predictive()` pattern from "
+"{ref}`mmm_data_generator`."
+msgstr ""
+"Seguimos el patrón `do()` + `sample_prior_predictive()` de "
+"{ref}`mmm_data_generator`."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:140002
+#: b731186e998a4f59a78e0871875f9e4f
+msgid "Generate channel spend"
+msgstr "Generar el gasto por canal"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:140004
+#: 5a4b3743efe3411680a2651c72fa3f56
+msgid "First, we generate the spend data."
+msgstr "Primero, generamos los datos de gasto."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:160002
+#: 2a4fa52cc48c4c51b9afb3768b1c95c1
+msgid "Let's visualise it:"
+msgstr "Vamos a visualizarlos:"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:180002
+#: 017e404bd93b452e897c7fc3a8c4153f
+msgid "Set ground-truth parameters"
+msgstr "Fijar los parámetros de la verdad de referencia"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:180004
+#: 49ed6bbf74de4860b33cd75493c4af99
+msgid ""
+"The truths are set by hand rather than drawn from the priors, and the "
+"choice is not cosmetic. The cross coefficient is identified by the "
+"*temporal variation* of the flagship's transformed contribution "
+"$C_{t,\\text{flagship}}$: the receiver's intercept absorbs any constant "
+"level, so only the movement of $C_{t,\\text{flagship}}$ carries "
+"information about $\\gamma$. If a flagship channel sits deep in "
+"saturation, its contribution flattens into a near constant, and the halo "
+"becomes unidentifiable no matter how large it is. We therefore place "
+"every channel in a mid-saturation regime, $\\lambda \\cdot \\bar{x} "
+"\\approx 1$ on the adstocked spend, which keeps the saturation curve "
+"responsive and gives $C_{t,\\text{flagship}}$ enough temporal variation "
+"to read a coefficient off. Both quantities are computed on the generated "
+"data below rather than asserted. This is worth checking in real data too:"
+" a halo read off an always-on, fully saturated flagship is a claim the "
+"data cannot support."
+msgstr ""
+"Los valores verdaderos se fijan a mano en lugar de extraerse de los priors, "
+"y la elección no es cosmética. El coeficiente cruzado se identifica por la "
+"*variación temporal* de la contribución transformada del producto insignia "
+"$C_{t,\\text{flagship}}$: el intercepto del receptor absorbe cualquier nivel"
+" constante, así que solo el movimiento de $C_{t,\\text{flagship}}$ aporta "
+"información sobre $\\gamma$. Si un canal del producto insignia se encuentra "
+"muy adentro de la saturación, su contribución se aplana hasta volverse casi "
+"constante, y el halo se vuelve no identificable sin importar lo grande que "
+"sea. Por eso colocamos todos los canales en un régimen de saturación media, "
+"$\\lambda \\cdot \\bar{x} \\approx 1$ sobre el gasto con adstock, lo cual "
+"mantiene sensible la curva de saturación y le da a $C_{t,\\text{flagship}}$ "
+"suficiente variación temporal para leer un coeficiente. Ambas cantidades se "
+"calculan más abajo sobre los datos generados en lugar de afirmarse. Vale la "
+"pena comprobarlo también en datos reales: un halo leído a partir de un "
+"producto insignia siempre activo y totalmente saturado es una afirmación que"
+" los datos no pueden respaldar."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:180019
+#: e9a82f088808447c92745a878e5bb912
+msgid ""
+"The halo vector is the important line. `product_a` is the flagship and "
+"has no self-halo. `product_b` receives a positive halo of `0.8`. "
+"`product_c` is **cannibalised** at `-0.5`: every unit of flagship "
+"contribution costs it 0.5 units of demand."
+msgstr ""
+"El vector de halo es la línea importante. `product_a` es el producto "
+"insignia y no tiene auto-halo. `product_b` recibe un halo positivo de `0.8`."
+" `product_c` es **canibalizado** con `-0.5`: cada unidad de contribución del"
+" producto insignia le cuesta 0.5 unidades de demanda."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:200002
+#: e861a75af1f14ee69fb1a7fa8982c77b
+msgid "Build the DGP and forward-sample"
+msgstr "Construir el DGP y muestrear hacia adelante"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:200004
+#: 008d349d3e8f465292a2bbdde418f919
+msgid ""
+"The cross term reads `total_contribution` for the flagship, which is "
+"already adstocked and saturated, and multiplies it by a plain "
+"coefficient. The coefficient is drawn from a `Normal`, so the DGP is "
+"sign-free in exactly the way the models below need to be."
+msgstr ""
+"El término cruzado lee `total_contribution` del producto insignia, que ya "
+"tiene adstock y saturación aplicados, y lo multiplica por un coeficiente "
+"simple. El coeficiente se extrae de una `Normal`, de modo que el DGP no "
+"tiene restricción de signo exactamente en la forma en que deben tenerla los "
+"modelos que siguen."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:240002
+#: c1e8830ce39542e6821f0198597f747a
+#, python-brace-format
+msgid ""
+"Both claims made when the truths were set are checked here rather than "
+"asserted: every channel sits near $\\lambda \\bar{x} \\approx 1$ on the "
+"adstocked spend, and each product's total contribution has a coefficient "
+"of variation of $0.3$–$0.4$, so there is movement for a cross coefficient"
+" to read."
+msgstr ""
+"Las dos afirmaciones hechas al fijar los valores verdaderos se comprueban "
+"aquí en lugar de afirmarse: cada canal se sitúa cerca de $\\lambda \\bar{x} "
+"\\approx 1$ sobre el gasto con adstock, y la contribución total de cada "
+"producto tiene un coeficiente de variación de $0.3$–$0.4$, de modo que hay "
+"movimiento que un coeficiente cruzado pueda leer."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:260002
+#: 390cf7861ec0455d8c48d116bb0f24fe
+msgid ""
+"The ground-truth cross contribution is positive for `product_b` and "
+"negative for `product_c`, tracking the flagship's media in both cases."
+msgstr ""
+"La contribución cruzada de la verdad de referencia es positiva para "
+"`product_b` y negativa para `product_c`, siguiendo en ambos casos a los "
+"medios del producto insignia."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:280002
+#: c51d1c5601044aacb21f7ce477f1e529
+msgid "Baseline: standard MMM, no cross term"
+msgstr "Línea base: MMM estándar, sin término cruzado"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:280004
+#: 149b6a64604c44098b2f688878d47fd4
+msgid ""
+"This model has no mechanism for cross-product transfer, so the halo and "
+"the cannibalisation have to be absorbed by the intercept and the own-"
+"channel coefficients."
+msgstr ""
+"Este modelo no tiene ningún mecanismo para la transferencia entre productos,"
+" por lo que el halo y la canibalización tienen que ser absorbidos por el "
+"intercepto y por los coeficientes de los canales propios."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:300002
+#: f02e53f724364d93a6ac3a5250649748
+msgid ""
+"One caveat on the overlay plots that follow: the fitted models only see "
+"the trimmed data, so their adstock warms up from zero while the ground "
+"truth carries the full pre-trim history. The first few fitted dates are "
+"therefore not exactly comparable; the discrepancy decays within `l_max` "
+"periods."
+msgstr ""
+"Una advertencia sobre los gráficos superpuestos que siguen: los modelos "
+"ajustados solo ven los datos recortados, así que su adstock arranca desde "
+"cero mientras que la verdad de referencia arrastra todo el historial previo "
+"al recorte. Por lo tanto, las primeras fechas ajustadas no son exactamente "
+"comparables; la discrepancia se disipa dentro de `l_max` períodos."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:320002
+#: 2882015b57a640b298c88212dadb460b
+msgid "Workaround: other products' total spend as a channel"
+msgstr "Alternativa: el gasto total de los demás productos como un canal"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:320004
+#: 7d77f938af3c47d4a6cf091aa8c22ebe
+msgid ""
+"The cheapest thing that can possibly work. For each product, sum the raw "
+"media spend of every *other* product and pass it as an extra channel "
+"column. The `MMM` class then gives it its own adstock and saturation."
+msgstr ""
+"Lo más barato que posiblemente funcione. Para cada producto, sume el gasto "
+"en medios sin procesar de cada *otro* producto y pásele ese total como una "
+"columna de canal adicional. La clase `MMM` le da entonces su propio adstock "
+"y su propia saturación."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:320008
+#: f64e9b779554420fbfd26d5dcd5c76c3
+msgid ""
+"This costs no new machinery and it does saturate the cross signal, which "
+"avoids the unbounded-growth failure described earlier. What it cannot do "
+"is say *which* product the spillover came from, or carry a sign per "
+"source, so it collapses a halo from one sibling and a cannibalisation "
+"from another into a single coefficient. And because the default "
+"saturation coefficient prior is a `HalfNormal`, that single coefficient "
+"is positive-only: the workaround inherits exactly the sign-restriction "
+"failure we demonstrate below, and a cannibalised product will read as "
+"\"no spillover\"."
+msgstr ""
+"Esto no requiere maquinaria nueva y sí satura la señal cruzada, lo que evita"
+" el fallo de crecimiento sin límite descrito antes. Lo que no puede hacer es"
+" decir de *qué* producto proviene el derrame, ni llevar un signo por origen,"
+" de modo que colapsa un halo de un producto hermano y una canibalización de "
+"otro en un único coeficiente. Y como el prior por defecto del coeficiente de"
+" saturación es un `HalfNormal`, ese único coeficiente es solo positivo: la "
+"alternativa hereda exactamente el fallo de restricción de signo que "
+"demostramos más adelante, y un producto canibalizado aparecerá como \"sin "
+"derrame\"."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:340002
+#: 34b218e49ffd45419a181599d39aa459
+msgid "A single masked cross-product effect"
+msgstr "Un único efecto enmascarado entre productos"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:340004
+#: 791f384a8598463281132be4eab48cb1
+msgid ""
+"The `MMM` class exposes an extensibility hook called `MuEffect`, defined "
+"in `pymc_marketing.mmm.additive_effect`. Any object implementing "
+"`create_data`, `create_effect` and `set_data` can be appended to "
+"`mmm.mu_effects` before `build_model`. `create_effect` runs **after** "
+"`channel_contribution` has been registered as a `pmd.Deterministic`, "
+"which is precisely what lets a cross term read the already-transformed "
+"contribution."
+msgstr ""
+"La clase `MMM` expone un punto de extensión llamado `MuEffect`, definido en "
+"`pymc_marketing.mmm.additive_effect`. Cualquier objeto que implemente "
+"`create_data`, `create_effect` y `set_data` puede agregarse a "
+"`mmm.mu_effects` antes de `build_model`. `create_effect` se ejecuta "
+"**después** de que `channel_contribution` haya sido registrada como un "
+"`pmd.Deterministic`, que es precisamente lo que permite a un término cruzado"
+" leer la contribución ya transformada."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:340011
+#: 48b06782affc47e8b0cfaa5fd62add56
+msgid "Three implementation details are worth pointing out."
+msgstr "Vale la pena señalar tres detalles de implementación."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:340013
+#: ea7604b07eab4a50bcbbbd4f8d9b0f02
+#, python-brace-format
+msgid ""
+"The deterministic is named `f\"{prefix}_effect_contribution\"`. That is "
+"the name `MMM.compute_counterfactual_contributions_dataset` looks for via"
+" `MuEffect.contribution_var_name`. An effect that registers some other "
+"name silently drops out of the contribution decomposition."
+msgstr ""
+"El determinístico se llama `f\"{prefix}_effect_contribution\"`. Ese es el "
+"nombre que `MMM.compute_counterfactual_contributions_dataset` busca a través"
+" de `MuEffect.contribution_var_name`. Un efecto que registre otro nombre "
+"queda excluido en silencio de la descomposición de contribuciones."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:340017
+#: 75aaff5c303f41f294b60167d024eb04
+msgid ""
+"`MaskedPrior` creates the coefficient over the active entries of the mask"
+" only, and expands back to the full $(P, P)$ shape with exact zeros "
+"elsewhere. Masked-out pairs cost no parameters and add no sampler "
+"geometry."
+msgstr ""
+"`MaskedPrior` crea el coeficiente solo sobre las entradas activas de la "
+"máscara, y lo expande de vuelta a la forma completa $(P, P)$ con ceros "
+"exactos en el resto. Los pares enmascarados no cuestan parámetros ni añaden "
+"geometría para el muestreador."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:340020
+#: d239aefe8178415fa04a8bf80e12acf1
+msgid ""
+"The coefficient prior is `Normal(0, sigma)` with `sigma` itself "
+"estimated, giving global shrinkage across the active entries. Sign-free, "
+"and pulled to zero unless the data argue otherwise. The scale of the "
+"shrinkage hyperprior should match the plausible size of a cross effect: "
+"we use `HalfNormal(0.5)`, which comfortably covers coefficients up to "
+"about one while still shrinking noise. With only a handful of active "
+"entries the hyperprior is informative, and a too-tight choice (say "
+"`HalfNormal(0.1)` against a true effect of `0.8`) would drag every "
+"estimate toward zero. At larger $P$ with mostly-null entries, tighten it."
+msgstr ""
+"El prior del coeficiente es `Normal(0, sigma)` con `sigma` estimado a su "
+"vez, lo que da una contracción global sobre las entradas activas. Sin "
+"restricción de signo, y atraído hacia cero a menos que los datos indiquen lo"
+" contrario. La escala del hiperprior de contracción debe corresponder al "
+"tamaño plausible de un efecto cruzado: usamos `HalfNormal(0.5)`, que cubre "
+"con holgura coeficientes de hasta aproximadamente uno y aun así contrae el "
+"ruido. Con solo un puñado de entradas activas el hiperprior es informativo, "
+"y una elección demasiado estrecha (por ejemplo `HalfNormal(0.1)` frente a un"
+" efecto verdadero de `0.8`) arrastraría todas las estimaciones hacia cero. "
+"Con $P$ mayor y mayormente entradas nulas, estréchelo."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:360002
+#: 9a3ffc2268d44835a62f6d5094cdfae9
+msgid "Building masks"
+msgstr "Construcción de las máscaras"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:360004
+#: f3128c28cc454fd5a55c12a9f4bf3032
+msgid ""
+"Two helpers cover the structures we fit. Both force the diagonal to "
+"`False`."
+msgstr ""
+"Dos funciones auxiliares cubren las estructuras que ajustamos. Ambas fuerzan"
+" la diagonal a `False`."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:390002
+#: c6c688db77e24d2281a9a7750a84bbb9
+msgid ""
+"The same two masks read as causal graphs. Each arrow is one estimated "
+"coefficient, pointing from the source product's contribution into the "
+"receiver's demand, and the mask is precisely the claim about which arrows"
+" exist. The flagship mask asserts a single driver and no reverse paths; "
+"the full mask asserts nothing and pays for six arrows, including the "
+"reverse directions we do not expect to find."
+msgstr ""
+"Las mismas dos máscaras se leen como grafos causales. Cada flecha es un "
+"coeficiente estimado, que apunta desde la contribución del producto de "
+"origen hacia la demanda del receptor, y la máscara es precisamente la "
+"afirmación sobre qué flechas existen. La máscara del producto insignia "
+"afirma un único impulsor y ningún camino inverso; la máscara completa no "
+"afirma nada y paga por seis flechas, incluidas las direcciones inversas que "
+"no esperamos encontrar."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:410002
+#: 90761ec6ea8744c1a070f7657985b418
+msgid "Fitting helper"
+msgstr "Función auxiliar de ajuste"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:430002
+#: 5c76a9112a634188a52ad27f7a218bc9
+msgid "Flagship mask, sign-free coefficient"
+msgstr "Máscara del producto insignia, coeficiente sin restricción de signo"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:430004
+#: e62b3ebb22844973a8427e4fdc61e130
+msgid ""
+"This matches the DGP: one source column, coefficients free to take either"
+" sign. It is the model we expect to recover $\\delta = [0, 0.8, -0.5]$."
+msgstr ""
+"Esto coincide con el DGP: una columna de origen, con coeficientes libres de "
+"tomar cualquier signo. Es el modelo con el que esperamos recuperar $\\delta "
+"= [0, 0.8, -0.5]$."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:450002
+#: 7413daa3e60643078665bb8ccdd955f1
+msgid ""
+"Rather than render the full computational graph, which apart from the "
+"halo term is the standard multi-dimensional `MMM` graph, we cut it down "
+"to the new pathway with `var_names`; the selected nodes bring their "
+"direct parents along. Read it bottom-up: `MaskedPrior` samples "
+"`halo_gamma_active` over the two active `(receiver, source)` pairs under "
+"the shared shrinkage scale `halo_gamma_active_sigma`, expands it to the "
+"full coefficient matrix `halo_gamma` with exact zeros on the inactive "
+"entries, and the effect multiplies that matrix onto the already-"
+"transformed `channel_contribution` to produce `halo_effect_contribution`,"
+" the term added to the mean."
+msgstr ""
+"En lugar de dibujar el grafo computacional completo, que aparte del término "
+"de halo es el grafo estándar del `MMM` multidimensional, lo reducimos a la "
+"nueva vía con `var_names`; los nodos seleccionados traen consigo a sus "
+"padres directos. Léalo de abajo hacia arriba: `MaskedPrior` muestrea "
+"`halo_gamma_active` sobre los dos pares `(receiver, source)` activos bajo la"
+" escala de contracción compartida `halo_gamma_active_sigma`, lo expande a la"
+" matriz completa de coeficientes `halo_gamma` con ceros exactos en las "
+"entradas inactivas, y el efecto multiplica esa matriz por el "
+"`channel_contribution` ya transformado para producir "
+"`halo_effect_contribution`, el término que se suma a la media."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:480002
+#: 86927e7558d847929375e70684ae5688
+msgid "Full spillover mask"
+msgstr "Máscara de derrame completo"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:480004
+#: ed110c8061b34b778ed3e6844d9c5181
+msgid ""
+"Every ordered pair is free. With three products that is six coefficients "
+"against 102 weeks, which is affordable. The point of fitting it is to see"
+" whether the extra freedom costs recovery on the pairs that are real, and"
+" to read off the **asymmetry** between flagship-to-small and small-to-"
+"flagship."
+msgstr ""
+"Todos los pares ordenados son libres. Con tres productos son seis "
+"coeficientes frente a 102 semanas, lo cual es asumible. El objetivo de "
+"ajustarla es ver si la libertad adicional perjudica la recuperación de los "
+"pares que sí son reales, y leer la **asimetría** entre el efecto del "
+"producto insignia sobre los productos pequeños y el efecto de los pequeños "
+"sobre el producto insignia."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:500002
+#: f3fc07a10a044449b46a44b5fca59dc0
+msgid "What a sign restriction costs"
+msgstr "Lo que cuesta una restricción de signo"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:500004
+#: ce9a541dae6b46f8a1c0e174d0728e52
+msgid ""
+"Now the same flagship mask with a `HalfNormal` coefficient, the positive-"
+"only prior used by most halo implementations, at the same hyperprior "
+"scale so the comparison isolates the sign restriction. The DGP says "
+"`product_c` is cannibalised at `-0.5`. A positive-only model cannot say "
+"that. The question is what it says instead."
+msgstr ""
+"Ahora la misma máscara del producto insignia con un coeficiente "
+"`HalfNormal`, el prior solo positivo que usan la mayoría de las "
+"implementaciones de halo, con la misma escala del hiperprior para que la "
+"comparación aísle la restricción de signo. El DGP dice que `product_c` es "
+"canibalizado con `-0.5`. Un modelo solo positivo no puede decir eso. La "
+"pregunta es qué dice en su lugar."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:530002
+#: a469eef94dc349a2aeb6ac292f5855a9
+msgid ""
+"For `product_b`, where the truth is positive, the two priors agree almost"
+" exactly: the restriction is invisible when it does not bind. For "
+"`product_c` the failure is quiet, which is what makes it dangerous. The "
+"positive-only posterior does not flag a problem, it simply concentrates "
+"near zero and reads as \"no meaningful spillover\". An analyst looking "
+"only at that model would conclude the flagship is neutral for "
+"`product_c`, when in truth it is actively costing it demand. The sign-"
+"free posterior recovers the negative value."
+msgstr ""
+"Para `product_b`, donde la verdad es positiva, los dos priors coinciden casi"
+" exactamente: la restricción es invisible cuando no actúa. Para `product_c` "
+"el fallo es silencioso, y eso es lo que lo hace peligroso. La posterior solo"
+" positiva no señala ningún problema, simplemente se concentra cerca de cero "
+"y se lee como \"sin derrame significativo\". Un analista que mirara solo ese"
+" modelo concluiría que el producto insignia es neutro para `product_c`, "
+"cuando en realidad le está costando demanda de forma activa. La posterior "
+"sin restricción de signo recupera el valor negativo."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:530011
+#: 229ba22d376b42f894604b711df92514
+msgid ""
+"This is the whole argument for making the cross coefficient sign-free by "
+"default, and it is independent of the adstock and saturation question."
+msgstr ""
+"Este es todo el argumento para que el coeficiente cruzado no tenga "
+"restricción de signo por defecto, y es independiente de la cuestión del "
+"adstock y la saturación."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:540002
+#: e701e5b6233645dd9d974ff567eb14d5
+msgid "Contrast: latent brand-awareness factor"
+msgstr "Contraste: factor latente de conocimiento de marca"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:540004
+#: d32f7802445841f18e36d88cb55db4bb
+#, python-brace-format
+msgid ""
+"Mechanism 2 from the introduction. A single latent signal $A_t = \\sum_j "
+"w_j C_{t,j}$ driven by all products' media, with product-specific "
+"sensitivities $\\lambda_i$. This is a rank-1 approximation $\\gamma_{ij} "
+"\\approx \\lambda_i w_j$: $2P$ sampled parameters, of which $2P - 1$ are "
+"identified because the weights are normalised to sum to one, instead of "
+"$P(P-1)$."
+msgstr ""
+"Mecanismo 2 de la introducción. Una única señal latente $A_t = \\sum_j w_j "
+"C_{t,j}$ impulsada por los medios de todos los productos, con sensibilidades"
+" específicas de cada producto $\\lambda_i$. Es una aproximación de rango 1 "
+"$\\gamma_{ij} \\approx \\lambda_i w_j$: $2P$ parámetros muestreados, de los "
+"cuales $2P - 1$ son identificables porque los pesos están normalizados para "
+"sumar uno, en lugar de $P(P-1)$."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:540010
+#: d0c6713161684d8d8037f365126e2452
+msgid ""
+"It is structurally different from the masked matrix, not a variation on "
+"it: because $w_j \\ge 0$ and a single $\\lambda_i$ multiplies the whole "
+"factor, a product is either helped by the portfolio or hurt by it, "
+"uniformly. It cannot be lifted by one sibling and cannibalised by "
+"another. Here $\\lambda_i$ is sign-free so the model can at least express"
+" a uniformly negative sensitivity."
+msgstr ""
+"Es estructuralmente distinto de la matriz enmascarada, no una variación de "
+"ella: como $w_j \\ge 0$ y un único $\\lambda_i$ multiplica todo el factor, "
+"un producto es o bien ayudado por el portafolio o bien perjudicado por él, "
+"de manera uniforme. No puede ser impulsado por un producto hermano y "
+"canibalizado por otro. Aquí $\\lambda_i$ no tiene restricción de signo, de "
+"modo que el modelo al menos puede expresar una sensibilidad uniformemente "
+"negativa."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:540016
+#: 767411e80bd64682814b996b792d4f3f
+#, python-brace-format
+msgid ""
+"Note also that the rank-1 factor keeps its **diagonal**: product $i$'s "
+"own contribution enters its own awareness signal through $w_i C_{t,i}$, "
+"so $\\lambda_i w_i$ competes with the own effect for the same signal. "
+"This is exactly the identifiability trap the masked matrix avoids by "
+"forcing the diagonal to zero, and it is part of why the factor's "
+"posterior is wider than the masked estimates below."
+msgstr ""
+"Note también que el factor de rango 1 conserva su **diagonal**: la "
+"contribución propia del producto $i$ entra en su propia señal de "
+"conocimiento de marca a través de $w_i C_{t,i}$, por lo que $\\lambda_i w_i$"
+" compite con el efecto propio por la misma señal. Esta es exactamente la "
+"trampa de identificabilidad que la matriz enmascarada evita al forzar la "
+"diagonal a cero, y es parte de la razón por la que la posterior del factor "
+"es más ancha que las estimaciones enmascaradas que siguen."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:560002
+#: 04a4a6859bfa468885c691dd724026e6
+msgid "Recovery across approaches"
+msgstr "Recuperación entre los distintos enfoques"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:560004
+#: 74514d896ce347e087c2ee9034aee598
+msgid ""
+"For each model we extract the implied coefficient on the flagship's "
+"contribution and compare against the truth. Comparing the scaled-space "
+"coefficient directly against $\\delta$ relies on the target being scaled "
+"by a single global constant, which is the `MMM` default; the assertion "
+"makes the assumption explicit."
+msgstr ""
+"Para cada modelo extraemos el coeficiente implícito sobre la contribución "
+"del producto insignia y lo comparamos con la verdad de referencia. Comparar "
+"directamente el coeficiente en el espacio escalado con $\\delta$ depende de "
+"que el objetivo esté escalado por una única constante global, que es el "
+"valor por defecto de `MMM`; la aserción hace explícito ese supuesto."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:580002
+#: 9e6562aabb2541219ae271b8105a857d
+msgid "What predictive fit can and cannot tell you"
+msgstr "Lo que el ajuste predictivo puede y no puede decirnos"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:580004
+#: 5a8fa2d955a84c1e8df9771b28b5020c
+#, python-brace-format
+msgid ""
+"Before looking at the business quantity, it is worth checking what "
+"predictive fit tells us. We score each model two ways, both in sample. "
+"The RMSE grades only the posterior mean prediction. The "
+"{func}`~pymc_marketing.metrics.crps` grades the entire predictive "
+"distribution against each observation, so a model that is right on "
+"average but badly calibrated pays for it. CRPS is the stronger of the "
+"two, and it is the most generous test we can give a purely in-sample "
+"metric."
+msgstr ""
+"Antes de mirar la cantidad de negocio, conviene comprobar qué nos dice el "
+"ajuste predictivo. Evaluamos cada modelo de dos maneras, ambas dentro de la "
+"muestra. El RMSE califica únicamente la predicción de la media posterior. La"
+" función {func}`~pymc_marketing.metrics.crps` califica toda la distribución "
+"predictiva frente a cada observación, de modo que un modelo que acierta en "
+"promedio pero está mal calibrado lo paga. El CRPS es la más exigente de las "
+"dos, y es la prueba más generosa que podemos darle a una métrica puramente "
+"dentro de la muestra."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:600002
+#: 41eb5a5e246745a88f4de4521bcccc9b
+#, python-brace-format
+msgid ""
+"In-sample fit does notice that a mechanism is missing: the baseline, "
+"which has no way to track the flagship-driven movement in `product_b` and"
+" `product_c`, is the worst model on both scores. What fit *cannot* do is "
+"choose among the models that carry some cross term. Every one of those "
+"sits within about ten percent of the best RMSE and twelve percent of the "
+"best CRPS, yet we will see below that the portfolio values they report "
+"span fifty points, from thirty percent too low to twenty percent too "
+"high. Scoring the whole predictive distribution rather than the mean does"
+" not rescue the ranking, because the competing structures disagree about "
+"how to *attribute* a signal they all reproduce equally well. This is the "
+"same lesson as {ref}`mmm_funnel_mueffect`: a structural bias shows up "
+"when you ask a causal question, not in the loss curve. Do not select a "
+"halo structure on in-sample fit."
+msgstr ""
+"El ajuste dentro de la muestra sí detecta que falta un mecanismo: la línea "
+"base, que no tiene forma de seguir el movimiento impulsado por el producto "
+"insignia en `product_b` y `product_c`, es el peor modelo en ambas métricas. "
+"Lo que el ajuste *no puede* hacer es elegir entre los modelos que incorporan"
+" algún término cruzado. Todos ellos quedan a menos de un diez por ciento "
+"aproximadamente del mejor RMSE y a un doce por ciento del mejor CRPS, y sin "
+"embargo veremos más adelante que los valores de portafolio que informan "
+"abarcan cincuenta puntos, desde un treinta por ciento por debajo hasta un "
+"veinte por ciento por encima. Evaluar toda la distribución predictiva en "
+"lugar de la media no rescata el ranking, porque las estructuras que compiten"
+" discrepan sobre cómo *atribuir* una señal que todas reproducen igual de "
+"bien. Es la misma lección que en {ref}`mmm_funnel_mueffect`: un sesgo "
+"estructural aparece cuando se hace una pregunta causal, no en la curva de "
+"pérdida. No elija una estructura de halo según el ajuste dentro de la "
+"muestra."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:610002
+#: 04aed0aa85204b028d75194f2428d3eb
+msgid "The business quantity: portfolio-wide value of flagship media"
+msgstr ""
+"La cantidad de negocio: el valor del medio del producto insignia en todo el "
+"portafolio"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:610004
+#: 562ee20a044649969963dadcce13d26f
+msgid ""
+"The decision this model exists to inform is how much the flagship's media"
+" is worth *across the portfolio*, not just on its own line. In the DGP "
+"that is"
+msgstr ""
+"La decisión que este modelo existe para informar es cuánto vale el gasto en "
+"medios del producto insignia *en todo el portafolio*, no solo en su propia "
+"línea. En el DGP eso es"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:610007
+#: a975134aa0a04e5c90c05419d5b8e844
+msgid ""
+"\n"
+"V = \\underbrace{\\sum_t C_{t,\\text{flagship}}}_{\\text{direct}}\n"
+"  + \\underbrace{\\sum_t \\sum_i \\delta_i\\, "
+"C_{t,\\text{flagship}}}_{\\text{cross}} .\n"
+msgstr ""
+"\n"
+"V = \\underbrace{\\sum_t C_{t,\\text{flagship}}}_{\\text{direct}}\n"
+"  + \\underbrace{\\sum_t \\sum_i \\delta_i\\, C_{t,\\text{flagship}}}_{\\text{cross}} .\n"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:610012
+#: fda1c22b099b4b56b053688cfd59dcfc
+msgid ""
+"The baseline has no cross term, so the best it could ever report is the "
+"direct term; the gap between that and the true portfolio value is the net"
+" cross effect it cannot see."
+msgstr ""
+"La línea base no tiene término cruzado, así que lo máximo que podría "
+"informar es el término directo; la brecha entre eso y el valor verdadero del"
+" portafolio es el efecto cruzado neto que no puede ver."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:610016
+#: 013596b5506c4b57b34e5f04b166fa42
+msgid ""
+"Each fitted model's estimate of $V$ must isolate the cross effects "
+"*driven by the flagship*: we multiply the model's implied coefficient on "
+"the flagship ($\\gamma_{i,\\text{flagship}}$ for the masked models, "
+"$\\lambda_i w_{\\text{flagship}}$ for the brand factor) by the model's "
+"estimate of $C_{t,\\text{flagship}}$. Summing a model's whole cross-"
+"effect contribution would be wrong for the full mask, which also carries "
+"cross effects driven by the other products' media. The baseline and the "
+"aggregate-spend workaround cannot attribute spillover to a source at all,"
+" so they report the direct term only."
+msgstr ""
+"La estimación de $V$ de cada modelo ajustado debe aislar los efectos "
+"cruzados *impulsados por el producto insignia*: multiplicamos el coeficiente"
+" implícito del modelo sobre el producto insignia "
+"($\\gamma_{i,\\text{flagship}}$ para los modelos enmascarados, $\\lambda_i "
+"w_{\\text{flagship}}$ para el factor de marca) por la estimación del modelo "
+"de $C_{t,\\text{flagship}}$. Sumar toda la contribución de efectos cruzados "
+"de un modelo sería incorrecto para la máscara completa, que también incluye "
+"efectos cruzados impulsados por los medios de los otros productos. La línea "
+"base y la alternativa del gasto agregado no pueden atribuir el derrame a un "
+"origen en absoluto, así que informan solo el término directo."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:640002
+#: 00fbafa66ce2462da480fbe4f9663221
+msgid ""
+"Plotting the score against the answer shows how far an in-sample metric "
+"can be trusted. Read left to right, the ranking looks informative: the "
+"three models closest to the truth are also the three best on CRPS. Read "
+"vertically, it falls apart. The aggregate-spend workaround and the "
+"HalfNormal variant are separated by about one percent of CRPS and by "
+"fifty points of portfolio value, on opposite sides of the truth, so the "
+"score does not even carry the *sign* of the error you are about to make. "
+"And the sixteen percent CRPS improvement from the baseline to the "
+"workaround buys no reduction in bias at all."
+msgstr ""
+"Graficar la puntuación frente a la respuesta muestra hasta qué punto se "
+"puede confiar en una métrica dentro de la muestra. Leído de izquierda a "
+"derecha, el ranking parece informativo: los tres modelos más cercanos a la "
+"verdad son también los tres mejores en CRPS. Leído en vertical, se "
+"desmorona. La alternativa del gasto agregado y la variante HalfNormal están "
+"separadas por aproximadamente un uno por ciento de CRPS y por cincuenta "
+"puntos de valor de portafolio, a lados opuestos de la verdad, de modo que la"
+" puntuación ni siquiera transmite el *signo* del error que está a punto de "
+"cometer. Y la mejora de dieciséis por ciento en CRPS de la línea base a la "
+"alternativa no compra ninguna reducción del sesgo."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:660002
+#: 436cffc45d95484c95e22adaee4cac6b
+msgid ""
+"**This table is the point of the notebook.** The two models that cannot "
+"attribute spillover to a source stop near the direct term, thirty percent"
+" short of the truth. The two sign-free masked models land within about "
+"five percent. The HalfNormal variant does not merely miss the "
+"cannibalisation, it converts the missing loss into extra reported value: "
+"it keeps `product_b`'s halo, forces `product_c`'s negative effect to "
+"zero, and comes out twenty percent *above* the truth. An optimiser fed "
+"that number would over-fund the flagship, which is the opposite failure "
+"to the one the baseline produces."
+msgstr ""
+"**Esta tabla es el punto central del cuaderno.** Los dos modelos que no "
+"pueden atribuir el derrame a un origen se quedan cerca del término directo, "
+"un treinta por ciento por debajo de la verdad. Los dos modelos enmascarados "
+"sin restricción de signo quedan a menos de un cinco por ciento "
+"aproximadamente. La variante HalfNormal no solo pasa por alto la "
+"canibalización, sino que convierte la pérdida omitida en valor adicional "
+"informado: conserva el halo de `product_b`, fuerza a cero el efecto negativo"
+" de `product_c` y termina un veinte por ciento *por encima* de la verdad. Un"
+" optimizador alimentado con ese número financiaría de más al producto "
+"insignia, que es el fallo opuesto al que produce la línea base."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:660011
+#: c20c6ce9fbce4e0abc5a6c585d5af59e
+msgid ""
+"The brand factor lands close to the truth here, and it is worth being "
+"precise about why. This DGP has a single source with per-receiver signs, "
+"which is exactly a rank-1 matrix, and $\\lambda_i$ is sign-free per "
+"receiver, so the factor can represent this truth. Its posterior is "
+"nevertheless wider and pulled toward zero (see the recovery figure), "
+"because the diagonal terms compete with the own effects. Its bias is also"
+" not strictly comparable to the masked models': the implied coefficient "
+"$\\lambda_i w_{\\text{flagship}}$ is summed over every receiver including"
+" the flagship itself, so the diagonal term $\\lambda_a w_a$ enters the "
+"portfolio total, whereas the masked models have that entry fixed at zero "
+"and the DGP has no such term. With two sources of opposite sign acting on"
+" the same receiver it could not fit the truth at all."
+msgstr ""
+"El factor de marca queda cerca de la verdad aquí, y conviene ser preciso "
+"sobre el porqué. Este DGP tiene un único origen con signos por receptor, que"
+" es exactamente una matriz de rango 1, y $\\lambda_i$ no tiene restricción "
+"de signo por receptor, así que el factor puede representar esta verdad. Su "
+"posterior es, no obstante, más ancha y atraída hacia cero (véase la figura "
+"de recuperación), porque los términos de la diagonal compiten con los "
+"efectos propios. Su sesgo tampoco es estrictamente comparable con el de los "
+"modelos enmascarados: el coeficiente implícito $\\lambda_i "
+"w_{\\text{flagship}}$ se suma sobre todos los receptores, incluido el propio"
+" producto insignia, por lo que el término diagonal $\\lambda_a w_a$ entra en"
+" el total del portafolio, mientras que los modelos enmascarados tienen esa "
+"entrada fijada en cero y el DGP no tiene tal término. Con dos orígenes de "
+"signo opuesto actuando sobre el mismo receptor no podría ajustar la verdad "
+"en absoluto."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:670002
+#: e381aade43934af9af56bee3bd2f20e8
+msgid "Putting this into practice"
+msgstr "Llevarlo a la práctica"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:670004
+#: 9440fe28017948139405d171147f7b8b
+msgid ""
+"The simulation above is favourable: three products, a clean DGP, and a "
+"cross structure that one of the fitted masks matches exactly. Real "
+"portfolios are not like that. This section collects the checks that "
+"matter when the truth is unknown."
+msgstr ""
+"La simulación anterior es favorable: tres productos, un DGP limpio y una "
+"estructura cruzada que una de las máscaras ajustadas reproduce exactamente. "
+"Los portafolios reales no son así. Esta sección reúne las comprobaciones que"
+" importan cuando se desconoce la verdad."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:680002
+#: b0214d7bc4bf4c369827e44d467849e9
+msgid "Choose the mask from business knowledge, then check it"
+msgstr ""
+"Elija la máscara a partir del conocimiento del negocio y luego compruébela"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:680004
+#: cf08334516e948709b24fb1334dab46b
+msgid ""
+"The mask is a set of claims about which pairs *can* interact, and it "
+"should come from people who know the portfolio: shared shelf space, "
+"shared audience, a launch calendar, a known flagship. Encoding a belief "
+"as a hard zero is stronger than encoding it as a tight prior, and it is "
+"also more honest, because it is falsifiable: if the business insists two "
+"products cannot interact and the model fits badly, that is information."
+msgstr ""
+"La máscara es un conjunto de afirmaciones sobre qué pares *pueden* "
+"interactuar, y debería provenir de las personas que conocen el portafolio: "
+"espacio compartido en estantería, audiencia compartida, un calendario de "
+"lanzamientos, un producto insignia conocido. Codificar una creencia como un "
+"cero estricto es más fuerte que codificarla como un prior estrecho, y "
+"también es más honesto, porque es falsable: si el negocio insiste en que dos"
+" productos no pueden interactuar y el modelo ajusta mal, eso es información."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:680011
+#: 847ec0c2eb3b47f18292236af2b60b54
+msgid ""
+"Start narrow and widen. A flagship mask that fits as well as a full mask "
+"is the better model, and the comparison costs one refit."
+msgstr ""
+"Empiece por lo estrecho y amplíe. Una máscara del producto insignia que "
+"ajusta tan bien como una máscara completa es el mejor modelo, y la "
+"comparación cuesta un único reajuste."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:680014
+#: 0f37760874bd4fe1a7834d831d2b2c94
+msgid ""
+"Between the flagship extreme (one known source) and the full-spillover "
+"extreme (anything goes) there is a middle ground worth naming: **product "
+"similarity**. Products that share an audience, a use case, or shelf space"
+" are the plausible halo pairs; distant products are the plausible zeros. "
+"A similarity or substitution matrix from category knowledge, survey data,"
+" or purchase-switching data can be thresholded into a mask, or used more "
+"softly as a per-pair prior scale so that similar pairs are allowed larger"
+" coefficients. The same masked effect covers both variants: the mask "
+"carries the hard zeros and the `coefficient` prior carries the soft "
+"structure."
+msgstr ""
+"Entre el extremo del producto insignia (un origen conocido) y el extremo de "
+"derrame completo (todo vale) hay un punto intermedio que vale la pena "
+"nombrar: la **similitud entre productos**. Los productos que comparten "
+"audiencia, caso de uso o espacio en estantería son los pares plausibles de "
+"halo; los productos distantes son los ceros plausibles. Una matriz de "
+"similitud o de sustitución obtenida a partir del conocimiento de la "
+"categoría, datos de encuestas o datos de cambio de compra puede convertirse "
+"en una máscara mediante un umbral, o usarse de forma más suave como una "
+"escala del prior por par, de modo que a los pares similares se les permitan "
+"coeficientes mayores. El mismo efecto enmascarado cubre ambas variantes: la "
+"máscara aporta los ceros estrictos y el prior de `coefficient` aporta la "
+"estructura suave."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:690002
+#: d8a3674e5a0d4f888822b7208014e2b8
+msgid "Check identifiability before reporting a number"
+msgstr "Compruebe la identificabilidad antes de informar un número"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:690004
+#: e18cc133c96345418eea0a2553d9c361
+#, python-brace-format
+msgid ""
+"A cross coefficient $\\gamma_{ij}$ and the receiver's own channel "
+"coefficients both read a media-driven signal. When the two source signals"
+" are correlated, the posterior can trade one off against the other while "
+"leaving the fit unchanged. The diagnostic is the posterior correlation "
+"between them. If it is strongly negative, the pair is not separately "
+"identified and the right report is \"not identified\", not a point "
+"estimate with a tight interval."
+msgstr ""
+"Un coeficiente cruzado $\\gamma_{ij}$ y los coeficientes de los canales "
+"propios del receptor leen ambos una señal impulsada por los medios. Cuando "
+"las dos señales de origen están correlacionadas, la posterior puede "
+"compensar una con la otra dejando el ajuste sin cambios. El diagnóstico es "
+"la correlación posterior entre ambos. Si es fuertemente negativa, el par no "
+"está identificado por separado y el informe correcto es \"no identificado\","
+" no una estimación puntual con un intervalo estrecho."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:710002
+#: 235a182a497a42ca98565517f70d54db
+msgid ""
+"Here the correlations are close to zero, which is what a well-identified "
+"pair looks like: the spends were generated independently across products,"
+" so the flagship's contribution and each receiver's own media move "
+"separately, and the posterior does not need to trade one coefficient off "
+"against the other. In real portfolios, where campaigns are often planned "
+"on a shared calendar, expect worse."
+msgstr ""
+"Aquí las correlaciones están cerca de cero, que es el aspecto de un par bien"
+" identificado: los gastos se generaron de forma independiente entre "
+"productos, así que la contribución del producto insignia y los medios "
+"propios de cada receptor se mueven por separado, y la posterior no necesita "
+"compensar un coeficiente con el otro. En portafolios reales, donde las "
+"campañas suelen planificarse en un calendario compartido, espere algo peor."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:710009
+#: 0094f400033549a0ad2487cc247dc8a6
+msgid ""
+"The reason to expect worse is structural rather than statistical, and it "
+"is easier to see as a graph than as a correlation. Suppose an unobserved "
+"planning calendar $K$ drives both products' spend: a seasonal push, a "
+"joint retail event, a portfolio-wide budget cycle. Then $C_A$ and $y_B$ "
+"have a backdoor path through $K$, and a cross coefficient fitted on $C_A$"
+" absorbs it. The model reports a halo, and nothing in the fit "
+"distinguishes that from a genuine transfer."
+msgstr ""
+"La razón para esperar algo peor es estructural y no estadística, y es más "
+"fácil de ver como un grafo que como una correlación. Supongamos que un "
+"calendario de planificación no observado $K$ impulsa el gasto de ambos "
+"productos: un impulso estacional, un evento minorista conjunto, un ciclo "
+"presupuestario de todo el portafolio. Entonces $C_A$ y $y_B$ tienen un "
+"camino de puerta trasera a través de $K$, y un coeficiente cruzado ajustado "
+"sobre $C_A$ lo absorbe. El modelo informa un halo, y nada en el ajuste lo "
+"distingue de una transferencia genuina."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:730002
+#: d1075f9c04c44184bf014b451009b7fb
+#, python-brace-format
+msgid ""
+"The remedies are the ones that always apply to a backdoor path, not "
+"anything specific to halos: measure the calendar and control for it, so "
+"$K$ stops being unobserved; or bring in variation that $K$ does not "
+"touch, such as a lift test on the flagship. A cross-product term is a way"
+" to *express* transfer between products, not evidence that transfer is "
+"what produced the correlation. See "
+"{ref}`mmm_causal_reasoning_and_discovery` for the general treatment."
+msgstr ""
+"Los remedios son los que siempre se aplican a un camino de puerta trasera, "
+"nada específico de los halos: medir el calendario y controlarlo, de modo que"
+" $K$ deje de ser no observado; o incorporar una variación que $K$ no toque, "
+"como una prueba de elevación sobre el producto insignia. Un término entre "
+"productos es una forma de *expresar* la transferencia entre productos, no "
+"una prueba de que la transferencia sea lo que produjo la correlación. "
+"Consulte {ref}`mmm_causal_reasoning_and_discovery` para el tratamiento "
+"general."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:740002
+#: 74144a797f9e433ba7da1d7cb976565b
+msgid "Read the asymmetry, it is usually the finding"
+msgstr "Lea la asimetría, suele ser el hallazgo"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:740004
+#: af529eac5aab499b9a1a90e03c14b799
+msgid ""
+"Under the full mask every ordered pair is free, so we can ask whether the"
+" flagship affects the smaller products more than they affect it. "
+"Asymmetry is typically the headline result of a halo study, and it is the"
+" thing a symmetric correlation analysis cannot deliver."
+msgstr ""
+"Bajo la máscara completa todos los pares ordenados son libres, así que "
+"podemos preguntarnos si el producto insignia afecta a los productos más "
+"pequeños más de lo que ellos lo afectan a él. La asimetría suele ser el "
+"resultado principal de un estudio de halo, y es justo lo que un análisis de "
+"correlación simétrico no puede entregar."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:770002
+#: 77c95e2572fe40c396684944ec79829f
+msgid ""
+"The flagship column carries the finding: a strong positive effect on "
+"`product_b` and a clear negative effect on `product_c`, both with HDIs "
+"well away from zero and covering the true values. Both point estimates "
+"are pulled toward zero by the shrinkage hyperprior ($0.769$ against "
+"$0.8$, $-0.413$ against $-0.5$), which is the hyperprior working as "
+"intended rather than a failure, but it is worth reporting the interval "
+"alongside the mean. The reverse direction, the `product_a` row, is flat, "
+"which is the asymmetry a flagship story implies and the thing a symmetric"
+" correlation analysis could not have delivered."
+msgstr ""
+"La columna del producto insignia contiene el hallazgo: un fuerte efecto "
+"positivo sobre `product_b` y un claro efecto negativo sobre `product_c`, "
+"ambos con HDI bien alejados de cero y que cubren los valores verdaderos. "
+"Ambas estimaciones puntuales son atraídas hacia cero por el hiperprior de "
+"contracción ($0.769$ frente a $0.8$, $-0.413$ frente a $-0.5$), lo cual es "
+"el hiperprior funcionando como se pretende y no un fallo, pero conviene "
+"informar el intervalo junto con la media. La dirección inversa, la fila de "
+"`product_a`, es plana, que es la asimetría que implica una historia de "
+"producto insignia y lo que un análisis de correlación simétrico no habría "
+"podido entregar."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:770011
+#: 3bf11df62f0b4711bfa9ecc4f353d9fd
+msgid ""
+"The cost of the full mask's freedom is also visible. The `product_b ← "
+"product_c` entry drifts positive with $P(\\gamma > 0)$ near $0.95$ even "
+"though its true value is zero: with six free coefficients and correlated "
+"adstocked signals, one of the null pairs will absorb noise. The flagship "
+"mask, which encodes the correct structure, has no room to produce this "
+"artefact. That is the \"start narrow and widen\" advice made concrete."
+msgstr ""
+"El costo de la libertad de la máscara completa también es visible. La "
+"entrada `product_b ← product_c` se desplaza hacia valores positivos con "
+"$P(\\gamma > 0)$ cercano a $0.95$ aunque su valor verdadero es cero: con "
+"seis coeficientes libres y señales con adstock correlacionadas, uno de los "
+"pares nulos absorberá ruido. La máscara del producto insignia, que codifica "
+"la estructura correcta, no tiene margen para producir este artefacto. Eso "
+"hace concreto el consejo de \"empezar por lo estrecho y ampliar\"."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:780002
+#: 50767b94caea483b9ec80dd7446ae7e4
+msgid "Cap the total cross effect if the optimiser will consume it"
+msgstr "Limite el efecto cruzado total si el optimizador va a consumirlo"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:780004
+#: 548b663f001c420e8384a0994af8cd06
+msgid ""
+"A model whose cross terms account for most of total media contribution is"
+" almost always over-attributing. A practical guardrail is to monitor the "
+"share of total media contribution carried by the cross term and treat a "
+"large share as a modelling failure rather than a finding."
+msgstr ""
+"Un modelo cuyos términos cruzados explican la mayor parte de la contribución"
+" total de medios casi siempre está atribuyendo en exceso. Una salvaguarda "
+"práctica es monitorear la proporción de la contribución total de medios que "
+"lleva el término cruzado y tratar una proporción grande como un fallo de "
+"modelado y no como un hallazgo."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:810002
+#: 7f380045514647e6bf9f6145304ed39c
+msgid ""
+"The flagship mask sits close to the true share of $0.111$ computed above,"
+" and the brand factor is close too, though with an interval running down "
+"to zero. The full mask overshoots by about forty percent: the extra free "
+"pairs each carry a little noise and the shares add up. The HalfNormal "
+"variant carries more than twice the true share: deleting the negative "
+"entry inflates the net cross term, the same over-attribution seen in the "
+"portfolio table."
+msgstr ""
+"La máscara del producto insignia queda cerca de la proporción verdadera de "
+"$0.111$ calculada antes, y el factor de marca también, aunque con un "
+"intervalo que llega hasta cero. La máscara completa se pasa en alrededor de "
+"un cuarenta por ciento: los pares libres adicionales llevan cada uno un poco"
+" de ruido y las proporciones se suman. La variante HalfNormal lleva más del "
+"doble de la proporción verdadera: eliminar la entrada negativa infla el "
+"término cruzado neto, la misma atribución excesiva vista en la tabla del "
+"portafolio."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:820002
+#: 3d9dbc360074424eb30bbbc1179b0c59
+msgid "Remaining caveats"
+msgstr "Salvedades restantes"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:820004
+#: 1aa98420d63a40acae1084f54b09ba1e
+msgid ""
+"**A coefficient is a net.** Nothing here separates a simultaneous halo "
+"and cannibalisation between the same pair. That needs channel-resolved "
+"sources."
+msgstr ""
+"**Un coeficiente es un neto.** Nada de lo anterior separa un halo y una "
+"canibalización simultáneos entre el mismo par. Eso requiere orígenes "
+"resueltos por canal."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:820006
+#: b3407a09873441e1b3e0614a370ada9b
+msgid ""
+"**Scale.** At $P$ in the tens, even a masked matrix needs the shrinkage "
+"hyperprior to be doing real work. Check that the estimated scale is small"
+" and that widening the mask does not simply inflate it."
+msgstr ""
+"**Escala.** Con $P$ en las decenas, incluso una matriz enmascarada necesita "
+"que el hiperprior de contracción haga un trabajo real. Compruebe que la "
+"escala estimada sea pequeña y que ampliar la máscara no se limite a "
+"inflarla."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:820009
+#: 30f7889fc3214985a720ec51d6e08ad8
+#, python-brace-format
+msgid ""
+"**Confounding.** If two products are advertised on correlated calendars, "
+"a cross coefficient will happily absorb the common cause. Cross-product "
+"terms do not repair a missing confounder, and the usual remedies "
+"(controls, lift tests, an explicit causal graph) still apply. See "
+"{ref}`mmm_causal_reasoning_and_discovery`."
+msgstr ""
+"**Confusión.** Si dos productos se anuncian en calendarios correlacionados, "
+"un coeficiente cruzado absorberá gustosamente la causa común. Los términos "
+"entre productos no reparan un confusor omitido, y los remedios habituales "
+"(controles, pruebas de elevación, un grafo causal explícito) siguen "
+"aplicándose. Consulte {ref}`mmm_causal_reasoning_and_discovery`."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:820014
+#: bf9c1ee911a345c0aaf1f2f842d297c9
+msgid ""
+"**Feedback.** The model is a one-step transfer. Genuine mutual "
+"reinforcement over time is a dynamic system and is not what this "
+"parameterisation estimates."
+msgstr ""
+"**Retroalimentación.** El modelo es una transferencia de un solo paso. El "
+"refuerzo mutuo genuino a lo largo del tiempo es un sistema dinámico y no es "
+"lo que estima esta parametrización."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:830002
+#: b447862d4fa4493c93950b113b11f837
+msgid "Conclusion"
+msgstr "Conclusión"
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:830004
+#: 367ace1a98254b7e9ea94afe72b539dc
+#, python-brace-format
+msgid ""
+"Put the cross term on the **already-transformed** contribution $C_{t,j}$ "
+"and apply a plain linear coefficient. Transform once, read linearly many "
+"times. A cross term on raw spend with no saturation grows without bound "
+"and will mislead a budget optimiser."
+msgstr ""
+"Ponga el término cruzado sobre la contribución **ya transformada** $C_{t,j}$"
+" y aplique un coeficiente lineal simple. Transformar una vez, leer "
+"linealmente muchas veces. Un término cruzado sobre el gasto sin procesar y "
+"sin saturación crece sin límite y engañará a un optimizador de presupuesto."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:830008
+#: 0b0db9ae84a546ea91b4304465e576b6
+msgid ""
+"Make the coefficient **sign-free**. Halo and cannibalisation are one "
+"parameter with two signs, and a positive-only prior does not fail loudly,"
+" it reports \"no effect\" for a cannibalised product."
+msgstr ""
+"Haga que el coeficiente **no tenga restricción de signo**. Halo y "
+"canibalización son un solo parámetro con dos signos, y un prior solo "
+"positivo no falla de forma evidente, sino que informa \"ningún efecto\" para"
+" un producto canibalizado."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:830011
+#: 36a4ba46734541b381819cbd2eddc143
+msgid ""
+"Use a **mask** to encode which pairs may interact, and a shrinkage "
+"hyperprior to keep the surviving coefficients honest. One masked effect "
+"covers the flagship, full-spillover, block and hierarchy structures."
+msgstr ""
+"Use una **máscara** para codificar qué pares pueden interactuar, y un "
+"hiperprior de contracción para mantener honestos los coeficientes que "
+"sobreviven. Un único efecto enmascarado cubre las estructuras de producto "
+"insignia, de derrame completo, de bloques y de jerarquía."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:830014
+#: cbefe2bc6b004784b746f1ebf543affd
+msgid ""
+"**Do not select on predictive fit.** In-sample error notices a missing "
+"mechanism at best. Scoring the full predictive distribution with CRPS "
+"does not help: the two structures whose portfolio values are fifty points"
+" apart, on opposite sides of the truth, sit within about one percent of "
+"each other on in-sample CRPS."
+msgstr ""
+"**No seleccione según el ajuste predictivo.** El error dentro de la muestra,"
+" en el mejor de los casos, detecta un mecanismo faltante. Evaluar toda la "
+"distribución predictiva con CRPS no ayuda: las dos estructuras cuyos valores"
+" de portafolio están separados por cincuenta puntos, a lados opuestos de la "
+"verdad, quedan a aproximadamente un uno por ciento una de otra en el CRPS "
+"dentro de la muestra."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:830019
+#: 5b8d3ae6a0c34cc680ebda3a1e960f8e
+msgid ""
+"**Identification comes from variation.** The cross coefficient is read "
+"off the temporal variation of the source's transformed contribution. A "
+"flagship parked deep in saturation offers none, and no prior can rescue "
+"that."
+msgstr ""
+"**La identificación proviene de la variación.** El coeficiente cruzado se "
+"lee a partir de la variación temporal de la contribución transformada del "
+"origen. Un producto insignia estacionado muy adentro de la saturación no "
+"ofrece ninguna, y ningún prior puede remediarlo."
+
+#: ../source/notebooks/mmm/mmm_halo.ipynb:830022
+#: 679899f6adae42f1bb41198014009343
+msgid ""
+"**Report identifiability alongside the estimate.** When a cross "
+"coefficient and the receiver's own effect are strongly anti-correlated in"
+" the posterior, the honest answer is that the pair is not separately "
+"identified."
+msgstr ""
+"**Informe la identificabilidad junto con la estimación.** Cuando un "
+"coeficiente cruzado y el efecto propio del receptor están fuertemente "
+"anticorrelacionados en la posterior, la respuesta honesta es que el par no "
+"está identificado por separado."
+

@@ -1,0 +1,1761 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2026, PyMC Labs
+# This file is distributed under the same license as the PyMC-Marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyMC-Marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:10002
+#: 44ae66d3964f43fab6c12785b859cb3b
+msgid "Bayesian BLP: Structural Demand Estimation on Aggregate Market Shares"
+msgstr ""
+"Bayesian BLP: estimación estructural de la demanda con cuotas de mercado "
+"agregadas"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:30002
+#: 9c3282269f974ab0a6f24b91c2e3cada
+msgid "The aggregate-data problem"
+msgstr "El problema de los datos agregados"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:30004
+#: ee1ed5a1c6774a0f8d4ee81df0218f9a
+#, python-format
+msgid ""
+"You have weekly market-share data for a category. You want to know: if I "
+"raise the price of product A by 10%, how much share moves to product B "
+"versus the outside good? Standard regression on aggregate shares "
+"conflates two quantities: the average consumer's price sensitivity, and "
+"the *distribution* of price sensitivity across consumers. Conflate them "
+"and the same 10% hike predicts the wrong substitution pattern in every "
+"market that has a different mix of price-sensitive and price-insensitive "
+"buyers."
+msgstr ""
+"Usted tiene datos semanales de cuota de mercado para una categoría. Quiere "
+"saber: si aumento el precio del producto A en un 10%, ¿cuánta cuota pasa al "
+"producto B frente al bien externo? La regresión estándar sobre cuotas "
+"agregadas confunde dos cantidades: la sensibilidad promedio del consumidor "
+"al precio y la *distribución* de esa sensibilidad entre los consumidores. Si"
+" se confunden, el mismo aumento del 10% predice un patrón de sustitución "
+"incorrecto en cada mercado que tenga una mezcla distinta de compradores "
+"sensibles e insensibles al precio."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:30006
+#: 3bcbb410b48144df8b02e26db3c68d44
+#, python-format
+msgid ""
+"A short example. Market A has 40% share for sugary cereal at average "
+"income \\$30k. Market B has 60% share at average income \\$50k. A naïve "
+"read says higher income drives sugary cereal sales. Within each market "
+"the relationship may reverse. The market is a confounder; aggregation "
+"hides which way the within-market effect runs. This is the ecological "
+"fallacy."
+msgstr ""
+"Un ejemplo breve. El mercado A tiene una cuota del 40% para el cereal "
+"azucarado con un ingreso promedio de \\$30k. El mercado B tiene una cuota "
+"del 60% con un ingreso promedio de \\$50k. Una lectura ingenua dice que un "
+"mayor ingreso impulsa las ventas de cereal azucarado. Dentro de cada mercado"
+" la relación puede invertirse. El mercado es un confusor; la agregación "
+"oculta en qué dirección actúa el efecto dentro del mercado. Esto es la "
+"falacia ecológica."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:30008
+#: 975abec0b6b249d3a30df3f5cb77c6d4
+msgid "What BLP does"
+msgstr "Qué hace BLP"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:30010
+#: 5c18ed55fec740fabd07ff0639186bfb
+msgid ""
+"BLP estimates the *distribution* of consumer preferences most consistent "
+"with the observed aggregate shares. The estimator integrates over latent "
+"taste types and asks the Bayesian question: which preference "
+"distribution, propagated through a discrete-choice utility model, "
+"reproduces what we see in the data? With the distribution in hand, "
+"counterfactual prices feed through the same mechanism and give "
+"substitution patterns that respect both the average effect and the "
+"heterogeneity."
+msgstr ""
+"BLP estima la *distribución* de preferencias de los consumidores más "
+"consistente con las cuotas agregadas observadas. El estimador integra sobre "
+"tipos de gusto latentes y plantea la pregunta bayesiana: ¿qué distribución "
+"de preferencias, propagada a través de un modelo de utilidad de elección "
+"discreta, reproduce lo que vemos en los datos? Con la distribución en mano, "
+"los precios contrafactuales fluyen por el mismo mecanismo y dan patrones de "
+"sustitución que respetan tanto el efecto promedio como la heterogeneidad."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:60002
+#: 6a8ffd8a25114f46b202bea270125677
+msgid "Halton draws"
+msgstr "Muestras de Halton"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:60004
+#: d552393e640c4dcb89c0b67cdfed2eba
+msgid ""
+"The integral over consumer taste types has no closed form, so we "
+"approximate it with a fixed grid of draws. Owen-scrambled Halton draws "
+"fill a D-dimensional cube more evenly than the same number of pseudo-"
+"random draws (figure below), which means fewer draws for a given "
+"accuracy. We treat these draws as data: the model sees the same Halton "
+"points on every iteration and learns which taste types are most "
+"consistent with the observed shares."
+msgstr ""
+"La integral sobre los tipos de gusto de los consumidores no tiene forma "
+"cerrada, así que la aproximamos con una cuadrícula fija de muestras. Las "
+"muestras de Halton con aleatorización de Owen llenan un cubo de D "
+"dimensiones de forma más uniforme que el mismo número de muestras "
+"pseudoaleatorias (figura a continuación), lo que significa menos muestras "
+"para una precisión dada. Tratamos estas muestras como datos: el modelo ve "
+"los mismos puntos de Halton en cada iteración y aprende qué tipos de gusto "
+"son más consistentes con las cuotas observadas."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:80002
+#: b5af5392b40d4d548a908486e99054c2
+msgid ""
+"The Halton grid feeds the share integral the model evaluates at every "
+"draw of the parameters:"
+msgstr ""
+"La cuadrícula de Halton alimenta la integral de la cuota que el modelo "
+"evalúa en cada muestra de los parámetros:"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:80004
+#: 337b7ae3ff8147988cfcf007f3fe312b
+msgid ""
+"\n"
+"\\hat{s}_{jm} =\n"
+"\\int_{\\mathbb{R}^D}\n"
+"\\frac{\\exp(\\delta_{jm} + \\mu_{ijm})}\n"
+"     {1 + \\sum_{k=1}^{J} \\exp(\\delta_{km} + \\mu_{ikm})}\n"
+"\\; dF(\\bm{\\nu}_i; \\mathbf{0}, \\mathbf{I}_D)\n"
+msgstr ""
+"\n"
+"\\hat{s}_{jm} =\n"
+"\\int_{\\mathbb{R}^D}\n"
+"\\frac{\\exp(\\delta_{jm} + \\mu_{ijm})}\n"
+"     {1 + \\sum_{k=1}^{J} \\exp(\\delta_{km} + \\mu_{ikm})}\n"
+"\\; dF(\\bm{\\nu}_i; \\mathbf{0}, \\mathbf{I}_D)\n"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:80012
+#: 0a2045bd99ae4698901971411c68d0ba
+msgid "The mean utility and the consumer-level deviation are"
+msgstr "La utilidad media y la desviación a nivel de consumidor son"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:80014
+#: 35171663d6374743ab8f9efef6d338c3
+#, python-brace-format
+msgid ""
+"\n"
+"\\delta_{jm} = \\alpha_{r(m)} \\, p_{jm} + "
+"\\mathbf{x}_{jm}'\\bm{\\beta}_{r(m)} + \\xi_{jm}\n"
+msgstr ""
+"\n"
+"\\delta_{jm} = \\alpha_{r(m)} \\, p_{jm} + \\mathbf{x}_{jm}'\\bm{\\beta}_{r(m)} + \\xi_{jm}\n"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:80018
+#: 6c0fa0ca55144260bca74fbae13bad5e
+#, python-brace-format
+msgid ""
+"\n"
+"\\mu_{ijm} = \\sum_{d=1}^{D} \\sigma_d \\cdot \\nu_{id} \\cdot c_{jmd}\n"
+msgstr ""
+"\n"
+"\\mu_{ijm} = \\sum_{d=1}^{D} \\sigma_d \\cdot \\nu_{id} \\cdot c_{jmd}\n"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:80022
+#: b5c1be6b7a524e89aaf30a1671fb07cf
+#, python-brace-format
+msgid ""
+"where $c_{jmd}$ is the value of the $d$-th `random_coef_on` covariate for"
+" product $j$ in market $m$ (price, or any product characteristic the user"
+" passes). $\\delta_{jm}$ carries the average preferences, identified by "
+"$\\alpha$ and $\\beta$; $\\mu_{ijm}$ carries the consumer-level departure"
+" from those averages, scaled by $\\sigma_d$ along each random-coefficient"
+" dimension."
+msgstr ""
+"donde $c_{jmd}$ es el valor de la $d$-ésima covariable de `random_coef_on` "
+"para el producto $j$ en el mercado $m$ (el precio, o cualquier "
+"característica del producto que el usuario indique). $\\delta_{jm}$ contiene"
+" las preferencias promedio, identificadas por $\\alpha$ y $\\beta$; "
+"$\\mu_{ijm}$ contiene la desviación a nivel de consumidor respecto de esos "
+"promedios, escalada por $\\sigma_d$ a lo largo de cada dimensión de "
+"coeficiente aleatorio."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:90002
+#: 19afd50269cd40ea951af730b3a5d92f
+msgid "Likelihood: connecting predicted shares to observed shares"
+msgstr ""
+"Verosimilitud: conectar las cuotas predichas con las cuotas observadas"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:90004
+#: 7c87a54f3d234773b0f8546a9bbb2131
+#, python-brace-format
+msgid ""
+"The integral above gives a predicted share $\\hat s_{jm}$ for every "
+"(product, market) cell. To fit the model we need a likelihood that "
+"connects those predicted shares to the *observed* shares $s_{jm}$ from "
+"the data. Berry (1994) shows how to do this cheaply."
+msgstr ""
+"La integral anterior da una cuota predicha $\\hat s_{jm}$ para cada celda "
+"(producto, mercado). Para ajustar el modelo necesitamos una verosimilitud "
+"que conecte esas cuotas predichas con las cuotas *observadas* $s_{jm}$ de "
+"los datos. Berry (1994) muestra cómo hacerlo a bajo costo."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:90006
+#: abea4484f5d3491eb21d3a2caf463f02
+msgid "The log-ratio reparameterisation"
+msgstr "La reparametrización de la razón logarítmica"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:90008
+#: 86824012e7694791a5d245529394bc41
+msgid ""
+"Take the share equation, divide by the outside-good share, and take logs."
+" The model's predicted log-share-ratio is"
+msgstr ""
+"Tomamos la ecuación de la cuota, la dividimos por la cuota del bien externo "
+"y aplicamos logaritmos. La razón logarítmica de cuotas predicha por el "
+"modelo es"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:90010
+#: d3094f2a351345a7b7a8050a34179939
+#, python-brace-format
+msgid ""
+"\n"
+"\\hat y_{jm} \\;=\\; \\log \\hat s_{jm} \\,-\\, \\log \\hat s_{0m}\n"
+msgstr ""
+"\n"
+"\\hat y_{jm} \\;=\\; \\log \\hat s_{jm} \\,-\\, \\log \\hat s_{0m}\n"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:90014
+#: bc0853887a484f90879f7e3dba63fb66
+#, python-brace-format
+msgid ""
+"In the *pure logit* special case (no random coefficients), the consumer-"
+"deviation $\\mu_{ijm}$ vanishes and the right-hand side collapses exactly"
+" to $\\delta_{jm}$. With random coefficients the log-ratio carries a "
+"small correction term beyond $\\delta_{jm}$, but the structural "
+"information about prices and characteristics still lives there, and the "
+"outside good cancels the denominator's normalising constant. The log-"
+"ratio is the *natural* scale for an aggregate-share likelihood — it is "
+"bounded only by the data, not by $[0, 1]$, and it linearises the share "
+"formula around $\\delta_{jm}$."
+msgstr ""
+"En el caso especial del *logit puro* (sin coeficientes aleatorios), la "
+"desviación del consumidor $\\mu_{ijm}$ se anula y el lado derecho se reduce "
+"exactamente a $\\delta_{jm}$. Con coeficientes aleatorios, la razón "
+"logarítmica incluye un pequeño término de corrección además de "
+"$\\delta_{jm}$, pero la información estructural sobre precios y "
+"características sigue estando ahí, y el bien externo cancela la constante "
+"normalizadora del denominador. La razón logarítmica es la escala *natural* "
+"para una verosimilitud de cuotas agregadas: está acotada solo por los datos,"
+" no por $[0, 1]$, y linealiza la fórmula de la cuota alrededor de "
+"$\\delta_{jm}$."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:90016
+#: 7899f20421664f2badaa8a23fddf13c8
+msgid "Why a Normal likelihood is sound"
+msgstr "Por qué una verosimilitud Normal es adecuada"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:90018
+#: 30951d672a384449b3e19b2ac0dfb14d
+#, python-brace-format
+msgid ""
+"The observed shares $s_{jm}$ come from a finite sample of $n_m$ consumers"
+" per market. Under a multinomial sampling story and the delta method, "
+"$\\log s_{jm}$ is approximately Normal with variance $(1 - s_{jm}) / (n_m"
+" \\, s_{jm})$. The log-*ratio* additionally carries the outside good's "
+"sampling noise and the (negative) covariance between the two log shares; "
+"the three pieces combine into a clean form:"
+msgstr ""
+"Las cuotas observadas $s_{jm}$ provienen de una muestra finita de $n_m$ "
+"consumidores por mercado. Bajo un modelo de muestreo multinomial y el método"
+" delta, $\\log s_{jm}$ es aproximadamente Normal con varianza $(1 - s_{jm}) "
+"/ (n_m \\, s_{jm})$. La *razón* logarítmica incorpora además el ruido "
+"muestral del bien externo y la covarianza (negativa) entre las dos cuotas "
+"logarítmicas; las tres piezas se combinan en una forma limpia:"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:90020
+#: 8f0e4b4d1a454f039f3369225160c7d2
+msgid ""
+"\n"
+"\\log s_{jm} - \\log s_{0m} \\;\\sim\\; \\mathcal{N}\\!\\left(\\hat "
+"y_{jm}, \\; \\frac{1}{n_m \\, s_{jm}} + \\frac{1}{n_m \\, s_{0m}}\\right)"
+"\n"
+msgstr ""
+"\n"
+"\\log s_{jm} - \\log s_{0m} \\;\\sim\\; \\mathcal{N}\\!\\left(\\hat y_{jm}, \\; \\frac{1}{n_m \\, s_{jm}} + \\frac{1}{n_m \\, s_{0m}}\\right)\n"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:90024
+#: 8f8425bfc5dc4ea7be1403ce444743dd
+#, python-format
+msgid ""
+"The variance is *heteroskedastic*, which is exactly the right shape: "
+"high-share cells are observed precisely (small variance), sparse cells "
+"are observed noisily (large variance). The likelihood automatically down-"
+"weights cells with little data, so a market with a 0.5% inside-good share"
+" contributes less to the posterior than a market with a 30% share — "
+"without us having to write that weighting scheme explicitly."
+msgstr ""
+"La varianza es *heterocedástica*, que es exactamente la forma adecuada: las "
+"celdas de cuota alta se observan con precisión (varianza pequeña) y las "
+"celdas escasas se observan con ruido (varianza grande). La verosimilitud "
+"reduce automáticamente el peso de las celdas con pocos datos, de modo que un"
+" mercado con una cuota de bienes internos del 0.5% contribuye menos a la "
+"posterior que un mercado con una cuota del 30%, sin que tengamos que "
+"escribir ese esquema de ponderación de forma explícita."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:90026
+#: 031b81f337e94f978304b176ce748ad0
+msgid ""
+"This is the `likelihood=\"normal_logshare\"` option in `BayesianBLP`. It "
+"is the standard treatment for aggregate-share random-coefficients models "
+"and is the bridge that turns a model of *individual consumer choices* "
+"into a likelihood we can evaluate against *market-level* data."
+msgstr ""
+"Esta es la opción `likelihood=\"normal_logshare\"` en `BayesianBLP`. Es el "
+"tratamiento estándar para los modelos de coeficientes aleatorios con cuotas "
+"agregadas y es el puente que convierte un modelo de *elecciones individuales"
+" de los consumidores* en una verosimilitud que podemos evaluar frente a "
+"datos a *nivel de mercado*."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:100002
+#: 79c2cb1f5a344542b2be3b2b4ea7dffb
+msgid "Notation glossary"
+msgstr "Glosario de notación"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:100004
+#: c4c12772457b46efb876cc7626f96e07
+msgid ""
+"The model below carries a lot of names. The tables here map every PyMC "
+"variable you will see in `az.summary` or in posterior plots to its "
+"mathematical symbol and its role in the model. Come back here whenever an"
+" unfamiliar name shows up in the output."
+msgstr ""
+"El modelo que sigue lleva muchos nombres. Las tablas de aquí asocian cada "
+"variable de PyMC que verá en `az.summary` o en los gráficos de la posterior "
+"con su símbolo matemático y su papel en el modelo. Regrese aquí cada vez que"
+" aparezca un nombre desconocido en la salida."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:100006
+#: bcdc46b6f20e42b39241dba90fb35776
+msgid "Variables you will see in code and math"
+msgstr "Variables que verá en el código y en las matemáticas"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 72514224d8164161b488e5fb6aee92b4
+msgid "Code name"
+msgstr "Nombre en el código"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 24928a97457c46eda9d66b046b5c2747
+msgid "Math"
+msgstr "Símbolo"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: b771bb69a3f140c4896d2b2f7f9f931e
+msgid "Role"
+msgstr "Papel"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 75118fcbcb1340e9b8b83351df4fda8d
+msgid "`alpha`, `alpha_r`, `alpha_pop`"
+msgstr "`alpha`, `alpha_r`, `alpha_pop`"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 625430508908441f91bbadd511564332
+msgid "$\\alpha$, $\\alpha_r$, $\\alpha_{\\text{pop}}$"
+msgstr "$\\alpha$, $\\alpha_r$, $\\alpha_{\\text{pop}}$"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: c773831c628e49d0a45981bbe65cc45d
+msgid ""
+"Price coefficient — single-region, per-region, cross-region population "
+"mean"
+msgstr ""
+"Coeficiente de precio — de una sola región, por región y media poblacional "
+"entre regiones"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 6c9dde46d93243bea2658626211a7dbc
+msgid "`beta`, `beta_r`, `beta_pop`"
+msgstr "`beta`, `beta_r`, `beta_pop`"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 9dfc9035c5404110af4abdf10442125d
+msgid "$\\beta$, $\\beta_r$, $\\beta_{\\text{pop}}$"
+msgstr "$\\beta$, $\\beta_r$, $\\beta_{\\text{pop}}$"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 7fe43b4499e94ddfa0b86fbf2eee6207
+msgid "Characteristic utility weights, same hierarchy"
+msgstr "Pesos de utilidad de las características, con la misma jerarquía"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: f35a8c697f3a418a87265f7a12e721a7
+msgid "`tau_alpha`, `tau_beta`"
+msgstr "`tau_alpha`, `tau_beta`"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: aac700df7a634a8f9bfe4faec1e10e06
+msgid "$\\tau_\\alpha$, $\\tau_\\beta$"
+msgstr "$\\tau_\\alpha$, $\\tau_\\beta$"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 12b905e480a34196a04d27baf4290ec3
+msgid "Between-region SDs (only when `region_col` is set)"
+msgstr ""
+"Desviaciones estándar entre regiones (solo cuando se define `region_col`)"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 83de5ee8d53949ac8fd8377c8607343e
+msgid "`sigma_random`"
+msgstr "`sigma_random`"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 388394a5f2de49fdb7a9c903b2000a7d
+msgid "$\\sigma_d$, $d \\in$ `random_coef_on`"
+msgstr "$\\sigma_d$, $d \\in$ `random_coef_on`"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 2dc5c5a7114e446eb85593e270923bcb
+msgid "Consumer heterogeneity scale per random-coefficient dimension"
+msgstr ""
+"Escala de la heterogeneidad de los consumidores por cada dimensión de "
+"coeficiente aleatorio"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: a950fdda760f4c118e55934a14da737f
+msgid "`model._halton[:, d]` (or `taste_profiles.consumer_taste_grid(model)`)"
+msgstr ""
+"`model._halton[:, d]` (or `taste_profiles.consumer_taste_grid(model)`)"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 4015e73cafaa4c2e980af27e9876868f
+#, python-brace-format
+msgid "$\\nu_{id}$"
+msgstr "$\\nu_{id}$"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 868b3fd885994608b647901fe1b579d0
+#, python-brace-format
+msgid ""
+"Consumer $i$'s standardised $\\mathcal{N}(0, 1)$ taste shock along "
+"dimension $d$, drawn from the Halton grid (fixed data, not sampled)"
+msgstr ""
+"Choque de gusto estandarizado $\\mathcal{N}(0, 1)$ del consumidor $i$ a lo "
+"largo de la dimensión $d$, tomado de la cuadrícula de Halton (datos fijos, "
+"no muestreados)"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 64f547fd35f9436199afb23eeba0f077
+msgid "`xi`, `xi_j`, `xi_tilde`"
+msgstr "`xi`, `xi_j`, `xi_tilde`"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 37c43790295c497e90396e60187ba57c
+#, python-brace-format
+msgid "$\\xi_{jm}$, $\\xi_j$, $\\tilde\\xi_{jm}$"
+msgstr "$\\xi_{jm}$, $\\xi_j$, $\\tilde\\xi_{jm}$"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 6f8232efda924864a6d937ccfb136b6b
+msgid ""
+"Latent product-market quality shock decomposed as product fixed effect + "
+"centered residual"
+msgstr ""
+"Choque latente de calidad producto-mercado descompuesto como efecto fijo del"
+" producto + residuo centrado"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 58d5d83a581b49aea35b1e81fd7aac58
+msgid "`sigma_xi`, `sigma_xi_j`"
+msgstr "`sigma_xi`, `sigma_xi_j`"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 3c3953b8cf6c434088d3268a991f161d
+#, python-brace-format
+msgid "$\\sigma_\\xi$, $\\sigma_{\\xi_j}$"
+msgstr "$\\sigma_\\xi$, $\\sigma_{\\xi_j}$"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: b732b6de91ed403c9b1d8028c22b0b9c
+#, python-brace-format
+msgid "Marginal scales of $\\xi_{jm}$ and $\\xi_j$"
+msgstr "Escalas marginales de $\\xi_{jm}$ y $\\xi_j$"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 59f80865ccaf4ae687125ed75e5560dd
+msgid "`eta`, `sigma_eta`"
+msgstr "`eta`, `sigma_eta`"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 0484cce7243e47f4a3a14dc67237d7f4
+#, python-brace-format
+msgid "$\\eta_{jm}$, $\\sigma_\\eta$"
+msgstr "$\\eta_{jm}$, $\\sigma_\\eta$"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: fccac6284399479fb00c2b7348bf802f
+msgid "First-stage price residual and its scale (with instruments)"
+msgstr "Residuo del precio en la primera etapa y su escala (con instrumentos)"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 3c8c9561dbac4ab586aa74992981b4c6
+msgid "`pi_0`, `pi_z`"
+msgstr "`pi_0`, `pi_z`"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 3519302eb2ae4574b966bf5ad6a428fe
+msgid "$\\pi_0$, $\\pi_z$"
+msgstr "$\\pi_0$, $\\pi_z$"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 280ba3dea7b3456f8d73dfcb37e0b03a
+msgid "First-stage intercepts and instrument coefficients on price"
+msgstr ""
+"Interceptos de la primera etapa y coeficientes de los instrumentos sobre el "
+"precio"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: d8a40a906f57401c9df9f9d6f44e7107
+msgid "`rho_price_xi`"
+msgstr "`rho_price_xi`"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: c3dc6e5546104bf29fa7f78ac9a66add
+msgid "$\\rho$"
+msgstr "$\\rho$"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 605041c1fe3843d397c0e333fd0c690a
+msgid ""
+"Endogeneity correlation — how strongly $\\xi$ co-moves with the price "
+"residual"
+msgstr ""
+"Correlación de endogeneidad: qué tan fuertemente $\\xi$ se mueve junto con "
+"el residuo del precio"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 183ab32e155b4fc790854e91127bd005
+msgid "`gamma_xi_eta`, `omega_xi`"
+msgstr "`gamma_xi_eta`, `omega_xi`"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 549fba1752f947b3b4c49829c14a1d09
+msgid "$\\gamma$, $\\omega$"
+msgstr "$\\gamma$, $\\omega$"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: c402494b3e064e33b966a03a960d3ce8
+msgid ""
+"Slope-residual coordinates the sampler uses; $(\\rho, \\sigma_\\xi)$ are "
+"derived from these to avoid the multiplicative ridge that pins NUTS"
+msgstr ""
+"Coordenadas de pendiente-residuo que usa el muestreador; $(\\rho, "
+"\\sigma_\\xi)$ se derivan de estas para evitar la cresta multiplicativa que "
+"atasca a NUTS"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 8d681708549a48d595c7fc78faae1a20
+msgid "*internal `mu_dev`*"
+msgstr "*`mu_dev` interna*"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: dfe68fa4dbf14246ac47617ed5673028
+#, python-brace-format
+msgid "$\\mu_{ijm}$"
+msgstr "$\\mu_{ijm}$"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: d2a89645aed2441c9c8f1c9c7e546b71
+#, python-brace-format
+msgid ""
+"Consumer-level utility deviation $\\sum_d \\sigma_d \\, \\nu_{id} \\, "
+"c_{jmd}$; combines with $\\delta_{jm}$ to form individual utility before "
+"the softmax. Not exposed as a posterior variable"
+msgstr ""
+"Desviación de utilidad a nivel de consumidor $\\sum_d \\sigma_d \\, "
+"\\nu_{id} \\, c_{jmd}$; se combina con $\\delta_{jm}$ para formar la "
+"utilidad individual antes del softmax. No se expone como variable de la "
+"posterior"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: c9ac181cb8574ce1af1cd42441261d5b
+msgid "`delta`"
+msgstr "`delta`"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: a39961fe5a594774ae4b05ec3fe02894
+#, python-brace-format
+msgid "$\\delta_{jm}$"
+msgstr "$\\delta_{jm}$"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 0a3ff2cdad2f408eabf67e6eb51f01d8
+msgid "Mean utility (only registered when `track_delta=True`)"
+msgstr "Utilidad media (solo se registra cuando `track_delta=True`)"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 8c75a5e6f38e45178416449c2ef8e95b
+msgid "`s_inside`, `s_outside`"
+msgstr "`s_inside`, `s_outside`"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: ae0494d76fd349e7bcd8c40e40fb5be8
+#, python-brace-format
+msgid "$\\hat s_{jm}$, $\\hat s_{0m}$"
+msgstr "$\\hat s_{jm}$, $\\hat s_{0m}$"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: ad36fedc3d1645c28c36a46ab2ad35d3
+msgid "Halton-averaged predicted shares"
+msgstr "Cuotas predichas promediadas sobre Halton"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 4c72cdf380c1431186c36c49a388f47e
+msgid "`log_share_ratio`"
+msgstr "`log_share_ratio`"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 0397601f84d7402fbde3311a266b3506
+#, python-brace-format
+msgid "$\\log s_{jm} - \\log s_{0m}$"
+msgstr "$\\log s_{jm} - \\log s_{0m}$"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 0c22b6e769c64439bf14f5ecd9b4dd8f
+msgid "The likelihood's observed quantity"
+msgstr "La cantidad observada de la verosimilitud"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:100026
+#: de6139892b97434892325f97e81eed70
+msgid "Index conventions"
+msgstr "Convenciones de índices"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: f1d450474ccc4a95813e9ddc41c6ce27
+msgid "Index"
+msgstr "Índice"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 672af8a372af4ec7a3ba8765c7f43461
+msgid "Range"
+msgstr "Rango"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: d619d8e0862f4836840f6373f0c3eba8
+msgid "Meaning"
+msgstr "Significado"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: db62445a4ce04129a192fb2942cedfdc
+msgid "$j$"
+msgstr "$j$"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: c84d0899b7904e9384f4e8c554f60d90
+msgid "$1, \\dots, J$"
+msgstr "$1, \\dots, J$"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 5427e8122f7248488424bac5fe6be117
+msgid "Inside product"
+msgstr "Producto interno"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 4479d8164a7946818e854c2a83eb1142
+msgid "$m$"
+msgstr "$m$"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 8aaec2f7f17846efa81ff81e2464406a
+msgid "$1, \\dots, M$"
+msgstr "$1, \\dots, M$"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 571cf6e6aaa04134a401150b6fd8a7d7
+#, python-brace-format
+msgid ""
+"Market — one $(\\text{region}, \\text{period})$ cell when `time_col` is "
+"set"
+msgstr ""
+"Mercado: una celda $(\\text{region}, \\text{period})$ cuando se define "
+"`time_col`"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 483a81d7b1c84f6fa1fa4e81577afb0a
+msgid "$i$"
+msgstr "$i$"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 311a3dffe6d44f7e8e5c3976590edbcc
+msgid "continuous"
+msgstr "continuo"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 3472aef0303b4fa58852448bfd02df06
+msgid "Individual consumer (integrated out via Halton)"
+msgstr "Consumidor individual (se integra mediante Halton)"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: e63ca7f1d8324bf08d2959e6f9851b03
+msgid "$r$"
+msgstr "$r$"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: ffde83831bda40f29b5931590a983b8f
+msgid "$1, \\dots, R$"
+msgstr "$1, \\dots, R$"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 1766c634463a460eb016cc87a7b874cd
+msgid "Halton draw index ($R$ = `n_mc_draws`)"
+msgstr "Índice de muestra de Halton ($R$ = `n_mc_draws`)"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 8614d099a4524eb1b14146b3f1c2eb18
+msgid "$d$"
+msgstr "$d$"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: d3dc3957a8bb4b0c90a86628d6a0eb25
+msgid "$1, \\dots, D$"
+msgstr "$1, \\dots, D$"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 34afcbe981264d6880a2b51caafa92e1
+msgid "Random-coefficient dimension ($D$ = `len(random_coef_on)`)"
+msgstr "Dimensión de coeficiente aleatorio ($D$ = `len(random_coef_on)`)"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 54ee09bc95604bc5a799766eeb518c6f
+msgid "$r(m)$"
+msgstr "$r(m)$"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 8511be46c1f74510b0998ea1dadcc8a4
+msgid "region label"
+msgstr "etiqueta de región"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: bc0b3a488546400696aecbddf9bf1e94
+msgid "Region containing market $m$ (when `region_col` is set)"
+msgstr "Región que contiene el mercado $m$ (cuando se define `region_col`)"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:110002
+#: e3058931293044f9bdf85d370e421533
+msgid "When to use this model"
+msgstr "Cuándo usar este modelo"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:110004
+#: 8cf9338c2c8640ad87115742a6b2b464
+msgid ""
+"PyMC-Marketing ships three discrete-choice model families. Pick the one "
+"that matches your data shape and question:"
+msgstr ""
+"PyMC-Marketing incluye tres familias de modelos de elección discreta. Elija "
+"la que se ajuste a la forma de sus datos y a su pregunta:"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 66202bd981794b3b8e0bd7666ef9cba2
+msgid "Model"
+msgstr "Modelo"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: dccdbe4804694368b41d20936dcc1e22
+msgid "Data shape"
+msgstr "Forma de los datos"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 22e325454a924f1ebe70b54dc360df69
+msgid "What it answers"
+msgstr "Qué responde"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: ea8e5d33894940d7934f3594b5840cd5
+msgid "**MNL / MixedLogit**"
+msgstr "**MNL / MixedLogit**"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 11b368683da343b5b3ef21e6000cb4ac
+msgid "Individual choice occasions"
+msgstr "Ocasiones de elección individuales"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 71e92d49503345f5a23f846095d3625d
+msgid "Who chose what, and why?"
+msgstr "¿Quién eligió qué y por qué?"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: c3e183f3f1af44babb6b2862bb38c631
+msgid "**MVITS**"
+msgstr "**MVITS**"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 7d10717cf2a44123a83651b080fe86c3
+msgid "Aggregate share time series"
+msgstr "Series de tiempo de cuotas agregadas"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 4d73d9fb22554f059bd8e8eeb46f9903
+msgid "What happened when brand X launched?"
+msgstr "¿Qué pasó cuando se lanzó la marca X?"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 42f9b632f9974612ba08dfc286ea9bc1
+msgid "**BayesianBLP** *(this notebook)*"
+msgstr "**BayesianBLP** *(este cuaderno)*"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 3fac6e46f0e0484780c36384b797efcc
+msgid "Aggregate share panels"
+msgstr "Paneles de cuotas agregadas"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb
+#: 6ed7e02c0e7c45aa8147cf15e0331ab1
+msgid "What would happen if I changed price?"
+msgstr "¿Qué pasaría si cambiara el precio?"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:110012
+#: 9ccbb23bca5b43b5a8d7ad84fad5f460
+msgid ""
+"**BayesianBLP** is a structural random-coefficients logit on aggregate "
+"shares: the Bayesian reformulation of Berry, Levinsohn & Pakes (1995) "
+"following Jiang, Manchanda & Rossi (2009). Reach for it when:"
+msgstr ""
+"**BayesianBLP** es un logit estructural de coeficientes aleatorios sobre "
+"cuotas agregadas: la reformulación bayesiana de Berry, Levinsohn & Pakes "
+"(1995) siguiendo a Jiang, Manchanda & Rossi (2009). Recurra a él cuando:"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:110014
+#: 190c2c209afa4ffaa937fb0e55d3bdc3
+msgid "You have **aggregate market shares** (not individual transactions)."
+msgstr ""
+"Tiene **cuotas de mercado agregadas** (no transacciones individuales)."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:110015
+#: 2621b085d74844c7a5b7cb5002c4590d
+msgid "You need structurally grounded **cross-price substitution patterns**."
+msgstr ""
+"Necesita **patrones de sustitución de precios cruzados** con fundamento "
+"estructural."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:110016
+#: 42bc522b1f884f09a985add9d56cf15e
+msgid ""
+"Prices may be **endogenous** (set by firms who observe unobserved demand "
+"shocks) and you have **cost or rival-characteristic instruments** to "
+"correct the bias."
+msgstr ""
+"Los precios pueden ser **endógenos** (fijados por empresas que observan "
+"choques de demanda no observados) y usted tiene **instrumentos de costos o "
+"de características de los rivales** para corregir el sesgo."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:110018
+#: 9891c8b9108b4efb9fc35d824d0fe884
+msgid ""
+"You want **full posterior uncertainty** on elasticities and "
+"counterfactual shares, with correct propagation through the structural "
+"demand model."
+msgstr ""
+"Quiere **incertidumbre posterior completa** sobre las elasticidades y las "
+"cuotas contrafactuales, con una propagación correcta a través del modelo "
+"estructural de demanda."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:110021
+#: cc912abc44de4e3db573ba3a84fcd3a4
+#, python-brace-format
+msgid ""
+"The Bayesian formulation replaces the classical BLP contraction mapping +"
+" GMM with a joint posterior over preference parameters and the latent "
+"demand shocks $\\xi_{jt}$. Hierarchical pooling across regions becomes "
+"cheap, and the credible intervals stay honest under weak instruments."
+msgstr ""
+"La formulación bayesiana reemplaza el mapeo de contracción clásico de BLP + "
+"GMM por una posterior conjunta sobre los parámetros de preferencias y los "
+"choques latentes de demanda $\\xi_{jt}$. La agrupación jerárquica entre "
+"regiones se vuelve económica, y los intervalos creíbles se mantienen "
+"honestos con instrumentos débiles."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:120002
+#: e67942514c2e400e8f2bda6a3738b495
+msgid "1. Synthetic data: a BLP-style aggregate share panel"
+msgstr "1. Datos sintéticos: un panel de cuotas agregadas al estilo BLP"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:120004
+#: 1a7b201648854407b790f200637eacf5
+#, python-brace-format
+msgid ""
+"We use `generate_blp_panel` to create a synthetic panel with known true "
+"parameters. The data-generating process produces a joint $(\\eta_{jt}, "
+"\\tilde{\\xi}_{jt})$ shock so that prices are endogenous: estimation "
+"without instruments will bias the price coefficient toward zero."
+msgstr ""
+"Usamos `generate_blp_panel` para crear un panel sintético con parámetros "
+"verdaderos conocidos. El proceso generador de datos produce un choque "
+"conjunto $(\\eta_{jt}, \\tilde{\\xi}_{jt})$ de modo que los precios son "
+"endógenos: la estimación sin instrumentos sesgará el coeficiente de precio "
+"hacia cero."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:120006
+#: 107d90dad30d42e085c68aa3221731db
+msgid ""
+"The returned DataFrame is in long format: one row per (market, product), "
+"with the outside good as a row labelled `'outside'`. The `truth` "
+"dictionary records the DGP parameters we will try to recover."
+msgstr ""
+"El DataFrame devuelto está en formato largo: una fila por (mercado, "
+"producto), con el bien externo como una fila etiquetada `'outside'`. El "
+"diccionario `truth` registra los parámetros del DGP que intentaremos "
+"recuperar."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:120008
+#: 354693ea48fd4c4ebf1df41a149c704c
+#, python-format
+msgid ""
+"**Market semantics.** A BLP \"market\" is a `(region, period)` cell: the "
+"unit at which shares and prices are observed. The model treats markets as"
+" exchangeable unless you tell it otherwise. Pass `time_col=\"period\"` to"
+" `BayesianBLP` to expose `period` as a first-class coordinate. Then "
+"`counterfactual_shares` and `elasticities` accept `periods=` / `regions=`"
+" coord-label arguments so you can phrase questions like \"raise prod_0 "
+"price by 10% in periods 10–20\" directly. This notebook turns that on at "
+"construction so the time-targeted counterfactual section near the end "
+"just works."
+msgstr ""
+"**Semántica del mercado.** Un \"mercado\" de BLP es una celda `(region, "
+"period)`: la unidad en la que se observan las cuotas y los precios. El "
+"modelo trata los mercados como intercambiables a menos que se indique lo "
+"contrario. Pase `time_col=\"period\"` a `BayesianBLP` para exponer `period` "
+"como una coordenada de primera clase. Entonces `counterfactual_shares` y "
+"`elasticities` aceptan los argumentos de etiquetas de coordenadas `periods=`"
+" / `regions=`, de modo que puede formular preguntas como \"aumentar el "
+"precio de prod_0 en un 10% en los períodos 10–20\" directamente. Este "
+"cuaderno lo activa en la construcción para que la sección de contrafactuales"
+" dirigidos en el tiempo, cerca del final, funcione sin más."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:150002
+#: 53a65673c1764e37ac43b9470d33ae32
+msgid "2. Model specification and prior predictive check"
+msgstr "2. Especificación del modelo y chequeo predictivo previo"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:150004
+#: 62de15f0a94b413db571af4432c91f7a
+msgid "We instantiate `BayesianBLP` with:"
+msgstr "Instanciamos `BayesianBLP` con:"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:150005
+#: fcc6714d70a8499dacac38092149387d
+#, python-brace-format
+msgid ""
+"`random_coef_on=[\"price\", \"x_0\", \"x_1\"]`: a 3-dimensional consumer "
+"taste vector $\\bm{\\nu}_i \\in \\mathbb{R}^3$. Each component is a "
+"standardised draw that scales heterogeneity on one covariate: price "
+"sensitivity ($\\sigma_\\alpha$), and the two product characteristics "
+"($\\sigma_{\\beta_0}, \\sigma_{\\beta_1}$). With 3 random coefficients "
+"the model fits genuine multi-dimensional taste profiles rather than "
+"collapsing to scalar price sensitivity."
+msgstr ""
+"`random_coef_on=[\"price\", \"x_0\", \"x_1\"]`: un vector de gustos del "
+"consumidor de 3 dimensiones $\\bm{\\nu}_i \\in \\mathbb{R}^3$. Cada "
+"componente es una muestra estandarizada que escala la heterogeneidad en una "
+"covariable: la sensibilidad al precio ($\\sigma_\\alpha$) y las dos "
+"características del producto ($\\sigma_{\\beta_0}, \\sigma_{\\beta_1}$). Con"
+" 3 coeficientes aleatorios el modelo ajusta perfiles de gustos genuinamente "
+"multidimensionales en lugar de colapsar a una sensibilidad escalar al "
+"precio."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:150006
+#: ece1e840262940eaac8342c3b82585fd
+msgid ""
+"`instruments=truth['instrument_cols']`: enables the price-endogeneity "
+"correction."
+msgstr ""
+"`instruments=truth['instrument_cols']`: activa la corrección de endogeneidad"
+" del precio."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:150007
+#: f9295c3bee764a359d4f2584d4abc38c
+#, python-brace-format
+msgid ""
+"`n_mc_draws=200`: Owen-scrambled Halton draws filling $[0,1]^3$ and "
+"mapped to $\\mathcal{N}(0, I_3)$. The rule of thumb is roughly 100 draws "
+"per random-coefficient dimension; we use 200 for $D=3$."
+msgstr ""
+"`n_mc_draws=200`: muestras de Halton con aleatorización de Owen que llenan "
+"$[0,1]^3$ y se transforman a $\\mathcal{N}(0, I_3)$. La regla general es "
+"aproximadamente 100 muestras por dimensión de coeficiente aleatorio; usamos "
+"200 para $D=3$."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:150009
+#: 886bcb469326475e8508bc4ce033101a
+msgid ""
+"A prior predictive check confirms that the priors put mass on shares "
+"plausible for scanner data (all predicted shares fall in [0, 1] and sum "
+"to 1 per market)."
+msgstr ""
+"Un chequeo predictivo previo confirma que los priors asignan masa a cuotas "
+"plausibles para datos de escáner (todas las cuotas predichas están en [0, 1]"
+" y suman 1 por mercado)."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:170002
+#: 8538fff49dca4d73ac596e0cc5bb9701
+msgid "The Halton grid attached to the model"
+msgstr "La cuadrícula de Halton asociada al modelo"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:170004
+#: ddfd74c2057e49d4a2e53b3ac4eb57c1
+#, python-brace-format
+msgid ""
+"Constructing `BayesianBLP` materialises a Halton grid as `model._halton` "
+"of shape `(n_mc_draws, n_random)`. With `random_coef_on=[\"price\", "
+"\"x_0\", \"x_1\"]` that shape is `(200, 3)`: each row is one consumer "
+"type, each column is the standardised $\\mathcal{N}(0, 1)$ draw for one "
+"taste dimension. The model sees this exact grid on every MCMC iteration, "
+"which makes the random-coefficient logit a *quadrature* approximation "
+"rather than a Monte Carlo one: the grid is data, the parameters "
+"$(\\alpha, \\sigma_\\alpha, \\beta, \\sigma_\\beta, \\xi)$ are what get "
+"sampled."
+msgstr ""
+"Al construir `BayesianBLP` se materializa una cuadrícula de Halton como "
+"`model._halton` con forma `(n_mc_draws, n_random)`. Con "
+"`random_coef_on=[\"price\", \"x_0\", \"x_1\"]` esa forma es `(200, 3)`: cada"
+" fila es un tipo de consumidor y cada columna es la muestra estandarizada "
+"$\\mathcal{N}(0, 1)$ de una dimensión de gusto. El modelo ve exactamente "
+"esta cuadrícula en cada iteración de MCMC, lo que hace del logit de "
+"coeficientes aleatorios una aproximación por *cuadratura* en lugar de una de"
+" Monte Carlo: la cuadrícula son datos, y los parámetros $(\\alpha, "
+"\\sigma_\\alpha, \\beta, \\sigma_\\beta, \\xi)$ son lo que se muestrea."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:170006
+#: 90bd221d32e641bfbff4b9f880d382e1
+msgid ""
+"Every per-consumer analysis later in the notebook reaches into this "
+"array. Code like"
+msgstr ""
+"Todo análisis por consumidor más adelante en el cuaderno recurre a este "
+"arreglo. Un código como"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:170014
+#: 5d6970747b984556851acad9c790b30e
+msgid ""
+"extracts each taste component as a concrete numeric vector of length "
+"`n_mc_draws`. The cell below shows what the grid looks like for this fit."
+msgstr ""
+"extrae cada componente de gusto como un vector numérico concreto de longitud"
+" `n_mc_draws`. La celda de abajo muestra cómo se ve la cuadrícula para este "
+"ajuste."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:200002
+#: 6cc6130903ca4798b70c99742da70ed6
+msgid "3. Fitting the model with instruments"
+msgstr "3. Ajuste del modelo con instrumentos"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:200004
+#: 9bee2f0eb9b04923b0fe147c49cf5167
+msgid ""
+"The model is fit with the `nutpie` backend. We use small draw counts here"
+" for speed. In practice use `draws=2000, tune=2000, chains=4`."
+msgstr ""
+"El modelo se ajusta con el backend `nutpie`. Aquí usamos pocas muestras por "
+"rapidez. En la práctica use `draws=2000, tune=2000, chains=4`."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:230002
+#: 1939c6a90f504c19b6458b1618daaad1
+msgid "4. Posterior summary and parameter recovery"
+msgstr "4. Resumen de la posterior y recuperación de parámetros"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:230004
+#: 38eedea70c1e4790852450359f2de0a5
+msgid ""
+"We check whether the fitted posterior recovers the known DGP parameters. "
+"The key structural parameters are:"
+msgstr ""
+"Revisamos si la posterior ajustada recupera los parámetros conocidos del "
+"DGP. Los parámetros estructurales clave son:"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:230006
+#: ab0a983857af42df8986ae27bfa0b8ca
+msgid ""
+"`alpha_r`: the price coefficient; should be negative and close to the "
+"true value."
+msgstr ""
+"`alpha_r`: el coeficiente de precio; debería ser negativo y cercano al valor"
+" verdadero."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:230007
+#: f0441c41a02f447ab6a6bc289eacc742
+msgid "`beta_r`: characteristic utility weights; should recover `true_beta`."
+msgstr ""
+"`beta_r`: los pesos de utilidad de las características; debería recuperar "
+"`true_beta`."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:230008
+#: c826c261c4bf43959f641215e1793dc0
+msgid ""
+"`sigma_random`: a length-3 vector with one entry per random-coefficient "
+"dimension. Entries should recover `(sigma_alpha, sigma_beta[0], "
+"sigma_beta[1])` from the DGP."
+msgstr ""
+"`sigma_random`: un vector de longitud 3 con una entrada por cada dimensión "
+"de coeficiente aleatorio. Las entradas deberían recuperar `(sigma_alpha, "
+"sigma_beta[0], sigma_beta[1])` del DGP."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:230009
+#: ecc2a2e63a664cb7b225afbd7f02330e
+msgid ""
+"`rho_price_xi`: the endogeneity correlation; a posterior away from zero "
+"confirms that price is endogenous."
+msgstr ""
+"`rho_price_xi`: la correlación de endogeneidad; una posterior alejada de "
+"cero confirma que el precio es endógeno."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:260002
+#: 61c86132c94f4ae9b6f01082653303f5
+msgid "5. Endogeneity correction: IV vs. no-IV"
+msgstr "5. Corrección de endogeneidad: con IV vs. sin IV"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:260004
+#: d336e20ee6884cd58eae0c4760e14ddc
+#, python-brace-format
+msgid ""
+"The headline feature of BLP is the endogeneity correction. When prices "
+"are set by firms that observe demand shocks $\\xi_{jt}$, regressing "
+"shares on prices without instruments overstates willingness-to-pay "
+"(biases $\\alpha$ toward zero). We fit a second model *without* "
+"instruments to illustrate the bias. With `price_xi_corr=0.6` in the DGP, "
+"the no-IV estimator should recover an $\\alpha$ pulled toward zero."
+msgstr ""
+"La característica principal de BLP es la corrección de endogeneidad. Cuando "
+"los precios los fijan empresas que observan los choques de demanda "
+"$\\xi_{jt}$, regresar las cuotas sobre los precios sin instrumentos "
+"sobreestima la disposición a pagar (sesga $\\alpha$ hacia cero). Ajustamos "
+"un segundo modelo *sin* instrumentos para ilustrar el sesgo. Con "
+"`price_xi_corr=0.6` en el DGP, el estimador sin IV debería recuperar un "
+"$\\alpha$ arrastrado hacia cero."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:300002
+#: 93262e50dda34549819f362701add0b1
+msgid "6. Price elasticities"
+msgstr "6. Elasticidades de precio"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:300004
+#: af8f2bcfaf6c4718a67223ca638bbcbe
+msgid "The closed-form mixed-logit elasticity is"
+msgstr "La elasticidad del logit mixto en forma cerrada es"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:300006
+#: 0ff6a8957a8d435e94b390f987b0a0ac
+msgid ""
+"\n"
+"\\varepsilon_{jk}(m) = \\frac{p_{km}}{s_{jm}} \\cdot \\frac{1}{R}\n"
+"\\sum_r \\alpha_{ir}(m) \\cdot s_{jmr} \\bigl(\\delta_{jk} - "
+"s_{kmr}\\bigr)\n"
+msgstr ""
+"\n"
+"\\varepsilon_{jk}(m) = \\frac{p_{km}}{s_{jm}} \\cdot \\frac{1}{R}\n"
+"\\sum_r \\alpha_{ir}(m) \\cdot s_{jmr} \\bigl(\\delta_{jk} - s_{kmr}\\bigr)\n"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:300011
+#: b9b5afe81a654d258b11c17ba14974b7
+msgid ""
+"where the integral over consumer types reuses the same Halton draws as "
+"the likelihood (essentially free). Own-price elasticities sit on the "
+"diagonal (negative); cross-price elasticities sit off-diagonal (positive "
+"for substitutes). `elasticities(at='mean')` returns the posterior-mean "
+"elasticity matrix; `at='samples'` returns the full posterior "
+"distribution."
+msgstr ""
+"donde la integral sobre los tipos de consumidor reutiliza las mismas "
+"muestras de Halton que la verosimilitud (esencialmente gratis). Las "
+"elasticidades propias de precio están en la diagonal (negativas); las "
+"elasticidades cruzadas de precio están fuera de la diagonal (positivas para "
+"los sustitutos). `elasticities(at='mean')` devuelve la matriz de "
+"elasticidades de la media posterior; `at='samples'` devuelve la distribución"
+" posterior completa."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:330002
+#: 6245e6725bd743d59076399e907d2370
+msgid "Posterior distribution of the market-averaged own elasticity"
+msgstr ""
+"Distribución posterior de la elasticidad propia promediada entre mercados"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:330004
+#: 4d133ddcdb0c4097ac4df4aca67c711d
+msgid ""
+"The heatmap above shows the posterior *mean* elasticity per cell. To see "
+"the **uncertainty** around each product's own-price elasticity, we "
+"average across markets *per posterior sample* and plot the resulting one-"
+"dimensional posterior:"
+msgstr ""
+"El mapa de calor de arriba muestra la *media* posterior de la elasticidad "
+"por celda. Para ver la **incertidumbre** en torno a la elasticidad propia de"
+" precio de cada producto, promediamos entre mercados *por cada muestra "
+"posterior* y graficamos la posterior unidimensional resultante:"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:330006
+#: 4b67c57a37584fe0a7049ef513fb0ba1
+#, python-brace-format
+msgid ""
+"\n"
+"\\bar{\\varepsilon}_{jj}(s) = \\frac{1}{M} \\sum_m \\varepsilon_{jj}(m, "
+"s)\n"
+msgstr ""
+"\n"
+"\\bar{\\varepsilon}_{jj}(s) = \\frac{1}{M} \\sum_m \\varepsilon_{jj}(m, s)\n"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:330010
+#: 7129b5ace95243ae9ca8ee3e230701e4
+msgid ""
+"This produces one value per posterior sample per product: the *typical* "
+"own-price elasticity for that SKU across the panel. The result is a clean"
+" unimodal posterior whose width reflects joint uncertainty in "
+"$\\alpha_r$, $\\sigma_{\\text{random}}$, and $\\xi$. Averaging *per "
+"sample* preserves the posterior dependence structure; averaging *after* "
+"flattening sample × market would smear the genuine uncertainty across a "
+"market-by-market mixture."
+msgstr ""
+"Esto produce un valor por muestra posterior y por producto: la elasticidad "
+"propia de precio *típica* de ese SKU en todo el panel. El resultado es una "
+"posterior unimodal limpia cuyo ancho refleja la incertidumbre conjunta en "
+"$\\alpha_r$, $\\sigma_{\\text{random}}$ y $\\xi$. Promediar *por muestra* "
+"preserva la estructura de dependencia posterior; promediar *después* de "
+"aplanar muestra × mercado difuminaría la incertidumbre genuina en una mezcla"
+" mercado por mercado."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:350002
+#: 44176ed6a18742429cd58087b79f060b
+msgid "Per-market variation in own-price elasticity"
+msgstr "Variación por mercado de la elasticidad propia de precio"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:350004
+#: cfe977bb733a4017968240aed93790ed
+msgid ""
+"Averaging across markets hides genuine *cross-market* heterogeneity: the "
+"same product can be more elastic in markets where its baseline share is "
+"small or its realised price is high. The forest plot below shows the per-"
+"market 94 % HDI of `prod_0`'s own-price elasticity — one row per market —"
+" using the full posterior."
+msgstr ""
+"Promediar entre mercados oculta la heterogeneidad genuina *entre mercados*: "
+"el mismo producto puede ser más elástico en los mercados donde su cuota base"
+" es pequeña o su precio realizado es alto. El gráfico de bosque (forest "
+"plot) de abajo muestra el HDI del 94 % por mercado de la elasticidad propia "
+"de precio de `prod_0` — una fila por mercado — usando la posterior completa."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:350006
+#: eb78e42fda91465892cb39620425dca9
+msgid ""
+"The horizontal spread of the interval *centres* is the structural across-"
+"market variation that the market-averaged plot collapsed; the *width* of "
+"each interval is per-market posterior uncertainty (typically wider in "
+"markets with sparse shares or extreme prices)."
+msgstr ""
+"La dispersión horizontal de los *centros* de los intervalos es la variación "
+"estructural entre mercados que el gráfico promediado colapsó; el *ancho* de "
+"cada intervalo es la incertidumbre posterior de cada mercado (típicamente "
+"mayor en mercados con cuotas escasas o precios extremos)."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:370002
+#: a9466f7669bd4f3b89266020874fe739
+msgid "7. Counterfactual pricing"
+msgstr "7. Fijación de precios contrafactual"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:370004
+#: b08a73cff18a4c7684089b3a2af79d25
+msgid ""
+"`counterfactual_shares(price_change=...)` holds the latent demand shock "
+"ξ_jt constant (read directly from the posterior) and re-evaluates the "
+"share equation at new prices. This is the structurally correct "
+"counterfactual: it asks *given the same unobserved market conditions*, "
+"what would market shares be at the new prices?"
+msgstr ""
+"`counterfactual_shares(price_change=...)` mantiene constante el choque "
+"latente de demanda ξ_jt (leído directamente de la posterior) y reevalúa la "
+"ecuación de la cuota con los nuevos precios. Este es el contrafactual "
+"estructuralmente correcto: pregunta *dadas las mismas condiciones de mercado"
+" no observadas*, ¿cuáles serían las cuotas de mercado con los nuevos "
+"precios?"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:370006
+#: c5864fb1109d4c699672c809d27d6a47
+msgid "We examine a **10 % price hike on the first product**:"
+msgstr "Examinamos un **aumento del 10 % en el precio del primer producto**:"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:370007
+#: a043446e6ff2416b910813d59902074a
+msgid "its own share should fall (consumers substitute away)"
+msgstr ""
+"su propia cuota debería caer (los consumidores sustituyen hacia otros "
+"productos)"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:370008
+#: f74cea95ae7e478e9e14e7b38f057f5c
+msgid "rival shares and the outside good should rise"
+msgstr "las cuotas de los rivales y del bien externo deberían subir"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:420002
+#: 3f9da3988fea4fafaa9d9238d75d07a5
+msgid "Time-targeted counterfactuals"
+msgstr "Contrafactuales dirigidos en el tiempo"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:420004
+#: 9facfbf572cc454e97be39a4ee00cd79
+msgid ""
+"Because we constructed the model with `time_col=\"period\"`, the "
+"counterfactual API accepts `periods=` and `regions=` coord-label "
+"arguments. Use them to scope an intervention to a specific time window or"
+" geography."
+msgstr ""
+"Como construimos el modelo con `time_col=\"period\"`, la API de "
+"contrafactuales acepta los argumentos de etiquetas de coordenadas `periods=`"
+" y `regions=`. Úselos para acotar una intervención a una ventana de tiempo o"
+" a una geografía específica."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:420006
+#: bcf882d4ab11484bb1c9a0807f72452f
+msgid ""
+"The cell below applies the same 10% price hike on `prod_0` *only* in "
+"periods 10–20. Outside that window the counterfactual shares match the "
+"baseline bit-for-bit; inside the window they match the full-panel "
+"counterfactual."
+msgstr ""
+"La celda de abajo aplica el mismo aumento del 10% en el precio de `prod_0` "
+"*solo* en los períodos 10–20. Fuera de esa ventana las cuotas "
+"contrafactuales coinciden bit a bit con la línea base; dentro de la ventana "
+"coinciden con el contrafactual de todo el panel."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:440002
+#: cc8ad958e0304be18e5a051338bbe7c1
+msgid "8. Hierarchical pooling across regions"
+msgstr "8. Agrupación jerárquica entre regiones"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:440004
+#: f34cd923973240eda85333090350df33
+msgid ""
+"When markets belong to distinct geographic regions, `region_col` "
+"activates partial pooling across regions:"
+msgstr ""
+"Cuando los mercados pertenecen a regiones geográficas distintas, "
+"`region_col` activa la agrupación parcial entre regiones:"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:440011
+#: 65b665ac1d574ffe9054cf0634873a5f
+msgid ""
+"This is the headline differentiator vs GMM BLP: thin markets are shrunk "
+"toward the population mean, which keeps inference stable while still "
+"using every data point."
+msgstr ""
+"Este es el principal elemento diferenciador frente a BLP con GMM: los "
+"mercados pequeños se contraen hacia la media poblacional, lo que mantiene "
+"estable la inferencia sin dejar de usar cada dato."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:440013
+#: 963f8fa334d54fa3a9e9d8069285702f
+msgid ""
+"We generate a 3-region panel with genuine region-level preference "
+"heterogeneity (`region_heterogeneity=0.6`) and check that $\\tau_\\alpha$"
+" (the between-region SD) has posterior mass away from zero."
+msgstr ""
+"Generamos un panel de 3 regiones con heterogeneidad genuina de preferencias "
+"a nivel de región (`region_heterogeneity=0.6`) y verificamos que "
+"$\\tau_\\alpha$ (la desviación estándar entre regiones) tenga masa posterior"
+" alejada de cero."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:510002
+#: 6fb90c422be74e1daf8711070b985748
+msgid "9. Interpreting the taste profiles"
+msgstr "9. Interpretación de los perfiles de gustos"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:510004
+#: a1aae4aa2dd6465b97addd6ee7e800fe
+msgid ""
+"The model integrates over a population of consumer taste types to predict"
+" aggregate market shares. Having fit the posterior, we can reverse the "
+"question: **which taste types does each market rely on to generate its "
+"observed shares?** This is Bayesian backward inference, from aggregate "
+"patterns to latent consumer heterogeneity."
+msgstr ""
+"El modelo integra sobre una población de tipos de gusto de los consumidores "
+"para predecir las cuotas agregadas de mercado. Una vez ajustada la "
+"posterior, podemos invertir la pregunta: **¿en qué tipos de gusto se apoya "
+"cada mercado para generar sus cuotas observadas?** Esto es inferencia "
+"bayesiana hacia atrás, de patrones agregados a heterogeneidad latente de los"
+" consumidores."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:510006
+#: 8094a94fe34b48d78897236bda430281
+msgid ""
+"With three random coefficients each consumer type is a vector "
+"$\\bm{\\nu}_i = (\\nu_{\\text{price}}, \\nu_{x_0}, \\nu_{x_1})$. The "
+"stacked area chart below sorts consumers along $\\nu_{\\text{price}}$ "
+"only and so shows a *price-marginal* view: at each x-coordinate the other"
+" two taste dimensions vary across the Halton grid. The fully multi-"
+"dimensional buyer characterisation comes from the heatmap further down "
+"(Lens 1)."
+msgstr ""
+"Con tres coeficientes aleatorios, cada tipo de consumidor es un vector "
+"$\\bm{\\nu}_i = (\\nu_{\\text{price}}, \\nu_{x_0}, \\nu_{x_1})$. El gráfico "
+"de áreas apiladas de abajo ordena a los consumidores solo a lo largo de "
+"$\\nu_{\\text{price}}$ y por eso muestra una vista *marginal en el precio*: "
+"en cada coordenada x, las otras dos dimensiones de gusto varían a lo largo "
+"de la cuadrícula de Halton. La caracterización completamente "
+"multidimensional de los compradores proviene del mapa de calor más abajo "
+"(Lente 1)."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:530002
+#: 4707470b3d924c39b3c33cfbe4c0b178
+msgid "Reading the results"
+msgstr "Lectura de los resultados"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:530004
+#: 6d849b3524c948a780bd20773c65d8f1
+msgid ""
+"**Market 36 (avg price 0.35): price has nothing to bite on.** The "
+"allocation bands run nearly flat across the entire $\\nu$ axis. Even the "
+"most price-sensitive consumers (left edge) still buy inside goods; the "
+"outside good (grey) stays thin throughout. When everything costs 35 "
+"cents, choice is driven almost entirely by characteristics: prod_1 "
+"(orange) dominates, prod_2 (green) is second, prod_0 (blue) is a sliver. "
+"A flat logit would fit this market about as well."
+msgstr ""
+"**Mercado 36 (precio promedio 0.35): el precio no tiene dónde hacer mella.**"
+" Las bandas de asignación son casi planas a lo largo de todo el eje $\\nu$. "
+"Incluso los consumidores más sensibles al precio (borde izquierdo) siguen "
+"comprando bienes internos; el bien externo (gris) se mantiene delgado en "
+"todo momento. Cuando todo cuesta 35 centavos, la elección está impulsada "
+"casi por completo por las características: prod_1 (naranja) domina, prod_2 "
+"(verde) es segundo y prod_0 (azul) es apenas una franja. Un logit plano "
+"ajustaría este mercado más o menos igual de bien."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:530006
+#: 92bd941392b442edb97f02d813420e37
+msgid ""
+"**Market 4 (avg price 1.51): heterogeneity starts to matter.** The "
+"outside good grows noticeably on the left as price-sensitive types exit, "
+"and the transition is gradual. Prod_1 still dominates inside demand. The "
+"inside/outside split at $\\nu = 0$ (the modal consumer) is roughly 60/40,"
+" so most consumers still participate. The slope from left to right tells "
+"you $\\sigma_{\\text{random}}$ is doing real work here: different taste "
+"types make meaningfully different choices."
+msgstr ""
+"**Mercado 4 (precio promedio 1.51): la heterogeneidad empieza a importar.** "
+"El bien externo crece notablemente a la izquierda a medida que los tipos "
+"sensibles al precio salen, y la transición es gradual. Prod_1 sigue "
+"dominando la demanda interna. La división entre interno y externo en $\\nu ="
+" 0$ (el consumidor modal) es aproximadamente 60/40, de modo que la mayoría "
+"de los consumidores aún participa. La pendiente de izquierda a derecha "
+"indica que $\\sigma_{\\text{random}}$ está haciendo un trabajo real aquí: "
+"distintos tipos de gusto toman decisiones significativamente diferentes."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:530008
+#: b8a47e79623b4c339f269fa9b13ea1e3
+msgid ""
+"**Market 7 (avg price 2.06): the cliff.** At $\\nu < 0$ the market is "
+"almost entirely outside good. The inside products only emerge for $\\nu >"
+" 0$, and prod_2 (green) overtakes prod_1 (orange) as the winner among "
+"insensitive types. This is the product-switching effect: prod_2 has "
+"better non-price characteristics, but you only see that once price "
+"sensitivity stops masking it. The modal consumer allocates ~95% to "
+"outside; this is a niche category at this price level."
+msgstr ""
+"**Mercado 7 (precio promedio 2.06): el precipicio.** Con $\\nu < 0$ el "
+"mercado es casi por completo bien externo. Los productos internos solo "
+"emergen para $\\nu > 0$, y prod_2 (verde) supera a prod_1 (naranja) como "
+"ganador entre los tipos insensibles. Este es el efecto de cambio de "
+"producto: prod_2 tiene mejores características no relacionadas con el "
+"precio, pero solo se aprecia una vez que la sensibilidad al precio deja de "
+"enmascararlo. El consumidor modal asigna ~95% al bien externo; esta es una "
+"categoría de nicho a este nivel de precio."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:530010
+#: 2403a7106b8b4c829f80477e08043222
+#, python-format
+msgid ""
+"**Market 33 (avg price 3.26): luxury niche.** The outside good fills "
+"nearly the entire chart until $\\nu > 1.5$ (roughly the top 7% of the "
+"price-insensitivity distribution). Only the most extreme insensitive "
+"types buy inside goods at all, and even they split narrowly between "
+"prod_2 and prod_1. The demand-share table below will show this market "
+"drawing ~60%+ of its inside demand from insensitive consumers against a "
+"16% population baseline."
+msgstr ""
+"**Mercado 33 (precio promedio 3.26): nicho de lujo.** El bien externo llena "
+"casi todo el gráfico hasta $\\nu > 1.5$ (aproximadamente el 7% superior de "
+"la distribución de insensibilidad al precio). Solo los tipos insensibles más"
+" extremos compran bienes internos, e incluso ellos se reparten estrechamente"
+" entre prod_2 y prod_1. La tabla de cuotas de demanda de abajo mostrará que "
+"este mercado obtiene ~60%+ de su demanda interna de consumidores "
+"insensibles, frente a una línea base poblacional del 16%."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:530012
+#: 47bd92562da94029824ba166df56c813
+msgid ""
+"**The cross-market story.** As average price rises from 0.35 to 3.26, the"
+" stacked area transforms from a flat rectangle (homogeneous, "
+"characteristics-driven) to a step function (only the insensitive tail "
+"participates), and the identity of the winning inside product flips from "
+"prod_1 to prod_2 along the way."
+msgstr ""
+"**La historia entre mercados.** A medida que el precio promedio sube de 0.35"
+" a 3.26, el área apilada se transforma de un rectángulo plano (homogéneo, "
+"impulsado por las características) a una función escalón (solo participa la "
+"cola insensible), y la identidad del producto interno ganador cambia de "
+"prod_1 a prod_2 en el camino."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:550002
+#: 4cafeac451f64981b17ef54ce07ce418
+msgid "Who is the average inside-good buyer?"
+msgstr "¿Quién es el comprador promedio de bienes internos?"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:550004
+#: 93dbbd81b91045b9b5f8afafe486ad3c
+msgid ""
+"The bucketed table above answers \"what fraction of the population at "
+"each $\\nu$ band ends up buying inside?\" Inverting the question gives a "
+"sharper summary: *given* that a consumer buys inside in market $m$, what "
+"is the posterior distribution of their full taste vector?"
+msgstr ""
+"La tabla por tramos de arriba responde \"¿qué fracción de la población en "
+"cada banda de $\\nu$ termina comprando bienes internos?\". Invertir la "
+"pregunta da un resumen más preciso: *dado* que un consumidor compra bienes "
+"internos en el mercado $m$, ¿cuál es la distribución posterior de su vector "
+"de gustos completo?"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:550006
+#: d91d7db66b4b4b45b447e270975ec15c
+msgid ""
+"For each posterior sample $s$, market $m$, and random-coefficient "
+"dimension $d$,"
+msgstr ""
+"Para cada muestra posterior $s$, mercado $m$ y dimensión de coeficiente "
+"aleatorio $d$,"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:550008
+#: 3aa6eaf5c16c49f5a85e88458f1ca604
+msgid ""
+"\n"
+"\\bar\\nu_{m,d}^{(s)} \\;=\\; \\frac{\\sum_r \\nu_{r,d} \\cdot "
+"s^{\\text{in}}_{m,r}(s)}{\\sum_r s^{\\text{in}}_{m,r}(s)}\n"
+msgstr ""
+"\n"
+"\\bar\\nu_{m,d}^{(s)} \\;=\\; \\frac{\\sum_r \\nu_{r,d} \\cdot s^{\\text{in}}_{m,r}(s)}{\\sum_r s^{\\text{in}}_{m,r}(s)}\n"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:550012
+#: 983897838d1840d19b2bbe1cae72f0ea
+msgid ""
+"where $s^{\\text{in}}_{m,r}$ is the per-draw inside-good probability for "
+"consumer type $r$. The result is a posterior over the *average buyer's "
+"taste vector* in every market, with uncertainty inherited from $(\\alpha,"
+" \\sigma_\\alpha, \\beta, \\sigma_\\beta, \\xi)$. Visualised as a "
+"`(market × dimension)` heatmap, each row of the heatmap is the three-"
+"component taste profile of a market's typical buyer."
+msgstr ""
+"donde $s^{\\text{in}}_{m,r}$ es la probabilidad por muestra de comprar un "
+"bien interno para el tipo de consumidor $r$. El resultado es una posterior "
+"sobre el *vector de gustos del comprador promedio* en cada mercado, con una "
+"incertidumbre heredada de $(\\alpha, \\sigma_\\alpha, \\beta, "
+"\\sigma_\\beta, \\xi)$. Visualizada como un mapa de calor de `(market × "
+"dimension)`, cada fila del mapa de calor es el perfil de gustos de tres "
+"componentes del comprador típico de un mercado."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:570002
+#: 7c74a6692a2a45a19b9a3ae3daaeaa9a
+msgid ""
+"Each row is a market sorted by avg price; each column is one of the three"
+" taste dimensions. Red cells mean buyers in that market score *above-"
+"modal* on that taste dimension (so insensitive to price, or with a strong"
+" positive preference for the characteristic). Blue cells mean *below-"
+"modal* buyers (price-sensitive, or aversive to the characteristic)."
+msgstr ""
+"Cada fila es un mercado ordenado por precio promedio; cada columna es una de"
+" las tres dimensiones de gusto. Las celdas rojas significan que los "
+"compradores de ese mercado puntúan *por encima de la moda* en esa dimensión "
+"de gusto (es decir, son insensibles al precio o tienen una fuerte "
+"preferencia positiva por la característica). Las celdas azules significan "
+"compradores *por debajo de la moda* (sensibles al precio o con aversión a la"
+" característica)."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:570004
+#: 52af3cc435a14f2a889ae2fe71e1825f
+msgid ""
+"A market with a uniform red row is served by consumers who are above-"
+"modal on every dimension. A market with mixed colours is served by buyers"
+" who are insensitive on one dimension but average on another. This is the"
+" multi-dimensional analogue of the scalar \"average buyer $\\nu$\" "
+"picture: instead of saying \"this market is served by price-insensitive "
+"consumers\", we now say \"this market is served by consumers who are "
+"price-insensitive *and* high-$x_0$ preference *and* average on $x_1$\"."
+msgstr ""
+"Un mercado con una fila uniformemente roja es atendido por consumidores que "
+"están por encima de la moda en todas las dimensiones. Un mercado con colores"
+" mixtos es atendido por compradores que son insensibles en una dimensión "
+"pero promedio en otra. Este es el análogo multidimensional de la imagen "
+"escalar del \"$\\nu$ del comprador promedio\": en lugar de decir \"este "
+"mercado es atendido por consumidores insensibles al precio\", ahora decimos "
+"\"este mercado es atendido por consumidores insensibles al precio *y* con "
+"alta preferencia por $x_0$ *y* promedio en $x_1$\"."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:570006
+#: d37953f1116244ee8955f615fb1bff15
+msgid ""
+"The price dimension still tracks market price (cheaper markets pull "
+"buyers in from the price-sensitive side); the $x_0$ and $x_1$ dimensions "
+"reveal substitution patterns the scalar lens hid."
+msgstr ""
+"La dimensión del precio aún sigue el precio del mercado (los mercados más "
+"baratos atraen compradores del lado sensible al precio); las dimensiones "
+"$x_0$ y $x_1$ revelan patrones de sustitución que la lente escalar ocultaba."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:580002
+#: bb8bac47e3e149fd8a30598313aa683c
+msgid "How concentrated is the demand?"
+msgstr "¿Qué tan concentrada está la demanda?"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:580004
+#: 1aeeb9576f4d4de18f284e96dd370476
+msgid ""
+"A second question naturally follows: even within a market, is inside-good"
+" demand spread across all consumer types, or carried by a narrow slice?"
+msgstr ""
+"Surge naturalmente una segunda pregunta: incluso dentro de un mercado, ¿la "
+"demanda de bienes internos se reparte entre todos los tipos de consumidor o "
+"la concentra una porción estrecha?"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:580006
+#: 15124fa5dfb94f8c9a993c6f126b7147
+msgid ""
+"For each (sample, market) we compute the Gini coefficient of the per-"
+"consumer-type contributions $s^{\\text{in}}_{m,r}$:"
+msgstr ""
+"Para cada (muestra, mercado) calculamos el coeficiente de Gini de las "
+"contribuciones por tipo de consumidor $s^{\\text{in}}_{m,r}$:"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:580008
+#: 888175790e194cbbb3bd61650717785c
+msgid ""
+"\n"
+"G_m^{(s)} \\;=\\; \\frac{\\sum_{r,r'} |s^{\\text{in}}_{m,r} - "
+"s^{\\text{in}}_{m,r'}|}{2 R \\sum_r s^{\\text{in}}_{m,r}}\n"
+msgstr ""
+"\n"
+"G_m^{(s)} \\;=\\; \\frac{\\sum_{r,r'} |s^{\\text{in}}_{m,r} - s^{\\text{in}}_{m,r'}|}{2 R \\sum_r s^{\\text{in}}_{m,r}}\n"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:580012
+#: 5d51ed5902c34f9f8e1a4dac95139ad0
+msgid ""
+"$G_m = 0$ means every consumer type contributes the same amount (broadly "
+"served market); $G_m \\to 1$ means one type carries almost all the demand"
+" (niche market)."
+msgstr ""
+"$G_m = 0$ significa que cada tipo de consumidor contribuye la misma cantidad"
+" (mercado atendido de forma amplia); $G_m \\to 1$ significa que un solo tipo"
+" concentra casi toda la demanda (mercado de nicho)."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:600002
+#: a6f93f8881294326a3bbf1d8ddc07b6e
+msgid ""
+"As average price rises, the Gini climbs from near zero to roughly 0.7. At"
+" low prices every consumer type buys inside in similar proportion, so "
+"demand is uniformly spread (low Gini). At high prices only the "
+"insensitive tail buys, so demand concentrates on a thin slice of consumer"
+" types (high Gini). The two lenses tell complementary stories: "
+"$\\bar\\nu_m$ says *where* on the $\\nu$ axis the buyers sit; the Gini "
+"says *how tightly* they cluster there."
+msgstr ""
+"A medida que el precio promedio sube, el Gini asciende de casi cero a "
+"aproximadamente 0.7. A precios bajos, todos los tipos de consumidor compran "
+"bienes internos en proporción similar, de modo que la demanda se reparte "
+"uniformemente (Gini bajo). A precios altos, solo compra la cola insensible, "
+"de modo que la demanda se concentra en una porción delgada de tipos de "
+"consumidor (Gini alto). Las dos lentes cuentan historias complementarias: "
+"$\\bar\\nu_m$ dice *dónde* en el eje $\\nu$ se ubican los compradores; el "
+"Gini dice *qué tan estrechamente* se agrupan allí."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:610002
+#: e44b935962ce445b8adc514de6410d93
+msgid "10. Summary"
+msgstr "10. Resumen"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:610004
+#: fa390862920549f3ba986734d6b590da
+msgid "In this notebook we demonstrated the full BayesianBLP workflow:"
+msgstr ""
+"En este cuaderno demostramos el flujo de trabajo completo de BayesianBLP:"
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:610006
+#: 629dfbb827694818be7597205b1808bf
+msgid ""
+"**Data generation** — `generate_blp_panel` with endogenous prices and "
+"known truth."
+msgstr ""
+"**Generación de datos** — `generate_blp_panel` con precios endógenos y "
+"verdad conocida."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:610007
+#: c77fc451856845f9a8074e47f5d79355
+msgid ""
+"**Prior predictive check** — shares sum to 1; priors cover plausible "
+"scanner data."
+msgstr ""
+"**Chequeo predictivo previo** — las cuotas suman 1; los priors cubren datos "
+"de escáner plausibles."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:610008
+#: e7cbba4d40d64e0ebaf0ca26bbfefb95
+msgid ""
+"**IV fit** — zero divergences; posterior recovers `α`, `β`, `σ_α` inside "
+"the 94% HDI."
+msgstr ""
+"**Ajuste con IV** — cero divergencias; la posterior recupera `α`, `β`, `σ_α`"
+" dentro del HDI del 94%."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:610009
+#: 432b653cd25e4661aff7a9a36ef66a78
+msgid ""
+"**Endogeneity bias** — dropping instruments biases `α` toward zero; "
+"instruments correct this."
+msgstr ""
+"**Sesgo de endogeneidad** — eliminar los instrumentos sesga `α` hacia cero; "
+"los instrumentos corrigen esto."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:610011
+#: 749f85805023464894cdb6a524e87e13
+msgid ""
+"**Elasticities** — own-price negative (−3 to −5 range); cross-price "
+"positive; full posterior uncertainty available."
+msgstr ""
+"**Elasticidades** — la propia de precio es negativa (rango de −3 a −5); la "
+"cruzada de precio es positiva; se dispone de la incertidumbre posterior "
+"completa."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:610013
+#: 03592d6888dc47cb9499001992423b5d
+msgid ""
+"**Counterfactual** — a 10% price hike on one product reduces its share, "
+"raises rivals and the outside good, with calibrated posterior "
+"uncertainty."
+msgstr ""
+"**Contrafactual** — un aumento del 10% en el precio de un producto reduce su"
+" cuota, aumenta la de los rivales y la del bien externo, con una "
+"incertidumbre posterior calibrada."
+
+#: ../source/notebooks/customer_choice/bayesian_blp.ipynb:610015
+#: e20a568e5b7243df946f71b7e440b34d
+msgid "**Price sensitivity** — implied taste profiles per market"
+msgstr ""
+"**Sensibilidad al precio** — perfiles de gustos implícitos por mercado"
+

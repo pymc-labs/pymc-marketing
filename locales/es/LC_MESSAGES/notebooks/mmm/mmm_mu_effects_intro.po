@@ -1,0 +1,2113 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2026, PyMC Labs
+# This file is distributed under the same license as the PyMC-Marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyMC-Marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10003
+#: 8423bbef437b4dea814f7c8556a3ae1f
+msgid "Introduction to Mu Effects: Channel Interactions"
+msgstr "Introducción a los efectos mu: interacciones entre canales"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10005
+#: b5510ba8ede945f1bf83be23ce300bf6
+msgid ""
+"Marketing teams often expect some channels to work better together. For "
+"example, a TV campaign can raise brand awareness, and the same search "
+"budget then brings more sales in the weeks with TV. We call this a "
+"*synergy* between the two channels."
+msgstr ""
+"Los equipos de marketing suelen esperar que algunos canales funcionen mejor "
+"juntos. Por ejemplo, una campaña de TV puede aumentar el reconocimiento de "
+"marca, y el mismo presupuesto de búsqueda genera entonces más ventas en las "
+"semanas con TV. Llamamos a esto una *sinergia* entre los dos canales."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10007
+#: 10de0b2646d4467581fe042fb46ca8fd
+msgid ""
+"An additive media mix model (MMM) with only main effects and the identity"
+" link cannot represent a synergy. In this model, the effect of each "
+"channel does not depend on the spend of the other channels."
+msgstr ""
+"Un modelo de mezcla de medios (MMM) aditivo con solo efectos principales y "
+"el enlace identidad no puede representar una sinergia. En este modelo, el "
+"efecto de cada canal no depende del gasto de los demás canales."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10009
+#: 9864a14c42a6431d95cf2ca419e4dfa4
+#, python-brace-format
+msgid ""
+"In this notebook we add a channel interaction to the additive "
+"{class}`~pymc_marketing.mmm.mmm.MMM` with a custom **mu effect**, a term "
+"that we add to the linear predictor $\\mu$ of the model. We show how to "
+"write the effect, and how the budget optimizer sees the interaction while"
+" it changes only the spend of the channels that we can buy."
+msgstr ""
+"En este cuaderno agregamos una interacción entre canales al "
+"{class}`~pymc_marketing.mmm.mmm.MMM` aditivo mediante un **efecto mu** "
+"personalizado, un término que sumamos al predictor lineal $\\mu$ del modelo."
+" Mostramos cómo escribir el efecto y cómo el optimizador de presupuesto ve "
+"la interacción mientras cambia únicamente el gasto de los canales que "
+"podemos comprar."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10011
+#: eedb65544a3f428d9334acc22b408f29
+#, python-brace-format
+msgid ""
+"We use the data of {ref}`mmm_multiplicative` to compare our results with "
+"the models of that notebook. The data is synthetic, and the process that "
+"generated it has *no* interaction between the channels. We first build "
+"the interaction effect, and then we check what it estimates and how it "
+"changes the budget plan when there is no synergy to find."
+msgstr ""
+"Usamos los datos de {ref}`mmm_multiplicative` para comparar nuestros "
+"resultados con los modelos de ese cuaderno. Los datos son sintéticos, y el "
+"proceso que los generó *no* tiene interacción entre los canales. Primero "
+"construimos el efecto de interacción, y luego comprobamos qué estima y cómo "
+"cambia el plan de presupuesto cuando no hay ninguna sinergia que encontrar."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10013
+#: b945e3368b494335a45482b591e08b18
+msgid "Here is the outline:"
+msgstr "Este es el esquema:"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10015
+#: 10c4b399867b47e8ab7ee418169c4736
+msgid ""
+"**Channel Interactions**: what an interaction is, and how it differs from"
+" the dependence that the log link creates."
+msgstr ""
+"**Interacciones entre canales**: qué es una interacción, y en qué se "
+"diferencia de la dependencia que crea el enlace logarítmico."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10016
+#: c31cb4fe816d440fb6c8ffd0bc32a532
+msgid "**Mu Effects**: what a mu effect is, and when it is useful."
+msgstr "**Efectos mu**: qué es un efecto mu, y cuándo es útil."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10017
+#: 787eba2e1a954ab8b2012277e33582ee
+msgid ""
+"**The Product Column Problem**: why a product column in the data does not"
+" work for budget optimization."
+msgstr ""
+"**El problema de la columna de producto**: por qué una columna de producto "
+"en los datos no funciona para la optimización del presupuesto."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10018
+#: b3baa12ec3d44eecbd6dea809c415ce8
+msgid ""
+"**Load Data** and **Exploratory Data Analysis**: the spend of the two "
+"channels and their product."
+msgstr ""
+"**Cargar datos** y **análisis exploratorio de datos**: el gasto de los dos "
+"canales y su producto."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10019
+#: 2b10dd05724e48cdb28834db5f197dcf
+#, python-brace-format
+msgid "**Additive Model**: the additive model of {ref}`mmm_multiplicative`."
+msgstr "**Modelo aditivo**: el modelo aditivo de {ref}`mmm_multiplicative`."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10020
+#: b0d8b92c2fac4c2e91e2b3e683958e0c
+msgid ""
+"**Interaction Mu Effect**: the methods of a mu effect, and the code and "
+"priors of the interaction effect."
+msgstr ""
+"**Efecto mu de interacción**: los métodos de un efecto mu, y el código y los"
+" priors del efecto de interacción."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10021
+#: c3800206fe2d4811b1d055a53c8192eb
+msgid "**Interaction Model**: the additive model plus the interaction effect."
+msgstr ""
+"**Modelo con interacción**: el modelo aditivo más el efecto de interacción."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10022
+#: 410c364b05fd4613938dc45ed23dad41
+msgid ""
+"**Return on Ad Spend (ROAS)**: the ROAS of both models with the "
+"`mmm.incrementality` module."
+msgstr ""
+"**Retorno del gasto publicitario (ROAS)**: el ROAS de ambos modelos con el "
+"módulo `mmm.incrementality`."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10023
+#: 3f601ea5f227432d851f4349abeea22b
+#, python-brace-format
+msgid ""
+"**Budget Optimization**: the plans of both models, with the setup of "
+"{ref}`mmm_multiplicative`."
+msgstr ""
+"**Optimización del presupuesto**: los planes de ambos modelos, con la "
+"configuración de {ref}`mmm_multiplicative`."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10024
+#: a66da1f1f32d4d6e852a764a1bfbc177
+msgid "**Value of the Interaction**: what the interaction adds on this data."
+msgstr ""
+"**Valor de la interacción**: qué aporta la interacción en estos datos."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10025
+#: f041a02ecf88464a92818b288e0db721
+msgid "**Conclusion**: what we learned, and when to use an interaction effect."
+msgstr ""
+"**Conclusión**: qué aprendimos, y cuándo usar un efecto de interacción."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10028
+#: 944b55d214364e31be7b3e7432d54331
+#, python-brace-format
+msgid ""
+"See {ref}`mmm_example` for the data and the process that generated it, "
+"and {ref}`mmm_multiplicative` for the log model on the same data. For "
+"other custom mu effects, see {ref}`mmm_funnel_mueffect` and "
+"{ref}`mmm_halo`."
+msgstr ""
+"Consulte {ref}`mmm_example` para ver los datos y el proceso que los generó, "
+"y {ref}`mmm_multiplicative` para el modelo logarítmico con los mismos datos."
+" Para otros efectos mu personalizados, consulte {ref}`mmm_funnel_mueffect` y"
+" {ref}`mmm_halo`."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:20002
+#: fd87c2f742b54e1aa8c071c4a94d8422
+msgid "Channel Interactions"
+msgstr "Interacciones entre canales"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:20004
+#: d5fcbac923de4bcd84ddd1dd24437ed1
+msgid ""
+"Two channels interact when the return of one channel depends on the spend"
+" of the other. In the example above, search sells more per unit of spend "
+"in the weeks with TV."
+msgstr ""
+"Dos canales interactúan cuando el retorno de uno depende del gasto del otro."
+" En el ejemplo anterior, la búsqueda vende más por unidad de gasto en las "
+"semanas con TV."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:20006
+#: e594a1a62f3e47069484886a45fea6db
+msgid ""
+"We describe the model with a causal graph and a structural function (see "
+"the [CausalPy guide to structural causal "
+"models](https://causalpy.readthedocs.io/en/latest/knowledgebase/structural_causal_models.html))."
+" The graph shows the parents of sales, which are the variables that "
+"affect sales, and the function shows how they combine. Here is the graph "
+"of our example:"
+msgstr ""
+"Describimos el modelo con un grafo causal y una función estructural "
+"(consulte la [guía de CausalPy sobre modelos causales "
+"estructurales](https://causalpy.readthedocs.io/en/latest/knowledgebase/structural_causal_models.html))."
+" El grafo muestra los padres de las ventas, que son las variables que "
+"afectan a las ventas, y la función muestra cómo se combinan. Este es el "
+"grafo de nuestro ejemplo:"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:40002
+#: a55401fd366347f6ac536c9237a39a6d
+msgid ""
+"This graph is a simplified view of the channel-to-sales mechanism. Each "
+"spend node stands for the spend history of the channel, because the "
+"adstock carries past spend into later weeks. The graph does not draw "
+"these lags, or the other parents of sales (trend, seasonality, events and"
+" noise)."
+msgstr ""
+"Este grafo es una vista simplificada del mecanismo que va del canal a las "
+"ventas. Cada nodo de gasto representa el historial de gasto del canal, "
+"porque el adstock traslada el gasto pasado a semanas posteriores. El grafo "
+"no dibuja estos rezagos, ni los demás padres de las ventas (tendencia, "
+"estacionalidad, eventos y ruido)."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:40004
+#: 2cf3a72853b54cd0ad1fa25a7e088917
+msgid ""
+"The graph also leaves out common causes of spend and sales, such as "
+"budgets planned around seasonal demand. It does not show that we can "
+"estimate the channel effects from real data."
+msgstr ""
+"El grafo también omite causas comunes del gasto y las ventas, como los "
+"presupuestos planificados en función de la demanda estacional. No muestra "
+"que podamos estimar los efectos de los canales a partir de datos reales."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:40006
+#: c45f13442aee4700a351df5bec4a3992
+msgid ""
+"The same graph fits a sales function with or without an interaction. Take"
+" one week without carryover. The regression formula `y ~ x1 + x2 + x1:x2`"
+" has a product term:"
+msgstr ""
+"El mismo grafo admite una función de ventas con o sin interacción. Tomemos "
+"una semana sin efecto de arrastre. La fórmula de regresión `y ~ x1 + x2 + "
+"x1:x2` tiene un término de producto:"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:40008
+#: 482c67c4ff8646a998b09e4929ae827c
+#, python-brace-format
+msgid ""
+"\n"
+"y = \\beta_0 + \\beta_1 x_1 + \\beta_2 x_2 + \\beta_{12} x_1 x_2 + "
+"\\varepsilon,\n"
+msgstr ""
+"\n"
+"y = \\beta_0 + \\beta_1 x_1 + \\beta_2 x_2 + \\beta_{12} x_1 x_2 + \\varepsilon,\n"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:40012
+#: 6251c0e894344a84ae661c1d49082468
+#, python-brace-format
+msgid ""
+"and the marginal return of `x1` is $\\beta_1 + \\beta_{12} x_2$, which "
+"depends on `x2`."
+msgstr ""
+"y el retorno marginal de `x1` es $\\beta_1 + \\beta_{12} x_2$, que depende "
+"de `x2`."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:40014
+#: a2767027ce7746b5aa51cca5bd06341f
+msgid ""
+"This model is linear in its coefficients and still has an interaction. "
+"The interaction is part of the sales function, so it needs no new node in"
+" the graph and no product column in the data."
+msgstr ""
+"Este modelo es lineal en sus coeficientes y aun así tiene una interacción. "
+"La interacción forma parte de la función de ventas, por lo que no necesita "
+"ningún nodo nuevo en el grafo ni ninguna columna de producto en los datos."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:40016
+#: 8c2695d1a0fb4deeb3a8788998088460
+msgid ""
+"In this notebook we keep the identity link and the main effects of the "
+"MMM, and we add one term for each group of channels that we expect to "
+"interact. The input of this term is the product of the same-week spend of"
+" these channels:"
+msgstr ""
+"En este cuaderno mantenemos el enlace identidad y los efectos principales "
+"del MMM, y agregamos un término por cada grupo de canales que esperamos que "
+"interactúen. La entrada de este término es el producto del gasto de la misma"
+" semana de estos canales:"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:40018
+#: 83c68e82fce64310bd7ee1d1cce066bc
+#, python-brace-format
+msgid ""
+"\n"
+"\\mu_t = b_t + \\sum_{c} f_c(x_c)_t + \\sum_{k} g_k\\Big(\\prod_{c \\in "
+"S_k} x_c\\Big)_t\n"
+msgstr ""
+"\n"
+"\\mu_t = b_t + \\sum_{c} f_c(x_c)_t + \\sum_{k} g_k\\Big(\\prod_{c \\in S_k} x_c\\Big)_t\n"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:40022
+#: 3288f3c50bc34f2b879313e129f840da
+msgid "where:"
+msgstr "donde:"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:40024
+#: 4ef1b81a2d5142b6982ffb5961a3660b
+msgid ""
+"$\\mu_t$ is the expected sales in week $t$, divided by the largest weekly"
+" sales."
+msgstr ""
+"$\\mu_t$ es la venta esperada en la semana $t$, dividida por la mayor venta "
+"semanal."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:40025
+#: bea24112bb1645a1a39628b0b0959cca
+msgid ""
+"$b_t$ is the baseline: the intercept, the controls and the yearly "
+"seasonality."
+msgstr ""
+"$b_t$ es la línea base: el intercepto, los controles y la estacionalidad "
+"anual."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:40026
+#: 4c9a2b0ff8aa48c29ae757c40eb67ae4
+msgid ""
+"$x_c$ is the weekly spend of channel $c$, divided by its largest value in"
+" the training data."
+msgstr ""
+"$x_c$ es el gasto semanal del canal $c$, dividido por su mayor valor en los "
+"datos de entrenamiento."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:40027
+#: 346a0f76f16a40fca362a2100028d084
+msgid ""
+"$f_c$ is the media term of channel $c$, $f_c(z)_t = \\beta \\, "
+"L_\\lambda\\big(A_\\alpha(z)\\big)_t$. It applies the geometric adstock "
+"$A_\\alpha$, then the logistic saturation $L_\\lambda$, and multiplies "
+"the result by the coefficient $\\beta$."
+msgstr ""
+"$f_c$ es el término de medios del canal $c$, $f_c(z)_t = \\beta \\, "
+"L_\\lambda\\big(A_\\alpha(z)\\big)_t$. Aplica el adstock geométrico "
+"$A_\\alpha$, luego la saturación logística $L_\\lambda$, y multiplica el "
+"resultado por el coeficiente $\\beta$."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:40028
+#: d54287073ffd491a95844c2de80c2c82
+#, python-brace-format
+msgid ""
+"$S_k$ is the group of channels of interaction $k$, with two or more "
+"channels. For example, $S_1 = \\{1, 2\\}$ for `x1` and `x2`."
+msgstr ""
+"$S_k$ es el grupo de canales de la interacción $k$, con dos o más canales. "
+"Por ejemplo, $S_1 = \\{1, 2\\}$ para `x1` y `x2`."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:40029
+#: 42b4aca5f4a54af892d2c9f6b63c4578
+msgid ""
+"$g_k$ is the interaction term. It has the same form as a media term, with"
+" its own $\\alpha$, $\\lambda$ and $\\beta$."
+msgstr ""
+"$g_k$ es el término de interacción. Tiene la misma forma que un término de "
+"medios, con sus propios $\\alpha$, $\\lambda$ y $\\beta$."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:40031
+#: 4f0a5639b58e4544bbc045dd624c513f
+msgid ""
+"Note that the product comes before the adstock and the saturation, so the"
+" term is not the product of the channel terms $f_1$ and $f_2$. Without "
+"the adstock and the saturation, it reduces to $\\beta \\, x_1 x_2$, the "
+"product term of the regression above."
+msgstr ""
+"Tenga en cuenta que el producto viene antes del adstock y la saturación, por"
+" lo que el término no es el producto de los términos de canal $f_1$ y $f_2$."
+" Sin el adstock y la saturación, se reduce a $\\beta \\, x_1 x_2$, el "
+"término de producto de la regresión anterior."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:40033
+#: c2e4ade9ca634c108195ba2c08ef7957
+msgid ""
+"The product is zero in every week in which one of the channels of $S_k$ "
+"has no spend. The term therefore gets input only from the weeks in which "
+"all its channels are active."
+msgstr ""
+"El producto es cero en toda semana en la que uno de los canales de $S_k$ no "
+"tiene gasto. Por lo tanto, el término recibe entrada solo de las semanas en "
+"las que todos sus canales están activos."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:40035
+#: cb348453b8614cbeb984097164b4d7bf
+#, python-brace-format
+msgid ""
+"With $S_1 = \\{1, 2\\}$, more spend on `x2` raises the marginal return of"
+" `x1`, and the other way around, as long as the interaction term is far "
+"from saturation. An interaction term can therefore change the split of "
+"the budget."
+msgstr ""
+"Con $S_1 = \\{1, 2\\}$, más gasto en `x2` aumenta el retorno marginal de "
+"`x1`, y viceversa, mientras el término de interacción esté lejos de la "
+"saturación. Por lo tanto, un término de interacción puede cambiar la "
+"distribución del presupuesto."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:40037
+#: 1496a495a9ff4df9b291dee726411984
+#, python-brace-format
+msgid ""
+"The log link of {ref}`mmm_multiplicative` creates a different kind of "
+"dependence. Its sales response is $s \\, e^{\\mu_t}$, where $s$ is the "
+"target scale and $\\mu_t$ has the main effects only. For a flat plan, "
+"once the adstock has settled, the marginal return of `x1` in week $t$ is "
+"$s \\, e^{\\mu_t} f_1'(x_1)$, which depends on `x2` through the factor "
+"$e^{\\mu_t}$."
+msgstr ""
+"El enlace logarítmico de {ref}`mmm_multiplicative` crea un tipo de "
+"dependencia diferente. Su respuesta de ventas es $s \\, e^{\\mu_t}$, donde "
+"$s$ es la escala del objetivo y $\\mu_t$ tiene solo los efectos principales."
+" Para un plan plano, una vez que el adstock se ha estabilizado, el retorno "
+"marginal de `x1` en la semana $t$ es $s \\, e^{\\mu_t} f_1'(x_1)$, que "
+"depende de `x2` a través del factor $e^{\\mu_t}$."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:40039
+#: 72afb5b5897b4efda10a376615026940
+#, python-brace-format
+msgid ""
+"The link and the main effects impose this dependence on the sales scale, "
+"and the model has no coefficient for it. The factor $e^{\\mu_t}$ is the "
+"same for all channels in a week, so it cancels in the ratio of their "
+"marginal returns."
+msgstr ""
+"El enlace y los efectos principales imponen esta dependencia en la escala de"
+" las ventas, y el modelo no tiene ningún coeficiente para ella. El factor "
+"$e^{\\mu_t}$ es el mismo para todos los canales en una semana, por lo que se"
+" cancela en la razón de sus retornos marginales."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:40041
+#: 2da573f9eade4e0cb82f8829b1929c23
+msgid ""
+"The link alone therefore hardly changes how the optimizer splits the "
+"budget."
+msgstr ""
+"Por lo tanto, el enlace por sí solo apenas cambia cómo el optimizador "
+"distribuye el presupuesto."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:50002
+#: 6b81028a58584ade9a4dc3369004ef23
+msgid "Mu Effects"
+msgstr "Efectos mu"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:50004
+#: 59ba664332a843baabff8cc54fc73cbc
+#, python-brace-format
+msgid ""
+"A mu effect is a component that adds a term to the linear predictor "
+"$\\mu$ of the MMM. We pass it to the model with "
+"{meth}`~pymc_marketing.mmm.mmm.MMM.add_mu_effect`."
+msgstr ""
+"Un efecto mu es un componente que agrega un término al predictor lineal "
+"$\\mu$ del MMM. Lo pasamos al modelo con "
+"{meth}`~pymc_marketing.mmm.mmm.MMM.add_mu_effect`."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:50006
+#: 88d13ebe5ada41afa935d929392837fc
+#, python-brace-format
+msgid ""
+"The module {mod}`pymc_marketing.mmm.additive_effect` has built-in mu "
+"effects for trends, Fourier seasonality and events, and `MediaMuEffect` "
+"and `ControlMuEffect` for media and control data with other dims. The "
+"documentation also has custom mu effects for funnel mediators "
+"({ref}`mmm_funnel_mueffect` and {ref}`mmm_case_study2`), halo effects "
+"({ref}`mmm_halo`), spillovers between products "
+"({ref}`mmm_pareto_optimization`) and transformed controls "
+"({ref}`mmm_gam_options`)."
+msgstr ""
+"El módulo {mod}`pymc_marketing.mmm.additive_effect` incluye efectos mu "
+"integrados para tendencias, estacionalidad de Fourier y eventos, y "
+"`MediaMuEffect` y `ControlMuEffect` para datos de medios y de control con "
+"otras dimensiones. La documentación también tiene efectos mu personalizados "
+"para mediadores de embudo ({ref}`mmm_funnel_mueffect` y "
+"{ref}`mmm_case_study2`), efectos halo ({ref}`mmm_halo`), desbordamientos "
+"entre productos ({ref}`mmm_pareto_optimization`) y controles transformados "
+"({ref}`mmm_gam_options`)."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:50008
+#: 410d5df5178447f9b86695ed84711692
+msgid ""
+"When is a mu effect useful? Use one when you need a term that adds to "
+"$\\mu$, but that the channels, controls and seasonality of the MMM cannot"
+" express. A channel interaction is such a term, and the named "
+"deterministics of the effect let us inspect and report it."
+msgstr ""
+"¿Cuándo es útil un efecto mu? Utilícelo cuando necesite un término que se "
+"sume a $\\mu$, pero que los canales, los controles y la estacionalidad del "
+"MMM no puedan expresar. Una interacción entre canales es un término de este "
+"tipo, y las variables deterministas con nombre del efecto nos permiten "
+"inspeccionarlo y reportarlo."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:60002
+#: 252be34cb7de4749a69d41cc42c6d94f
+msgid "The Product Column Problem"
+msgstr "El problema de la columna de producto"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:60004
+#: 03f45ccdce064b23ace66b944542e909
+msgid ""
+"The interaction term above has the form of a media term whose input is "
+"the product of the spends. The simplest way to add it is a column `x1x2 ="
+" x1 * x2` in the data, which we pass to the MMM as a third channel. The "
+"model then fits a media term for the product, as in the equation above."
+msgstr ""
+"El término de interacción anterior tiene la forma de un término de medios "
+"cuya entrada es el producto de los gastos. La forma más sencilla de "
+"agregarlo es una columna `x1x2 = x1 * x2` en los datos, que pasamos al MMM "
+"como un tercer canal. El modelo ajusta entonces un término de medios para el"
+" producto, como en la ecuación anterior."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:60006
+#: 43d501930eaf4654ab252ac11a911ef9
+msgid ""
+"This works for fitting. The problem is that the rest of the workflow "
+"treats `x1x2` as a channel that we can buy:"
+msgstr ""
+"Esto funciona para el ajuste. El problema es que el resto del flujo de "
+"trabajo trata a `x1x2` como un canal que podemos comprar:"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:60008
+#: 5b69c9f5aaee4b03855174043810e146
+msgid ""
+"**Budget optimization**: The optimizer decides the spend of every "
+"channel. It gives budget to `x1x2`, and nothing ties this budget to the "
+"spend on `x1` and `x2`. If we exclude `x1x2` from the optimization, its "
+"spend stays at zero over the plan, and the interaction drops out."
+msgstr ""
+"**Optimización del presupuesto**: El optimizador decide el gasto de cada "
+"canal. Asigna presupuesto a `x1x2`, y nada vincula este presupuesto con el "
+"gasto en `x1` y `x2`. Si excluimos `x1x2` de la optimización, su gasto "
+"permanece en cero durante el plan, y la interacción desaparece."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:60009
+#: b0f9bc77a1664806954877248cec018c
+msgid ""
+"**ROAS**: The `mmm.incrementality` module reports a spend and a ROAS for "
+"`x1x2`."
+msgstr ""
+"**ROAS**: El módulo `mmm.incrementality` reporta un gasto y un ROAS para "
+"`x1x2`."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:60011
+#: 2ee9c93e43fb4f84a346c236023fe0de
+msgid ""
+"The product is a function of the two spends, so we cannot set it on its "
+"own. The multiplication itself is fine. The problem is the product "
+"column, which lets the optimizer set this derived feature as if it were a"
+" channel."
+msgstr ""
+"El producto es una función de los dos gastos, por lo que no podemos fijarlo "
+"por separado. La multiplicación en sí no es el problema. El problema es la "
+"columna de producto, que permite que el optimizador fije esta característica"
+" derivada como si fuera un canal."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:60013
+#: 82ea2e58342d49e7a218be10c3eae819
+msgid ""
+"A mu effect solves this. It computes the product inside the model from "
+"the spend of `x1` and `x2`. When the optimizer changes the spend of `x1` "
+"or `x2`, the product follows, and `x1` and `x2` stay the only channels."
+msgstr ""
+"Un efecto mu resuelve esto. Calcula el producto dentro del modelo a partir "
+"del gasto de `x1` y `x2`. Cuando el optimizador cambia el gasto de `x1` o "
+"`x2`, el producto lo sigue, y `x1` y `x2` siguen siendo los únicos canales."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:70002
+#: f2a0640334f94ca4923b113d0f2ac7de
+msgid "Prepare Notebook"
+msgstr "Preparar el cuaderno"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:70004
+#: 8dfc24fa6bea48c991508eb92f4cf208
+msgid ""
+"We load the necessary libraries and set the notebook's configuration, "
+"including the random number generator `rng` for sampling."
+msgstr ""
+"Cargamos las bibliotecas necesarias y establecemos la configuración del "
+"cuaderno, incluido el generador de números aleatorios `rng` para el "
+"muestreo."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:90002
+#: c322dc300b5942c8b097dba8bc62d98d
+msgid "Load Data"
+msgstr "Cargar datos"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:90004
+#: 2ed8eeab27e44a5fb5d7be9aa0a32d6c
+#, python-brace-format
+msgid ""
+"We use the synthetic weekly data of {ref}`mmm_example`, as "
+"{ref}`mmm_multiplicative` does. It has two media channels, `x1` and `x2`,"
+" the event indicators `event_1` and `event_2`, and the sales `y`. We add "
+"the integer trend `t`, as in the additive model of "
+"{ref}`mmm_multiplicative`."
+msgstr ""
+"Usamos los datos semanales sintéticos de {ref}`mmm_example`, como hace "
+"{ref}`mmm_multiplicative`. Tiene dos canales de medios, `x1` y `x2`, los "
+"indicadores de eventos `event_1` y `event_2`, y las ventas `y`. Agregamos la"
+" tendencia entera `t`, como en el modelo aditivo de "
+"{ref}`mmm_multiplicative`."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:90006
+#: 2cdb51ab532f4337b9afcfbb767cdc52
+msgid ""
+"We keep the channel names in `CHANNELS` and the controls `event_1`, "
+"`event_2` and `t` in `CONTROLS`. `X` holds the date, the channels and the"
+" controls, and `y` holds the sales."
+msgstr ""
+"Guardamos los nombres de los canales en `CHANNELS` y los controles "
+"`event_1`, `event_2` y `t` en `CONTROLS`. `X` contiene la fecha, los canales"
+" y los controles, y `y` contiene las ventas."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:110002
+#: c6a1bc6a37b247a89cd2285a45fd974e
+msgid "Exploratory Data Analysis"
+msgstr "Análisis exploratorio de datos"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:110004
+#: 6fc607cc77504930bfc6af1bd023059e
+#, python-brace-format
+msgid ""
+"Let's look at the spend of the two channels and at their product, the "
+"input of the interaction term. Both channels are already on a scale from "
+"$0$ to $1$. See {ref}`mmm_multiplicative` for a plot of the sales."
+msgstr ""
+"Veamos el gasto de los dos canales y su producto, la entrada del término de "
+"interacción. Ambos canales ya están en una escala de $0$ a $1$. Consulte "
+"{ref}`mmm_multiplicative` para ver un gráfico de las ventas."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:110006
+#: c35897fc0c9f44ce94b935bdcba4663c
+msgid ""
+"We shade the weeks in which `x2` has spend, in this plot and in a later "
+"one. The helper below draws this shading."
+msgstr ""
+"Sombreamos las semanas en las que `x2` tiene gasto, en este gráfico y en uno"
+" posterior. La función auxiliar de abajo dibuja este sombreado."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:130002
+#: b32352152d83432cbaaf0a3653640d24
+msgid "Now we plot the spend and the product."
+msgstr "Ahora graficamos el gasto y el producto."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:150002
+#: 38754b05a662419f9f7acf49a284b029
+msgid ""
+"`x1` has spend in every week. `x2` has spend in only $32$ of the $179$ "
+"weeks, in short bursts at a high level, between about $0.8$ and $1$."
+msgstr ""
+"`x1` tiene gasto en todas las semanas. `x2` tiene gasto en solo $32$ de las "
+"$179$ semanas, en ráfagas cortas a un nivel alto, entre aproximadamente "
+"$0.8$ y $1$."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:150004
+#: 42644c83dd3d4e66b9a226f61eb5813d
+msgid ""
+"The product follows `x1` in these bursts and is zero in all other weeks. "
+"It is an input of the interaction term, and we cannot buy it."
+msgstr ""
+"El producto sigue a `x1` en estas ráfagas y es cero en todas las demás "
+"semanas. Es una entrada del término de interacción, y no podemos comprarlo."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:150006
+#: 8843c34f27e34940b1dc2dba19a3df59
+msgid ""
+"Here is an important observation: the adstock of the interaction term "
+"carries this input into up to $7$ following weeks. The weight of each "
+"week is $\\alpha$ times the weight of the week before. These carryover "
+"weeks also inform the coefficient and the carryover of the interaction."
+msgstr ""
+"Esta es una observación importante: el adstock del término de interacción "
+"traslada esta entrada hasta $7$ semanas siguientes. El peso de cada semana "
+"es $\\alpha$ veces el peso de la semana anterior. Estas semanas de arrastre "
+"también informan el coeficiente y el arrastre de la interacción."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:150008
+#: a530a208e0fa4ba9aa38e086acf9b6d7
+msgid ""
+"Only the weeks far from any burst of `x2` have no interaction input. They"
+" inform the main effect of `x1` without the interaction."
+msgstr ""
+"Solo las semanas alejadas de cualquier ráfaga de `x2` no tienen entrada de "
+"interacción. Estas informan el efecto principal de `x1` sin la interacción."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:150010
+#: 1886315817e84970887758de7763e704
+msgid ""
+"In the $32$ weeks the product is between about $0.8$ and $1$ times `x1`. "
+"The interaction term then looks like a second `x1` term, and the data has"
+" little independent variation to tell the two terms apart. Recall that "
+"the true process has no interaction."
+msgstr ""
+"En las $32$ semanas el producto está entre aproximadamente $0.8$ y $1$ veces"
+" `x1`. El término de interacción se parece entonces a un segundo término de "
+"`x1`, y los datos tienen poca variación independiente para distinguir ambos "
+"términos. Recuerde que el proceso verdadero no tiene interacción."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:160002
+#: 6f387a4f3b12489dbec7e66f4355219c
+msgid "Additive Model"
+msgstr "Modelo aditivo"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:160004
+#: a73de39468294f288fa78e034ddd07aa
+#, python-brace-format
+msgid ""
+"We start with the additive model of {ref}`mmm_multiplicative`, without "
+"interaction. It has the channels `x1` and `x2`, the controls `event_1`, "
+"`event_2` and `t`, and yearly seasonality of order two."
+msgstr ""
+"Comenzamos con el modelo aditivo de {ref}`mmm_multiplicative`, sin "
+"interacción. Tiene los canales `x1` y `x2`, los controles `event_1`, "
+"`event_2` y `t`, y estacionalidad anual de orden dos."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:160006
+#: 1a8a0998eb7c4b5fba8d7cb0d30febfc
+msgid ""
+"We reuse the priors of that notebook. The prior scale of the coefficient "
+"$\\beta$ of each channel is proportional to the share of the channel in "
+"the total spend."
+msgstr ""
+"Reutilizamos los priors de ese cuaderno. La escala del prior del coeficiente"
+" $\\beta$ de cada canal es proporcional a la participación del canal en el "
+"gasto total."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:180002
+#: 184efc3b7dbc4ad2ba5903596ae738c2
+msgid ""
+"We build both models of this notebook from this specification, so we wrap"
+" it in a helper."
+msgstr ""
+"Construimos ambos modelos de este cuaderno a partir de esta especificación, "
+"por lo que la envolvemos en una función auxiliar."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:200002
+#: f70fd22926544cfab7bf0763979cf171
+#, python-brace-format
+msgid ""
+"Now we fit the additive model. We draw $1{,}500$ samples per chain after "
+"$1{,}500$ tuning steps."
+msgstr ""
+"Ahora ajustamos el modelo aditivo. Extraemos $1{,}500$ muestras por cadena "
+"después de $1{,}500$ pasos de calentamiento."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:220002
+#: 9605c7110bc445e3ba5da675fbdb4557
+#, python-brace-format
+msgid ""
+"Before looking into the results, let's check some diagnostics with "
+"`az.diagnose`: divergences, energy (E-BFMI), effective sample size (ESS) "
+"and $\\hat{R}$ of the parameters."
+msgstr ""
+"Antes de examinar los resultados, revisemos algunos diagnósticos con "
+"`az.diagnose`: divergencias, energía (E-BFMI), tamaño de muestra efectivo "
+"(ESS) y $\\hat{R}$ de los parámetros."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:240002
+#: a480fcee082141b3b0454f1b5dab7345
+#, python-brace-format
+msgid ""
+"The additive model passes every check. See {ref}`mmm_multiplicative` for "
+"its posterior predictive check."
+msgstr ""
+"El modelo aditivo pasa todas las verificaciones. Consulte "
+"{ref}`mmm_multiplicative` para ver su verificación predictiva posterior."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:240004
+#: 57cf3713ccae42518fd87301aaf4af82
+msgid "Let's look at the structure of the additive model."
+msgstr "Veamos la estructura del modelo aditivo."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:260002
+#: b9311d2b53d9475fb6099fe91465bb02
+msgid ""
+"This is a computation graph. Next to the data and the parameters, it "
+"shows named steps of the sales function, such as `channel_contribution`. "
+"These steps follow from the spend, and they are not extra causes in the "
+"causal graph of the Channel Interactions section."
+msgstr ""
+"Este es un grafo de cómputo. Junto a los datos y los parámetros, muestra "
+"pasos con nombre de la función de ventas, como `channel_contribution`. Estos"
+" pasos se derivan del gasto, y no son causas adicionales en el grafo causal "
+"de la sección Interacciones entre canales."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:260004
+#: 0f295906bb5140df91696d355eb82483
+msgid ""
+"The spend in `channel_data` goes through the adstock and saturation "
+"parameters into `channel_contribution`, which adds to `mu` together with "
+"the intercept, the controls and the seasonality. Note that "
+"`total_media_contribution_original_scale`, the default objective of the "
+"budget optimizer, reads `channel_contribution` only."
+msgstr ""
+"El gasto de `channel_data` pasa por los parámetros de adstock y saturación "
+"hasta `channel_contribution`, que se suma a `mu` junto con el intercepto, "
+"los controles y la estacionalidad. Tenga en cuenta que "
+"`total_media_contribution_original_scale`, el objetivo predeterminado del "
+"optimizador de presupuesto, lee solo `channel_contribution`."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:270002
+#: cd7f7a4163c04d93b454ef729590983c
+msgid "Interaction Mu Effect"
+msgstr "Efecto mu de interacción"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:270004
+#: ef7c322de3034f689025855920c73ca6
+msgid ""
+"Next, we write the interaction effect. We start with the methods that "
+"every mu effect has, and then we write the class and choose its priors."
+msgstr ""
+"A continuación, escribimos el efecto de interacción. Comenzamos con los "
+"métodos que tiene todo efecto mu, y luego escribimos la clase y elegimos sus"
+" priors."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:270006
+#: fdbb5c4d2c324a5dae16c0b379b96181
+msgid "Implementation"
+msgstr "Implementación"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:270008
+#: 568e5798acbd422d91457048a5088e99
+#, python-brace-format
+msgid ""
+"A mu effect is a subclass of "
+"{class}`~pymc_marketing.mmm.additive_effect.MuEffect`. `MuEffect` is a "
+"Pydantic model, so we declare the inputs of an effect as typed class "
+"attributes instead of writing an `__init__`. It is also an abstract class"
+" with three methods that every mu effect implements:"
+msgstr ""
+"Un efecto mu es una subclase de "
+"{class}`~pymc_marketing.mmm.additive_effect.MuEffect`. `MuEffect` es un "
+"modelo de Pydantic, por lo que declaramos las entradas de un efecto como "
+"atributos de clase con tipo en lugar de escribir un `__init__`. También es "
+"una clase abstracta con tres métodos que implementa todo efecto mu:"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:270021
+#: 4907fbdd111547cf9d58e857267ecf7b
+msgid ""
+"The MMM calls these methods at set steps of its workflow. The table below"
+" lists them, together with the optional methods that the interaction "
+"effect needs."
+msgstr ""
+"El MMM llama a estos métodos en pasos determinados de su flujo de trabajo. "
+"La tabla de abajo los enumera, junto con los métodos opcionales que necesita"
+" el efecto de interacción."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10027
+#: 00ad4dad59e044e08829d668e8e48b4d
+msgid "Method"
+msgstr "Método"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10027
+#: 565328af61ab448595a3fd77b1b818c4
+msgid "When the MMM calls it"
+msgstr "Cuándo lo llama el MMM"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10027
+#: e518e40e23e54125850e0e7031cb10a5
+msgid "What it does"
+msgstr "Qué hace"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10027
+#: 6a55a07f7e9b49b5a3d40f822be26fa6
+msgid "`create_data(mmm)`"
+msgstr "`create_data(mmm)`"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10027
+#: 75ac889b976144b698f822eb04e1e8c2
+msgid ""
+"In `build_model`, after it registers and scales the channel and target "
+"data, and before the media terms"
+msgstr ""
+"En `build_model`, después de registrar y escalar los datos de los canales y "
+"del objetivo, y antes de los términos de medios"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10027
+#: 8a5f5421ef1d4b678e6472ffe33d4a6c
+msgid "Registers the data and the coordinates of the effect in `mmm.model`."
+msgstr "Registra los datos y las coordenadas del efecto en `mmm.model`."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10027
+#: 2d9598efa35f49e6912c06fb62a6f728
+msgid "`create_effect(mmm)`"
+msgstr "`create_effect(mmm)`"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10027
+#: 594a0669ad134e30935aa3073598c416
+msgid "In `build_model`, after the channel, control and seasonality terms"
+msgstr ""
+"En `build_model`, después de los términos de canales, controles y "
+"estacionalidad"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10027
+#: 86d066983465453dba9d0bf04dea3647
+msgid ""
+"Returns the term that the model adds to $\\mu$, with dims `(\"date\", "
+"*mmm.dims)`, on the scale of the scaled target."
+msgstr ""
+"Devuelve el término que el modelo suma a $\\mu$, con dimensiones `(\"date\","
+" *mmm.dims)`, en la escala del objetivo escalado."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10027
+#: 8150661cf32a4e8fb6fc22e3796affd9
+msgid "`set_data(mmm, model, X)`"
+msgstr "`set_data(mmm, model, X)`"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10027
+#: 6495334a5d5148d7afa5ed31349515ed
+msgid ""
+"In `sample_posterior_predictive`, and when the MMM builds the model of "
+"the budget optimizer"
+msgstr ""
+"En `sample_posterior_predictive`, y cuando el MMM construye el modelo del "
+"optimizador de presupuesto"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10027
+#: ff3b5693919246ef8145d499b62a2173
+msgid "Updates the data of the effect, for example for new dates."
+msgstr "Actualiza los datos del efecto, por ejemplo para fechas nuevas."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10027
+#: 682e4320400b4953ac5fc4d85bbcb393
+msgid "`incrementality_spec()`"
+msgstr "`incrementality_spec()`"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10027
+#: 4378ec053850428195e2461d4c8debb2
+msgid "In `mmm.incrementality`, and when the budget optimizer sizes its window"
+msgstr ""
+"En `mmm.incrementality`, y cuando el optimizador de presupuesto dimensiona "
+"su ventana"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10027
+#: ac2219fbd1b443cd8cfba73eb1145d1e
+msgid ""
+"Lets `mmm.incrementality` include the effect when it sets the spend of a "
+"channel to zero, and declares extra carryover weeks of the effect."
+msgstr ""
+"Permite que `mmm.incrementality` incluya el efecto cuando lleva a cero el "
+"gasto de un canal, y declara las semanas de arrastre adicionales del efecto."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10027
+#: 1b6b4e3afa69404baa2ee5d9b67a3554
+msgid "`to_dict()` and `from_dict()`"
+msgstr "`to_dict()` y `from_dict()`"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10027
+#: b7808c748eb24a9697948da59363b320
+msgid "In `sample_prior_predictive`, at the end of `fit`, and in `MMM.load`"
+msgstr "En `sample_prior_predictive`, al final de `fit`, y en `MMM.load`"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10027
+#: e9c9716f4803478d96db641d218eabd2
+msgid "Serialize the effect, if a field is not a Pydantic type."
+msgstr "Serializan el efecto, si un campo no es un tipo de Pydantic."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10027
+#: 89df4da571f848089f1cce1fa289e9df
+msgid "`contribution_var_name`"
+msgstr "`contribution_var_name`"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10027
+#: 2520b849818143f1be316d1913c82708
+msgid ""
+"In the contribution decomposition, in `mmm.incrementality` and in the "
+"checks of `MMM.budget_optimizer`"
+msgstr ""
+"En la descomposición de contribuciones, en `mmm.incrementality` y en las "
+"verificaciones de `MMM.budget_optimizer`"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:10027
+#: 2c39b732ed3144f0b93d82df8750d661
+#, python-brace-format
+msgid ""
+"Names the deterministic with dims `(\"date\", *mmm.dims)` that holds the "
+"term. The default is `{prefix}_effect_contribution`."
+msgstr ""
+"Nombra la variable determinista con dimensiones `(\"date\", *mmm.dims)` que "
+"contiene el término. El valor predeterminado es "
+"`{prefix}_effect_contribution`."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:270032
+#: 63d6c4a750994d0bbb1deca3d0fd5f3e
+msgid "A channel interaction needs four more things:"
+msgstr "Una interacción entre canales necesita cuatro cosas más:"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:270034
+#: 063fc672a8ba435591feb46afb84f88d
+msgid ""
+"**Read the spend of the model.** The effect builds the product from "
+"`mmm.channel_data_scaled`, the scaled spend that the model holds. A new "
+"`pm.Data` variable with the product would be a fixed input, as the "
+"product column is. The same holds for a `MediaMuEffect` on a product "
+"column, because it reads its own `pm.Data`."
+msgstr ""
+"**Leer el gasto del modelo.** El efecto construye el producto a partir de "
+"`mmm.channel_data_scaled`, el gasto escalado que contiene el modelo. Una "
+"nueva variable `pm.Data` con el producto sería una entrada fija, igual que "
+"la columna de producto. Lo mismo ocurre con un `MediaMuEffect` sobre una "
+"columna de producto, porque lee su propio `pm.Data`."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:270035
+#: b138afd84cbb49b7ac7325ca4b0c0e54
+msgid ""
+"**Opt in to incrementality.** The term depends on the spend, so "
+"`incrementality_spec` returns an `IncrementalitySpec`. Without it, "
+"`mmm.incrementality` raises an error, so the interaction cannot drop out "
+"of the incremental sales without notice. Declare "
+"`additional_carryover_lags` only if the adstock of the interaction is "
+"longer than the adstock of the channels (here both have `l_max=8`)."
+msgstr ""
+"**Optar por la incrementalidad.** El término depende del gasto, por lo que "
+"`incrementality_spec` devuelve un `IncrementalitySpec`. Sin él, "
+"`mmm.incrementality` lanza un error, de modo que la interacción no puede "
+"desaparecer de las ventas incrementales sin aviso. Declare "
+"`additional_carryover_lags` solo si el adstock de la interacción es más "
+"largo que el adstock de los canales (aquí ambos tienen `l_max=8`)."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:270036
+#: f3a9e8fb42d2464b81ecccb11784e0bd
+msgid ""
+"**Serialize the transformations.** The adstock and the saturation are not"
+" Pydantic types. Without `to_dict` and `from_dict`, "
+"`sample_prior_predictive` and `fit` raise a `PydanticSerializationError` "
+"when they store the effect with the samples. To load a saved model with "
+"`MMM.load` in a new session, define the class first."
+msgstr ""
+"**Serializar las transformaciones.** El adstock y la saturación no son tipos"
+" de Pydantic. Sin `to_dict` y `from_dict`, `sample_prior_predictive` y `fit`"
+" lanzan un `PydanticSerializationError` cuando almacenan el efecto junto con"
+" las muestras. Para cargar un modelo guardado con `MMM.load` en una nueva "
+"sesión, defina primero la clase."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:270037
+#: e22af570d53743fd9973c872408a825b
+msgid ""
+"**Optimize the full response.** The default objective of the budget "
+"optimizer does not include mu effects (see the Budget Optimization "
+"section)."
+msgstr ""
+"**Optimizar la respuesta completa.** El objetivo predeterminado del "
+"optimizador de presupuesto no incluye los efectos mu (consulte la sección "
+"Optimización del presupuesto)."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:280002
+#: 68f58c0cffcb4e0d93466b1736e13e2c
+msgid ""
+"The main step of the effect is the product of the spend of the channels "
+"of each interaction. We describe the interactions with a membership mask,"
+" with one row per interaction and one column per channel, and we build it"
+" with a helper."
+msgstr ""
+"El paso principal del efecto es el producto del gasto de los canales de cada"
+" interacción. Describimos las interacciones con una máscara de pertenencia, "
+"con una fila por interacción y una columna por canal, y la construimos con "
+"una función auxiliar."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:300002
+#: 21973361d6624e3d8507391b6f3fdc3c
+msgid ""
+"Let's see how the mask works for one week with three channels, two pairs "
+"and one triple. We keep the spend of the channels in an interaction, set "
+"the other entries to $1$ so they do not change the product, and multiply "
+"along the channels."
+msgstr ""
+"Veamos cómo funciona la máscara para una semana con tres canales, dos pares "
+"y un triple. Mantenemos el gasto de los canales de una interacción, fijamos "
+"las demás entradas en $1$ para que no cambien el producto, y multiplicamos a"
+" lo largo de los canales."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:320002
+#: f9b415b8bbd04e88b20594f38593cbf4
+msgid ""
+"Each row is one interaction term. With a spend of $0.5$, $0.4$ and $0.2$,"
+" the product of `x1:x2` is $0.20$, and the product of the triple is "
+"$0.04$."
+msgstr ""
+"Cada fila es un término de interacción. Con un gasto de $0.5$, $0.4$ y "
+"$0.2$, el producto de `x1:x2` es $0.20$, y el producto del triple es $0.04$."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:320004
+#: 174f2eee63454250a35e703dbf3b1eab
+msgid ""
+"Now we can write the class. It does the same computation for every week, "
+"with named dims."
+msgstr ""
+"Ahora podemos escribir la clase. Hace el mismo cálculo para cada semana, con"
+" dimensiones con nombre."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:340002
+#: cf1d5adb58284c4a8419d96eada0ea7e
+msgid "Two parts of the class need a word:"
+msgstr "Dos partes de la clase necesitan una aclaración:"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:340004
+#: 54700631ac394928ad636b274969ce62
+msgid ""
+"**`create_effect`**: `where(mask, mmm.channel_data_scaled, "
+"1.0).prod(dim=\"channel\")` does the computation of the example above for"
+" every week. Here `where` is the `pytensor.xtensor` version of the "
+"`xr.where` of the example. Then we apply the adstock and the saturation, "
+"as for a channel."
+msgstr ""
+"**`create_effect`**: `where(mask, mmm.channel_data_scaled, "
+"1.0).prod(dim=\"channel\")` hace el cálculo del ejemplo anterior para cada "
+"semana. Aquí `where` es la versión de `pytensor.xtensor` del `xr.where` del "
+"ejemplo. Luego aplicamos el adstock y la saturación, como para un canal."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:340005
+#: d6cf7f6ec4bf4808b28bfe38060a5f54
+msgid ""
+"**Priors**: `with_default_prior_dims` gives every prior without dims the "
+"interaction dim, which `create_data` registers, so each interaction has "
+"its own parameters. To share a parameter across many interactions, give "
+"its prior explicit dims, for example `dims=()`."
+msgstr ""
+"**Priors**: `with_default_prior_dims` da a cada prior sin dimensiones la "
+"dimensión de interacción, que registra `create_data`, de modo que cada "
+"interacción tiene sus propios parámetros. Para compartir un parámetro entre "
+"varias interacciones, dé a su prior dimensiones explícitas, por ejemplo "
+"`dims=()`."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:350002
+#: 7450350c91c841eb8ac48ac2c0a7ea21
+msgid "Priors"
+msgstr "Priors"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:350004
+#: 6373e614295a494ba6595888c4105146
+msgid ""
+"The interaction term has its own adstock and saturation parameters, so it"
+" needs its own priors:"
+msgstr ""
+"El término de interacción tiene sus propios parámetros de adstock y "
+"saturación, por lo que necesita sus propios priors:"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:350006
+#: 955504668faf4723b791d81cce19e856
+#, python-brace-format
+msgid ""
+"\n"
+"\\begin{aligned}\n"
+"\\alpha_{x_1:x_2} &\\sim \\text{Beta}(1, 3) \\\\\n"
+"\\lambda_{x_1:x_2} &\\sim \\text{Gamma}(3, 1) \\\\\n"
+"\\beta_{x_1:x_2} &\\sim \\text{HalfNormal}(0.5)\n"
+"\\end{aligned}\n"
+msgstr ""
+"\n"
+"\\begin{aligned}\n"
+"\\alpha_{x_1:x_2} &\\sim \\text{Beta}(1, 3) \\\\\n"
+"\\lambda_{x_1:x_2} &\\sim \\text{Gamma}(3, 1) \\\\\n"
+"\\beta_{x_1:x_2} &\\sim \\text{HalfNormal}(0.5)\n"
+"\\end{aligned}\n"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:350014
+#: cb79d9d700b543f7ace0c6581ed10d0c
+msgid ""
+"The priors of $\\alpha$ and $\\lambda$ are the default priors of "
+"`GeometricAdstock` and `LogisticSaturation`, as for the channels. With a "
+"mean of $0.25$ for $\\alpha$, most of the effect of a week of spend comes"
+" in that week and the next one. At $\\lambda = 3$, the mean of its prior,"
+" a sustained product of $1$ reaches about $90\\%$ of the largest effect "
+"$\\beta$."
+msgstr ""
+"Los priors de $\\alpha$ y $\\lambda$ son los priors predeterminados de "
+"`GeometricAdstock` y `LogisticSaturation`, como para los canales. Con una "
+"media de $0.25$ para $\\alpha$, la mayor parte del efecto del gasto de una "
+"semana llega en esa semana y en la siguiente. En $\\lambda = 3$, la media de"
+" su prior, un producto sostenido de $1$ alcanza alrededor del $90\\%$ del "
+"mayor efecto $\\beta$."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:350016
+#: 14c02a0c7b7b463fb415af1ccd75437b
+msgid ""
+"The coefficient $\\beta$ is a share of the largest weekly sales, because "
+"the model divides the target by its maximum. We make its prior narrower "
+"than the priors of the channel coefficients, because we expect an "
+"interaction to be a correction on top of the main effects."
+msgstr ""
+"El coeficiente $\\beta$ es una fracción de las mayores ventas semanales, "
+"porque el modelo divide el objetivo por su máximo. Hacemos su prior más "
+"estrecho que los priors de los coeficientes de los canales, porque esperamos"
+" que una interacción sea una corrección sobre los efectos principales."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:350019
+#: 4164bd07136942a3a1e79e399f447fc9
+#, python-brace-format
+msgid ""
+"**Synergy only**: The half-normal prior restricts the interaction to "
+"synergy, as it allows only a positive $\\beta$. If you expect two "
+"channels to compete for the same customers (cannibalization), use a prior"
+" that allows negative values, as {ref}`mmm_halo` does."
+msgstr ""
+"**Solo sinergia**: El prior seminormal restringe la interacción a la "
+"sinergia, ya que solo permite un $\\beta$ positivo. Si espera que dos "
+"canales compitan por los mismos clientes (canibalización), use un prior que "
+"permita valores negativos, como hace {ref}`mmm_halo`."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:350022
+#: 3527b54a1d034017824fbda82282b18e
+msgid ""
+"We give the interaction transformations their own prefixes. With the "
+"default prefixes, the interaction parameters would have the same names as"
+" the parameters of the channels, for example `adstock_alpha`, and the "
+"model would fail to build."
+msgstr ""
+"Damos a las transformaciones de la interacción sus propios prefijos. Con los"
+" prefijos predeterminados, los parámetros de la interacción tendrían los "
+"mismos nombres que los parámetros de los canales, por ejemplo "
+"`adstock_alpha`, y el modelo no se podría construir."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:370002
+#: cf229853a8ec4609a788b0447c2fb5b8
+msgid ""
+"Finally, we create the effect with all pairs of channels. With two "
+"channels there is only one pair, `x1:x2`."
+msgstr ""
+"Por último, creamos el efecto con todos los pares de canales. Con dos "
+"canales solo hay un par, `x1:x2`."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:390002
+#: 139607fe5b8547e2b1520b2cb9caa41e
+msgid "Interaction Model"
+msgstr "Modelo con interacción"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:390004
+#: 09610fb05c3347558019220b9610c610
+#, python-brace-format
+msgid ""
+"The interaction model is the additive model plus the interaction effect. "
+"We add the effect with {meth}`~pymc_marketing.mmm.mmm.MMM.add_mu_effect`,"
+" and we build the model to look at its structure."
+msgstr ""
+"El modelo con interacción es el modelo aditivo más el efecto de interacción."
+" Agregamos el efecto con {meth}`~pymc_marketing.mmm.mmm.MMM.add_mu_effect`, "
+"y construimos el modelo para ver su estructura."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:410002
+#: f0abe559ed7440a68805d02363a4452d
+msgid "Compared with the additive model, the graph has three new parts:"
+msgstr ""
+"En comparación con el modelo aditivo, el grafo tiene tres partes nuevas:"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:410004
+#: ce78eae868754972b7b9bbd9632bf300
+msgid ""
+"**Interaction parameters.** The `interaction` plate holds "
+"`interaction_adstock_alpha`, `interaction_saturation_lam` and "
+"`interaction_saturation_beta`, one value per interaction."
+msgstr ""
+"**Parámetros de interacción.** La placa `interaction` contiene "
+"`interaction_adstock_alpha`, `interaction_saturation_lam` e "
+"`interaction_saturation_beta`, un valor por interacción."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:410005
+#: c9aaa4c3e9494ee484da987c58155364
+msgid ""
+"**Interaction term.** `interaction_contribution` reads `channel_data` and"
+" `channel_scale`, the same spend as `channel_contribution`. Its sum over "
+"the interactions, `interaction_effect_contribution`, adds to `mu`. Both "
+"are named steps of the sales function, and the causal graph still has "
+"only the two spends as parents of sales."
+msgstr ""
+"**Término de interacción.** `interaction_contribution` lee `channel_data` y "
+"`channel_scale`, el mismo gasto que `channel_contribution`. Su suma sobre "
+"las interacciones, `interaction_effect_contribution`, se suma a `mu`. Ambos "
+"son pasos con nombre de la función de ventas, y el grafo causal sigue "
+"teniendo solo los dos gastos como padres de las ventas."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:410006
+#: a4ca648b51eb43f087150053d9797914
+msgid ""
+"**Total response.** `total_response_original_scale` sums `mu` on the "
+"original scale, so it includes the interaction. "
+"`total_media_contribution_original_scale` still reads "
+"`channel_contribution` only."
+msgstr ""
+"**Respuesta total.** `total_response_original_scale` suma `mu` en la escala "
+"original, por lo que incluye la interacción. "
+"`total_media_contribution_original_scale` sigue leyendo solo "
+"`channel_contribution`."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:420002
+#: 197dbe844bba4590816fc76be27dc367
+msgid "Prior Predictive Checks"
+msgstr "Verificaciones predictivas previas"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:420004
+#: 05f3c35eb6924ab1a75eb07a7a241230
+msgid ""
+"Before fitting, we look at what the priors allow. We measure the size of "
+"the interaction by its share of the media contribution over the training "
+"period. This share is the sum of the interaction term divided by the sum "
+"of the channel and interaction terms."
+msgstr ""
+"Antes de ajustar, observamos lo que permiten los priors. Medimos el tamaño "
+"de la interacción por su participación en la contribución de medios durante "
+"el período de entrenamiento. Esta participación es la suma del término de "
+"interacción dividida por la suma de los términos de canal y de interacción."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:420006
+#: 0706313955a04bf58bc8502c8c056e2c
+msgid ""
+"We compute the share with a helper that works on the prior and on the "
+"posterior samples."
+msgstr ""
+"Calculamos la participación con una función auxiliar que funciona tanto con "
+"las muestras del prior como con las del posterior."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:440002
+#: b412b4407c074aeea9ec8a4c4e998437
+msgid ""
+"Now we sample from the prior predictive distribution and compute the "
+"prior share."
+msgstr ""
+"Ahora muestreamos de la distribución predictiva previa y calculamos la "
+"participación del prior."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:460002
+#: bc3e068d133144a08529aec5b44b98ec
+msgid ""
+"We plot the priors of the three interaction parameters, with the priors "
+"of the channel coefficients in the panel of $\\beta$, and the prior share"
+" that they imply. The title of the share panel gives its median and its "
+"$94\\%$ equal-tailed interval (ETI)."
+msgstr ""
+"Graficamos los priors de los tres parámetros de interacción, con los priors "
+"de los coeficientes de los canales en el panel de $\\beta$, y la "
+"participación del prior que estos implican. El título del panel de "
+"participación indica su mediana y su intervalo de colas iguales (ETI) del "
+"$94\\%$."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:460004
+#: 16b32afcc14d4034b7922f91c868995e
+#, python-brace-format
+msgid ""
+"The adstock gives the weight $w_l = \\alpha^l / \\sum_{k=0}^{7} "
+"\\alpha^k$ to lag $l$, the number of weeks since the spend. Each weight "
+"is $\\alpha$ times the weight of the week before. At the prior mean "
+"$\\alpha = 0.25$, the first two weights are $0.75$ and $0.19$."
+msgstr ""
+"El adstock da el peso $w_l = \\alpha^l / \\sum_{k=0}^{7} \\alpha^k$ al "
+"rezago $l$, el número de semanas desde el gasto. Cada peso es $\\alpha$ "
+"veces el peso de la semana anterior. Con la media del prior $\\alpha = "
+"0.25$, los dos primeros pesos son $0.75$ y $0.19$."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:480002
+#: b66e2f0eafa54d09a3eba84159666231
+msgid ""
+"The prior of $\\alpha$ prefers a short carryover, and the prior of "
+"$\\lambda$ peaks at $2$. The prior of the interaction $\\beta$ is "
+"narrower than the priors of the coefficients of `x1` and `x2`. It still "
+"allows an interaction of the size of a main effect."
+msgstr ""
+"El prior de $\\alpha$ prefiere un arrastre corto, y el prior de $\\lambda$ "
+"tiene su pico en $2$. El prior de la interacción $\\beta$ es más estrecho "
+"que los priors de los coeficientes de `x1` y `x2`. Aun así permite una "
+"interacción del tamaño de un efecto principal."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:480004
+#: 37515a8eca134155ba2b6c030a292ea2
+msgid ""
+"Before we see the data, the priors allow anything from almost no "
+"interaction to an interaction that drives more than a third of the media "
+"contribution. Half of the prior draws of the share are below $5.3\\%$, "
+"the median in the title."
+msgstr ""
+"Antes de ver los datos, los priors permiten desde casi ninguna interacción "
+"hasta una interacción que genera más de un tercio de la contribución de "
+"medios. La mitad de las muestras del prior de la participación están por "
+"debajo de $5.3\\%$, la mediana del título."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:490002
+#: bc4fb2c7d88c46c0961a954b6af27d16
+msgid "Model Fitting"
+msgstr "Ajuste del modelo"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:490004
+#: 593f3771abdf409f85ca28786beac1d9
+msgid "We fit the interaction model with the same settings as the additive model."
+msgstr ""
+"Ajustamos el modelo con interacción con la misma configuración que el modelo"
+" aditivo."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:510002
+#: 5410fd795a3842a89a019bcee0d6c5dc
+msgid "We run the same diagnostics as for the additive model."
+msgstr "Ejecutamos los mismos diagnósticos que para el modelo aditivo."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:530002
+#: 98d28afa24614ce094d5cff033e78c48
+msgid "The interaction model passes every check too."
+msgstr "El modelo con interacción también pasa todas las verificaciones."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:540002
+#: 1dd9543b8ec44e10979a187a14fdc482
+msgid "Interaction Contribution"
+msgstr "Contribución de la interacción"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:540004
+#: 3ddbc68cf1164c8b99d52cb9a7eddbdd
+msgid ""
+"Now that the diagnostics look good, we can look into the interaction "
+"contribution. We multiply `interaction_contribution` by the target scale "
+"to get it in units of sales."
+msgstr ""
+"Ahora que los diagnósticos se ven bien, podemos examinar la contribución de "
+"la interacción. Multiplicamos `interaction_contribution` por la escala del "
+"objetivo para obtenerla en unidades de ventas."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:560002
+#: c2d76d884208455495c10a2ec616c9a9
+msgid ""
+"We plot the posterior mean and the $94\\%$ HDI, and we shade the weeks "
+"with spend on `x2`. The dashed line marks the true interaction, which is "
+"zero."
+msgstr ""
+"Graficamos la media posterior y el HDI del $94\\%$, y sombreamos las semanas"
+" con gasto en `x2`. La línea discontinua marca la interacción verdadera, que"
+" es cero."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:580002
+#: 8d1d5a0dfbf6428d8efff718891501af
+msgid ""
+"The estimated interaction adds sales in the weeks with spend on `x2`, and"
+" in the weeks after them through its adstock. Its posterior mean peaks at"
+" $242$ sales in a week, while the true interaction is zero."
+msgstr ""
+"La interacción estimada suma ventas en las semanas con gasto en `x2`, y en "
+"las semanas posteriores mediante su adstock. Su media posterior alcanza un "
+"pico de $242$ ventas en una semana, mientras que la interacción verdadera es"
+" cero."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:580004
+#: 0ab24612683d4819ba118df70c8209e2
+msgid ""
+"This positive estimate is not evidence of a synergy. The half-normal "
+"prior gives $\\beta > 0$ in every draw, so the term is positive in every "
+"week with adstocked input. Its posterior mean stays above zero even when "
+"the data favor no interaction, and the lower edge of the HDI band stays "
+"close to zero in every week."
+msgstr ""
+"Esta estimación positiva no es evidencia de una sinergia. El prior "
+"seminormal da $\\beta > 0$ en cada muestra, por lo que el término es "
+"positivo en toda semana con entrada con adstock. Su media posterior "
+"permanece por encima de cero incluso cuando los datos favorecen la ausencia "
+"de interacción, y el borde inferior de la banda del HDI permanece cerca de "
+"cero en todas las semanas."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:590002
+#: fbe1137cfe8b41169959e43dcf05791f
+msgid "Return on Ad Spend (ROAS)"
+msgstr "Retorno del gasto publicitario (ROAS)"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:590004
+#: 6fdce3e9cf1640e097738c7059c307e2
+msgid ""
+"To have a more quantitative metric of efficiency, we turn to ROAS. As we "
+"know the process that generated the data, we know the true ROAS."
+msgstr ""
+"Para tener una métrica de eficiencia más cuantitativa, recurrimos al ROAS. "
+"Como conocemos el proceso que generó los datos, conocemos el ROAS verdadero."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:590006
+#: 8c4e3d89400f412aa8f2c73ae7909da2
+#, python-brace-format
+msgid ""
+"Recall from {ref}`mmm_multiplicative` that each channel adds $1000 \\cdot"
+" \\beta_c \\cdot L_{\\lambda_c}(A_{\\alpha_c}(x_c))$ to the weekly sales,"
+" with $\\alpha = (0.4, 0.2)$, $\\lambda = (4, 3)$ and $\\beta = (3, 2)$. "
+"The helper below applies these true transformations to the spend of one "
+"channel."
+msgstr ""
+"Recordemos de {ref}`mmm_multiplicative` que cada canal suma $1000 \\cdot "
+"\\beta_c \\cdot L_{\\lambda_c}(A_{\\alpha_c}(x_c))$ a las ventas semanales, "
+"con $\\alpha = (0.4, 0.2)$, $\\lambda = (4, 3)$ y $\\beta = (3, 2)$. La "
+"función auxiliar de abajo aplica estas transformaciones verdaderas al gasto "
+"de un canal."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:610002
+#: 76b07a1819b845bfb2b265f73997dfd8
+msgid ""
+"The true ROAS of a channel is its true sales over the training period "
+"divided by its spend. We also compute the ROAS of both channels together,"
+" which we call `all channels`: the true sales of both channels divided by"
+" their total spend."
+msgstr ""
+"El ROAS verdadero de un canal es sus ventas verdaderas durante el período de"
+" entrenamiento divididas por su gasto. También calculamos el ROAS de ambos "
+"canales juntos, al que llamamos `all channels`: las ventas verdaderas de "
+"ambos canales divididas por su gasto total."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:630002
+#: 92858c4f6a684aafa72e5433e651d8db
+#, python-brace-format
+msgid ""
+"The `mmm.incrementality` module sets the spend of a channel to zero and "
+"divides the drop in predicted sales by the spend of the channel. For the "
+"interaction model, a zero spend on `x1` or on `x2` also removes the "
+"interaction term. For `all channels`, we set the spend of both channels "
+"to zero together with "
+"{meth}`~pymc_marketing.mmm.incrementality.Incrementality.compute_joint_incremental_contribution`."
+msgstr ""
+"El módulo `mmm.incrementality` lleva a cero el gasto de un canal y divide la"
+" caída de las ventas predichas por el gasto del canal. Para el modelo con "
+"interacción, un gasto cero en `x1` o en `x2` también elimina el término de "
+"interacción. Para `all channels`, llevamos a cero el gasto de ambos canales "
+"a la vez con "
+"{meth}`~pymc_marketing.mmm.incrementality.Incrementality.compute_joint_incremental_contribution`."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:650002
+#: 0f1bffd81bea460a95c8421a19f0beca
+msgid ""
+"To compare the channels on one axis, we divide the ROAS by the true ROAS,"
+" so that $1$ means a perfect estimate. The channel labels carry the true "
+"ROAS."
+msgstr ""
+"Para comparar los canales en un solo eje, dividimos el ROAS por el ROAS "
+"verdadero, de modo que $1$ significa una estimación perfecta. Las etiquetas "
+"de los canales incluyen el ROAS verdadero."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:670002
+#: 217592bc746b4db3b50fdc6e1be3d201
+msgid ""
+"Both models recover the true ROAS. For `x1`, `x2` and all channels "
+"together, the $94\\%$ HDI of both models contains $1$, and the posterior "
+"medians stay within a few percent of the truth. The interaction hardly "
+"changes the ROAS on this data."
+msgstr ""
+"Ambos modelos recuperan el ROAS verdadero. Para `x1`, `x2` y todos los "
+"canales juntos, el HDI del $94\\%$ de ambos modelos contiene $1$, y las "
+"medianas posteriores permanecen a pocos puntos porcentuales de la verdad. La"
+" interacción apenas cambia el ROAS en estos datos."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:670005
+#: ade7ef86922c4fbbbbaf04dce72a22bf
+msgid ""
+"**Totals over channels**: A zero spend on `x1` removes the interaction "
+"term, and so does a zero spend on `x2`. The incremental sales of `x1` and"
+" of `x2` therefore both include the interaction, and their sum counts it "
+"twice. For a total over channels that interact, use the joint incremental"
+" sales, as we do for `all channels`."
+msgstr ""
+"**Totales entre canales**: Un gasto cero en `x1` elimina el término de "
+"interacción, y lo mismo ocurre con un gasto cero en `x2`. Por lo tanto, las "
+"ventas incrementales de `x1` y de `x2` incluyen ambas la interacción, y su "
+"suma la cuenta dos veces. Para un total entre canales que interactúan, use "
+"las ventas incrementales conjuntas, como hacemos para `all channels`."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:680002
+#: 4433c146c933450baedd04b186cefa96
+msgid "Budget Optimization"
+msgstr "Optimización del presupuesto"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:680004
+#: 7458d715f3d8404e8df05ed14fc3fe11
+#, python-brace-format
+msgid ""
+"Next, we plan the budget of the next quarter with both models. We use the"
+" planning setup of {ref}`mmm_multiplicative` to compare the plans with "
+"the plans of that notebook:"
+msgstr ""
+"A continuación, planificamos el presupuesto del próximo trimestre con ambos "
+"modelos. Usamos la configuración de planificación de "
+"{ref}`mmm_multiplicative` para comparar los planes con los de ese cuaderno:"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:680006
+#: 89b1e2f791844b98b5f70aba68b4e562
+msgid ""
+"**Window.** The $13$ weeks after the last observation, from 2021-09-06 to"
+" 2021-11-29."
+msgstr ""
+"**Ventana.** Las $13$ semanas posteriores a la última observación, del "
+"2021-09-06 al 2021-11-29."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:680007
+#: 53d6eb82695c47dca995ad15ffac7984
+msgid ""
+"**Budget.** The weekly budget is the average weekly spend over the "
+"training data. The reference plan is the **historical split**: the "
+"average weekly spend of each channel."
+msgstr ""
+"**Presupuesto.** El presupuesto semanal es el gasto semanal promedio en los "
+"datos de entrenamiento. El plan de referencia es el **reparto histórico**: "
+"el gasto semanal promedio de cada canal."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:680008
+#: f5e3dfb5a7594473a128eb32d280170d
+msgid ""
+"**Guardrails.** Each channel can move at most $50\\%$ away from its "
+"historical weekly spend."
+msgstr ""
+"**Límites de seguridad.** Cada canal puede alejarse como máximo un $50\\%$ "
+"de su gasto semanal histórico."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:680009
+#: 19ec58aea3574828a58813d3f9584fef
+msgid ""
+"**Solver.** SLSQP, starting at the historical split, with a tolerance "
+"relative to the objective at the starting plan."
+msgstr ""
+"**Solucionador.** SLSQP, que parte del reparto histórico, con una tolerancia"
+" relativa al objetivo en el plan inicial."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:700002
+#: f7119660abe04053a167d2863668c1af
+msgid ""
+"Now we create the optimizers. For the interaction model we pass "
+"`response_variable=\"total_response_original_scale\"`, so that the "
+"objective includes the interaction. The default objective, "
+"`total_media_contribution_original_scale`, sums the channel terms only, "
+"and `MMM.budget_optimizer` warns about this when a mu effect reads the "
+"channel spend."
+msgstr ""
+"Ahora creamos los optimizadores. Para el modelo con interacción pasamos "
+"`response_variable=\"total_response_original_scale\"`, de modo que el "
+"objetivo incluya la interacción. El objetivo predeterminado, "
+"`total_media_contribution_original_scale`, suma solo los términos de canal, "
+"y `MMM.budget_optimizer` advierte sobre esto cuando un efecto mu lee el "
+"gasto de los canales."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:700004
+#: 9e86a10fe3f54d7d8aeca07a7a66f02b
+msgid ""
+"To see what the objective changes, we also create a second optimizer for "
+"the interaction model with the default objective, which we pass "
+"explicitly to silence the warning."
+msgstr ""
+"Para ver qué cambia el objetivo, también creamos un segundo optimizador para"
+" el modelo con interacción con el objetivo predeterminado, que pasamos de "
+"forma explícita para silenciar la advertencia."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:700007
+#: 5ee8ea0d4e0340339f32a22d25ac9b7a
+#, python-brace-format
+msgid ""
+"**Baseline in the objective**: `total_response_original_scale` also "
+"includes the baseline, which does not depend on the plan. The optimal "
+"plan stays the same for the default utility, the posterior mean of the "
+"objective. A risk-averse utility would also see the uncertainty of the "
+"baseline (see {ref}`mmm_allocation_assessment`)."
+msgstr ""
+"**Línea base en el objetivo**: `total_response_original_scale` también "
+"incluye la línea base, que no depende del plan. El plan óptimo se mantiene "
+"igual para la utilidad predeterminada, la media posterior del objetivo. Una "
+"utilidad aversa al riesgo también vería la incertidumbre de la línea base "
+"(consulte {ref}`mmm_allocation_assessment`)."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:720002
+#: 348fd3f7c73e4b879f656d1d162caddc
+msgid "We wrap the optimization in a helper, with the solver settings above."
+msgstr ""
+"Envolvemos la optimización en una función auxiliar, con la configuración del"
+" solucionador anterior."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:740002
+#: 92921c1a9814420891b9240c3efa7f79
+msgid ""
+"Because we know the true process, we can also find the true optimal plan "
+"and score every plan with its true incremental sales. To get the true "
+"incremental sales of a flat plan, we append the plan weeks and `L_MAX` "
+"weeks without spend to the observed spend. Then we subtract the sales of "
+"the same history without any spend in the window."
+msgstr ""
+"Como conocemos el proceso verdadero, también podemos encontrar el plan "
+"óptimo verdadero y evaluar cada plan con sus ventas incrementales "
+"verdaderas. Para obtener las ventas incrementales verdaderas de un plan "
+"plano, agregamos las semanas del plan y `L_MAX` semanas sin gasto al gasto "
+"observado. Luego restamos las ventas del mismo historial sin ningún gasto en"
+" la ventana."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:760002
+#: e9332429e3294978ab70a311c691c46b
+msgid ""
+"With two channels, the budget line $x_1 + x_2 = B$, where $B$ is the "
+"weekly budget, leaves one free variable: the spend on `x1`. The true "
+"sales are concave in it, so a bounded scalar search finds the true "
+"optimum. The next helper calls `optimize_budget` for each optimizer, and "
+"it compares the plans with the historical split and the true optimum, "
+"within given bounds."
+msgstr ""
+"Con dos canales, la línea de presupuesto $x_1 + x_2 = B$, donde $B$ es el "
+"presupuesto semanal, deja una variable libre: el gasto en `x1`. Las ventas "
+"verdaderas son cóncavas en ella, por lo que una búsqueda escalar acotada "
+"encuentra el óptimo verdadero. La siguiente función auxiliar llama a "
+"`optimize_budget` para cada optimizador, y compara los planes con el reparto"
+" histórico y el óptimo verdadero, dentro de los límites dados."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:780002
+#: 898774dbd2054d4ab82d17abe1c9a3a5
+msgid ""
+"Now we are ready to pass all these business requirements to the "
+"optimizer. We optimize with and without the guardrails."
+msgstr ""
+"Ahora estamos listos para pasar todos estos requisitos de negocio al "
+"optimizador. Optimizamos con y sin los límites de seguridad."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:800002
+#: 4e9636b19a664b17b80994e48ff85d69
+msgid ""
+"Let's visualize the plans. Each plan spends the same amount in each of "
+"the $13$ weeks."
+msgstr ""
+"Visualicemos los planes. Cada plan gasta la misma cantidad en cada una de "
+"las $13$ semanas."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:800004
+#: 0ce97016bce14f6ba397a3ff561875b9
+msgid ""
+"After each bar we show the weekly spend on `x2` and, in parentheses, the "
+"gap to the true optimum of the same panel. The gap is the relative "
+"difference in true incremental sales, and a negative value means fewer "
+"sales."
+msgstr ""
+"Después de cada barra mostramos el gasto semanal en `x2` y, entre "
+"paréntesis, la brecha respecto al óptimo verdadero del mismo panel. La "
+"brecha es la diferencia relativa en ventas incrementales verdaderas, y un "
+"valor negativo significa menos ventas."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:820002
+#: 4ac7f1a59b564ebdbe51366b71b2a70e
+#, python-brace-format
+msgid ""
+"Within the guardrails, the three optimized plans and the true optimum are"
+" the same: `x2` gets its lower guardrail, $0.081$, and `x1` gets the "
+"rest, $0.390$. The guardrails decide the plan, and the interaction does "
+"not change it. The models of {ref}`mmm_multiplicative` choose the same "
+"plan (we do not re-run them here)."
+msgstr ""
+"Dentro de los límites de seguridad, los tres planes optimizados y el óptimo "
+"verdadero son iguales: `x2` recibe su límite de seguridad inferior, $0.081$,"
+" y `x1` recibe el resto, $0.390$. Los límites de seguridad deciden el plan, "
+"y la interacción no lo cambia. Los modelos de {ref}`mmm_multiplicative` "
+"eligen el mismo plan (no los volvemos a ejecutar aquí)."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:820004
+#: b05a5a7bb6084780ae54a5453df95c49
+msgid ""
+"Without guardrails, all models move most of the budget to `x1`, as the "
+"true optimum does, but they keep more on `x2`. The interaction model "
+"keeps the most, $0.056$, against $0.044$ for the additive model and "
+"$0.010$ for the true optimum."
+msgstr ""
+"Sin límites de seguridad, todos los modelos trasladan la mayor parte del "
+"presupuesto a `x1`, como hace el óptimo verdadero, pero mantienen más en "
+"`x2`. El modelo con interacción mantiene la mayor cantidad, $0.056$, frente "
+"a $0.044$ del modelo aditivo y $0.010$ del óptimo verdadero."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:820006
+#: 0b41b5aa4bee4110a2ebfbba98af226f
+msgid ""
+"The two interaction plans come from the same posterior and differ only in"
+" the objective. The full response counts the interaction term, which "
+"grows with the spend on both channels, and gives `x2` $0.056$ instead of "
+"$0.033$."
+msgstr ""
+"Los dos planes con interacción provienen del mismo posterior y difieren solo"
+" en el objetivo. La respuesta completa cuenta el término de interacción, que"
+" crece con el gasto en ambos canales, y da a `x2` $0.056$ en lugar de "
+"$0.033$."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:820008
+#: f46e8378b24944d090d19f9c59a08192
+msgid ""
+"The interaction plan is $0.38\\%$ below the true optimum in true "
+"incremental sales, against $0.20\\%$ for the additive plan. The cost of "
+"the synergy that the model estimates is therefore small."
+msgstr ""
+"El plan con interacción está un $0.38\\%$ por debajo del óptimo verdadero en"
+" ventas incrementales verdaderas, frente al $0.20\\%$ del plan aditivo. Por "
+"lo tanto, el costo de la sinergia que estima el modelo es pequeño."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:820010
+#: 46938c9757aa4747b322a1047aee57a7
+msgid ""
+"The media-only plan of the interaction model comes closest to the true "
+"optimum, with a gap of $0.09\\%$, because it gives `x2` the least budget "
+"of all models. This is not a reason to prefer the media-only objective: "
+"the data has no interaction and the true optimum puts almost nothing on "
+"`x2`, so an objective that ignores the interaction term lands closer by "
+"construction. With a true synergy, it would leave that synergy out of the"
+" plan."
+msgstr ""
+"El plan del modelo con interacción que considera solo los medios es el que "
+"más se acerca al óptimo verdadero, con una brecha de $0.09\\%$, porque da a "
+"`x2` el menor presupuesto de todos los modelos. Esto no es una razón para "
+"preferir el objetivo que considera solo los medios: los datos no tienen "
+"interacción y el óptimo verdadero coloca casi nada en `x2`, por lo que un "
+"objetivo que ignora el término de interacción queda más cerca por "
+"construcción. Con una sinergia verdadera, dejaría esa sinergia fuera del "
+"plan."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:830002
+#: 419bd5c2a0424ec4801eecf7e0d217ef
+msgid "Value of the Interaction"
+msgstr "Valor de la interacción"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:830004
+#: e1a87eaa8da94ccc85bfa4291168b260
+msgid ""
+"First, we compare the priors and the posteriors of the interaction "
+"parameters and of the interaction share. The dashed lines mark the true "
+"$\\beta$ and the true share, which are zero. The carryover and the "
+"steepness have no true value, because the true process has no interaction"
+" term."
+msgstr ""
+"Primero, comparamos los priors y los posteriors de los parámetros de "
+"interacción y de la participación de la interacción. Las líneas discontinuas"
+" marcan el $\\beta$ verdadero y la participación verdadera, que son cero. El"
+" arrastre y la pendiente no tienen un valor verdadero, porque el proceso "
+"verdadero no tiene un término de interacción."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:850002
+#: 030f466a21934f888433e8ac084cf5c2
+msgid ""
+"The data pulls $\\beta$ and the share of the interaction toward zero. The"
+" posterior median of the share is $1.4\\%$, with a $94\\%$ ETI from "
+"$0.1\\%$ to $4.5\\%$, while the prior allows much larger shares. As we "
+"saw for the interaction contribution, the half-normal prior keeps the "
+"share above zero, so the positive share is not evidence of a synergy."
+msgstr ""
+"Los datos llevan $\\beta$ y la participación de la interacción hacia cero. "
+"La mediana posterior de la participación es $1.4\\%$, con un ETI del $94\\%$"
+" de $0.1\\%$ a $4.5\\%$, mientras que el prior permite participaciones mucho"
+" mayores. Como vimos para la contribución de la interacción, el prior "
+"seminormal mantiene la participación por encima de cero, por lo que la "
+"participación positiva no es evidencia de una sinergia."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:850004
+#: 1b9e3be7c5294ad283f3886f767ef463
+msgid ""
+"The posteriors of $\\alpha$ and $\\lambda$ stay wide, so the data does "
+"not pin down the carryover and the saturation of the interaction."
+msgstr ""
+"Los posteriors de $\\alpha$ y $\\lambda$ siguen siendo amplios, por lo que "
+"los datos no determinan el arrastre ni la saturación de la interacción."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:850006
+#: 4ca198e8de724bf6bd2a3216b15519f3
+msgid ""
+"Next, we compare the out-of-sample predictive performance of both models "
+"with leave-one-out cross-validation (LOO). We compute the pointwise log-"
+"likelihood of each model and the LOO estimate of its expected log "
+"predictive density (ELPD), where higher is better."
+msgstr ""
+"A continuación, comparamos el desempeño predictivo fuera de muestra de ambos"
+" modelos con validación cruzada dejando uno fuera (LOO). Calculamos la log-"
+"verosimilitud puntual de cada modelo y la estimación LOO de su densidad "
+"predictiva logarítmica esperada (ELPD), donde un valor mayor es mejor."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:870002
+#: 3d2d9b52ea594091901b39b776c0bb99
+msgid ""
+"We plot the comparison with `azp.plot_compare`. The title gives the ELPD "
+"difference of the second model and its standard error, and, for each "
+"model, the weeks in which the Pareto $k$ diagnostic is above $0.7$. In "
+"these weeks the importance sampling behind LOO is unreliable."
+msgstr ""
+"Graficamos la comparación con `azp.plot_compare`. El título da la diferencia"
+" de ELPD del segundo modelo y su error estándar, y, para cada modelo, las "
+"semanas en las que el diagnóstico $k$ de Pareto está por encima de $0.7$. En"
+" estas semanas el muestreo por importancia en que se basa LOO no es "
+"confiable."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:890002
+#: 68ff7247f53b4ff6800b6be01561a079
+msgid ""
+"The interaction model is behind the additive model by $0.6$, with a "
+"standard error of $1.3$. LOO cannot separate the two models, and the data"
+" gives no evidence for the interaction."
+msgstr ""
+"El modelo con interacción queda por detrás del modelo aditivo por $0.6$, con"
+" un error estándar de $1.3$. LOO no puede separar los dos modelos, y los "
+"datos no dan evidencia a favor de la interacción."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:890005
+#: 326d6e87d583419684a84ef5e6604e72
+msgid ""
+"**Pareto $k$**: Both models flag the same two weeks: the only week with "
+"`event_1` and the only week with `event_2`. The model learns each event "
+"coefficient from one week, so leaving that week out changes the posterior"
+" a lot. These weeks are not related to the interaction, but they make the"
+" LOO estimate of both models less reliable."
+msgstr ""
+"**$k$ de Pareto**: Ambos modelos señalan las mismas dos semanas: la única "
+"semana con `event_1` y la única semana con `event_2`. El modelo aprende cada"
+" coeficiente de evento a partir de una semana, por lo que dejar esa semana "
+"fuera cambia mucho el posterior. Estas semanas no están relacionadas con la "
+"interacción, pero hacen que la estimación LOO de ambos modelos sea menos "
+"confiable."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:890008
+#: 880ad9411fbe4c5a8a27dff74ff57978
+msgid ""
+"Recall from the Exploratory Data Analysis that `x2` has spend only "
+"between about $0.8$ and $1$. The optimal plans spend between $0.010$ and "
+"$0.081$ per week on `x2`, levels that we never observed. The model "
+"reaches these levels through its functional form, which the data cannot "
+"check."
+msgstr ""
+"Recordemos del análisis exploratorio de datos que `x2` tiene gasto solo "
+"entre aproximadamente $0.8$ y $1$. Los planes óptimos gastan entre $0.010$ y"
+" $0.081$ por semana en `x2`, niveles que nunca observamos. El modelo llega a"
+" estos niveles mediante su forma funcional, que los datos no pueden "
+"verificar."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:890011
+#: 8e6c58994b844b38a15285ca3011ead5
+msgid ""
+"**Critical Assessment**: We tested the interaction effect only on data "
+"without synergy, so we do not know if it recovers a synergy that is "
+"present in the data when `x2` comes in a few bursts. To check this, "
+"simulate the sales with a known interaction term and fit both models "
+"again."
+msgstr ""
+"**Evaluación crítica**: Probamos el efecto de interacción solo con datos sin"
+" sinergia, por lo que no sabemos si recupera una sinergia presente en los "
+"datos cuando `x2` llega en pocas ráfagas. Para comprobarlo, simule las "
+"ventas con un término de interacción conocido y ajuste ambos modelos de "
+"nuevo."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:900002
+#: a58f663285e649fc8facd3cfbf9df03b
+msgid "Conclusion"
+msgstr "Conclusión"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:900004
+#: ea8c637199d7477598bc8a035578a5be
+msgid ""
+"We wrote a custom mu effect that adds channel interactions to the "
+"additive MMM, and we tested it on data without synergy."
+msgstr ""
+"Escribimos un efecto mu personalizado que agrega interacciones entre canales"
+" al MMM aditivo, y lo probamos con datos sin sinergia."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:900006
+#: 5dccadc00928498ea6a7868c64f53815
+msgid "Key Findings"
+msgstr "Hallazgos clave"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:900008
+#: 8ef91db313e2496a857a3ce53da23390
+msgid ""
+"**Mu effects**: A mu effect adds a term to $\\mu$ through three methods, "
+"`create_data`, `create_effect` and `set_data`. An effect that depends on "
+"the spend also declares `incrementality_spec`, which `mmm.incrementality`"
+" needs for ROAS. An effect that reads `mmm.channel_data_scaled` follows "
+"the spend of every budget plan, so the optimizer changes only the spend "
+"of `x1` and `x2`."
+msgstr ""
+"**Efectos mu**: Un efecto mu agrega un término a $\\mu$ mediante tres "
+"métodos, `create_data`, `create_effect` y `set_data`. Un efecto que depende "
+"del gasto también declara `incrementality_spec`, que `mmm.incrementality` "
+"necesita para el ROAS. Un efecto que lee `mmm.channel_data_scaled` sigue el "
+"gasto de cada plan de presupuesto, de modo que el optimizador cambia solo el"
+" gasto de `x1` y `x2`."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:900009
+#: c431010f7b6b451a87e99c416bbb784d
+msgid ""
+"**Interaction estimate**: The model estimates a small interaction, and "
+"LOO cannot separate it from the additive model. Both models give close "
+"ROAS estimates, and their $94\\%$ HDIs contain the true ROAS."
+msgstr ""
+"**Estimación de la interacción**: El modelo estima una interacción pequeña, "
+"y LOO no puede separarla del modelo aditivo. Ambos modelos dan estimaciones "
+"de ROAS cercanas, y sus HDI del $94\\%$ contienen el ROAS verdadero."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:900010
+#: 035e2967a4744537aba4b2b18b4b8f35
+msgid ""
+"**Budget plan**: Within the guardrails, both models choose the true "
+"optimum. Without guardrails, the interaction moves budget to `x2`, and "
+"its plan is $0.38\\%$ below the true optimum in true incremental sales, "
+"against $0.20\\%$ for the additive plan."
+msgstr ""
+"**Plan de presupuesto**: Dentro de los límites de seguridad, ambos modelos "
+"eligen el óptimo verdadero. Sin límites de seguridad, la interacción "
+"traslada presupuesto a `x2`, y su plan está un $0.38\\%$ por debajo del "
+"óptimo verdadero en ventas incrementales verdaderas, frente al $0.20\\%$ del"
+" plan aditivo."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:900012
+#: f5b59279812e47f8a8e9eb3b281816ac
+msgid "Model Limitations"
+msgstr "Limitaciones del modelo"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:900014
+#: 94329194d0af4672822f53624878cb85
+msgid ""
+"**Synergy only**: The half-normal prior of $\\beta$ allows no "
+"cannibalization, and it keeps the estimate above zero."
+msgstr ""
+"**Solo sinergia**: El prior seminormal de $\\beta$ no permite "
+"canibalización, y mantiene la estimación por encima de cero."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:900015
+#: 1855a70f907e439d98b90ce89ea7378a
+msgid ""
+"**Unobserved spend levels**: `x2` has spend in only $32$ weeks, always at"
+" a high level, and the optimal plans spend at levels that we never "
+"observed."
+msgstr ""
+"**Niveles de gasto no observados**: `x2` tiene gasto en solo $32$ semanas, "
+"siempre a un nivel alto, y los planes óptimos gastan a niveles que nunca "
+"observamos."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:900016
+#: 1719cbf5002345b080bf8f0c9efdc334
+msgid ""
+"**Same-week product**: The term is the adstock of the product of the "
+"spend in the same week. A TV campaign that makes search work better in "
+"the weeks after it needs a different form, for example the product of the"
+" adstocked spend."
+msgstr ""
+"**Producto de la misma semana**: El término es el adstock del producto del "
+"gasto en la misma semana. Una campaña de TV que hace que la búsqueda "
+"funcione mejor en las semanas posteriores necesita una forma diferente, por "
+"ejemplo el producto del gasto con adstock."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:900018
+#: 38a6e0bd6d9146268d87e33bd381c603
+msgid "Recommendations"
+msgstr "Recomendaciones"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:900020
+#: 3a028edb1ae64a528007986c13a4f8f5
+msgid ""
+"**Add an interaction for a business reason.** Use it when you expect a "
+"synergy between specific channels, and check that the data has weeks in "
+"which these channels vary independently."
+msgstr ""
+"**Agregue una interacción por una razón de negocio.** Úsela cuando espere "
+"una sinergia entre canales específicos, y compruebe que los datos tienen "
+"semanas en las que estos canales varían de forma independiente."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:900021
+#: c4409988cf364f3ba93401f2b115b2e0
+msgid ""
+"**Optimize the full response.** Pass "
+"`response_variable=\"total_response_original_scale\"` to the budget "
+"optimizer, and compare the plans with and without the interaction."
+msgstr ""
+"**Optimice la respuesta completa.** Pase "
+"`response_variable=\"total_response_original_scale\"` al optimizador de "
+"presupuesto, y compare los planes con y sin la interacción."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:900022
+#: 22e42c687d5542a2907cb217bd1602b9
+msgid ""
+"**Report joint totals.** Use the joint incremental sales for a total over"
+" channels that interact."
+msgstr ""
+"**Reporte los totales conjuntos.** Use las ventas incrementales conjuntas "
+"para un total entre canales que interactúan."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:910002
+#: f04a298cadba435387fb7ae93d070b99
+msgid "Next Steps"
+msgstr "Próximos pasos"
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:910004
+#: 47897640af02474382840b0158cf38cc
+#, python-brace-format
+msgid ""
+"**Funnel effects.** See {ref}`mmm_funnel_mueffect` for a mu effect that "
+"models a mediator between upper and lower funnel channels."
+msgstr ""
+"**Efectos de embudo.** Consulte {ref}`mmm_funnel_mueffect` para ver un "
+"efecto mu que modela un mediador entre canales de la parte alta y baja del "
+"embudo."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:910005
+#: 8bd24416a4c448aab3ff12a80725a253
+#, python-brace-format
+msgid ""
+"**Halo and cannibalization.** See {ref}`mmm_halo` for mu effects across "
+"products, with a coefficient that can be negative."
+msgstr ""
+"**Halo y canibalización.** Consulte {ref}`mmm_halo` para ver efectos mu "
+"entre productos, con un coeficiente que puede ser negativo."
+
+#: ../source/notebooks/mmm/mmm_mu_effects_intro.ipynb:910006
+#: 22f55de326cb4cb9a088401b38980fc4
+#, python-brace-format
+msgid ""
+"**Recovery check.** Simulate the sales with a known interaction term and "
+"check that the interaction model recovers it. See "
+"{ref}`mmm_data_generator` for parameter recovery with simulated data."
+msgstr ""
+"**Verificación de recuperación.** Simule las ventas con un término de "
+"interacción conocido y compruebe que el modelo con interacción lo recupera. "
+"Consulte {ref}`mmm_data_generator` para ver la recuperación de parámetros "
+"con datos simulados."
+

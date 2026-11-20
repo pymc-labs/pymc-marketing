@@ -1,0 +1,415 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2026, PyMC Labs
+# This file is distributed under the same license as the PyMC-Marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyMC-Marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:10003
+#: f5796a6beb344ede8f68ac1c15c8eb52
+msgid "Custom Geo-Hierarchical MMM with Splines"
+msgstr "MMM geo-jerárquico personalizado con splines"
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:10005
+#: eb9fc0f94ecf481b91742d9d7553e296
+#, python-brace-format
+msgid ""
+"This tutorial shows how to build a custom Marketing Mix Model (MMM) by "
+"combining PyMC-Marketing components with plain PyMC modeling. We follow "
+"the strategy present in the introductory notebook {ref}`mmm_components`. "
+"We use the data from the multidimensional tutorial "
+"{ref}`mmm_multidimensional_example`. To showcase the flexibility of the "
+"approach, we will build a model with:"
+msgstr ""
+"Este tutorial muestra cómo construir un modelo de mezcla de marketing (MMM) "
+"personalizado combinando componentes de PyMC-Marketing con modelado en PyMC "
+"puro. Seguimos la estrategia presentada en el cuaderno introductorio "
+"{ref}`mmm_components`. Usamos los datos del tutorial multidimensional "
+"{ref}`mmm_multidimensional_example`. Para mostrar la flexibilidad del "
+"enfoque, construiremos un modelo con:"
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:10007
+#: fb42720fbf854542a38be5927b246281
+msgid "An illustrative hierarchical adstock effect across geos and channels."
+msgstr "Un efecto de adstock jerárquico ilustrativo entre geos y canales."
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:10008
+#: 961da971489d48dcb5206cfe1742f3c0
+msgid "A spline-based time-varying intercept."
+msgstr "Un intercepto variable en el tiempo basado en splines."
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:10009
+#: c219e73ac9c94dc6a8e07b4c929dbe04
+msgid "Fourier seasonality."
+msgstr "Estacionalidad de Fourier."
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:10010
+#: db17c9095f364a2fb540644097059eb8
+msgid "Hierarchical control effects for `event_1` and `event_2`."
+msgstr "Efectos de control jerárquicos para `event_1` y `event_2`."
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:10012
+#: b0e296282b684923a7efd56fb40345b6
+msgid ""
+"As we implement a PyMC model, here the flexibility is very high. We show "
+"how to use PyMC-Marketing components to model media effects and "
+"seasonality. This should reduce the code boilerplate and make the model "
+"more readable (there is no need to implement the adstock or the logistic "
+"saturation functions manually at this point)."
+msgstr ""
+"Como implementamos un modelo de PyMC, aquí la flexibilidad es muy alta. "
+"Mostramos cómo usar los componentes de PyMC-Marketing para modelar los "
+"efectos de los medios y la estacionalidad. Esto debería reducir el código "
+"repetitivo y hacer el modelo más legible (en este punto no es necesario "
+"implementar manualmente las funciones de adstock ni de saturación "
+"logística)."
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:20003
+#: 0753b07136374dd7b3aacaa896d71c57
+msgid ""
+"*Why this custom model?* The `MMM` class in PyMC-Marketing is very "
+"flexible. You can use it to build models with different structures. For "
+"example, you can use it to build a model with hierarchical structures and"
+" global time-varying intercepts and media multipliers. Nevertheless, in "
+"many cases teams and organizations want to have more control over the "
+"model specification. Hence, using PyMC with PyMC-Marketing allows you to "
+"implement any type of model you want."
+msgstr ""
+"*¿Por qué este modelo personalizado?* La clase `MMM` de PyMC-Marketing es "
+"muy flexible. Puede utilizarla para construir modelos con diferentes "
+"estructuras. Por ejemplo, puede utilizarla para construir un modelo con "
+"estructuras jerárquicas e interceptos variables en el tiempo y "
+"multiplicadores de medios globales. Sin embargo, en muchos casos los equipos"
+" y las organizaciones quieren tener más control sobre la especificación del "
+"modelo. Por eso, usar PyMC junto con PyMC-Marketing permite implementar "
+"cualquier tipo de modelo que desee."
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:30002
+#: c8d1456fcd7c44b88aad4d251837abca
+msgid "Prepare Notebook"
+msgstr "Preparar el cuaderno"
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:50002
+#: 0889523f13214d628286db870b193462
+msgid "Load and prepare data"
+msgstr "Cargar y preparar los datos"
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:50004
+#: d40721d46d4249bbabe53446019b659c
+msgid ""
+"We use `mmm_multidimensional_example.csv` (two geos, two channels, two "
+"controls)."
+msgstr ""
+"Usamos `mmm_multidimensional_example.csv` (dos geos, dos canales, dos "
+"controles)."
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:50006
+#: 492130e069184f4c8e1d5d51925f2ff9
+msgid ""
+"To keep sampling stable in this custom model, we scale media and target "
+"by geo-level maxima."
+msgstr ""
+"Para mantener estable el muestreo en este modelo personalizado, escalamos "
+"los medios y la variable objetivo por los máximos a nivel de geo."
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:80002
+#: b8932d1e1d524db193508826dc329759
+msgid "Spline basis for a time-varying intercept"
+msgstr "Base de splines para un intercepto variable en el tiempo"
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:80004
+#: 9cb2ed5e06c34574a876b0587c4c91ed
+msgid ""
+"Instead of a static intercept, we let baseline demand vary smoothly over "
+"time with cubic B-splines (see the PyMC example notebook on "
+"[Splines](https://www.pymc.io/projects/examples/en/latest/howto/spline.html))."
+msgstr ""
+"En lugar de un intercepto estático, dejamos que la demanda base varíe "
+"suavemente en el tiempo mediante B-splines cúbicos (consulte el cuaderno de "
+"ejemplo de PyMC sobre "
+"[Splines](https://www.pymc.io/projects/examples/en/latest/howto/spline.html))."
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:80006
+#: 1c2dff968f464c43aed127474f2b6115
+msgid ""
+"We use fewer, more separated internal knots so the spline emphasizes "
+"longer-run baseline variation rather than short-term wiggles."
+msgstr ""
+"Usamos menos nudos internos, más separados entre sí, de modo que el spline "
+"destaque la variación de la línea base a más largo plazo en lugar de las "
+"oscilaciones de corto plazo."
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:80008
+#: 38b1e6537b2444328ef57d1bea9292d8
+msgid "We then put a hierarchical prior on spline coefficients:"
+msgstr ""
+"Luego colocamos un prior jerárquico sobre los coeficientes del spline:"
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:80010
+#: 95e7886335674dacb6aa75cf138cffea
+msgid "Each geo gets its own spline weights."
+msgstr "Cada geo tiene sus propios pesos del spline."
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:80011
+#: 9dbc156b75114a99aa515994583a819c
+msgid "But all geos share hyperpriors, enabling partial pooling."
+msgstr ""
+"Pero todos los geos comparten hiperpriors, lo que permite un agrupamiento "
+"parcial."
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:90002
+#: 22750bcb62914336a7b432fdd551be5c
+msgid "\\displaystyle \\left( 159, \\  8\\right)"
+msgstr "\\displaystyle \\left( 159, \\  8\\right)"
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:100002
+#: 0576b318b840414e89d42d5786ebbed1
+msgid "We can visualize the spline basis:"
+msgstr "Podemos visualizar la base de splines:"
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:120002
+#: 8a8c7bacbe95482e9b0735705776ccfd
+msgid "Custom model specification"
+msgstr "Especificación del modelo personalizado"
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:120004
+#: 3430ecaf562e49ca983b3196eb2bb71e
+msgid "We now assemble the model from components."
+msgstr "Ahora ensamblamos el modelo a partir de componentes."
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:120006
+#: 1e6a6a78b3bd4cf5af374c022f467f53
+msgid "Key choices:"
+msgstr "Decisiones clave:"
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:120008
+#: 7d0de7c9798e40cfa5fb7b0da0e6fc97
+msgid ""
+"**Media effects**: adstock + logistic saturation from PyMC-Marketing "
+"components."
+msgstr ""
+"**Efectos de los medios**: adstock + saturación logística a partir de los "
+"componentes de PyMC-Marketing."
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:120009
+#: 362655c267594ace87c1432b353eb30d
+msgid "**Seasonality**: Fourier terms with geo-specific coefficients."
+msgstr ""
+"**Estacionalidad**: términos de Fourier con coeficientes específicos para "
+"cada geo."
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:120010
+#: 769e12e5b4794577a01066fca8235a81
+msgid ""
+"**Controls**: hierarchical coefficients for `event_1` and `event_2` over "
+"geos."
+msgstr ""
+"**Controles**: coeficientes jerárquicos para `event_1` y `event_2` entre "
+"geos."
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:120011
+#: 0f1467ed79cd409393cbcdf81ea008b9
+msgid "**Baseline**: hierarchical spline intercept over geos."
+msgstr "**Línea base**: intercepto de splines jerárquico entre geos."
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:120015
+#: a4a4e284c4b8468fbbff623f711803f6
+msgid ""
+"Because spline baselines and Fourier harmonics can both explain smooth "
+"temporal patterns, they can become partially confounded if left weakly "
+"constrained. To mitigate this, we keep seasonality centered with a zero-"
+"sum prior "
+"([`ZeroSumNormal`](https://docs.pymc.io/en/latest/api/distributions/generated/pymc.ZeroSumNormal.html))"
+" so Fourier terms cannot absorb long-run level shifts, and we apply "
+"stronger spline regularization (`spline_mu` with `sigma=0.10` and "
+"`spline_sigma` with `sigma=0.08`) so the baseline stays smooth and "
+"captures persistent trend-level movement rather than seasonal "
+"oscillations. Still, for first iterations, you should inspect the model "
+"fit and adjust priors as needed (or even remove one of the components)."
+msgstr ""
+"Dado que tanto las líneas base de splines como los armónicos de Fourier "
+"pueden explicar patrones temporales suaves, pueden quedar parcialmente "
+"confundidos si se dejan débilmente restringidos. Para mitigarlo, mantenemos "
+"la estacionalidad centrada con un prior de suma cero "
+"([`ZeroSumNormal`](https://docs.pymc.io/en/latest/api/distributions/generated/pymc.ZeroSumNormal.html))"
+" para que los términos de Fourier no puedan absorber cambios de nivel de "
+"largo plazo, y aplicamos una regularización más fuerte a los splines "
+"(`spline_mu` con `sigma=0.10` y `spline_sigma` con `sigma=0.08`) para que la"
+" línea base se mantenga suave y capture movimientos persistentes del nivel "
+"de tendencia en lugar de oscilaciones estacionales. Aun así, en las primeras"
+" iteraciones, debería inspeccionar el ajuste del modelo y modificar los "
+"priors según sea necesario (o incluso eliminar uno de los componentes)."
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:130002
+#: e28bb77712db476bb949f2743ddba85a
+msgid "Let's start by defining the components."
+msgstr "Comencemos definiendo los componentes."
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:150002
+#: ee3e951fa082486a9587130246c0aaab
+msgid "Now we are ready to build the PyMC model."
+msgstr "Ahora estamos listos para construir el modelo de PyMC."
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:170002
+#: 8864f35da9b241c6806bce3268cc4f14
+msgid "Prior predictive check"
+msgstr "Chequeo predictivo previo"
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:170004
+#: 1e7c87bb2f4744e89c9977f4dd3f19c8
+msgid ""
+"A quick prior predictive check helps verify that our model can generate "
+"plausible trajectories before fitting."
+msgstr ""
+"Un chequeo predictivo previo rápido ayuda a verificar que nuestro modelo "
+"puede generar trayectorias plausibles antes del ajuste."
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:190002
+#: 658d43badf464e41acb4da8e5ea49cfb
+msgid ""
+"Overall, it looks like the model is able to generate plausible "
+"trajectories."
+msgstr ""
+"En general, parece que el modelo es capaz de generar trayectorias "
+"plausibles."
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:200002
+#: 75d5e08680424c29a5fd6f0d0c37c376
+msgid "Fit and posterior predictive"
+msgstr "Ajuste y predictiva posterior"
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:200004
+#: d8266610e75049c290392d0bf89e3bd2
+msgid ""
+"We now fit the model and run some posterior predictive checks and "
+"diagnostics."
+msgstr ""
+"Ahora ajustamos el modelo y ejecutamos algunos chequeos predictivos "
+"posteriores y diagnósticos."
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:220002
+#: 961ec56cec1540e9a1ecbfa6de99bfb4
+msgid "Baseline from splines: `time_varying_intercept`"
+msgstr "Línea base a partir de splines: `time_varying_intercept`"
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:220004
+#: 4e839adbf73d488297c543c9f547f381
+msgid ""
+"The spline term is our smooth baseline component. It captures persistent "
+"temporal variation that is not directly explained by media, controls, or "
+"seasonal Fourier terms."
+msgstr ""
+"El término de splines es nuestro componente de línea base suave. Captura la "
+"variación temporal persistente que no se explica directamente por los "
+"medios, los controles ni los términos de Fourier estacionales."
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:220006
+#: 6c63310041a34462aa59a84807c345d4
+msgid ""
+"Below we plot its posterior uncertainty by geo on the original target "
+"scale."
+msgstr ""
+"A continuación trazamos su incertidumbre posterior por geo en la escala "
+"original de la variable objetivo."
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:260002
+#: 32372a47968e41fd9c5e6587036e5bbf
+msgid "Model Components in Original Scale"
+msgstr "Componentes del modelo en la escala original"
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:260004
+#: 23b215a272fe4a7ead77706ac6b706e0
+msgid ""
+"To mirror the multidimensional MMM tutorial workflow, we now extract and "
+"visualize the posterior contribution of each component:"
+msgstr ""
+"Para reflejar el flujo de trabajo del tutorial de MMM multidimensional, "
+"ahora extraemos y visualizamos la contribución posterior de cada componente:"
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:260006
+#: 0c7ba0d29f334c2095014cfc8e349529
+msgid "channel contributions,"
+msgstr "contribuciones de los canales,"
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:260007
+#: cafc99fb58bd42d487da7ed19b2f43ce
+msgid "spline baseline (`time_varying_intercept`),"
+msgstr "línea base de splines (`time_varying_intercept`),"
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:260008
+#: d73ea3d27c1d404b9e415c53109bca2d
+msgid "Fourier seasonality,"
+msgstr "estacionalidad de Fourier,"
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:260009
+#: fc8dc351dff6496c96f2f6f459c29643
+msgid "and control effects."
+msgstr "y efectos de control."
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:260011
+#: adc17cd015604a739e9639bd12c1f4f5
+msgid ""
+"This decomposition helps users inspect how each modeled signal "
+"contributes to the observed target trajectory."
+msgstr ""
+"Esta descomposición ayuda a los usuarios a inspeccionar cómo contribuye cada"
+" señal modelada a la trayectoria observada de la variable objetivo."
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:280002
+#: 5c2961cde3ae4a5cb90028ba0c52acd7
+msgid "What this model demonstrates"
+msgstr "Qué demuestra este modelo"
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:280004
+#: 350ac10daa3a4617b4532502bd4f5d28
+msgid ""
+"This custom specification highlights how to combine PyMC-Marketing "
+"components and custom PyMC structure:"
+msgstr ""
+"Esta especificación personalizada destaca cómo combinar los componentes de "
+"PyMC-Marketing con una estructura de PyMC personalizada:"
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:280006
+#: 07aeeb31b3bb40b28c0ff6d88e83971b
+msgid "**Hierarchical geo structure** for media and controls,"
+msgstr "**Estructura geo jerárquica** para medios y controles,"
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:280007
+#: 6bd512d950044629a7dba14e0f8e87ef
+msgid "**Spline baseline** for smooth long-run variation,"
+msgstr "**Línea base de splines** para una variación suave de largo plazo,"
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:280008
+#: e14215c17c1b42f0ae30ff089933ae56
+msgid "**Fourier seasonality** for periodic behavior,"
+msgstr "**Estacionalidad de Fourier** para el comportamiento periódico,"
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:280009
+#: 7f2be493ab3c410b9d97ac8917f7af55
+msgid "A clean additive decomposition in a single probabilistic model."
+msgstr "Una descomposición aditiva limpia en un único modelo probabilístico."
+
+#: ../source/notebooks/mmm/mmm_custom_splines.ipynb:280011
+#: c59ab00f41334ea9ae7f8e4095cf5e7e
+msgid ""
+"From here, you can iterate on priors, pooling assumptions, and the "
+"likelihood for your specific use case."
+msgstr ""
+"A partir de aquí, puede iterar sobre los priors, los supuestos de "
+"agrupamiento y la verosimilitud para su caso de uso específico."
+

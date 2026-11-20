@@ -9,145 +9,149 @@ msgid ""
 msgstr ""
 "Project-Id-Version: pymc-marketing local\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: es <LL@li.org>\n"
 "Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
-"Generated-By: Babel 2.17.0\n"
+"Generated-By: Babel 2.18.0\n"
 
 #: ../source/notebooks/mmm/mmm_tvp_example.ipynb:10003
-#: 6c2dc7cb53524118896c7e7b79e159a8
+#: ed8b634630d3478c810e24e70cef23ac
 msgid "MMM with time-varying parameters (TVP)"
 msgstr "MMM con parámetros que varían en el tiempo (TVP)"
 
 #: ../source/notebooks/mmm/mmm_tvp_example.ipynb:10005
-#: d0b2845c89484a9abccbeacf90ac5f07
+#: 8cb114bf71364bc29e9badb0f08ccad7
 msgid ""
 "In classical marketing mix models, the effect of advertising (or other "
 "factors) on sales is assumed to be constant over time. Similarly, the "
-"baseline sales—what you would have sold without marketing—is also assumed to"
-" be constant. This is a simplification that _typically doesn't_ match "
-"reality. There will be times when, for various reasons, your ads are more "
-"effective, or when your product just _sells better_."
+"baseline sales—what you would have sold without marketing—is also assumed"
+" to be constant. This is a simplification that _typically doesn't_ match "
+"reality. There will be times when, for various reasons, your ads are more"
+" effective, or when your product just _sells better_."
 msgstr ""
-"En los modelos clásicos de mezcla de marketing, se asume que el efecto de la"
-" publicidad (u otros factores) sobre las ventas es constante a lo largo del "
-"tiempo. De manera similar, se asume que las ventas base—lo que habrías "
-"vendido sin marketing—también son constantes. Esta es una simplificación que"
-" _típicamente no_ coincide con la realidad. Habrá momentos en los que, por "
-"diversas razones, tus anuncios sean más efectivos, o cuando tu producto "
-"simplemente _venda mejor_."
+"En los modelos clásicos de mezcla de marketing, se asume que el efecto de"
+" la publicidad (u otros factores) sobre las ventas es constante a lo "
+"largo del tiempo. De manera similar, se asume que las ventas base—lo que "
+"habrías vendido sin marketing—también son constantes. Esta es una "
+"simplificación que _típicamente no_ coincide con la realidad. Habrá "
+"momentos en los que, por diversas razones, tus anuncios sean más "
+"efectivos, o cuando tu producto simplemente _venda mejor_."
 
 #: ../source/notebooks/mmm/mmm_tvp_example.ipynb:10007
-#: 3c406d30e8e94775b73718c59faf371e
+#: a15618d7ba2041e59c718e4f205ca030
 msgid ""
-"This _time-varying effect_ is something we can capture with a time-varying "
-"parameter. In the context of a marketing mix model, this could be changing "
-"trends, unexpected events, and other external factors that are not "
-"controlled for. For example, if you sell sunglasses or ice cream, an "
-"unusually sunny spring will impact both your baseline sales and likely also "
-"the effect of your ads on short-term sales."
+"This _time-varying effect_ is something we can capture with a time-"
+"varying parameter. In the context of a marketing mix model, this could be"
+" changing trends, unexpected events, and other external factors that are "
+"not controlled for. For example, if you sell sunglasses or ice cream, an "
+"unusually sunny spring will impact both your baseline sales and likely "
+"also the effect of your ads on short-term sales."
 msgstr ""
 "Este _efecto variable en el tiempo_ es algo que podemos capturar con un "
-"parámetro variable en el tiempo. En el contexto de un modelo de mezcla de "
-"marketing, esto podría incluir tendencias cambiantes, eventos inesperados y "
-"otros factores externos que no se controlan. Por ejemplo, si vendes gafas de"
-" sol o helados, una primavera inusualmente soleada impactará tanto tus "
-"ventas base como, probablemente, el efecto de tus anuncios en las ventas a "
-"corto plazo."
+"parámetro variable en el tiempo. En el contexto de un modelo de mezcla de"
+" marketing, esto podría incluir tendencias cambiantes, eventos "
+"inesperados y otros factores externos que no se controlan. Por ejemplo, "
+"si vendes gafas de sol o helados, una primavera inusualmente soleada "
+"impactará tanto tus ventas base como, probablemente, el efecto de tus "
+"anuncios en las ventas a corto plazo."
 
 #: ../source/notebooks/mmm/mmm_tvp_example.ipynb:10009
-#: e1c8c767827a4cc68ae45764b7fde6ba
+#: cdd76a24c88844e086ef7268e599dca0
 msgid ""
 "👉 In this notebook, we demonstrate how—and when—to use a time-varying "
 "parameter for intercept in an MMM, using `pymc-marketing`'s `MMM` model."
 msgstr ""
-"👉 En este cuaderno, demostramos cómo—y cuándo—usar un parámetro variable en "
-"el tiempo para la intersección en un MMM, utilizando el modelo `MMM` de "
-"`pymc-marketing`."
+"👉 En este cuaderno, demostramos cómo—y cuándo—usar un parámetro variable "
+"en el tiempo para la intersección en un MMM, utilizando el modelo `MMM` "
+"de `pymc-marketing`."
 
 #: ../source/notebooks/mmm/mmm_tvp_example.ipynb:10011
-#: 7b60c0aba67940938f3bd9223bd45bfb
+#: 67ed272e1d29493f87a9b2ba5a724a6c
 msgid "The API is straightforward:"
 msgstr "La API es sencilla:"
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:10024
-#: 06434504b5f740ef989703c7cf509727
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:10028
+#: 09ba13c35a6340649d72b410b2c28b37
 msgid ""
 "🤓 Under the hood, the time-varying intercept is modeled as a Gaussian "
 "Process (specifically a [Hilbert Space "
 "GP](https://www.pymc.io/projects/docs/en/stable/api/gp/generated/pymc.gp.HSGP.html)"
 " to speed things up), constrained to $\\mu=1$ and then multiplied by a "
-"_baseline intercept_. So if the sampler infers that the baseline intercept "
-"is 1000 sunglasses sold per week, then the GP models the percentage "
-"deviation from that, over time. Have a look at the implementation of `MMM` "
-"for concrete structural details."
+"_baseline intercept_. So if the sampler infers that the baseline "
+"intercept is 1000 sunglasses sold per week, then the GP models the "
+"percentage deviation from that, over time. Have a look at the "
+"implementation of `MMM` for concrete structural details."
 msgstr ""
-"🤓 En el fondo, el intercepto variable en el tiempo se modela como un Proceso"
-" Gaussiano (específicamente un [GP de Espacio de "
+"🤓 En el fondo, el intercepto variable en el tiempo se modela como un "
+"Proceso Gaussiano (específicamente un [GP de Espacio de "
 "Hilbert](https://www.pymc.io/projects/docs/en/stable/api/gp/generated/pymc.gp.HSGP.html)"
-" para acelerar las cosas), restringido a $\\mu=1$ y luego multiplicado por "
-"un _intercepto base_. Así que si el muestreador infiere que el intercepto "
-"base es de 1000 gafas de sol vendidas por semana, entonces el GP modela la "
-"desviación porcentual de eso, a lo largo del tiempo. Echa un vistazo a la "
-"implementación de `MMM` para detalles estructurales concretos."
+" para acelerar las cosas), restringido a $\\mu=1$ y luego multiplicado "
+"por un _intercepto base_. Así que si el muestreador infiere que el "
+"intercepto base es de 1000 gafas de sol vendidas por semana, entonces el "
+"GP modela la desviación porcentual de eso, a lo largo del tiempo. Echa un"
+" vistazo a la implementación de `MMM` para detalles estructurales "
+"concretos."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:10026
-#: db6f34ffb837480185ea0645d21b73ae
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:10030
+#: ea27806525ac4f19aecae58414bdf63f
 msgid "Below, we give three simple usage examples:"
 msgstr "A continuación, ofrecemos tres ejemplos de uso simples:"
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:10028
-#: 6c9ac52f98ab4fe8b10416459847a7ee
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:10032
+#: d781b9e6fb83427ea0394b8f4665fcc5
 msgid ""
-"**Yearly seasonality**: The intercept is a cosine function with a period of "
-"one year. Normally, one would use a Fourier basis to model seasonality, but "
-"let's see what happens when we use a time-varying intercept 🤷‍♂️."
+"**Yearly seasonality**: The intercept is a cosine function with a period "
+"of one year. Normally, one would use a Fourier basis to model "
+"seasonality, but let's see what happens when we use a time-varying "
+"intercept 🤷‍♂️."
 msgstr ""
 "**Estacionalidad anual**: La intersección es una función coseno con un "
 "período de un año. Normalmente, se utilizaría una base de Fourier para "
 "modelar la estacionalidad, pero veamos qué sucede cuando usamos una "
 "intersección variable en el tiempo 🤷‍♂️."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:10029
-#: 48a9215dd7db40b2a82b74d79333b900
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:10033
+#: 93bf6b5bca8a4c8791554751466827dd
 msgid ""
-"**Upward trending sales**: The intercept is a linearly increasing function, "
-"mimicking overall sales growth not explained by marketing or controls. "
-"Again, you would normally use a linear increasing control variable for this,"
-" but let's see what happens when we use a time-varying parameter."
+"**Upward trending sales**: The intercept is a linearly increasing "
+"function, mimicking overall sales growth not explained by marketing or "
+"controls. Again, you would normally use a linear increasing control "
+"variable for this, but let's see what happens when we use a time-varying "
+"parameter."
 msgstr ""
 "**Ventas en tendencia ascendente**: La intersección es una función que "
-"aumenta linealmente, imitando el crecimiento general de las ventas que no se"
-" explica por el marketing o los controles. Nuevamente, normalmente usarías "
-"una variable de control que aumenta linealmente para esto, pero veamos qué "
-"sucede cuando utilizamos un parámetro que varía con el tiempo."
+"aumenta linealmente, imitando el crecimiento general de las ventas que no"
+" se explica por el marketing o los controles. Nuevamente, normalmente "
+"usarías una variable de control que aumenta linealmente para esto, pero "
+"veamos qué sucede cuando utilizamos un parámetro que varía con el tiempo."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:10030
-#: 3f62064cb3d34a96af2ee875d3ac3b8a
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:10034
+#: d9070d4dd1424f469a6a330051570c06
 msgid ""
 "**Unexpected events**: The intercept is a flat line, except for "
 "intermittent, randomly placed spikes/dips. This is a more realistic "
-"scenario, where the effect of marketing is not constant, but rather varies "
-"due to various unexpected factors."
+"scenario, where the effect of marketing is not constant, but rather "
+"varies due to various unexpected factors."
 msgstr ""
 "**Eventos inesperados**: La intersección es una línea plana, excepto por "
 "picos/caídas intermitentes y colocados al azar. Este es un escenario más "
 "realista, donde el efecto del marketing no es constante, sino que varía "
 "debido a diversos factores inesperados."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:10032
-#: c2f6d35b312541eab937c8b06e0dc903
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:10036
+#: 96205d508f5c47f0a35b22acabafce9d
 msgid ""
-"We conclude that while the GP-based time-varying intercept *can* technically"
-" do the job for seasonality and trends, it's not the most efficient way to "
-"do so (choose a Fourier basis or linear trend instead). However, to capture "
-"unexpected events that no other variable can explain, it's very powerful 💪."
+"We conclude that while the GP-based time-varying intercept *can* "
+"technically do the job for seasonality and trends, it's not the most "
+"efficient way to do so (choose a Fourier basis or linear trend instead). "
+"However, to capture unexpected events that no other variable can explain,"
+" it's very powerful 💪."
 msgstr ""
 "Concluimos que, aunque el intercepto variable en el tiempo basado en GP "
 "*puede* técnicamente cumplir con la función para la estacionalidad y las "
@@ -156,13 +160,13 @@ msgstr ""
 "eventos inesperados que ninguna otra variable puede explicar, es muy "
 "poderoso 💪."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:40002
-#: c75fbc30787143b2af894a1de16f24cf
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:30002
+#: b4aaf45431964e5da8d079657d05cbe7
 msgid "Load synthetic data"
 msgstr "Cargar datos sintéticos"
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:50002
-#: 225cb228d8f144a29ecb7163ef917b00
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:40002
+#: 7917472dd0714c0c9528e2f69a624d64
 msgid ""
 "For this example, we load some simulated consumer goods marketing "
 "spend/control data."
@@ -170,186 +174,224 @@ msgstr ""
 "Para este ejemplo, cargamos algunos datos simulados de gasto/control en "
 "marketing de bienes de consumo."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:60002
-#: 9f5ee398e2154fb9b28412e7711df76a
-msgid "→ Load input and define columns"
-msgstr "→ Cargar entrada y definir columnas"
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:50002
+#: 8dbdc032067c405fbb10fb2963cf27c3
+msgid "→ Load input data"
+msgstr "→ Cargar datos de entrada"
 
 #: ../source/notebooks/mmm/mmm_tvp_example.ipynb:90002
-#: 494e46cea28f4422a5b69c018f640844
+#: e90e4e586874425899f1e918d1961227
+msgid "Helper functions for synthetic data generation"
+msgstr "Funciones auxiliares para la generación de datos sintéticos"
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:90003
+#: 388f1233264e45c68b75a98aacba6a7a
+msgid ""
+"We define a helper function `synthesize_and_plot_target` to generate "
+"synthetic target variables based on a supplied `synthetic_intercept`. The"
+" function adds:"
+msgstr ""
+"Definimos una función auxiliar `synthesize_and_plot_target` para generar "
+"variables objetivo sintéticas a partir de un `synthetic_intercept` "
+"proporcionado. La función añade:"
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:90005
+#: 971a53830f1f46d0beab6aac33226923
+msgid ""
+"**Channel contributions**: Small linear effects from `Google Search`, "
+"`TV`, and `Facebook`."
+msgstr ""
+"**Contribuciones de los canales**: Pequeños efectos lineales de `Google "
+"Search`, `TV` y `Facebook`."
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:90006
+#: a5946cdd9e824d4ab30ed826d6b56f51
+msgid ""
+"**Control contributions**: Larger linear effects from `Numeric "
+"Distribution` and `Promotion`."
+msgstr ""
+"**Contribuciones de control**: Efectos lineales más grandes de `Numeric "
+"Distribution` y `Promotion`."
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:90007
+#: 7548145817db4a19b0bf17b95fff5b2b
+msgid "**Noise**: Random Gaussian noise."
+msgstr "**Ruido**: Ruido gaussiano aleatorio."
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:90009
+#: 10a4e1edad3c4092872d1756df1d6366
+msgid ""
+"This allows us to create different scenarios (seasonality, trends, "
+"events) by just varying the intercept component while keeping the "
+"media/control effects consistent."
+msgstr ""
+"Esto nos permite crear diferentes escenarios (estacionalidad, tendencias, "
+"eventos) simplemente variando el componente de intercepto, mientras se "
+"mantienen consistentes los efectos de los medios y de los controles."
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:90011
+#: 1ab4037682ba4e2b9a84ee86359f9e02
+msgid "We will use this as a comparison point for the models we will be building!"
+msgstr ""
+"¡Usaremos esto como punto de comparación para los modelos que vamos a "
+"construir!"
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:110002
+#: 1f461bc3188449f393c8bf51ee17daf9
 msgid "Example 1: Yearly seasonality"
 msgstr "Ejemplo 1: Estacionalidad anual"
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:90004
-#: 4c371863db254b978d8e597eef964a95
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:110004
+#: b824d4946f494e009f0894c957d11dd1
 msgid ""
 "A common pattern in consumer goods sales is that sales are higher in the "
-"summer and lower in the winter, or reverse. In this example, we will "
-"simulate sales that follow this pattern—by letting the synthetic intercept "
+"summer and lower in the winter, or reverse. In this example, we will work"
+" with sales that follow this pattern—by letting the synthetic intercept "
 "be a cosine wave—and then see if the model can recover this using a time-"
 "varying intercept."
 msgstr ""
 "Un patrón común en las ventas de bienes de consumo es que las ventas son más"
-" altas en verano y más bajas en invierno, o viceversa. En este ejemplo, "
-"simularemos ventas que siguen este patrón, permitiendo que la intersección "
-"sintética sea una onda coseno, y luego veremos si el modelo puede recuperar "
-"esto utilizando una intersección que varía en el tiempo."
+" altas en verano y más bajas en invierno, o al revés. En este ejemplo, "
+"trabajaremos con ventas que siguen este patrón—haciendo que el intercepto "
+"sintético sea una onda coseno—y luego veremos si el modelo puede recuperarlo"
+" usando un intercepto variable en el tiempo."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:100002
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:260002
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:400002
-#: 19e9a82e870d4b79947cc3bf52b93bef 2b7ce139fa3946e1879693cee0a93dba
-#: 6b3f7d4031ab4cdd959eaec60373cec8
-msgid "→ Simulate sales"
-msgstr "→ Simular ventas"
-
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:100004
-#: c230b96e824c45b4a60427724925e1c1
-msgid ""
-"The data we loaded did _not_ have a target variable. Instead, we simulate "
-"one, by **defining a model with fixed parameters**. We can do this using "
-"[the recently added `do` operator](https://www.pymc-labs.com/blog-"
-"posts/causal-analysis-with-pymc-answering-what-if-with-the-new-do-operator)"
-" in `pymc`. In case you have not seen this trick before, take note because "
-"it's neat."
-msgstr ""
-"Los datos que cargamos _no_ tenían una variable objetivo. En su lugar, "
-"simulamos una, **definiendo un modelo con parámetros fijos**. Podemos hacer "
-"esto utilizando [el operador `do` que se añadió "
-"recientemente](https://www.pymc-labs.com/blog-posts/causal-analysis-with-"
-"pymc-answering-what-if-with-the-new-do-operator) en `pymc`. En caso de que "
-"no hayas visto este truco antes, toma nota porque es interesante."
-
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:120002
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:280002
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:420002
-#: 5584fe9991674ac4b77ebb4d40d1a3fc 5ae8c0e97fee47288530505d7cac6e1c
-#: 8ee3b843b8c240e0898758ed6748a9bf
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:140002
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:320002
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:460002
+#: bfbfd34bab17470b8f7f094eee4982db d0cd618408ce41fc96f1acbabe4f3ad9
+#: d763158e41224c0d9ab4b7c3710f3b81
 msgid "→ Split into train and test"
 msgstr "→ Dividir en entrenamiento y prueba"
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:120004
-#: aeceaebd6e8642a8b0c61f8b19157cfe
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:140004
+#: 722e08738bc74893ba16cb6676c80803
 msgid ""
-"We split the data into _train_ and _test_ sets, so we may later display out-"
-"of-sample predictive performance."
+"We split the data into _train_ and _test_ sets, so we may later display "
+"out-of-sample predictive performance."
 msgstr ""
 "Dividimos los datos en conjuntos de _entrenamiento_ y _prueba_, para que "
 "podamos mostrar más adelante el rendimiento predictivo fuera de muestra."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:140002
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:300002
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:440002
-#: a66f4043f9cc4a0a90ba444d1b02e103 cbcafdf2a1cb428eaf3280694e3c27eb
-#: db568684e5d74e388ff349a2c57f9895
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:160002
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:340002
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:480002
+#: 424fd5bf7fac48f0905ccc211371d0a8 bca0cff90e4b44a9ba21242f68a80563
+#: dcecf85916494c65a9369270f0662774
 msgid "→ Fit model"
 msgstr "→ Ajustar modelo"
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:140003
-#: 25ae8a3f88a1449d9ccb7b075e056d35
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:160003
+#: 66bf3824d2ee4ebf9b308e0960d9ff9b
 msgid ""
 "We fit the model with default settings, except specifying a `HalfNormal` "
-"prior on the baseline intercept. This is because we know that the baseline "
-"sales are positive, for a model like this."
+"prior on the baseline intercept. This is because we know that the "
+"baseline sales are positive, for a model like this."
 msgstr ""
 "Ajustamos el modelo con configuraciones predeterminadas, excepto "
-"especificando un prior `HalfNormal` en la intersección base. Esto se debe a "
-"que sabemos que las ventas base son positivas para un modelo como este."
+"especificando un prior `HalfNormal` en la intersección base. Esto se debe"
+" a que sabemos que las ventas base son positivas para un modelo como "
+"este."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:160002
-#: efd6678614184c42a024ce82e89a9972
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:170002
+#: 310531a2bd9044cfa2a654bbc06e72dc
+msgid "\\displaystyle 187.8"
+msgstr "\\displaystyle 187.8"
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:190002
+#: 230cc7c758fa48c2bc5735a92e78c70d
 msgid "→ Posterior predictive checks"
 msgstr "→ Comprobaciones predictivas posteriores"
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:160004
-#: 60c6aaf62f0742ae9fbdc1e1838637e2
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:190004
+#: 0c9ef2c544684b959b7a3009cc91390e
 msgid ""
-"We visualize the posterior predictive distribution, to understand how well "
-"the model fits the data."
+"We visualize the posterior predictive distribution, to understand how "
+"well the model fits the data."
 msgstr ""
-"Visualizamos la distribución predictiva posterior para entender qué tan bien"
-" se ajusta el modelo a los datos."
+"Visualizamos la distribución predictiva posterior para entender qué tan "
+"bien se ajusta el modelo a los datos."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:170002
-#: 70b49722e4214b4bb1fdebdf9ab64622
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:200002
+#: be0580d5b98c4050a85dcbedafa0292b
 msgid "**Sales**"
 msgstr "**Ventas**"
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:170004
-#: dc7a82f76c6242b8b762577416a60540
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:200004
+#: 42d3c964fd384842a541a13cd29d4ed0
 msgid ""
 "First, we consider predicted versus actual sales both within- and out-of-"
 "sample."
 msgstr ""
-"Primero, consideramos las ventas predichas frente a las ventas reales tanto "
-"dentro como fuera de la muestra."
+"Primero, consideramos las ventas predichas frente a las ventas reales "
+"tanto dentro como fuera de la muestra."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:190002
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:500002
-#: 0ae61ad73c8846e8b9f7c61c5be3042a 2d36d95a54004beaacdb8e8cacfcdd3a
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:220002
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:530002
+#: 128544a7512e4202be23ab7a5676a758 e8ac2895e5cc408687c09bfa5bb7e705
 msgid "Some observations:"
 msgstr "Algunas observaciones:"
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:190004
-#: ab3046d7a83249158582c65ffcc3470d
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:220004
+#: 523ad644feec4778ae5124b074b33ed2
 msgid "👍 The model performs well in-sample."
 msgstr "👍 El modelo tiene un buen rendimiento en la muestra."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:190005
-#: a06ad0d208e44839958c8654d1189859
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:220005
+#: cb117707c5394006b133abae764d6cc8
 msgid ""
-"🤷‍♂️ The model predicts accurately up to ~3 months into the test set, then "
-"starts to deviate."
+"🤷‍♂️ The model predicts accurately up to ~3 months into the test set, "
+"then starts to deviate."
 msgstr ""
 "🤷‍♂️ El modelo predice con precisión hasta aproximadamente 3 meses en el "
 "conjunto de prueba, luego comienza a desviarse."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:190007
-#: 47e7b36211ba4f39be342e462883c568
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:220007
+#: a61782e374cb4ce986f1ac7e3b0da941
 msgid ""
 "Since the most important utility of an MMM is to model the individual "
 "channel, control, and intercept contributions *in sample*, this out-of-"
 "sample error is not a particular worry. For scenario planning or "
 "backtesting, the decent performance in the 3 months after the training "
-"period ends, is likely sufficient, and in case a longer prediction window "
-"were desired, one would not want to use a GP to model seasonality, but "
+"period ends, is likely sufficient, and in case a longer prediction window"
+" were desired, one would not want to use a GP to model seasonality, but "
 "rather a Fourier basis."
 msgstr ""
-"Dado que la utilidad más importante de un MMM es modelar las contribuciones "
-"individuales de canal, control e intercepto *en muestra*, este error fuera "
-"de muestra no es una preocupación particular. Para la planificación de "
-"escenarios o la validación retrospectiva, el rendimiento aceptable en los 3 "
-"meses posteriores al final del período de entrenamiento es probablemente "
-"suficiente, y en caso de que se desee una ventana de predicción más larga, "
-"no se querría utilizar un GP para modelar la estacionalidad, sino más bien "
-"una base de Fourier."
+"Dado que la utilidad más importante de un MMM es modelar las "
+"contribuciones individuales de canal, control e intercepto *en muestra*, "
+"este error fuera de muestra no es una preocupación particular. Para la "
+"planificación de escenarios o la validación retrospectiva, el rendimiento"
+" aceptable en los 3 meses posteriores al final del período de "
+"entrenamiento es probablemente suficiente, y en caso de que se desee una "
+"ventana de predicción más larga, no se querría utilizar un GP para "
+"modelar la estacionalidad, sino más bien una base de Fourier."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:200002
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:360002
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:510002
-#: 9aeb72ecee1e43a88936c249b43db5c6 f239d4e8ddbc4032ba7d0a93dbad650d
-#: f2956a5f7fd947a3a0723c03818cf8c9
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:230002
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:400002
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:540002
+#: 634a961795bf460799db397a37c0ebfa a6513e18e8ab4a769ed2cd183251c096
+#: c80c4d4951734d1b815c424adb109723
 msgid "**Predicting intercept**"
 msgstr "**Predicción de intersección**"
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:200004
-#: 410f25f6b0c645d5b5759ce47eb79f57
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:230004
+#: 0b853ba100074ecba463e5211edff881
 msgid ""
 "We can dig one step deeper, and display the posterior predictive "
-"distribution of the time-varying intercept. Let's first display the fitted "
-"baseline intercept (it should be close to 5)."
+"distribution of the time-varying intercept. Let's first display the "
+"fitted baseline intercept (it should be close to 8)."
 msgstr ""
 "Podemos profundizar un paso más y mostrar la distribución predictiva "
 "posterior del intercepto variable en el tiempo. Primero, mostremos el "
-"intercepto base ajustado (debería estar cerca de 5)."
+"intercepto base ajustado (debería estar cerca de 8)."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:220002
-#: bb5e9dfed1e04a7db4d3641294db7aa6
-msgid "🎉 That indeed is close to the true value of 5."
-msgstr "🎉 Eso, de hecho, está cerca del valor verdadero de 5."
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:250002
+#: cfe5cb2ee278415395933a59aa9a16dc
+msgid "🎉 That indeed is close to the true value of 8."
+msgstr "🎉 Efectivamente, está cerca del valor verdadero de 8."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:220004
-#: 91297bfb0cb64669975e5b7d5d17c303
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:250004
+#: 4d2eb372f46c4f2d9d03113b616219ce
 msgid ""
 "Now, let's visualize the posterior predictive distribution of the time-"
 "varying intercept, against the actual time-varying intercept."
@@ -358,341 +400,708 @@ msgstr ""
 "variable en el tiempo, en comparación con el intercepto variable en el "
 "tiempo real."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:240002
-#: 8d81ea98d0254a138701c5bd872da58f
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:270002
+#: a2b87ea3724a4839a5af83c0c57ab412
 msgid "Visualizing this, it's clear that:"
 msgstr "Visualizando esto, está claro que:"
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:240004
-#: 2c295d940a774aad8fed656ff8bedd24
-msgid "👌 In-sample it gets the synthetic trend almost exactly right!"
-msgstr "👌 En la muestra, ¡captura la tendencia sintética casi exactamente!"
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:270004
+#: 27dadfbd9fb24cb4a06180c64f196eca
+msgid ""
+"👍 In-sample, it follows the timing and shape of the seasonal pattern "
+"closely, although it overshoots most peaks by roughly 0.5 to 1."
+msgstr ""
+"👍 En muestra, sigue de cerca el momento y la forma del patrón estacional, "
+"aunque sobreestima la mayoría de los picos en aproximadamente 0.5 a 1."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:240005
-#: e2cbbe864ac34fdbab8a4189f64df32e
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:270005
+#: 15b9caf944904fd58402e6c3ea6dc727
 msgid ""
 "👎 Out-of-sample, the uncertainty blows up. This is expected, as GPs are "
 "typically not great at extrapolating far from the training data."
 msgstr ""
-"👎 Fuera de la muestra, la incertidumbre se dispara. Esto es esperado, ya que"
-" los GP generalmente no son buenos extrapolando lejos de los datos de "
+"👎 Fuera de la muestra, la incertidumbre se dispara. Esto es esperado, ya "
+"que los GP generalmente no son buenos extrapolando lejos de los datos de "
 "entrenamiento."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:250002
-#: 44e75198458847e98d9b52b6c7a8c62b
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:280002
+#: e65d990bc4124ca3930bb02554b80d0c
 msgid "Example 2: Upward trending sales"
 msgstr "Ejemplo 2: Ventas en tendencia ascendente"
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:250004
-#: 6853758156fa41c79e6eb981cbff10ed
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:280004
+#: 7ad2ad44efff40dd97b467fc2a8cfccf
 msgid ""
 "This section repeats the steps above, except with a linearly increasing "
-"intercept with mean 2.5, to mimic upward trending sales."
+"intercept with mean 4.5, to mimic upward trending sales."
 msgstr ""
-"Esta sección repite los pasos anteriores, excepto con un intercepto que "
-"aumenta linealmente con una media de 2.5, para imitar ventas en tendencia "
+"Esta sección repite los pasos anteriores, excepto que con un intercepto que "
+"aumenta linealmente con una media de 4.5, para imitar ventas en tendencia "
 "ascendente."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:320002
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:470002
-#: 0e7e7b80cbf9428c82d700eb713de48f 87cf760c54a44f15aa6e6175c158400d
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:290002
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:440002
+#: 7d4cfa09a3444aec9299c98bab0ac6e0 edbd01d343574e71a58e0d4aaf820fa6
+msgid "→ Simulate sales"
+msgstr "→ Simular ventas"
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:360002
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:500002
+#: 94301b883974466aa92eebd751cc0749 cfae684e846447918c2bb52c38221780
 msgid "→ Posterior predictive check"
 msgstr "→ Verificación predictiva posterior"
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:330002
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:480002
-#: 3f27e6a07c194e1d893ff71f6f6cc851 ce4f4113937d4fa1ab4ca562f641db63
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:370002
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:510002
+#: 8947de42bdb94fd38ccf5cd14d7cde44 eadfde9a02ce49fbb38d10100cd841c4
 msgid "**Predicting sales**"
 msgstr "**Predicción de ventas**"
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:350002
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:380002
-#: 77ef86aa81d74d5d9add5c9e634bd6e8 8bf649c1d20140928fcd4c913cd4650f
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:390002
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:420002
+#: 5c2fc4478ebb43bd99581904848ec2b8 a8348903fa53407bbceccdb23393afce
 msgid "Observations:"
 msgstr "Observaciones:"
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:350004
-#: 620fe04c516442fc8d27f5459dc86e74
-msgid "👍 As seen previously, the model performs well in-sample."
-msgstr ""
-"👍 Como se vio anteriormente, el modelo tiene un buen rendimiento en la "
-"muestra."
-
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:350005
-#: a70c3a12ac6b42f793c8653139b2a6d0
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:390004
+#: 79aefa181c324e458022e7c492fde27a
 msgid ""
-"👎 Similar to before, predictions are accurate up to ~3-6 months into the "
-"test set, then start to deviate."
+"👍 In-sample, the predictions follow actual sales closely, with a narrow "
+"uncertainty band."
 msgstr ""
-"👎 Similar a antes, las predicciones son precisas hasta aproximadamente 3-6 "
-"meses en el conjunto de prueba, luego comienzan a desviarse."
+"👍 En muestra, las predicciones siguen de cerca las ventas reales, con una "
+"banda de incertidumbre estrecha."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:380004
-#: b435728f0d7f4b82b6de17bfdbdced56
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:390005
+#: 02250213e56343d0a21f78799e4c65ce
 msgid ""
-"👎 In-sample it follows the synthetic trend but with an offset of about -1.5."
+"👎 Out-of-sample, the model underpredicts: predictions fall slightly below"
+" actual sales right after the split and diverge clearly after about four "
+"months, dropping while actual sales keep rising."
 msgstr ""
-"👎 En la muestra, sigue la tendencia sintética pero con un desplazamiento de "
-"aproximadamente -1.5."
+"👎 Fuera de muestra, el modelo subestima: las predicciones quedan ligeramente"
+" por debajo de las ventas reales justo después de la división y divergen "
+"claramente después de unos cuatro meses, bajando mientras las ventas reales "
+"siguen subiendo."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:380005
-#: b0bdb21fe62e442782d6642e9457f9dc
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:420004
+#: 2406ad43609f437d9a2726212d18884f
+msgid ""
+"👎 In-sample, the intercept rises with the synthetic trend but sits below "
+"it throughout, and the gap grows from under 1 to nearly 3 by the end of "
+"the training period. The synthetic intercept lies above the 94% HDI in "
+"every week. The rest of the trend is attributed to other model "
+"components, which is why the sales fit above still looks good."
+msgstr ""
+"👎 En muestra, el intercepto sube con la tendencia sintética, pero se "
+"mantiene por debajo de ella en todo momento, y la brecha crece de menos de 1"
+" a casi 3 al final del período de entrenamiento. El intercepto sintético "
+"queda por encima del HDI del 94% en todas las semanas. El resto de la "
+"tendencia se atribuye a otros componentes del modelo, razón por la cual el "
+"ajuste de las ventas anterior aún se ve bien."
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:420005
+#: f5318e9d233e47c6957394e650d05b7a
 msgid "👎 Out-of-sample, the GP reverts to its prior mean."
 msgstr "👎 Fuera de muestra, el GP vuelve a su media anterior."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:380007
-#: bb4973693a7c42b6befcdfd63117a754
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:420007
+#: c3bf768d1184421da547cb508a20daf9
 msgid ""
-"It's quite clear from this example, that if you have a steep upward trend in"
-" your sales data that you have reason to expect will continue, you probably "
-"*should not* use a GP to model the intercept. Instead, you may use linearly "
-"increasing control variables."
+"It's quite clear from this example, that if you have a steep upward trend"
+" in your sales data that you have reason to expect will continue, you "
+"probably *should not* use a GP to model the intercept. Instead, you may "
+"use linearly increasing control variables."
 msgstr ""
 "Está bastante claro a partir de este ejemplo que, si tiene una tendencia "
-"ascendente pronunciada en sus datos de ventas que tiene razones para esperar"
-" que continúe, probablemente *no debería* utilizar un GP para modelar la "
-"intersección. En su lugar, puede utilizar variables de control que aumenten "
-"linealmente."
+"ascendente pronunciada en sus datos de ventas que tiene razones para "
+"esperar que continúe, probablemente *no debería* utilizar un GP para "
+"modelar la intersección. En su lugar, puede utilizar variables de control"
+" que aumenten linealmente."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:390002
-#: 87399381d4544cd2b94e8a633d0980d4
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:430002
+#: 2c7073f70a484765a3cd1ad8ab9743b2
 msgid "Example 3: Unexpected events"
 msgstr "Ejemplo 3: Eventos inesperados"
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:390004
-#: f55e46e7754849be8462f581b4aa7355
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:430004
+#: 85c3da3c66334f10b2f14ac9f84f46cd
 msgid ""
 "This section repeats the procedure except with an intercept of 5, except "
-"with intermittent spike/dip events. Each event could be a competitor product"
-" launch, a global pandemic, an unusually sunny spring, or another impactful,"
-" unexpected event."
+"with intermittent spike/dip events. Each event could be a competitor "
+"product launch, a global pandemic, an unusually sunny spring, or another "
+"impactful, unexpected event."
 msgstr ""
 "Esta sección repite el procedimiento, excepto con una intersección de 5, "
-"excepto con eventos intermitentes de picos/caídas. Cada evento podría ser el"
-" lanzamiento de un producto competidor, una pandemia global, una primavera "
-"inusualmente soleada, o otro evento impactante e inesperado."
+"excepto con eventos intermitentes de picos/caídas. Cada evento podría ser"
+" el lanzamiento de un producto competidor, una pandemia global, una "
+"primavera inusualmente soleada, o otro evento impactante e inesperado."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:460002
-#: fecee1a67b2546b9b64aa8e23bfea5dd
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:480004
+#: 36b69d82a8594b4ab0e3a5360437a06a
 msgid ""
-"The sampling diagnosis ☝️ complains about some divergences. Similarly, the "
-"*rhat* statistic is larger than 1.01 for some parameters. Overall it appears"
-" that the model has not been parameterized appropriately. Let's see how this"
-" pans out..."
-msgstr ""
-"El diagnóstico de muestreo ☝️ se queja de algunas divergencias. De manera "
-"similar, la estadística *rhat* es mayor que 1.01 para algunos parámetros. En"
-" general, parece que el modelo no ha sido parametrizado adecuadamente. "
-"Veamos cómo se desarrolla esto..."
-
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:500004
-#: f940ffbb041e4971a793ebc060700bd4
-msgid ""
-"👎 The model predictions have large uncertainty, more than observed in the "
+"Events like these unfold over a few weeks, so the length scale of the GP "
+"matters a lot. To see why, we first fit the model with a length-scale "
+"prior mean of two years (104 weeks), which is far too long for these "
+"events. Everything else in the configuration is the same as in the "
 "previous examples."
 msgstr ""
-"👎 Las predicciones del modelo tienen una gran incertidumbre, más de lo "
-"observado en los ejemplos anteriores."
+"Eventos como estos se desarrollan a lo largo de unas pocas semanas, por lo "
+"que la longitud de escala del GP importa mucho. Para ver por qué, primero "
+"ajustamos el modelo con una media del prior de la longitud de escala de dos "
+"años (104 semanas), que es demasiado larga para estos eventos. Todo lo demás"
+" en la configuración es igual que en los ejemplos anteriores."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:500005
-#: bbd18650988647daadd821226ae8f55c
-msgid "💥 ~3 months into the out-of-sample set, uncertainty explodes."
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:530004
+#: 52d554d9ee264f1d986784443086601e
+msgid ""
+"👎 In the full-period plot, the model misses most of the sales spikes at "
+"the start of 2023, 2024 and 2025: the predictions stay close to the "
+"average level while actual sales jump. The zoomed-in plot shows the "
+"early-2025 spike, where actual sales reach about 9.5 while the "
+"predictions stay around 7.5. Because the model cannot attribute these "
+"spikes to the intercept, it treats them as noise, which makes the "
+"predictions noticeably more uncertain than in the previous examples."
 msgstr ""
-"💥 A ~3 meses de haber comenzado el conjunto fuera de muestra, la "
-"incertidumbre explota."
+"👎 En el gráfico del período completo, el modelo no detecta la mayoría de los"
+" picos de ventas de principios de 2023, 2024 y 2025: las predicciones se "
+"mantienen cerca del nivel promedio mientras que las ventas reales se "
+"disparan. El gráfico ampliado muestra el pico de principios de 2025, donde "
+"las ventas reales alcanzan aproximadamente 9.5 mientras que las predicciones"
+" se mantienen en torno a 7.5. Como el modelo no puede atribuir estos picos "
+"al intercepto, los trata como ruido, lo que hace que las predicciones sean "
+"notablemente más inciertas que en los ejemplos anteriores."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:540002
-#: a59a03362c2942088076f50ff2a5f07f
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:570002
+#: a157952fb0134a169193bf546fd2617a
 msgid ""
 "Judging from the posterior predictive distribution of the time-varying "
-"intercept, there is a problem with the model."
+"intercept, the long length scale is a problem."
 msgstr ""
 "A juzgar por la distribución predictiva posterior del intercepto variable en"
-" el tiempo, hay un problema con el modelo."
+" el tiempo, la longitud de escala larga es un problema."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:540004
-#: a4f711866d45445a8e74d3db5130f52b
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:570004
+#: 295a58ad2c4746d4a9092c6679378acc
 msgid "We observe that:"
 msgstr "Observamos que:"
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:540006
-#: d9576510101d4a0e9f276b551f836b25
-msgid "👎 The model overestimates the intercept *a lot*."
-msgstr "👎 El modelo sobreestima el intercepto *mucho*."
-
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:540007
-#: b91ac71733654a8bbb8c299fa4dfccc6
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:570006
+#: 27b245f1d1954cea9483870b75c2e15f
 msgid ""
-"🤷‍♂️ Only the two major events are captured by the time-varying intercept."
+"👎 The time-varying intercept is essentially flat. With a length scale of "
+"about two years, the GP cannot bend fast enough to follow events that "
+"last a few weeks."
 msgstr ""
-"🤷‍♂️ Solo los dos eventos principales son capturados por el intercepto que "
-"varía con el tiempo."
+"👎 El intercepto variable en el tiempo es esencialmente plano. Con una "
+"longitud de escala de aproximadamente dos años, el GP no puede curvarse lo "
+"bastante rápido como para seguir eventos que duran unas pocas semanas."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:540008
-#: fea7b1f1327447ba8720ee93996fae3f
-msgid "👎 Overall uncertainty is greater than in the previous examples."
-msgstr "👎 La incertidumbre general es mayor que en los ejemplos anteriores."
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:570007
+#: c41a4dbe1c204b7ab74f036c5a4efbd6
+msgid "👎 None of the events are captured; they end up in the noise instead."
+msgstr ""
+"👎 No se captura ninguno de los eventos; en cambio, terminan en el ruido."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:540010
-#: 9612633d45e94901921a3d4730ef740e
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:570008
+#: bf6f84265b174bd1b4569642f44bc3db
+msgid "🤷‍♂️ The baseline is estimated slightly below the true value of 5."
+msgstr ""
+"🤷‍♂️ La línea base se estima ligeramente por debajo del valor verdadero de "
+"5."
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:570009
+#: c0be0ffca2654a4b862f5990537d7e86
 msgid ""
-"This is a strong indication that the time-varying intercept prior may not be"
-" well parameterized. Since the events that we synthesize happen on shorter "
-"time scales than the trends we modeled previously, it is likely that the "
-"mean of the length-scale prior is too high (default is two years)."
+"👎 The 94% HDI (roughly ±0.5) is comparable in size to the events "
+"themselves, so even if the intercept moved with the events, we could not "
+"tell them apart from normal weeks. In the previous examples, the band was"
+" small compared with the swings in the intercept."
 msgstr ""
-"Esto es una fuerte indicación de que el prior del intercepto variable en el "
-"tiempo puede no estar bien parametrizado. Dado que los eventos que "
-"sintetizamos ocurren en escalas de tiempo más cortas que las tendencias que "
-"modelamos anteriormente, es probable que la media del prior de la longitud "
-"de escala sea demasiado alta (el valor por defecto es de dos años)."
+"👎 El HDI del 94% (aproximadamente ±0.5) es comparable en tamaño a los "
+"propios eventos, por lo que, incluso si el intercepto se moviera con los "
+"eventos, no podríamos distinguirlos de las semanas normales. En los ejemplos"
+" anteriores, la banda era pequeña en comparación con las oscilaciones del "
+"intercepto."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:550002
-#: 4145f1fd4c01488bacd3060a4439731d
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:570011
+#: e848601ea4d04257a92461c626d33892
 msgid ""
-"💡 Let's try to refit the model with a shorter length scale prior mean of one"
-" year (52.18 weeks)."
+"This is a strong indication that the length-scale prior does not match "
+"the data. The events we synthesized happen on much shorter time scales "
+"than the seasonality and trend in the previous examples, so the mean of "
+"the length-scale prior is too high."
 msgstr ""
-"💡 Intentemos ajustar el modelo con una media de escala de longitud previa "
-"más corta de un año (52.18 semanas)."
+"Esta es una fuerte indicación de que el prior de la longitud de escala no "
+"coincide con los datos. Los eventos que sintetizamos ocurren en escalas de "
+"tiempo mucho más cortas que la estacionalidad y la tendencia de los ejemplos"
+" anteriores, por lo que la media del prior de la longitud de escala es "
+"demasiado alta."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:570002
-#: b93f2718cd554779a0a46d8ca719e6c1
-msgid "Notice ☝️ fewer divergences 👌."
-msgstr "Aviso ☝️ menos divergencias 👌."
-
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:610002
-#: d62942b3220d419ca4fc18f3f7c6356b
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:580002
+#: 6ff7f04a0559457b93c4bac4e828beb2
 msgid ""
-"🎉 Success! As hypothesized, the time-varying intercept now captures the "
-"events better, and at the right scale! Notice how lowering the length-scale "
-"prior mean from the default two years to one year makes the series more "
-"_squiggly_."
+"💡 Let's refit the model with a much shorter length-scale prior mean of "
+"five weeks. This is the configuration we used in Examples 1 and 2, and "
+"the length scale is the only thing that changes between the two fits."
 msgstr ""
-"🎉 ¡Éxito! Como se había hipotetizado, el intercepto variable en el tiempo "
-"ahora captura mejor los eventos y a la escala correcta. ¡Observe cómo "
-"reducir la media del prior de la longitud de escala del valor predeterminado"
-" de dos años a un año hace que la serie sea más _ondulante_."
+"💡 Volvamos a ajustar el modelo con una media del prior de la longitud de "
+"escala mucho más corta, de cinco semanas. Esta es la configuración que "
+"usamos en los Ejemplos 1 y 2, y la longitud de escala es lo único que cambia"
+" entre los dos ajustes."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:610004
-#: 87ca6ef2f6ed4719bf04f2435c88d084
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:630002
+#: 559823bf542c41c4bc5cd0a69838ef08
 msgid ""
-"*Sidenote: While the very-small events are still not captured perfectly, "
-"this may be remedied with a more complex covariance function supplied "
-"through the `model_config`, although these events are likely below the "
-"minimal detectable effect size in this example.*"
+"With the shorter length scale, the time-varying intercept is much more "
+"flexible (more _squiggly_):"
 msgstr ""
-"*Nota al margen: Aunque los eventos muy pequeños aún no se capturan "
-"perfectamente, esto puede ser solucionado con una función de covarianza más "
-"compleja proporcionada a través de `model_config`, aunque es probable que "
-"estos eventos estén por debajo del tamaño del efecto mínimo detectable en "
-"este ejemplo.*"
+"Con la longitud de escala más corta, el intercepto variable en el tiempo es "
+"mucho más flexible (más _ondulado_):"
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:620002
-#: a45770de3a5743e9bf1e5b9d7a621cf3
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:630004
+#: 5289dd5a45a84c8fa156da4d17524ae5
+msgid ""
+"👍 It now rises at the three large positive events (early 2023, 2024 and "
+"2025), at the right time."
+msgstr ""
+"👍 Ahora sube en los tres grandes eventos positivos (principios de 2023, 2024"
+" y 2025), en el momento correcto."
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:630005
+#: 39f97e3a14c94d249a64467d91245739
+msgid ""
+"👎 It only recovers a fraction of their size: the posterior mean peaks "
+"around 5.2, while the true intercept reaches 6.5 to 6.7. The dip in "
+"spring 2023 is hardly picked up."
+msgstr ""
+"👎 Solo recupera una fracción de su tamaño: la media posterior alcanza un "
+"máximo de alrededor de 5.2, mientras que el intercepto verdadero llega de "
+"6.5 a 6.7. La caída de la primavera de 2023 apenas se detecta."
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:630006
+#: 0169f7ce68104eb18066c097386418ca
+msgid ""
+"👎 The 94% HDI stays wide (about ±0.5) and contains the baseline of 5 in "
+"almost every week, so on its own the model cannot confidently tell event "
+"weeks apart from normal weeks."
+msgstr ""
+"👎 El HDI del 94% sigue siendo amplio (aproximadamente ±0.5) y contiene la "
+"línea base de 5 en casi todas las semanas, por lo que, por sí solo, el "
+"modelo no puede distinguir con confianza las semanas con eventos de las "
+"semanas normales."
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:630007
+#: 825b48fb260e42cbb7246ea7dfe9816d
+msgid "🤷‍♂️ It also wiggles between events, where the true intercept is flat."
+msgstr ""
+"🤷‍♂️ También oscila entre eventos, donde el intercepto verdadero es plano."
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:630009
+#: ea282d2dfc5e4294aed979f4a1a939f1
+msgid ""
+"Why doesn't it do better? The events are short and only two to three "
+"times the size of the observation noise (standard deviation 0.5), so a "
+"large part of each event is indistinguishable from noise. In addition, "
+"the time-varying intercept is the product of a baseline and the GP, so "
+"uncertainty in the baseline widens the band in every week."
+msgstr ""
+"¿Por qué no lo hace mejor? Los eventos son cortos y solo de dos a tres veces"
+" el tamaño del ruido de observación (desviación estándar 0.5), por lo que "
+"una gran parte de cada evento es indistinguible del ruido. Además, el "
+"intercepto variable en el tiempo es el producto de una línea base y el GP, "
+"por lo que la incertidumbre en la línea base ensancha la banda en todas las "
+"semanas."
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:630011
+#: 911247fc933f433e99934b97fa1fe07d
+msgid ""
+"*Sidenote: The very small events are likely below the minimal detectable "
+"effect size in this example. If your data has events on more than one "
+"time scale, a more complex covariance function supplied through the "
+"`model_config` may help.*"
+msgstr ""
+"*Nota al margen: Es probable que los eventos muy pequeños estén por debajo "
+"del tamaño de efecto mínimo detectable en este ejemplo. Si sus datos tienen "
+"eventos en más de una escala de tiempo, una función de covarianza más "
+"compleja proporcionada a través de `model_config` puede ayudar.*"
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:640002
+#: e3d6852a7379495db7a8aa2f41e65f68
+msgid "→ Compare with a constant intercept"
+msgstr "→ Comparar con un intercepto constante"
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:640004
+#: cb394bf324464e34a1fb54e92e54a9e1
+msgid ""
+"Is the time-varying intercept actually buying us anything here? To check,"
+" we fit the same model with a constant intercept and compare the three "
+"models."
+msgstr ""
+"¿Realmente nos aporta algo el intercepto variable en el tiempo aquí? Para "
+"comprobarlo, ajustamos el mismo modelo con un intercepto constante y "
+"comparamos los tres modelos."
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:660002
+#: 1f829e311e244971b18a9593b0b6e181
+msgid ""
+"First, we plot the in-sample posterior mean of the intercept for each "
+"model against the synthetic intercept."
+msgstr ""
+"Primero, trazamos la media posterior en muestra del intercepto de cada "
+"modelo frente al intercepto sintético."
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:680002
+#: ba568f4b24db411bb00563c5dc90a7d7
+msgid ""
+"To put a number on it, we compute the error of the posterior mean "
+"intercept, both over all weeks and over the event weeks only (weeks where"
+" the synthetic intercept deviates from the baseline of 5 by more than "
+"0.3)."
+msgstr ""
+"Para ponerle una cifra, calculamos el error de la media posterior del "
+"intercepto, tanto en todas las semanas como solo en las semanas con eventos "
+"(semanas en las que el intercepto sintético se desvía de la línea base de 5 "
+"en más de 0.3)."
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:700002
+#: 6588b06e0b304a50a3829a4c28387d66
+msgid ""
+"Finally, we compare the models' expected predictive accuracy on the "
+"training data with leave-one-out cross-validation (LOO)."
+msgstr ""
+"Finalmente, comparamos la precisión predictiva esperada de los modelos sobre"
+" los datos de entrenamiento mediante validación cruzada dejando uno fuera "
+"(LOO)."
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:720002
+#: 55b357345da64523aa9e49e344c0f0aa
+msgid "Putting it together:"
+msgstr "Juntando todo:"
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:720004
+#: a465d1f5dcec44e3aa0cc922735c1ae8
+msgid ""
+"👎 The GP with a length scale of about two years is indistinguishable from"
+" a constant intercept: it has the same in-sample error, and LOO gives it "
+"zero weight."
+msgstr ""
+"👎 El GP con una longitud de escala de aproximadamente dos años es "
+"indistinguible de un intercepto constante: tiene el mismo error en muestra, "
+"y LOO le asigna un peso nulo."
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:720005
+#: a4cae967b41d4c998e2e25510976506e
+msgid ""
+"👍 The GP with a length scale of about five weeks is the only model that "
+"moves with the events. It reduces the intercept error in the event weeks "
+"by about 18% and is ranked first by LOO."
+msgstr ""
+"👍 El GP con una longitud de escala de aproximadamente cinco semanas es el "
+"único modelo que se mueve con los eventos. Reduce el error del intercepto en"
+" las semanas con eventos en aproximadamente un 18% y ocupa el primer lugar "
+"según LOO."
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:720006
+#: 87d5e98618ee4c9c84cec5df1ce73ca2
+msgid ""
+"🤷‍♂️ The LOO difference (about 3 points of ELPD, with a standard error of"
+" about 3) is within the noise, so the evidence that it is the better "
+"predictive model is weak."
+msgstr ""
+"🤷‍♂️ La diferencia en LOO (unos 3 puntos de ELPD, con un error estándar de "
+"aproximadamente 3) está dentro del ruido, por lo que la evidencia de que es "
+"el mejor modelo predictivo es débil."
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:720008
+#: 45f3556667774dbbbb9fd8fbd6d5bf66
+msgid ""
+"The takeaway is that a time-varying intercept _can_ pick up unexpected "
+"events, but only if its length scale matches how long the events last, "
+"and only to the extent that the events stand out from the noise."
+msgstr ""
+"La conclusión es que un intercepto variable en el tiempo _puede_ captar "
+"eventos inesperados, pero solo si su longitud de escala coincide con la "
+"duración de los eventos, y solo en la medida en que los eventos destaquen "
+"del ruido."
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:730002
+#: 42a80b2691374f14b2264c7067c7c32c
 msgid "Conclusion"
 msgstr "Conclusión"
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:620004
-#: 65c868576cf24dfab48f687da7f2949b
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:730004
+#: 00109be858854da3b6ca768f78d3f256
 msgid ""
-"In this notebook, we have demonstrated how to use a time-varying parameter "
-"in a marketing mix model using `pymc-marketing`. We have shown how the model"
-" can capture yearly seasonality (with moderate success 🤷‍♂️), upward "
-"trending sales (not very well 👎), and random/unexpected events (very well "
-"🎉). In summary, we show that a time-varying intercept, as modeled using a "
-"Gaussian Process (GP), is highly appropriate for modeling *random events* "
-"that cannot otherwise be accounted for in the model, whereas regular "
-"patterns that may influence baseline sales such as seasonality and constant "
-"demand increase are better modeled using a Fourier or linear basis."
+"In this notebook, we have demonstrated how to use a time-varying "
+"parameter in a marketing mix model using `pymc-marketing`. We have shown "
+"how the model can capture yearly seasonality (well in-sample, but not "
+"out-of-sample 🤷‍♂️), upward trending sales (not very well 👎), and "
+"random/unexpected events (partially, and only with a well-chosen length "
+"scale 🤷‍♂️). In summary, a time-varying intercept, as modeled using a "
+"Gaussian Process (GP), is most appropriate for absorbing *irregular* "
+"variation that cannot otherwise be accounted for in the model, whereas "
+"regular patterns that may influence baseline sales such as seasonality "
+"and constant demand increase are better modeled using a Fourier or linear"
+" basis."
 msgstr ""
 "En este cuaderno, hemos demostrado cómo utilizar un parámetro variable en el"
 " tiempo en un modelo de mezcla de marketing utilizando `pymc-marketing`. "
-"Hemos mostrado cómo el modelo puede capturar la estacionalidad anual (con un"
-" éxito moderado 🤷‍♂️), el aumento de las ventas (no muy bien 👎) y eventos "
-"aleatorios/no esperados (muy bien 🎉). En resumen, mostramos que un "
+"Hemos mostrado cómo el modelo puede capturar la estacionalidad anual (bien "
+"en muestra, pero no fuera de muestra 🤷‍♂️), las ventas en tendencia "
+"ascendente (no muy bien 👎) y eventos aleatorios/inesperados (parcialmente, y"
+" solo con una longitud de escala bien elegida 🤷‍♂️). En resumen, un "
 "intercepto variable en el tiempo, modelado mediante un Proceso Gaussiano "
-"(GP), es altamente apropiado para modelar *eventos aleatorios* que de otro "
-"modo no pueden ser considerados en el modelo, mientras que patrones "
+"(GP), es más apropiado para absorber la variación *irregular* que de otro "
+"modo no puede ser considerada en el modelo, mientras que los patrones "
 "regulares que pueden influir en las ventas base, como la estacionalidad y el"
 " aumento constante de la demanda, se modelan mejor utilizando una base de "
 "Fourier o lineal."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:620006
-#: 2b45030b01bb4575a433f582085cb89d
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:730006
+#: 144b27c913954414ba82e9f1d8df0b60
 msgid "**In a nutshell**"
 msgstr "**En resumen**"
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:620008
-#: b4d162b5b7524f8bb4a4cff810e1a4e2
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:730008
+#: 8a4a32cbe90e4651a2094bbfea934a5a
 msgid ""
 "GPs are great at capturing patterns that are not easy/possible to "
-"extrapolate, and in turn, they cannot well extrapolate simple patterns like "
-"seasonality or increasing trends. For such cases, a Fourier basis or similar"
-" might be more appropriate. However, for explaining temporal variance that "
-"no other model component can account for—like the impact of an unexpected "
-"event—a time-varying intercept is great!"
+"extrapolate, and in turn, they cannot well extrapolate simple patterns "
+"like seasonality or increasing trends. For such cases, a Fourier basis or"
+" similar might be more appropriate. However, for explaining temporal "
+"variance that no other model component can account for—like the impact of"
+" an unexpected event—a time-varying intercept can help, as long as its "
+"length scale matches the time scale of that variance. Short events that "
+"are not much larger than the noise may still only be partially recovered."
 msgstr ""
 "Los GP son excelentes para capturar patrones que no son fáciles o posibles "
-"de extrapolar, y a su vez, no pueden extrapolar bien patrones simples como "
-"la estacionalidad o tendencias crecientes. Para tales casos, una base de "
-"Fourier o similar podría ser más apropiada. Sin embargo, para explicar la "
+"de extrapolar y, a su vez, no pueden extrapolar bien patrones simples como "
+"la estacionalidad o las tendencias crecientes. Para tales casos, una base de"
+" Fourier o similar podría ser más apropiada. Sin embargo, para explicar la "
 "varianza temporal que ningún otro componente del modelo puede tener en "
-"cuenta—como el impacto de un evento inesperado—¡un intercepto variable en el"
-" tiempo es excelente!"
+"cuenta—como el impacto de un evento inesperado—un intercepto variable en el "
+"tiempo puede ayudar, siempre que su longitud de escala coincida con la "
+"escala de tiempo de esa varianza. Los eventos cortos que no son mucho "
+"mayores que el ruido aún podrían recuperarse solo parcialmente."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:620010
-#: 1af3041b56ca4b2d8c8a833560c9afe1
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:730010
+#: 89a5a4e73c974b099565ed89b309a119
 msgid "**When should I use a time-varying intercept?**"
 msgstr "**¿Cuándo debo utilizar un intercepto variable en el tiempo?**"
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:620012
-#: aace0fe33a304596b011008a40ad8055
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:730012
+#: dba6f26b83eb4ae8a506048e2538c5ad
 msgid ""
-"If you suspect that your baseline sales fluctuate over time due to factors "
-"beyond seasonality, constant growth, or explicitly modeled controls, "
-"consider using a time-varying parameter. The time-varying intercept is like "
-"a _catch-all_ for unexplained variance in your sales data."
+"If you suspect that your baseline sales fluctuate over time due to "
+"factors beyond seasonality, constant growth, or explicitly modeled "
+"controls, consider using a time-varying parameter. The time-varying "
+"intercept is like a _catch-all_ for unexplained variance in your sales "
+"data."
 msgstr ""
-"Si sospecha que sus ventas base fluctúan con el tiempo debido a factores más"
-" allá de la estacionalidad, el crecimiento constante o controles modelados "
-"explícitamente, considere utilizar un parámetro que varíe en el tiempo. El "
-"intercepto que varía en el tiempo es como un _receptor general_ para la "
-"varianza no explicada en sus datos de ventas."
+"Si sospecha que sus ventas base fluctúan con el tiempo debido a factores "
+"más allá de la estacionalidad, el crecimiento constante o controles "
+"modelados explícitamente, considere utilizar un parámetro que varíe en el"
+" tiempo. El intercepto que varía en el tiempo es como un _receptor "
+"general_ para la varianza no explicada en sus datos de ventas."
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:620014
-#: d39ca84592854080a4ae03fa0721287e
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:730014
+#: c21a4a18bace4c0fbd9b5003ef6fa05c
 msgid "**How should I parameterize my time-varying component?**"
 msgstr "**¿Cómo debo parametrizar mi componente variable en el tiempo?**"
 
-#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:620016
-#: e7144a0cd6d640419dabf8284d786e6b
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:730016
+#: 69bb1ca96ff547a9be1fe858d615bea4
 msgid ""
-"We have defined some sensible defaults, and in most cases, they are "
-"adequate. But if you have unexplained variance in your sales that occur on "
-"short time scales, you may—as in the example above—experiment with lowering "
-"the length-scale prior mean. If you need greater fidelity in the frequencies"
-" that the GP can capture, and can live with longer sampling times, you can "
-"also increase the number of basis functions "
-"`model_config['intercept_tvp_config'].m` from 200 (default) to a higher "
-"number. Finally, if you believe you have events affecting your sales on, "
-"say, two separate time scales, you can supply a new covariance function "
-"through `model_config['intercept_tvp_config'].cov_func`, which is *the sum "
-"of two independently defined covariance functions*—each with a length-scale "
+"The library default for the length-scale prior mean is five time steps "
+"(`ls_mu=5`, i.e. five weeks for weekly data). Check that it matches the "
+"time scale of the variation you expect: as Example 3 shows, a length "
+"scale that is too long makes the time-varying intercept behave like a "
+"constant one. If you have unexplained variance in your sales that occurs "
+"on short time scales, you may experiment with lowering the length-scale "
+"prior mean. If you need greater fidelity in the frequencies that the GP "
+"can capture, and can live with longer sampling times, you can also "
+"increase the number of basis functions "
+"`model_config['intercept_tvp_config'].m` from 200 (the library default; "
+"this notebook uses 500) to a higher number. Finally, if you believe you "
+"have events affecting your sales on, say, two separate time scales, you "
+"can supply a new covariance function through "
+"`model_config['intercept_tvp_config'].cov_func`, which is *the sum of two"
+" independently defined covariance functions*—each with a length-scale "
 "prior mean that matches the given time scales you expect in your data."
 msgstr ""
-"Hemos definido algunos valores predeterminados sensatos, y en la mayoría de "
-"los casos, son adecuados. Pero si tiene una variación inexplicada en sus "
-"ventas que ocurre en escalas de tiempo cortas, puede—como en el ejemplo "
-"anterior—experimentar con reducir la media del prior de la longitud de "
-"escala. Si necesita mayor fidelidad en las frecuencias que el GP puede "
-"capturar, y puede aceptar tiempos de muestreo más largos, también puede "
-"aumentar el número de funciones base "
-"`model_config['intercept_tvp_config'].m` de 200 (predeterminado) a un número"
-" más alto. Finalmente, si cree que tiene eventos que afectan sus ventas en, "
-"digamos, dos escalas de tiempo separadas, puede proporcionar una nueva "
-"función de covarianza a través de "
-"`model_config['intercept_tvp_config'].cov_func`, que es *la suma de dos "
-"funciones de covarianza definidas independientemente*—cada una con una media"
-" del prior de longitud de escala que coincide con las escalas de tiempo "
-"dadas que espera en sus datos."
+"El valor predeterminado de la biblioteca para la media del prior de la "
+"longitud de escala es de cinco pasos de tiempo (`ls_mu=5`, es decir, cinco "
+"semanas para datos semanales). Verifique que coincida con la escala de "
+"tiempo de la variación que espera: como muestra el Ejemplo 3, una longitud "
+"de escala demasiado larga hace que el intercepto variable en el tiempo se "
+"comporte como uno constante. Si tiene una varianza inexplicada en sus ventas"
+" que ocurre en escalas de tiempo cortas, puede experimentar reduciendo la "
+"media del prior de la longitud de escala. Si necesita mayor fidelidad en las"
+" frecuencias que el GP puede capturar, y puede aceptar tiempos de muestreo "
+"más largos, también puede aumentar el número de funciones base "
+"`model_config['intercept_tvp_config'].m` de 200 (el valor predeterminado de "
+"la biblioteca; este cuaderno usa 500) a un número más alto. Finalmente, si "
+"cree que tiene eventos que afectan sus ventas en, digamos, dos escalas de "
+"tiempo separadas, puede proporcionar una nueva función de covarianza a "
+"través de `model_config['intercept_tvp_config'].cov_func`, que es *la suma "
+"de dos funciones de covarianza definidas independientemente*—cada una con "
+"una media del prior de la longitud de escala que coincide con las escalas de"
+" tiempo dadas que espera en sus datos."
+
+#~ msgid "→ Load input and define columns"
+#~ msgstr "→ Cargar entrada y definir columnas"
+
+#~ msgid ""
+#~ "The data we loaded did _not_ have"
+#~ " a target variable. Instead, we "
+#~ "simulate one, by **defining a model "
+#~ "with fixed parameters**. We can do "
+#~ "this using [the recently added `do` "
+#~ "operator](https://www.pymc-labs.com/blog-posts/causal-"
+#~ "analysis-with-pymc-answering-what-if-"
+#~ "with-the-new-do-operator) in "
+#~ "`pymc`. In case you have not seen"
+#~ " this trick before, take note because"
+#~ " it's neat."
+#~ msgstr ""
+#~ "Los datos que cargamos _no_ tenían "
+#~ "una variable objetivo. En su lugar, "
+#~ "simulamos una, **definiendo un modelo "
+#~ "con parámetros fijos**. Podemos hacer "
+#~ "esto utilizando [el operador `do` que"
+#~ " se añadió recientemente](https://www.pymc-"
+#~ "labs.com/blog-posts/causal-analysis-with-"
+#~ "pymc-answering-what-if-with-the-"
+#~ "new-do-operator) en `pymc`. En caso"
+#~ " de que no hayas visto este "
+#~ "truco antes, toma nota porque es "
+#~ "interesante."
+
+#~ msgid "👌 In-sample it gets the synthetic trend almost exactly right!"
+#~ msgstr "👌 En la muestra, ¡captura la tendencia sintética casi exactamente!"
+
+#~ msgid "👍 As seen previously, the model performs well in-sample."
+#~ msgstr ""
+#~ "👍 Como se vio anteriormente, el "
+#~ "modelo tiene un buen rendimiento en "
+#~ "la muestra."
+
+#~ msgid ""
+#~ "👎 Similar to before, predictions are "
+#~ "accurate up to ~3-6 months into "
+#~ "the test set, then start to "
+#~ "deviate."
+#~ msgstr ""
+#~ "👎 Similar a antes, las predicciones "
+#~ "son precisas hasta aproximadamente 3-6 "
+#~ "meses en el conjunto de prueba, "
+#~ "luego comienzan a desviarse."
+
+#~ msgid ""
+#~ "👎 In-sample it follows the "
+#~ "synthetic trend but with an offset "
+#~ "of about -1.5."
+#~ msgstr ""
+#~ "👎 En la muestra, sigue la "
+#~ "tendencia sintética pero con un "
+#~ "desplazamiento de aproximadamente -1.5."
+
+#~ msgid ""
+#~ "The sampling diagnosis ☝️ complains "
+#~ "about some divergences. Similarly, the "
+#~ "*rhat* statistic is larger than 1.01 "
+#~ "for some parameters. Overall it appears"
+#~ " that the model has not been "
+#~ "parameterized appropriately. Let's see how "
+#~ "this pans out..."
+#~ msgstr ""
+#~ "El diagnóstico de muestreo ☝️ se "
+#~ "queja de algunas divergencias. De manera"
+#~ " similar, la estadística *rhat* es "
+#~ "mayor que 1.01 para algunos parámetros."
+#~ " En general, parece que el modelo "
+#~ "no ha sido parametrizado adecuadamente. "
+#~ "Veamos cómo se desarrolla esto..."
+
+#~ msgid ""
+#~ "👎 The model predictions have large "
+#~ "uncertainty, more than observed in the"
+#~ " previous examples."
+#~ msgstr ""
+#~ "👎 Las predicciones del modelo tienen "
+#~ "una gran incertidumbre, más de lo "
+#~ "observado en los ejemplos anteriores."
+
+#~ msgid "💥 ~3 months into the out-of-sample set, uncertainty explodes."
+#~ msgstr ""
+#~ "💥 A ~3 meses de haber comenzado"
+#~ " el conjunto fuera de muestra, la "
+#~ "incertidumbre explota."
+
+#~ msgid "👎 The model overestimates the intercept *a lot*."
+#~ msgstr "👎 El modelo sobreestima el intercepto *mucho*."
+
+#~ msgid ""
+#~ "🤷‍♂️ Only the two major events are"
+#~ " captured by the time-varying "
+#~ "intercept."
+#~ msgstr ""
+#~ "🤷‍♂️ Solo los dos eventos principales"
+#~ " son capturados por el intercepto que"
+#~ " varía con el tiempo."
+
+#~ msgid "👎 Overall uncertainty is greater than in the previous examples."
+#~ msgstr "👎 La incertidumbre general es mayor que en los ejemplos anteriores."
+
+#~ msgid ""
+#~ "💡 Let's try to refit the model "
+#~ "with a shorter length scale prior "
+#~ "mean of one year (52.18 weeks)."
+#~ msgstr ""
+#~ "💡 Intentemos ajustar el modelo con "
+#~ "una media de escala de longitud "
+#~ "previa más corta de un año (52.18"
+#~ " semanas)."
+
+#~ msgid "Notice ☝️ fewer divergences 👌."
+#~ msgstr "Aviso ☝️ menos divergencias 👌."
+
+#~ msgid ""
+#~ "🎉 Success! As hypothesized, the time-"
+#~ "varying intercept now captures the "
+#~ "events better, and at the right "
+#~ "scale! Notice how lowering the "
+#~ "length-scale prior mean from the "
+#~ "default two years to one year "
+#~ "makes the series more _squiggly_."
+#~ msgstr ""
+#~ "🎉 ¡Éxito! Como se había hipotetizado,"
+#~ " el intercepto variable en el tiempo"
+#~ " ahora captura mejor los eventos y"
+#~ " a la escala correcta. ¡Observe cómo"
+#~ " reducir la media del prior de "
+#~ "la longitud de escala del valor "
+#~ "predeterminado de dos años a un "
+#~ "año hace que la serie sea más "
+#~ "_ondulante_."
+
+#~ msgid ""
+#~ "*Sidenote: While the very-small events"
+#~ " are still not captured perfectly, "
+#~ "this may be remedied with a more"
+#~ " complex covariance function supplied "
+#~ "through the `model_config`, although these "
+#~ "events are likely below the minimal "
+#~ "detectable effect size in this example.*"
+#~ msgstr ""
+#~ "*Nota al margen: Aunque los eventos "
+#~ "muy pequeños aún no se capturan "
+#~ "perfectamente, esto puede ser solucionado "
+#~ "con una función de covarianza más "
+#~ "compleja proporcionada a través de "
+#~ "`model_config`, aunque es probable que "
+#~ "estos eventos estén por debajo del "
+#~ "tamaño del efecto mínimo detectable en"
+#~ " este ejemplo.*"
+

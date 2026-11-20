@@ -1,0 +1,1269 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2026, PyMC Labs
+# This file is distributed under the same license as the PyMC-Marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyMC-Marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:10004
+#: 42a5b6ab12c446ef802ce03c7b9c9897
+msgid "Cost-per-Unit: Model What Drives Revenue, Report What You Spend"
+msgstr ""
+"Costo por unidad: modelar lo que impulsa los ingresos, reportar lo que se "
+"gasta"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:10006
+#: 94cb6c8a8f794ed3afb798c85ba6f4a4
+msgid ""
+"Imagine you are a marketing analyst at an e-commerce company. You run two"
+" advertising channels — say a social-media channel (measured in "
+"**impressions**) and a TV channel (measured in **dollars**)."
+msgstr ""
+"Imagine que es analista de marketing en una empresa de comercio electrónico."
+" Usted gestiona dos canales publicitarios — por ejemplo, un canal de redes "
+"sociales (medido en **impresiones**) y un canal de TV (medido en "
+"**dólares**)."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:10010
+#: c1a135b7b95945ae877f023b29c53dbf
+msgid ""
+"Your data scientist fits a Media Mix Model on this data. The model learns"
+" how each channel's *input* drives *revenue*. But there is a catch: **the"
+" two channels are measured in completely different units.** Comparing "
+"their returns side-by-side is meaningless unless we first bring them onto"
+" a common scale."
+msgstr ""
+"Su científico de datos ajusta un modelo de mezcla de medios con estos datos."
+" El modelo aprende cómo la *entrada* de cada canal impulsa los *ingresos*. "
+"Pero hay un inconveniente: **los dos canales se miden en unidades "
+"completamente distintas.** Comparar sus rendimientos lado a lado carece de "
+"sentido a menos que primero los llevemos a una escala común."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:10015
+#: 76dc55b5855946a69ba310b33b5e3b37
+msgid "When does this matter?"
+msgstr "¿Cuándo importa esto?"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:10017
+#: b20781bb822d4f9da613821c264aa017
+msgid ""
+"The impressions-vs-dollars scenario above is just one example. In "
+"practice, channels can differ in unit for many reasons:"
+msgstr ""
+"El escenario de impresiones frente a dólares descrito arriba es solo un "
+"ejemplo. En la práctica, los canales pueden diferir en la unidad por muchas "
+"razones:"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:10020
+#: 04175079c1d54e30a17d15e4d52b2feb
+msgid ""
+"**Impressions, clicks, or other engagement metrics** — any non-monetary "
+"media input whose price fluctuates over time."
+msgstr ""
+"**Impresiones, clics u otras métricas de interacción** — cualquier entrada "
+"de medios no monetaria cuyo precio fluctúa con el tiempo."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:10022
+#: 400352ad0c174a71b396ab9334121a0b
+msgid ""
+"**Different currencies** — e.g. one channel invoiced in USD and another "
+"in EUR. Exchange rates move, so pre-converting to a single currency "
+"before fitting bakes FX noise into the predictor."
+msgstr ""
+"**Distintas monedas** — por ejemplo, un canal facturado en USD y otro en "
+"EUR. Los tipos de cambio se mueven, por lo que convertir previamente a una "
+"sola moneda antes del ajuste incorpora ruido cambiario en el predictor."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:10025
+#: ecc0aeca38cd493a9429378afe541234
+msgid ""
+"**Any heterogeneous unit** — the core idea is the same whenever the raw "
+"media input is not directly in the currency you use for reporting."
+msgstr ""
+"**Cualquier unidad heterogénea** — la idea central es la misma siempre que "
+"la entrada de medios en bruto no esté directamente en la moneda que se usa "
+"para reportar."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:10028
+#: 96e377ad3d704091b582b3d9f96740e3
+msgid "Why not just convert everything to dollars upfront?"
+msgstr "¿Por qué no convertir todo a dólares desde el principio?"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:10030
+#: 791baa53f090485095d528c7c00821eb
+msgid ""
+"One obvious solution is to convert every channel to a common dollar unit "
+"before fitting — multiply impressions by the cost-per-impression, convert"
+" EUR to USD, etc. Simple enough."
+msgstr ""
+"Una solución obvia es convertir cada canal a una unidad común en dólares "
+"antes de ajustar el modelo — multiplicar las impresiones por el costo por "
+"impresión, convertir EUR a USD, etc. Suficientemente simple."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:10034
+#: d831742b0e264594a31948845c1be127
+msgid ""
+"But this approach has a serious flaw: **cost-per-unit conversions are not"
+" fixed.** The price of an impression fluctuates with auction dynamics, "
+"seasonality, competitor activity, and platform pricing changes. Exchange "
+"rates move daily. Converting before modelling bakes those price "
+"fluctuations directly into the predictor variable, adding noise that has "
+"nothing to do with the media's actual effect on consumers."
+msgstr ""
+"Pero este enfoque tiene un defecto grave: **las conversiones de costo por "
+"unidad no son fijas.** El precio de una impresión fluctúa con la dinámica de"
+" las subastas, la estacionalidad, la actividad de los competidores y los "
+"cambios de precios de las plataformas. Los tipos de cambio se mueven a "
+"diario. Convertir antes de modelar incorpora esas fluctuaciones de precio "
+"directamente en la variable predictora, añadiendo ruido que no tiene nada "
+"que ver con el efecto real de los medios sobre los consumidores."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:10041
+#: 047b5101deb54fc2a375b8f2497ec20c
+msgid ""
+"When impressions are the causal driver — a consumer *sees* an ad — "
+"modelling on impressions keeps the signal clean and separates the *media "
+"effect* from the *media cost*."
+msgstr ""
+"Cuando las impresiones son el impulsor causal — un consumidor *ve* un "
+"anuncio —, modelar con impresiones mantiene la señal limpia y separa el "
+"*efecto de los medios* del *costo de los medios*."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:10045
+#: 99549ddf9eaa46dabd8acc41af39f506
+msgid "The approach: model in native units, convert at reporting time"
+msgstr ""
+"El enfoque: modelar en unidades nativas, convertir al momento de reportar"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:10047
+#: 2bb26893fc7f489c83934f026b1ca368
+msgid ""
+"This is exactly what **`cost_per_unit`** enables. We fit the model on "
+"whatever unit best represents each channel's causal input (impressions, "
+"clicks, local currency, etc.) and supply the cost-per-unit separately as "
+"a post-fit parameter. This means:"
+msgstr ""
+"Esto es exactamente lo que habilita **`cost_per_unit`**. Ajustamos el modelo"
+" con la unidad que mejor represente la entrada causal de cada canal "
+"(impresiones, clics, moneda local, etc.) y proporcionamos el costo por "
+"unidad por separado como un parámetro posterior al ajuste. Esto significa "
+"que:"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:10052
+#: fd8b825126e5479092267c30460026ef
+msgid ""
+"The model estimates the effect in the channel's native unit — preserving "
+"the true causal relationship."
+msgstr ""
+"El modelo estima el efecto en la unidad nativa del canal, preservando la "
+"verdadera relación causal."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:10054
+#: 23ded1acd9fd4aae9032fa76750c558a
+msgid ""
+"At reporting and optimisation time, we apply the cost-per-unit to "
+"translate everything into a common currency for fair channel comparison."
+msgstr ""
+"Al reportar y al optimizar, aplicamos el costo por unidad para traducir todo"
+" a una moneda común y así comparar los canales de forma justa."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:10056
+#: 8abbfd2378f84515958839cc738ce2b1
+msgid ""
+"We can update the cost-per-unit assumption without re-fitting the model, "
+"making it easy to explore how pricing or exchange-rate changes affect "
+"budget recommendations."
+msgstr ""
+"Podemos actualizar el supuesto de costo por unidad sin volver a ajustar el "
+"modelo, lo que facilita explorar cómo los cambios de precios o de tipos de "
+"cambio afectan las recomendaciones de presupuesto."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:10060
+#: 2d071c4a676542e5927642c3a2bac90e
+msgid "In this notebook we will:"
+msgstr "En este cuaderno vamos a:"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:10062
+#: 325f0eee41c442a4b0d940dee10f16b6
+msgid "**Fit** an MMM on the raw data (impressions + dollars)"
+msgstr "**Ajustar** un MMM con los datos en bruto (impresiones + dólares)"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:10063
+#: b16031bf6b9f442f993ac2297948f04d
+msgid ""
+"**Inspect** ROAS and saturation curves *before* any unit conversion — and"
+" see how misleading they can be"
+msgstr ""
+"**Inspeccionar** el ROAS y las curvas de saturación *antes* de cualquier "
+"conversión de unidades — y ver cuán engañosos pueden ser"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:10065
+#: 46b09f440f354d6283fc6afc150059c1
+msgid ""
+"**Set `cost_per_unit`** for the social-media channel (\\$0.10/impression)"
+" and watch the story change dramatically"
+msgstr ""
+"**Establecer `cost_per_unit`** para el canal de redes sociales "
+"(\\$0.10/impresión) y ver cómo cambia drásticamente la historia"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:10067
+#: 1ef594408a11497886151122bd090b33
+msgid ""
+"**Run budget optimization** under different cost-per-impression "
+"assumptions (\\$0.05, \\$0.10, \\$0.15) to see how pricing affects "
+"allocation"
+msgstr ""
+"**Ejecutar la optimización del presupuesto** bajo distintos supuestos de "
+"costo por impresión (\\$0.05, \\$0.10, \\$0.15) para ver cómo afecta el "
+"precio a la asignación"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:10069
+#: 30523748400c42b6bd88ff85c9bc6b77
+msgid ""
+"**Price media on a curve** with `PowerPriceResponse`, where the price per"
+" impression rises with the spend"
+msgstr ""
+"**Fijar el precio de los medios con una curva** mediante "
+"`PowerPriceResponse`, donde el precio por impresión aumenta con el gasto"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:10072
+#: 5a8108a189be4de488f93e649669aa7d
+msgid "A note on choosing the right unit"
+msgstr "Una nota sobre cómo elegir la unidad adecuada"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:10074
+#: d34ae34426b3422897223bfcf63a14cf
+msgid ""
+"That said, **there is no universal rule that impressions are always "
+"better than spend.** The right choice depends on data quality and the "
+"modelling context. If your impression data is unreliable or noisy (e.g. "
+"inconsistent tracking across platforms), modelling on spend may actually "
+"produce a cleaner signal. It is up to the modeller to decide which unit "
+"best represents the true causal input for each channel. `cost_per_unit` "
+"supports either direction — you can model on impressions and convert to "
+"dollars, or model on spend and convert back."
+msgstr ""
+"Dicho esto, **no existe una regla universal según la cual las impresiones "
+"sean siempre mejores que el gasto.** La elección correcta depende de la "
+"calidad de los datos y del contexto de modelado. Si sus datos de impresiones"
+" no son fiables o tienen mucho ruido (por ejemplo, un seguimiento "
+"inconsistente entre plataformas), modelar con el gasto puede producir una "
+"señal más limpia. Corresponde a quien modela decidir qué unidad representa "
+"mejor la verdadera entrada causal de cada canal. `cost_per_unit` admite "
+"cualquiera de las dos direcciones: se puede modelar con impresiones y "
+"convertir a dólares, o modelar con el gasto y convertir de vuelta."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:20002
+#: fff163dd00584a0f8cad69ea0d73bc3e
+msgid "Step 1: Load Data and Fit the Model"
+msgstr "Paso 1: cargar los datos y ajustar el modelo"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:20004
+#: 767430a3c5934bccbac12d0656ba1f8e
+msgid ""
+"We use a two-channel dataset from `multidimensional_mock_data.csv`, "
+"filtered to `geo_a`. The model is built from a YAML config with "
+"`GeometricAdstock` and `MichaelisMentenSaturation`."
+msgstr ""
+"Usamos un conjunto de datos de dos canales de "
+"`multidimensional_mock_data.csv`, filtrado a `geo_a`. El modelo se construye"
+" a partir de una configuración YAML con `GeometricAdstock` y "
+"`MichaelisMentenSaturation`."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:50002
+#: dd5b74ee736e43d69de0fbb309c2d623
+msgid "Step 2: The Misleading Picture — ROAS Without Unit Conversion"
+msgstr "Paso 2: la imagen engañosa — ROAS sin conversión de unidades"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:50004
+#: 47fe0f9462b54a82a3ea68d1c73dbe82
+msgid ""
+"Let's look at the fitted ROAS and saturation curves *as-is*, without any "
+"cost-per-unit adjustment. Remember:"
+msgstr ""
+"Veamos el ROAS ajustado y las curvas de saturación *tal cual*, sin ningún "
+"ajuste de costo por unidad. Recordemos:"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:50007
+#: 99fdfa154a3a41549b4725e9c5ea36dd
+msgid "**Social** is in **impressions**"
+msgstr "**Social** está en **impresiones**"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:50008
+#: 2c1e2240be2c41b9b2c8f6cd2c30e6c0
+msgid "**TV** is in **dollars**"
+msgstr "**TV** está en **dólares**"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:50010
+#: 8b4b2405eaa7405d8e9c2f712f79a4ae
+msgid ""
+"So the \"ROAS\" for Social is really *revenue per impression*, while TV's"
+" ROAS is a proper *revenue per dollar*. Comparing them side-by-side is "
+"like comparing apples and oranges. Without cost-per-unit adjustment, "
+"Social's apparent ROAS will appear roughly **10x smaller** than TV's — "
+"not because Social is less effective, but because it is being measured in"
+" impressions rather than dollars."
+msgstr ""
+"Por lo tanto, el \"ROAS\" de Social es en realidad *ingresos por impresión*,"
+" mientras que el ROAS de TV es propiamente *ingresos por dólar*. Compararlos"
+" lado a lado es como comparar peras con manzanas. Sin el ajuste de costo por"
+" unidad, el ROAS aparente de Social se verá aproximadamente **10x menor** "
+"que el de TV — no porque Social sea menos efectivo, sino porque se mide en "
+"impresiones en lugar de dólares."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:70002
+#: 422b3069221c4b89ba29706837e9ae24
+msgid ""
+"**Notice how TV dominates.** Its ROAS is expressed in \\$/\\$ and looks "
+"roughly **10x larger** than Social's revenue-per-impression metric — "
+"exactly as expected when one channel is measured in impressions and the "
+"other in dollars."
+msgstr ""
+"**Observe cómo domina TV.** Su ROAS se expresa en \\$/\\$ y parece "
+"aproximadamente **10x mayor** que la métrica de ingresos por impresión de "
+"Social — exactamente lo esperado cuando un canal se mide en impresiones y el"
+" otro en dólares."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:70007
+#: 858734c6b90549049138207acbef88b7
+msgid ""
+"A naive reading of this chart would suggest: *\"TV is far more efficient "
+"— pour all the money there.\"*"
+msgstr ""
+"Una lectura ingenua de este gráfico sugeriría: *\"TV es mucho más eficiente "
+"— hay que poner todo el dinero ahí.\"*"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:70010
+#: 4a568202a24348fb971bf1a45bf89568
+msgid ""
+"Let's look at the saturation curves next. The x-axis for each channel is "
+"in its *native unit*, so the scales are not comparable."
+msgstr ""
+"Veamos a continuación las curvas de saturación. El eje x de cada canal está "
+"en su *unidad nativa*, por lo que las escalas no son comparables."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:90002
+#: 4a5b8b7e1e0e41ab995c48958c04d332
+msgid ""
+"The saturation curves above look reasonable individually, but they are "
+"**not comparable** — Social Media's x-axis is *impressions* while TV's is"
+" *dollars*. We cannot visually judge which channel gives more bang for "
+"the buck."
+msgstr ""
+"Las curvas de saturación anteriores parecen razonables por separado, pero "
+"**no son comparables** — el eje x de Social Media está en *impresiones*, "
+"mientras que el de TV está en *dólares*. No podemos juzgar visualmente qué "
+"canal ofrece más rendimiento por cada dólar."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:90006
+#: b373282e3f074332956c09f17f15140f
+msgid "Step 3: Setting `cost_per_unit` — Leveling the Playing Field"
+msgstr "Paso 3: establecer `cost_per_unit` — nivelar el terreno de juego"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:90008
+#: 40547a3e9f584cf6946473bdb7c9f3d1
+msgid ""
+"Now we tell the model what Social Media impressions actually *cost*. By "
+"setting `cost_per_unit = \\$0.10` for Social Media, we bridge the gap "
+"from impressions back to dollars. The model can then express everything "
+"in consistent **\\$/\\$** terms."
+msgstr ""
+"Ahora le indicamos al modelo cuánto *cuestan* realmente las impresiones de "
+"Social Media. Al establecer `cost_per_unit = \\$0.10` para Social Media, "
+"cerramos la brecha entre las impresiones y los dólares. El modelo puede "
+"entonces expresar todo en términos consistentes de **\\$/\\$**."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:90013
+#: 1e35ee5430ad46869f45cb811d390ef9
+msgid ""
+"**`channel_1` (Social Media):** `cost_per_unit = 0.1` (\\$0.10 per "
+"impression)"
+msgstr ""
+"**`channel_1` (Social Media):** `cost_per_unit = 0.1` (\\$0.10 por "
+"impresión)"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:90014
+#: e68342be1db743619f94de1f399ec0d1
+msgid ""
+"**`channel_2` (TV):** `cost_per_unit = 1.0` (already in dollars — this is"
+" the default when omitted)"
+msgstr ""
+"**`channel_2` (TV):** `cost_per_unit = 1.0` (ya está en dólares — este es el"
+" valor predeterminado cuando se omite)"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:90016
+#: 055e671181a44b0e93ac1a1c9bd8778b
+msgid "There are **two ways** to attach `cost_per_unit` to a model:"
+msgstr "Hay **dos formas** de asociar `cost_per_unit` a un modelo:"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:90018
+#: c5ceb0ed8a7244b8a73420e2ac13cfde
+msgid ""
+"**At initialization** — pass the DataFrame directly to the `MMM()` "
+"constructor via the `cost_per_unit` parameter. The conversion factors are"
+" then applied automatically after `fit()`."
+msgstr ""
+"**En la inicialización** — pasar el DataFrame directamente al constructor de"
+" `MMM()` mediante el parámetro `cost_per_unit`. Los factores de conversión "
+"se aplican entonces automáticamente después de `fit()`."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:90021
+#: 75d7a210743b4b8b81ee31eff562ff95
+msgid ""
+"**Post-hoc** — call `mmm.set_cost_per_unit(df)` on an already-fitted "
+"model, which is what we do below. This is useful when you want to "
+"experiment with different cost assumptions without refitting."
+msgstr ""
+"**Post hoc** — llamar a `mmm.set_cost_per_unit(df)` en un modelo ya "
+"ajustado, que es lo que hacemos a continuación. Esto es útil cuando se "
+"quiere experimentar con distintos supuestos de costo sin volver a ajustar."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:120002
+#: b2dc35de60fe4334a1f1585009b15e85
+msgid "Verifying the Conversion"
+msgstr "Verificar la conversión"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:120004
+#: 23b658c56b0846a9820f129c8c7b7d9f
+msgid ""
+"`get_channel_data()` returns the **raw** values (impressions for Social "
+"Media, dollars for TV). `get_channel_spend()` multiplies by "
+"`cost_per_unit`, so now **both** columns are in dollars."
+msgstr ""
+"`get_channel_data()` devuelve los valores **en bruto** (impresiones para "
+"Social Media, dólares para TV). `get_channel_spend()` multiplica por "
+"`cost_per_unit`, de modo que ahora **ambas** columnas están en dólares."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:140002
+#: 105c27ffab444082a0f8c15eb2a560c4
+msgid "Step 4: The True Picture — ROAS *After* Cost-per-Unit"
+msgstr "Paso 4: la imagen real — ROAS *después* del costo por unidad"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:140004
+#: c33b377fe6954952bf05f1519f50e0d2
+msgid ""
+"Now that both channels are in consistent dollar terms, let's revisit the "
+"ROAS chart."
+msgstr ""
+"Ahora que ambos canales están en términos consistentes de dólares, revisemos"
+" de nuevo el gráfico de ROAS."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:160002
+#: 8e1e83c2b1474a39a7edf06a69c89ad4
+msgid ""
+"**The story has changed dramatically.** Social Media's ROAS has jumped — "
+"because dividing revenue by *actual dollar spend* (impressions × \\$0.10)"
+" instead of raw impression counts gives a much larger number. The two "
+"channels are now **much more comparable**."
+msgstr ""
+"**La historia ha cambiado drásticamente.** El ROAS de Social Media ha "
+"aumentado — porque dividir los ingresos entre el *gasto real en dólares* "
+"(impresiones × \\$0.10) en lugar de entre el recuento bruto de impresiones "
+"da un número mucho mayor. Ahora los dos canales son **mucho más "
+"comparables**."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:160007
+#: 3d2aaeb760d14c37a3761846101ce549
+msgid ""
+"The takeaway: TV is *not* overwhelmingly better. Social Media delivers "
+"competitive returns when measured properly."
+msgstr ""
+"La conclusión: TV *no* es abrumadoramente mejor. Social Media ofrece "
+"rendimientos competitivos cuando se mide correctamente."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:160010
+#: 0a7f477ad6f54b859524572d5ad6f4e1
+msgid ""
+"Let's confirm this with the saturation curves, now plotted with a "
+"consistent **dollar (Spend)** x-axis."
+msgstr ""
+"Confirmemos esto con las curvas de saturación, ahora trazadas con un eje x "
+"consistente en **dólares (gasto)**."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:180002
+#: 2bd70018975f47b5a467b5d95d4e0161
+msgid ""
+"Now both saturation curves share the same unit on the x-axis — **dollars "
+"spent**. You can directly compare the marginal return of an extra dollar "
+"on Social Media vs. TV, which is exactly what you need for budget "
+"planning."
+msgstr ""
+"Ahora ambas curvas de saturación comparten la misma unidad en el eje x — "
+"**dólares gastados**. Se puede comparar directamente el rendimiento marginal"
+" de un dólar adicional en Social Media frente a TV, que es justo lo que se "
+"necesita para planificar el presupuesto."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:180008
+#: e834860d89804bc7a229d07d60c95c6c
+msgid "Step 5: Budget Optimization with `cost_per_unit`"
+msgstr "Paso 5: optimización del presupuesto con `cost_per_unit`"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:180010
+#: a0a148594fa740f4a6a79de328fcb1c7
+msgid ""
+"For budget optimization, we provide a *future* `cost_per_unit` for the "
+"planning window. This is independent of the historical values — "
+"impression prices may change over time."
+msgstr ""
+"Para la optimización del presupuesto, proporcionamos un `cost_per_unit` "
+"*futuro* para la ventana de planificación. Es independiente de los valores "
+"históricos — los precios de las impresiones pueden cambiar con el tiempo."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:180014
+#: 95b5b50170874cc49a53d61771bb85d2
+msgid "The optimizer:"
+msgstr "El optimizador:"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:180015
+#: 8a03e76e16804a0b92fbd43fbed3e12c
+msgid "Takes a **total dollar budget**"
+msgstr "Toma un **presupuesto total en dólares**"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:180016
+#: 30b52cd590af402f9e148c3ae9a37b3d
+msgid "Allocates dollars across channels and time periods"
+msgstr "Asigna dólares entre los canales y los períodos de tiempo"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:180017
+#: 94241b0616f2448bae608b29f5146f22
+msgid ""
+"Converts Social Media's dollar allocation to *impressions* using "
+"`cost_per_unit` before evaluating the response function"
+msgstr ""
+"Convierte la asignación en dólares de Social Media a *impresiones* usando "
+"`cost_per_unit` antes de evaluar la función de respuesta"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:180019
+#: 795da9ab80c54be5b4a6d10993dbb818
+msgid "Returns optimal budgets **in dollars**"
+msgstr "Devuelve presupuestos óptimos **en dólares**"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:200002
+#: 82e47776de1a462a85db5fe501c67627
+msgid "Sensitivity Analysis: How Impression Price Affects Allocation"
+msgstr ""
+"Análisis de sensibilidad: cómo afecta el precio de las impresiones a la "
+"asignación"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:200004
+#: 20a3d3ca3ce84c159fc9d70134f0636b
+msgid ""
+"The cost per impression is not fixed — it varies with market conditions, "
+"bidding strategy, and seasonality. Let's see how the optimal budget "
+"allocation shifts when Social Media impressions cost **\\$0.05**, "
+"**\\$0.10**, or **\\$0.15** each."
+msgstr ""
+"El costo por impresión no es fijo — varía con las condiciones del mercado, "
+"la estrategia de puja y la estacionalidad. Veamos cómo cambia la asignación "
+"óptima del presupuesto cuando las impresiones de Social Media cuestan "
+"**\\$0.05**, **\\$0.10** o **\\$0.15** cada una."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:200009
+#: 57bf69703cb84092aa6a8f30dc898b89
+msgid ""
+"**Cheaper impressions (\\$0.05)** → more impressions per dollar → Social "
+"Media becomes more attractive"
+msgstr ""
+"**Impresiones más baratas (\\$0.05)** → más impresiones por dólar → Social "
+"Media se vuelve más atractivo"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:200011
+#: d8a9b077b86a4329bd4c84aa5b0d5ea8
+msgid "**Baseline (\\$0.10)** → our best estimate of current pricing"
+msgstr ""
+"**Línea base (\\$0.10)** → nuestra mejor estimación de los precios actuales"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:200012
+#: c0518008ff064fcba3ce3b1911cc2490
+msgid ""
+"**Expensive impressions (\\$0.15)** → fewer impressions per dollar → "
+"budget shifts toward TV"
+msgstr ""
+"**Impresiones más caras (\\$0.15)** → menos impresiones por dólar → el "
+"presupuesto se desplaza hacia TV"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:220002
+#: 7bcac1b7464d410381a174b65d7bd0f8
+msgid "Reading the Results (Small Budget)"
+msgstr "Lectura de los resultados (presupuesto pequeño)"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:220004
+#: 722c6f5649f841ecb8461e92b414ffe7
+msgid ""
+"At \\$1,000 total budget, the optimizer behaves intuitively: as the cost "
+"per impression **decreases** (from \\$0.15 → \\$0.05), each dollar buys "
+"more Social Media impressions, making that channel more efficient. The "
+"optimizer responds by shifting more budget toward Social Media."
+msgstr ""
+"Con un presupuesto total de \\$1,000, el optimizador se comporta de forma "
+"intuitiva: a medida que el costo por impresión **disminuye** (de \\$0.15 → "
+"\\$0.05), cada dólar compra más impresiones de Social Media, lo que hace que"
+" ese canal sea más eficiente. El optimizador responde desplazando más "
+"presupuesto hacia Social Media."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:220009
+#: 8e066ad884554355b69b76a8c70cd2b7
+msgid ""
+"But does this pattern hold at every budget level? Let's run the same "
+"comparison with **10× the budget** to see:"
+msgstr ""
+"Pero ¿se mantiene este patrón en todos los niveles de presupuesto? "
+"Ejecutemos la misma comparación con **10× el presupuesto** para verlo:"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:240002
+#: fafae760595c489a982471a54133543d
+msgid "Why the Pattern Reverses at Higher Budgets"
+msgstr "Por qué el patrón se invierte con presupuestos más altos"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:240004
+#: 6f2c0f2184a84970a97eca67ff3edef4
+msgid ""
+"The \\$10,000 result is **the opposite** of the \\$1,000 case: as "
+"impressions get *cheaper*, Social actually receives *less* dollar budget."
+" This is counter-intuitive but mathematically correct — it is driven by "
+"**saturation**."
+msgstr ""
+"El resultado de \\$10,000 es **lo opuesto** al caso de \\$1,000: a medida "
+"que las impresiones se vuelven *más baratas*, Social recibe en realidad "
+"*menos* presupuesto en dólares. Esto es contraintuitivo pero matemáticamente"
+" correcto — se debe a la **saturación**."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:240008
+#: d39cfb028b2a4db484017d193655c029
+msgid ""
+"At a \\$1,000 budget the channels still have room to grow: cheaper "
+"impressions mean more impressions per dollar, so the channel with the "
+"lower cost-per-unit is genuinely more *efficient*. The optimizer rewards "
+"that efficiency by shifting budget toward Social."
+msgstr ""
+"Con un presupuesto de \\$1,000, los canales todavía tienen margen para "
+"crecer: unas impresiones más baratas significan más impresiones por dólar, "
+"por lo que el canal con menor costo por unidad es realmente más *eficiente*."
+" El optimizador premia esa eficiencia desplazando presupuesto hacia Social."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:240013
+#: 36e4158dfa344b01bdbd7b2932980d17
+msgid ""
+"At \\$10,000, both channels are deep into their saturation curves. Once a"
+" channel is saturated, additional spend yields almost no incremental "
+"response. The optimizer's job reduces to distributing dollars so that "
+"each channel *just* reaches its plateau. When impressions are cheap, "
+"fewer dollars are needed to buy enough impressions to saturate Social — "
+"so the remaining dollars spill over to TV. When impressions are "
+"expensive, the optimizer must allocate *more* dollars to Social to "
+"purchase the same number of impressions."
+msgstr ""
+"Con \\$10,000, ambos canales están muy avanzados en sus curvas de "
+"saturación. Una vez que un canal está saturado, el gasto adicional apenas "
+"produce respuesta incremental. La tarea del optimizador se reduce a "
+"distribuir los dólares de modo que cada canal alcance *justo* su meseta. "
+"Cuando las impresiones son baratas, se necesitan menos dólares para comprar "
+"suficientes impresiones y saturar Social, por lo que los dólares restantes "
+"se desbordan hacia TV. Cuando las impresiones son caras, el optimizador debe"
+" asignar *más* dólares a Social para comprar el mismo número de impresiones."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:240021
+#: eba95c31a0b34789b0f3696a12170aed
+msgid ""
+"In short, at low budgets we are in the **efficiency regime** (cheaper = "
+"higher return per dollar → more Social), while at high budgets we enter "
+"the **saturation regime** (cheaper = Social saturates with fewer dollars "
+"→ surplus flows elsewhere)."
+msgstr ""
+"En resumen, con presupuestos bajos estamos en el **régimen de eficiencia** "
+"(más barato = mayor rendimiento por dólar → más Social), mientras que con "
+"presupuestos altos entramos en el **régimen de saturación** (más barato = "
+"Social se satura con menos dólares → el excedente fluye a otro lugar)."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:240026
+#: 2eae56cba87d415dba7fcf158b04084e
+msgid ""
+"**Practical note:** A scenario where *every* channel is deeply saturated "
+"is a signal that your budget exceeds the capacity of your current media "
+"mix. In practice, rather than pouring money into channels that have "
+"already plateaued, this is the point where you should consider "
+"**developing new channels** — finding untapped audiences or formats that "
+"still offer meaningful marginal returns."
+msgstr ""
+"**Nota práctica:** Un escenario en el que *todos* los canales están "
+"profundamente saturados es una señal de que su presupuesto excede la "
+"capacidad de su mezcla de medios actual. En la práctica, en lugar de volcar "
+"dinero en canales que ya alcanzaron su meseta, este es el punto en el que "
+"conviene considerar **desarrollar nuevos canales** — encontrar audiencias o "
+"formatos sin explotar que todavía ofrezcan rendimientos marginales "
+"significativos."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:240033
+#: f6ddb690845d49fcbe97384414d5fae3
+msgid ""
+"This is exactly the kind of scenario analysis that `cost_per_unit` "
+"enables: same model, same posterior — but different economic assumptions "
+"about media pricing lead to different optimal strategies."
+msgstr ""
+"Este es exactamente el tipo de análisis de escenarios que habilita "
+"`cost_per_unit`: el mismo modelo, la misma distribución posterior — pero "
+"supuestos económicos distintos sobre el precio de los medios conducen a "
+"estrategias óptimas distintas."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:250003
+#: 39747b15651a4877a6ae7b3e07b64d9c
+msgid "Step 6: When the Price Rises With the Spend"
+msgstr "Paso 6: cuando el precio sube con el gasto"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:250005
+#: ac4a871151dd41e190e1154598f8c06d
+#, python-brace-format
+msgid ""
+"So far each impression costs the same, whatever the plan buys. Auction "
+"inventory does not work like that: buying more in a week bids the price "
+"up. {class}`~pymc_marketing.mmm.price_response.PowerPriceResponse` gives "
+"the budget optimizer a unit price that rises as a power of the money "
+"spent in the period:"
+msgstr ""
+"Hasta ahora cada impresión cuesta lo mismo, sin importar lo que compre el "
+"plan. El inventario de subastas no funciona así: comprar más en una semana "
+"encarece el precio por las pujas. "
+"{class}`~pymc_marketing.mmm.price_response.PowerPriceResponse` le da al "
+"optimizador de presupuesto un precio unitario que sube como una potencia del"
+" dinero gastado en el período:"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:250007
+#: ee7457ae827e4872963d707c67ac079c
+msgid ""
+"\n"
+"p(s) = p_0 \\left(\\frac{s}{s^{\\text{ref}}}\\right)^{\\gamma}, \\qquad 0"
+" \\le \\gamma < 1\n"
+msgstr ""
+"\n"
+"p(s) = p_0 \\left(\\frac{s}{s^{\\text{ref}}}\\right)^{\\gamma}, \\qquad 0 \\le \\gamma < 1\n"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:250011
+#: 9371eaf7d314483c8ec7d9f7f3c8eac3
+msgid ""
+"$p_0$ is the `cost_per_unit` passed to the optimizer. $s^{\\text{ref}}$ "
+"is the per-period spend at which that price applies (`reference_spend`). "
+"$\\gamma$ is the price elasticity. At $\\gamma = 0$ the price is "
+"constant, which is the optimizer of Step 5."
+msgstr ""
+"$p_0$ es el `cost_per_unit` que se pasa al optimizador. $s^{\\text{ref}}$ es"
+" el gasto por período al que se aplica ese precio (`reference_spend`). "
+"$\\gamma$ es la elasticidad del precio. Con $\\gamma = 0$ el precio es "
+"constante, que es el optimizador del Paso 5."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:250013
+#: f2ef28d11ee347e9a3f3d19035fa46ef
+#, python-brace-format
+msgid ""
+"This section uses {meth}`~pymc_marketing.mmm.mmm.MMM.budget_optimizer`, "
+"which takes the window `cost_per_unit` as an `xarray.DataArray` over "
+"`(date, channel)`. TV is in dollars, so its price per unit is 1."
+msgstr ""
+"Esta sección usa {meth}`~pymc_marketing.mmm.mmm.MMM.budget_optimizer`, que "
+"toma el `cost_per_unit` de la ventana como un `xarray.DataArray` sobre "
+"`(date, channel)`. TV está en dólares, por lo que su precio por unidad es 1."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:270002
+#: 50675461911e496d810bbdd229b4f2c4
+msgid "The precondition: the fit must be in delivery units"
+msgstr "La condición previa: el ajuste debe estar en unidades de entrega"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:270004
+#: 7ecd17d50c5f410a9b044a5f0b413082
+msgid ""
+"A curved price map is only sound when the model was fitted on delivery "
+"units (impressions, clicks) or on spend deflated to constant prices. A "
+"saturation curve fitted on nominal spend has already absorbed the "
+"curvature of the price, so a concave price map on top would bend it "
+"twice. Here Social is fitted on impressions, so it can be priced on a "
+"curve. TV is fitted on dollars, so it stays at $\\gamma = 0$."
+msgstr ""
+"Un mapa de precios curvo solo es válido cuando el modelo se ajustó con "
+"unidades de entrega (impresiones, clics) o con un gasto deflactado a precios"
+" constantes. Una curva de saturación ajustada con el gasto nominal ya ha "
+"absorbido la curvatura del precio, de modo que un mapa de precios cóncavo "
+"encima la curvaría dos veces. Aquí Social se ajusta con impresiones, por lo "
+"que se puede fijar su precio con una curva. TV se ajusta con dólares, por lo"
+" que se mantiene en $\\gamma = 0$."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:270006
+#: 7cb0c497e1154f2f9f0d8f63ec5cfc39
+msgid ""
+"The fitted model cannot tell which units its data are in, so the "
+"optimizer refuses a curved response until you state it:"
+msgstr ""
+"El modelo ajustado no puede saber en qué unidades están sus datos, por lo "
+"que el optimizador rechaza una respuesta curva hasta que usted lo declare:"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:290002
+#: 8e22d5abd6b549908f16fe81f243af76
+msgid ""
+"Both ways past this check need `assume_delivery_units=True`. The "
+"historical `cost_per_unit` table of Step 3 is not proof of the units: "
+"`set_cost_per_unit` writes it after the fit, without touching the model. "
+"What the table does is anchor the price:"
+msgstr ""
+"Ambas vías para superar esta comprobación requieren "
+"`assume_delivery_units=True`. La tabla histórica de `cost_per_unit` del Paso"
+" 3 no es una prueba de las unidades: `set_cost_per_unit` la escribe después "
+"del ajuste, sin tocar el modelo. Lo que sí hace la tabla es anclar el "
+"precio:"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:290004
+#: f237a373e16f455891dba5ec8a30bcdc
+msgid ""
+"**Attest, and let the table anchor $p_0$.** Step 3 priced Social, so the "
+"optimizer derives Social's `reference_spend` from the fit."
+msgstr ""
+"**Declarar y dejar que la tabla ancle $p_0$.** El Paso 3 fijó el precio de "
+"Social, por lo que el optimizador deriva el `reference_spend` de Social a "
+"partir del ajuste."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:290005
+#: 81a062631f474a819cfc3d194fbc5dac
+msgid ""
+"**Attest, and pass `reference_spend` yourself.** This is required for any"
+" curved channel the table does not price, and it overrides the derived "
+"value channel by channel."
+msgstr ""
+"**Declarar y pasar `reference_spend` usted mismo.** Esto es obligatorio para"
+" cualquier canal curvo cuyo precio no esté en la tabla, y reemplaza el valor"
+" derivado canal por canal."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:290007
+#: c7b35ddfcdc84bcea60aedf087b08e4f
+msgid ""
+"The rule is about curvature, not about price responses in general: a "
+"channel left at $\\gamma = 0$ needs no attestation, since its money "
+"passes through unbent."
+msgstr ""
+"La regla se refiere a la curvatura, no a las respuestas de precio en "
+"general: un canal que se deja en $\\gamma = 0$ no necesita declaración, ya "
+"que su dinero pasa sin curvarse."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:290009
+#: 2634e0edf25a46b5b297a539ea0a7f91
+msgid ""
+"The derived reference is the mean spend per period over the weeks the "
+"channel was on air, in the units of `total_budget`:"
+msgstr ""
+"La referencia derivada es el gasto medio por período durante las semanas en "
+"que el canal estuvo en emisión, en las unidades de `total_budget`:"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:310002
+#: 90dce3a618874516b8051543b7cca8bc
+msgid "Elasticity sweep"
+msgstr "Barrido de elasticidad"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:310004
+#: 6c4971eb381f435aa836244c32166390
+msgid ""
+"The model never sees prices, so $\\gamma$ is an input. It comes from "
+"buying data, with its own problems. Treat it as a sensitivity sweep and "
+"run $\\gamma = 0$ next to the values you believe."
+msgstr ""
+"El modelo nunca ve los precios, por lo que $\\gamma$ es una entrada. "
+"Proviene de datos de compra, con sus propios problemas. Trátelo como un "
+"barrido de sensibilidad y ejecute $\\gamma = 0$ junto a los valores que "
+"usted considere creíbles."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:310006
+#: 3635bf6eb8134eafbecd4566f38a55f2
+msgid ""
+"The table below reports, for Social: the weekly budget, the impressions "
+"it buys per week, the average price per impression (`implied_price`), and"
+" the price of the last impression bought (`implied_marginal_price`). "
+"Except very close to zero spend, the marginal price is `implied_price / "
+"(1 - elasticity)`."
+msgstr ""
+"La tabla siguiente reporta, para Social: el presupuesto semanal, las "
+"impresiones que compra por semana, el precio promedio por impresión "
+"(`implied_price`) y el precio de la última impresión comprada "
+"(`implied_marginal_price`). Salvo muy cerca de un gasto nulo, el precio "
+"marginal es `implied_price / (1 - elasticity)`."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:330002
+#: d54e6d19f4034c2aa43b753afb3d2b08
+msgid ""
+"At \\$1,000 per week, Social is bought above its reference, so a larger "
+"$\\gamma$ makes its impressions dearer. The marginal price rises faster "
+"than the average price, and the optimizer allocates on the marginal "
+"price, so money moves from Social to TV."
+msgstr ""
+"Con \\$1,000 por semana, Social se compra por encima de su referencia, por "
+"lo que un $\\gamma$ mayor encarece sus impresiones. El precio marginal sube "
+"más rápido que el precio promedio, y el optimizador asigna según el precio "
+"marginal, así que el dinero pasa de Social a TV."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:330004
+#: 87002917c50741f4a169bb8574369a2a
+#, python-brace-format
+msgid ""
+"This is also why the optimizer does not solve at a fixed price and then "
+"reprice. That loop converges to $R'(u_i) / p_i = \\text{const}$, but the "
+"true first-order condition is $R'(u_i)(1 - \\gamma_i) / p_i = "
+"\\text{const}$. With one common $\\gamma$ the factor cancels. When "
+"elasticities differ across channels, the loop gives too much to the high-"
+"elasticity channels."
+msgstr ""
+"Esta es también la razón por la que el optimizador no resuelve con un precio"
+" fijo para luego volver a fijar los precios. Ese ciclo converge a $R'(u_i) /"
+" p_i = \\text{const}$, pero la verdadera condición de primer orden es "
+"$R'(u_i)(1 - \\gamma_i) / p_i = \\text{const}$. Con un único $\\gamma$ común"
+" el factor se cancela. Cuando las elasticidades difieren entre canales, el "
+"ciclo da demasiado a los canales de alta elasticidad."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:340002
+#: 2cabbb4eb7c046288f64fa8819b197e3
+msgid "Below the reference, units get cheaper"
+msgstr "Por debajo de la referencia, las unidades se abaratan"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:340004
+#: cbd6641871a34ea89e69764285f768e9
+msgid ""
+"The power law is as confident below the reference as above it. Cut the "
+"weekly budget below the historical spend, and Social is bought below its "
+"reference, so its price falls under $p_0 = 0.10$:"
+msgstr ""
+"La ley de potencia es igual de categórica por debajo de la referencia que "
+"por encima. Si se reduce el presupuesto semanal por debajo del gasto "
+"histórico, Social se compra por debajo de su referencia, de modo que su "
+"precio cae por debajo de $p_0 = 0.10$:"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:360002
+#: ae0951220eb14f89af11c3d2b26e06ab
+msgid ""
+"Social now gets less money but buys more impressions as $\\gamma$ grows. "
+"With a total budget below the historical spend, every priced channel "
+"typically reports a price under $p_0$. That is the usual planning case "
+"when budgets are cut."
+msgstr ""
+"Ahora Social recibe menos dinero pero compra más impresiones a medida que "
+"$\\gamma$ crece. Con un presupuesto total por debajo del gasto histórico, "
+"todo canal con precio suele reportar un precio inferior a $p_0$. Ese es el "
+"caso habitual de planificación cuando se recortan los presupuestos."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:360004
+#: 7a551e1a96024b24a4648d41efda2619
+msgid ""
+"This can also move money *toward* a channel. Raise Social's base price to"
+" \\$0.75 per impression. At a constant price, Social is not worth buying."
+" Once it is priced, its first dollars buy impressions at a fraction of "
+"$p_0$:"
+msgstr ""
+"Esto también puede mover dinero *hacia* un canal. Suba el precio base de "
+"Social a \\$0.75 por impresión. Con un precio constante, no vale la pena "
+"comprar Social. Una vez que se le fija el precio, sus primeros dólares "
+"compran impresiones a una fracción de $p_0$:"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:380002
+#: db8aee4c92b64d77bf1d32a6641202b7
+msgid ""
+"At $\\gamma = 0$ nothing is bought, so there is no price to report "
+"(`NaN`). Here the more elastic channel receives more, not less. Real "
+"auction inventory is often not symmetric like this: floor prices and "
+"minimum bids hold the price up below the reference. So:"
+msgstr ""
+"Con $\\gamma = 0$ no se compra nada, por lo que no hay precio que reportar "
+"(`NaN`). Aquí el canal más elástico recibe más, no menos. El inventario real"
+" de subastas a menudo no es simétrico como este: los precios mínimos y las "
+"pujas mínimas mantienen el precio alto por debajo de la referencia. Por lo "
+"tanto:"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:380004
+#: 2bb22fe0271a4961b6576b1ffde41545
+msgid ""
+"anchor `reference_spend` at the level you plan to buy at, not only where "
+"$p_0$ was observed (raise `reference_spend_tolerance` when that is far "
+"from the fitted spend),"
+msgstr ""
+"ancle `reference_spend` en el nivel al que planea comprar, no solo donde se "
+"observó $p_0$ (aumente `reference_spend_tolerance` cuando eso esté lejos del"
+" gasto ajustado),"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:380005
+#: 8e1e6351c9d2467a9a4e6100daa9ac2a
+msgid "read `implied_price` on every channel before trusting the allocation,"
+msgstr "lea `implied_price` en cada canal antes de confiar en la asignación,"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:380006
+#: 506c39f623554986ad94bfaa87627746
+msgid "sweep `elasticity` rather than fix one value."
+msgstr "barra `elasticity` en lugar de fijar un solo valor."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:390002
+#: 5ec0ebbd5d6f45ceaab524f4b2b4f8f7
+msgid ""
+"Here is the \\$100 budget again, with Social's `reference_spend` anchored"
+" at the spend the constant-price plan buys there, instead of at the "
+"historical mean:"
+msgstr ""
+"Aquí está de nuevo el presupuesto de \\$100, con el `reference_spend` de "
+"Social anclado en el gasto que compra allí el plan de precio constante, en "
+"lugar de la media histórica:"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:410002
+#: d53e3f43c59b45b899f0a6637d6197c7
+msgid ""
+"Anchored where the plan buys, Social's marginal price is above $p_0$ "
+"again, so a larger $\\gamma$ moves money from Social to TV, as at "
+"\\$1,000. With the historical anchor, the elastic plans bought more "
+"impressions than the $\\gamma = 0$ plan. Anchored at the planned spend, "
+"they buy fewer. The anchor alone flips the answer, which is why it "
+"belongs at the level you plan to buy at."
+msgstr ""
+"Anclado donde compra el plan, el precio marginal de Social vuelve a estar "
+"por encima de $p_0$, por lo que un $\\gamma$ mayor mueve dinero de Social a "
+"TV, como con \\$1,000. Con el ancla histórica, los planes elásticos "
+"compraban más impresiones que el plan con $\\gamma = 0$. Anclados en el "
+"gasto planificado, compran menos. El ancla por sí sola invierte la "
+"respuesta, y por eso debe situarse en el nivel al que planea comprar."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:420002
+#: caa995af334f49ebb90238686fb06734
+msgid "`reference_spend` is money per period"
+msgstr "`reference_spend` es dinero por período"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:420004
+#: 3eaa5ab417f147d3adc9efabf5ac79af
+msgid ""
+"`reference_spend` is in the units of `total_budget` and `result.budgets`:"
+" money per period. A common mistake is to pass a window total, such as a "
+"quarter's spend, as if it were a weekly rate. That shifts every price by "
+"`num_periods ** elasticity`. So the optimizer refuses a supplied value "
+"that is more than `reference_spend_tolerance` (default 10) times away "
+"from the derived one:"
+msgstr ""
+"`reference_spend` está en las unidades de `total_budget` y de "
+"`result.budgets`: dinero por período. Un error común es pasar un total de la"
+" ventana, como el gasto de un trimestre, como si fuera una tasa semanal. Eso"
+" desplaza cada precio en `num_periods ** elasticity`. Por eso el optimizador"
+" rechaza un valor suministrado que esté a más de `reference_spend_tolerance`"
+" (10 por defecto) veces de distancia del derivado:"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:440002
+#: 1a276f30827040b3abbdd7df685f08ff
+msgid ""
+"A total over this 4-week window is only 4 times away, so it passes the "
+"tolerance. The optimizer still names the likely mistake in a warning "
+"(this notebook silences warnings, so the cell records it explicitly). For"
+" short windows, lower `reference_spend_tolerance` if that is a risk."
+msgstr ""
+"Un total sobre esta ventana de 4 semanas está a solo 4 veces de distancia, "
+"así que supera la tolerancia. Aun así, el optimizador señala el probable "
+"error en una advertencia (este cuaderno silencia las advertencias, por lo "
+"que la celda la registra de forma explícita). Para ventanas cortas, reduzca "
+"`reference_spend_tolerance` si esto supone un riesgo."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:460002
+#: 963b3f76dd4d438ca3fe27d5040420b1
+msgid ""
+"The same unit rule explains the window length. `total_budget` is per "
+"period, so a given weekly plan pays the same price relative to $p_0$ over"
+" any window. If the *window total* is held fixed instead, a shorter "
+"window spends more per week and pays more."
+msgstr ""
+"La misma regla de unidades explica la longitud de la ventana. `total_budget`"
+" es por período, así que un plan semanal dado paga el mismo precio relativo "
+"a $p_0$ en cualquier ventana. Si en cambio se mantiene fijo el *total de la "
+"ventana*, una ventana más corta gasta más por semana y paga más."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:470002
+#: 5013ba94da9f486eb560e9f9e71a25b4
+msgid "Scoring a plan"
+msgstr "Evaluación de un plan"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:470004
+#: e6c45259bd36485da409b89788eae9ab
+#, python-brace-format
+msgid ""
+"`result.implied_delivery` holds the impressions each plan buys per week, "
+"which is what the model sees. To score a plan, pass its budgets to "
+"{meth}`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.evaluate_response_distribution`."
+" It runs the same graph as the solver, price map included, and returns "
+"the posterior of the response."
+msgstr ""
+"`result.implied_delivery` contiene las impresiones que compra cada plan por "
+"semana, que es lo que ve el modelo. Para evaluar un plan, pase sus "
+"presupuestos a "
+"{meth}`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.evaluate_response_distribution`."
+" Este ejecuta el mismo grafo que el solucionador, incluido el mapa de "
+"precios, y devuelve la distribución posterior de la respuesta."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:470006
+#: e60e2b1d76fb4322a1da73567946ed77
+msgid ""
+"Below, both plans are scored at $\\gamma = 0.4$: the plan from a constant"
+" price, and the plan that accounts for the price rise. The gain is in the"
+" optimizer's default objective, the total media contribution, in units of"
+" `y`."
+msgstr ""
+"A continuación, ambos planes se evalúan con $\\gamma = 0.4$: el plan "
+"obtenido con un precio constante y el plan que tiene en cuenta el aumento de"
+" precio. La ganancia se mide en el objetivo predeterminado del optimizador, "
+"la contribución total de los medios, en unidades de `y`."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:490002
+#: 37f87063c1d7410b9e007ae1ad18507e
+msgid ""
+"The deprecated `BudgetOptimizerWrapper.sample_response_distribution` "
+"takes an allocation in model units, so it needs "
+"`result.implied_delivery.mean(\"date\")`, not `result.budgets`. That "
+"average matches what the solver used only when delivery is constant over "
+"the window: a uniform `budget_distribution_over_period` and a "
+"`cost_per_unit` that does not vary by date."
+msgstr ""
+"El método obsoleto `BudgetOptimizerWrapper.sample_response_distribution` "
+"toma una asignación en unidades del modelo, por lo que necesita "
+"`result.implied_delivery.mean(\"date\")`, no `result.budgets`. Ese promedio "
+"coincide con lo que usó el solucionador solo cuando la entrega es constante "
+"en la ventana: un `budget_distribution_over_period` uniforme y un "
+"`cost_per_unit` que no varía por fecha."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:500002
+#: 5adb9d5e72324af2954c6ea0dfa7adee
+msgid "What `PowerPriceResponse` does not model"
+msgstr "Lo que `PowerPriceResponse` no modela"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:500004
+#: b7f9ce0bb5fb489cb98e2c7b5a0693ff
+msgid ""
+"**Volume discounts.** $\\gamma$ models bid-up on the extra money of this "
+"plan. A price that falls with volume ($\\gamma < 0$) makes the problem "
+"non-convex, so it is refused. A negotiated discount belongs in "
+"`cost_per_unit`."
+msgstr ""
+"**Descuentos por volumen.** $\\gamma$ modela el encarecimiento por pujas "
+"sobre el dinero adicional de este plan. Un precio que cae con el volumen "
+"($\\gamma < 0$) vuelve el problema no convexo, por lo que se rechaza. Un "
+"descuento negociado corresponde a `cost_per_unit`."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:500005
+#: 97fc43aab58f460db796a9c584f66e22
+msgid ""
+"**Rate schedules.** One smooth curve cannot hold a committed tranche at a"
+" contracted rate while extra money clears at another rate. Fitted to that"
+" case, the curve is exact only at the anchor: its marginal price keeps "
+"climbing where the true rate is flat, and allocation follows the marginal"
+" price."
+msgstr ""
+"**Tarifas escalonadas.** Una sola curva suave no puede representar un tramo "
+"comprometido a una tarifa contratada mientras el dinero adicional se liquida"
+" a otra tarifa. Ajustada a ese caso, la curva solo es exacta en el ancla: su"
+" precio marginal sigue subiendo donde la tarifa real es plana, y la "
+"asignación sigue el precio marginal."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:500006
+#: 49d31f3205ba48adad01314588fe0472
+msgid ""
+"**Mixed references.** A `reference_spend` may cover only some channels. "
+"Channels it leaves out keep their derived reference. Here only Social is "
+"priced, so this case does not come up."
+msgstr ""
+"**Referencias mixtas.** Un `reference_spend` puede cubrir solo algunos "
+"canales. Los canales que deja fuera conservan su referencia derivada. Aquí "
+"solo se fija el precio de Social, por lo que este caso no se presenta."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:520004
+#: d7fbb34aed254fdcbcc8a76cb20bfbae
+msgid "Key Takeaways"
+msgstr "Conclusiones clave"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:520006
+#: 02df09e57b3d455aba5b172d2d816688
+msgid ""
+"**Choose the unit that best represents the causal input** — impressions, "
+"clicks, GRPs, or even spend — depending on data quality and modelling "
+"context. There is no one-size-fits-all rule; it is the modeller's call."
+msgstr ""
+"**Elija la unidad que mejor represente la entrada causal** — impresiones, "
+"clics, GRPs o incluso el gasto — según la calidad de los datos y el contexto"
+" de modelado. No existe una regla única para todos los casos; es decisión de"
+" quien modela."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:520009
+#: 3b7d0160b7db4b2e92a80235bf909dda
+msgid ""
+"**Set `cost_per_unit`** to bring every channel onto a common currency "
+"(dollars, euros, etc.) for fair ROAS comparisons and budget planning. "
+"This also handles cross-currency channels (e.g. USD vs EUR)."
+msgstr ""
+"**Establezca `cost_per_unit`** para llevar todos los canales a una moneda "
+"común (dólares, euros, etc.) y así comparar el ROAS de forma justa y "
+"planificar el presupuesto. Esto también cubre los canales en distintas "
+"monedas (por ejemplo, USD frente a EUR)."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:520012
+#: 58eda45e332741be8e84eed08f542f2e
+msgid ""
+"**Raw ROAS can be misleading** when channels use different units — always"
+" check whether you're comparing apples to apples"
+msgstr ""
+"**El ROAS en bruto puede ser engañoso** cuando los canales usan unidades "
+"distintas — verifique siempre si está comparando peras con manzanas"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:520014
+#: 779eef3d3b7a453c9be3a76b5d4b7c2e
+msgid ""
+"**Budget optimization respects `cost_per_unit`** — the optimizer works in"
+" the common currency internally and converts to channel-native units "
+"before evaluating the response function"
+msgstr ""
+"**La optimización del presupuesto respeta `cost_per_unit`** — el optimizador"
+" trabaja internamente en la moneda común y convierte a las unidades nativas "
+"del canal antes de evaluar la función de respuesta"
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:520017
+#: 83018a3462a74a778432c5f0be0716a5
+msgid ""
+"**Sensitivity analysis** with different rates lets you plan for changing "
+"media prices or exchange rates without refitting the model."
+msgstr ""
+"**El análisis de sensibilidad** con distintas tarifas permite planificar "
+"ante cambios en los precios de los medios o en los tipos de cambio sin "
+"volver a ajustar el modelo."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:520019
+#: d921184d00e34d5789d2c4bc9e8cabb7
+#, python-brace-format
+msgid ""
+"When media *prices* trend over the sample and spend is the model input, "
+"adjust or replace that input *before* `fit`. See "
+"{ref}`mmm_media_inflation`. `cost_per_unit` does not rewrite the media "
+"input."
+msgstr ""
+"Cuando los *precios* de los medios muestran una tendencia a lo largo de la "
+"muestra y el gasto es la entrada del modelo, ajuste o reemplace esa entrada "
+"*antes de* `fit`. Consulte {ref}`mmm_media_inflation`. `cost_per_unit` no "
+"reescribe la entrada de medios."
+
+#: ../source/notebooks/mmm/mmm_cost_per_unit.ipynb:520022
+#: db86751fb2864672b189243bc09cab30
+#, python-brace-format
+msgid ""
+"When the price per unit rises with the spend, `PowerPriceResponse` prices"
+" it. It needs a fit in delivery units and an explicit "
+"`assume_delivery_units=True`. Read `implied_price` on every channel and "
+"sweep the elasticity before trusting the plan. See "
+"{ref}`mmm_cost_per_unit_price_response`."
+msgstr ""
+"Cuando el precio por unidad sube con el gasto, `PowerPriceResponse` le fija "
+"el precio. Requiere un ajuste en unidades de entrega y un "
+"`assume_delivery_units=True` explícito. Lea `implied_price` en cada canal y "
+"barra la elasticidad antes de confiar en el plan. Consulte "
+"{ref}`mmm_cost_per_unit_price_response`."
+

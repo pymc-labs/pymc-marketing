@@ -1,0 +1,3937 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2026, PyMC Labs
+# This file is distributed under the same license as the PyMC-Marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyMC-Marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:10003
+#: 7eeddc1312e347f4b2726746d9fd8251
+msgid "Additive vs Log vs Log-Log Marketing Mix Models"
+msgstr "Modelos de mezcla de marketing aditivo, log y log-log"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:10005
+#: e1bd6408a66d4841bc269f741ec653ee
+msgid ""
+"This notebook compares three MMM specifications available through the "
+"`link` parameter on the `MMM` class:"
+msgstr ""
+"Este cuaderno compara tres especificaciones de MMM disponibles a través del "
+"parámetro `link` de la clase `MMM`:"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb
+#: becb8bcfb0254681a306b903a9e80609
+msgid "Model"
+msgstr "Modelo"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb
+#: 8af09643d08e44bf9fdacdd2c846786e
+msgid "`link`"
+msgstr "`link`"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb
+#: 8bf320cc00744c3a981ba363eebf177b
+msgid "Saturation"
+msgstr "Saturación"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb
+#: 3d50c21ba53945b48907d74b436ac9d2
+msgid "Likelihood"
+msgstr "Verosimilitud"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb
+#: 61e981e38c014fc982d1807cea5c9c6c
+msgid "Interpretation"
+msgstr "Interpretación"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb
+#: 92524aafa3cf4bf7ad6ed64a280ee164
+msgid "**Additive**"
+msgstr "**Aditivo**"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb
+#: d0bd78d06251404288e8e9d9b92a7185
+msgid "`\"identity\"`"
+msgstr "`\"identity\"`"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb
+#: a4e671ec5ba446b3b2287f1701ea1c42 b8e4af6fedab4ba59873c3a14c310221
+msgid "`LogisticSaturation`"
+msgstr "`LogisticSaturation`"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb
+#: 97508eb6037541349bb0510dec9fe580
+msgid "Normal"
+msgstr "Normal"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb
+#: f6addd81170e4c3d9128d91a05c1f4b9
+msgid "Components add to the conditional mean"
+msgstr "Los componentes se suman a la media condicional"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb
+#: 2b78707b808541899bd12a594c2a3924
+msgid "**Log (multiplicative)**"
+msgstr "**Log (multiplicativo)**"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb
+#: 0831c184bfaa49a692be563781affa5e 8cd6737da6584270b4d443781e1e579e
+msgid "`\"log\"`"
+msgstr "`\"log\"`"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb
+#: 2889fcbfbf44436c86f8bfa0675d7fe0 d26f03dcbc314c53a6bbc3af90f78cbe
+msgid "LogNormal"
+msgstr "LogNormal"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb
+#: e367678d40204cd791222e9889ef943d
+msgid "Additive on the log scale; factors multiply on the outcome scale"
+msgstr ""
+"Aditivo en la escala logarítmica; los factores se multiplican en la escala "
+"del resultado"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb
+#: 3c958536881a40209e7e4a7a4a622a6c
+msgid "**Log-log**"
+msgstr "**Log-log**"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb
+#: 8dc3abf178bf485aa70c564322fc319a
+msgid "`LogSaturation`"
+msgstr "`LogSaturation`"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb
+#: c025ec7a05dd45cd95fb50ea1dc55e78
+msgid "Log response with a $\\log(1+x)$ spend transform"
+msgstr "Respuesta logarítmica con una transformación $\\log(1+x)$ del gasto"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:10013
+#: c0eff01f59cd43fcafd14236f5f4bad5
+msgid ""
+"After comparing the three decompositions, we compare the models on a "
+"single estimand that *is* directly comparable across links: ROAS, "
+"computed with the `mmm.incrementality` module and checked against the "
+"true ROAS of the simulated data."
+msgstr ""
+"Después de comparar las tres descomposiciones, comparamos los modelos en un "
+"único estimando que *sí* es directamente comparable entre funciones de "
+"enlace: el ROAS, calculado con el módulo `mmm.incrementality` y contrastado "
+"con el ROAS verdadero de los datos simulados."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:10015
+#: 7e48e7fd22904e5f9314998e4fb117d5
+msgid ""
+"Finally, we use the three models to plan the budget of the next quarter "
+"and check every plan against the true optimum of the simulated data. This"
+" shows how much the link function and the saturation choice change the "
+"optimal split, the forecasted lift, and the timing of the spend."
+msgstr ""
+"Por último, usamos los tres modelos para planificar el presupuesto del "
+"próximo trimestre y comprobamos cada plan frente al óptimo verdadero de los "
+"datos simulados. Esto muestra cuánto cambian la función de enlace y la "
+"elección de la saturación la distribución óptima, el aumento pronosticado y "
+"el momento del gasto."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:10017
+#: 8cae44eb9ba84e5d8b0d6b296c3d5f73
+msgid "Mathematical Formulation"
+msgstr "Formulación matemática"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:10019
+#: b4594a4d7fd74034a761a0b2409da09c
+msgid ""
+"All three models build an additive **linear predictor**, but the link and"
+" channel saturation transform differ. Write the predictor at time $t$ as"
+msgstr ""
+"Los tres modelos construyen un **predictor lineal** aditivo, pero la función"
+" de enlace y la transformación de saturación de los canales difieren. "
+"Escribimos el predictor en el tiempo $t$ como"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:10021
+#: 0d893a9bece84c269d484b0100325aef
+#, python-brace-format
+msgid ""
+"\n"
+"\\mu_t = \\text{intercept} + \\sum_c "
+"\\text{saturation}_c(\\text{adstock}_c(x_{c,t})) + \\text{controls}_t + "
+"\\text{seasonality}_t.\n"
+msgstr ""
+"\n"
+"\\mu_t = \\text{intercept} + \\sum_c \\text{saturation}_c(\\text{adstock}_c(x_{c,t})) + \\text{controls}_t + \\text{seasonality}_t.\n"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:10025
+#: 88bc3472f2b447a19b595537dde2a1c0
+msgid ""
+"The identity-link and log-link models use `LogisticSaturation`; the log-"
+"log model uses `LogSaturation`. The predictor's terms add together in "
+"each model. What changes is how $\\mu_t$ maps to the observed target "
+"$y_t$:"
+msgstr ""
+"Los modelos con enlace identidad y con enlace log usan `LogisticSaturation`;"
+" el modelo log-log usa `LogSaturation`. Los términos del predictor se suman "
+"en cada modelo. Lo que cambia es cómo $\\mu_t$ se asigna al objetivo "
+"observado $y_t$:"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:10027
+#: 45ec7d99ab24477890b548c4b6282421
+msgid "1. Additive (Identity Link)"
+msgstr "1. Aditivo (enlace identidad)"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:10029
+#: 2f8921bd123247c092cef69dfd9add8b
+msgid ""
+"\n"
+"y_{\\text{scaled},t} \\sim \\text{Normal}(\\mu_t, \\sigma)\n"
+msgstr ""
+"\n"
+"y_{\\text{scaled},t} \\sim \\text{Normal}(\\mu_t, \\sigma)\n"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:10033
+#: e1e69034e04f483aaff45251adf5de35
+msgid ""
+"Here $\\mu_t$ is the conditional mean of the scaled target. Channel, "
+"control, and seasonal contributions add on the target scale."
+msgstr ""
+"Aquí $\\mu_t$ es la media condicional del objetivo escalado. Las "
+"contribuciones de los canales, los controles y la estacionalidad se suman en"
+" la escala del objetivo."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:10035
+#: de9db186d1ee4516bad72437ebbbbc3c
+msgid "2. Log (Multiplicative)"
+msgstr "2. Log (multiplicativo)"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:10037
+#: bd494195441141168656dd7803a8f379
+msgid ""
+"\n"
+"\\log(y_{\\text{scaled},t}) \\sim \\text{Normal}(\\mu_t, \\sigma),\n"
+"\\qquad\n"
+" y_{\\text{scaled},t} = \\exp(\\mu_t + \\epsilon_t),\n"
+"\\quad \\epsilon_t \\sim \\text{Normal}(0, \\sigma).\n"
+msgstr ""
+"\n"
+"\\log(y_{\\text{scaled},t}) \\sim \\text{Normal}(\\mu_t, \\sigma),\n"
+"\\qquad\n"
+" y_{\\text{scaled},t} = \\exp(\\mu_t + \\epsilon_t),\n"
+"\\quad \\epsilon_t \\sim \\text{Normal}(0, \\sigma).\n"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:10044
+#: b6b4ffcce94241149353097a2736a192
+msgid ""
+"The product form comes from substituting the definition of $\\mu_t$ and "
+"exponentiating it:"
+msgstr ""
+"La forma de producto surge al sustituir la definición de $\\mu_t$ y "
+"aplicarle la exponencial:"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:10046
+#: 6bb15c6c974e41bc8656aa8f5a8b5efb
+msgid ""
+"\n"
+"\\begin{aligned}\n"
+"\\operatorname{median}(y_{\\text{scaled},t} \\mid x_t)\n"
+"&= \\exp(\\mu_t) \\\\\n"
+"&= \\exp(\\text{intercept}) \\times \\prod_c "
+"\\exp\\!\\left[\\text{saturation}_c(\\text{adstock}_c(x_{c,t}))\\right] "
+"\\\\\n"
+"&\\quad \\times \\exp(\\text{controls}_t) \\times "
+"\\exp(\\text{seasonality}_t).\n"
+"\\end{aligned}\n"
+msgstr ""
+"\n"
+"\\begin{aligned}\n"
+"\\operatorname{median}(y_{\\text{scaled},t} \\mid x_t)\n"
+"&= \\exp(\\mu_t) \\\\\n"
+"&= \\exp(\\text{intercept}) \\times \\prod_c \\exp\\!\\left[\\text{saturation}_c(\\text{adstock}_c(x_{c,t}))\\right] \\\\\n"
+"&\\quad \\times \\exp(\\text{controls}_t) \\times \\exp(\\text{seasonality}_t).\n"
+"\\end{aligned}\n"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:10055
+#: 9beb887d8c8e4440800a15ca7e4d9a21
+msgid ""
+"So the terms are added in $\\mu_t$, then become multiplicative factors on"
+" the outcome scale. $\\exp(\\mu_t)$ is the conditional median of a "
+"LogNormal outcome; its conditional mean is $\\exp(\\mu_t + \\sigma^2/2)$."
+" This model does not add an explicit interaction term such as $x_1 x_2$ "
+"to $\\mu_t$. Exponentiation nevertheless induces an interaction on the "
+"outcome scale: the absolute lift from one channel depends on the other "
+"channels' spend, because their factors multiply. This distinction "
+"explains the overlapping counterfactual contributions discussed below."
+msgstr ""
+"Así, los términos se suman en $\\mu_t$ y luego se convierten en factores "
+"multiplicativos en la escala del resultado. $\\exp(\\mu_t)$ es la mediana "
+"condicional de un resultado LogNormal; su media condicional es $\\exp(\\mu_t"
+" + \\sigma^2/2)$. Este modelo no añade a $\\mu_t$ un término de interacción "
+"explícito como $x_1 x_2$. Sin embargo, la exponencial induce una interacción"
+" en la escala del resultado: el aumento absoluto de un canal depende del "
+"gasto de los demás canales, porque sus factores se multiplican. Esta "
+"distinción explica las contribuciones contrafactuales superpuestas que se "
+"discuten más adelante."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:10057
+#: d66c67c2d7534d1b863437875478e640
+msgid "3. Log-Log"
+msgstr "3. Log-log"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:10059
+#: fa7a60e2a22f497285c7f03d31f2df85
+msgid ""
+"Same as the log model, but the saturation function is $\\beta \\log(1 + "
+"x)$ (`LogSaturation`) applied to **raw spend** instead of a sigmoidal "
+"curve. Both sides of the relationship are then on a log scale (log "
+"response, log spend), which is why we call it a *log-log* model."
+msgstr ""
+"Igual que el modelo log, pero la función de saturación es $\\beta \\log(1 + "
+"x)$ (`LogSaturation`) aplicada al **gasto sin procesar** en lugar de una "
+"curva sigmoidea. Así, ambos lados de la relación están en escala logarítmica"
+" (respuesta logarítmica, gasto logarítmico), por lo que lo llamamos un "
+"modelo *log-log*."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:10061
+#: 958343989b86480e8eb0c2ba3358286b
+msgid ""
+"Use this when channel response is concave in log-spend and you want a "
+"simple, interpretable functional form. $\\log(1 + x)$ (rather than $\\log"
+" x$) keeps the transform finite at $x = 0$, which is common for paused "
+"channels."
+msgstr ""
+"Utilícelo cuando la respuesta del canal es cóncava en el log del gasto y se "
+"desea una forma funcional simple e interpretable. $\\log(1 + x)$ (en lugar "
+"de $\\log x$) mantiene la transformación finita en $x = 0$, algo común en "
+"canales en pausa."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:10063
+#: ba9dbba9a4ca4593a40ec3bd8f732478
+msgid "Trend Handling"
+msgstr "Manejo de la tendencia"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:10065
+#: 7289e4f6cc434aaa841cfe1315a82c99
+msgid ""
+"A raw integer trend $t = 0, 1, \\ldots, n$ behaves differently depending "
+"on the link function:"
+msgstr ""
+"Una tendencia entera sin procesar $t = 0, 1, \\ldots, n$ se comporta de "
+"forma distinta según la función de enlace:"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:10067
+#: ad094cbb76eb43ba83c532ae4adc5651
+msgid "**Identity link**: $\\gamma_t \\cdot t$ adds a **linear** trend to $y$."
+msgstr ""
+"**Enlace identidad**: $\\gamma_t \\cdot t$ añade una tendencia **lineal** a "
+"$y$."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:10068
+#: c7aa9c45d4ca4d3a9a1fb6e5920a8c8c
+msgid ""
+"**Log link**: $\\gamma_t \\cdot t$ in log-space gives **exponential** "
+"growth $y \\propto \\exp(\\gamma_t \\cdot t)$."
+msgstr ""
+"**Enlace log**: $\\gamma_t \\cdot t$ en el espacio logarítmico produce un "
+"crecimiento **exponencial** $y \\propto \\exp(\\gamma_t \\cdot t)$."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:10070
+#: 86ee35ab137f423f8b7488b21b3537d1
+#, python-brace-format
+msgid ""
+"With the quickstart's prior $\\gamma \\sim \\text{Normal}(0, 0.05)$ and "
+"$t$ up to ~200, the log-space contribution could reach $\\exp(10) "
+"\\approx 22{,}000\\times$, completely degenerate. To avoid this, we "
+"**normalize the trend to $[0, 1]$** for the log and log-log models, so "
+"$\\gamma_t$ directly represents the total multiplicative trend factor via"
+" $\\exp(\\gamma_t)$."
+msgstr ""
+"Con el prior del inicio rápido $\\gamma \\sim \\text{Normal}(0, 0.05)$ y $t$"
+" hasta ~200, la contribución en el espacio logarítmico podría llegar a "
+"$\\exp(10) \\approx 22{,}000\\times$, algo completamente degenerado. Para "
+"evitarlo, **normalizamos la tendencia a $[0, 1]$** en los modelos log y log-"
+"log, de modo que $\\gamma_t$ representa directamente el factor "
+"multiplicativo total de la tendencia mediante $\\exp(\\gamma_t)$."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:20002
+#: a67ebf5b1e85491daa756bf2848edf45
+msgid "Choosing a Multiplicative Model"
+msgstr "Elegir un modelo multiplicativo"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:20004
+#: e7ba1a57d77c4224bdd5be8beb15010f
+msgid ""
+"Why would we choose a log or a log-log model over the additive one? Here "
+"are three common reasons:"
+msgstr ""
+"¿Por qué elegiríamos un modelo log o log-log en lugar del aditivo? Estas son"
+" tres razones comunes:"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:20006
+#: 80d817611ef04d209a898d862fd65452
+msgid ""
+"**Effects that scale with the baseline.** Under the log link, the same "
+"spend sells more in a week with high baseline sales, for example in the "
+"holiday season or after a period of growth. In the additive model the "
+"lift does not depend on the baseline."
+msgstr ""
+"**Efectos que escalan con la línea base.** Con el enlace log, el mismo gasto"
+" vende más en una semana con ventas base altas, por ejemplo en la temporada "
+"navideña o tras un período de crecimiento. En el modelo aditivo, el aumento "
+"no depende de la línea base."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:20007
+#: f304fbe6fda944cabc45ce37712ae0bf
+msgid ""
+"**Errors that scale with the level.** The LogNormal likelihood has errors"
+" that are proportional to the level of sales. This fits a strictly "
+"positive target whose standard deviation grows in proportion to its mean."
+msgstr ""
+"**Errores que escalan con el nivel.** La verosimilitud LogNormal tiene "
+"errores proporcionales al nivel de ventas. Esto se ajusta a un objetivo "
+"estrictamente positivo cuya desviación estándar crece en proporción a su "
+"media."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:20008
+#: ed67fcd342f844eca2067c50bb6bb0ea
+msgid ""
+"**Elasticities.** In the log-log model the coefficient $\\beta_c$ is "
+"approximately an elasticity: the percentage change of sales for a $1\\%$ "
+"change of spend. This holds when the spend is large compared with one "
+"unit of spend."
+msgstr ""
+"**Elasticidades.** En el modelo log-log, el coeficiente $\\beta_c$ es "
+"aproximadamente una elasticidad: el cambio porcentual de las ventas ante un "
+"cambio de $1\\%$ en el gasto. Esto se cumple cuando el gasto es grande en "
+"comparación con una unidad de gasto."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:20010
+#: adc4899e96d64888afcb1910a7926939
+msgid ""
+"How should you read the components of a multiplicative model? Each term "
+"of $\\mu_t$ becomes a factor on the median sales:"
+msgstr ""
+"¿Cómo se deben leer los componentes de un modelo multiplicativo? Cada "
+"término de $\\mu_t$ se convierte en un factor sobre la mediana de las "
+"ventas:"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:20012
+#: 387d92f192f0459880fc0e07b6aa8337
+msgid ""
+"**Media**: channel $c$ multiplies sales by $e^{m_{c,t}}$, where $m_{c,t}$"
+" is its term in $\\mu_t$. So its *percentage* lift is $e^{m_{c,t}} - 1$. "
+"Its absolute lift is this percentage of the median sales that the model "
+"predicts without the channel, so it grows with the baseline and with the "
+"spend on the other channels."
+msgstr ""
+"**Medios**: el canal $c$ multiplica las ventas por $e^{m_{c,t}}$, donde "
+"$m_{c,t}$ es su término en $\\mu_t$. Por tanto, su aumento *porcentual* es "
+"$e^{m_{c,t}} - 1$. Su aumento absoluto es este porcentaje de la mediana de "
+"ventas que el modelo predice sin el canal, por lo que crece con la línea "
+"base y con el gasto en los demás canales."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:20013
+#: 3ff67c8f476b4a978d284f1690b17178
+msgid ""
+"**Seasonality**: the factor $e^{\\text{seasonality}_t}$ tells how much "
+"higher or lower sales are in week $t$ than in a week with a zero seasonal"
+" term, at the same spend and controls. It also scales the absolute lift "
+"of every channel in that week."
+msgstr ""
+"**Estacionalidad**: el factor $e^{\\text{seasonality}_t}$ indica cuánto más "
+"altas o más bajas son las ventas en la semana $t$ que en una semana con un "
+"término estacional cero, con el mismo gasto y los mismos controles. También "
+"escala el aumento absoluto de cada canal en esa semana."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:20014
+#: d2c9fb63c06d467a85e8f66af9dfe602
+#, python-brace-format
+msgid ""
+"**Controls**: a control $z_t$ with coefficient $\\gamma$ multiplies sales"
+" by $e^{\\gamma z_t}$. An event week with $z_t = 1$ lifts sales by the "
+"fraction $e^{\\gamma} - 1$, which is close to $\\gamma$ when $\\gamma$ is"
+" small. A positive event also raises the absolute lift of the media in "
+"that week. The trend works the same way (see Trend Handling above)."
+msgstr ""
+"**Controles**: un control $z_t$ con coeficiente $\\gamma$ multiplica las "
+"ventas por $e^{\\gamma z_t}$. Una semana de evento con $z_t = 1$ eleva las "
+"ventas en la fracción $e^{\\gamma} - 1$, que es cercana a $\\gamma$ cuando "
+"$\\gamma$ es pequeño. Un evento positivo también eleva el aumento absoluto "
+"de los medios en esa semana. La tendencia funciona del mismo modo (véase "
+"Manejo de la tendencia más arriba)."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:20015
+#: 5ba40e0415a941ecb5f9776669e89789
+msgid ""
+"**Intercept**: $e^{\\text{intercept}}$ is the baseline level that all the"
+" other factors multiply."
+msgstr ""
+"**Intercepto**: $e^{\\text{intercept}}$ es el nivel base que multiplican "
+"todos los demás factores."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:20017
+#: 40c0250212b3416b8fecf8865b9d5213
+msgid ""
+"In other words, in a multiplicative model the *percentage* effect of each"
+" component depends only on that component, while its *absolute* effect "
+"moves with all the others."
+msgstr ""
+"En otras palabras, en un modelo multiplicativo el efecto *porcentual* de "
+"cada componente depende solo de ese componente, mientras que su efecto "
+"*absoluto* varía con todos los demás."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:20019
+#: c2948e6bf13a4bdabc9db5146be04c0b
+msgid ""
+"Why not add explicit interaction terms to an additive model instead? The "
+"two approaches make different assumptions:"
+msgstr ""
+"¿Por qué no añadir mejor términos de interacción explícitos a un modelo "
+"aditivo? Los dos enfoques hacen supuestos distintos:"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:20021
+#: fb4f2fd023104fa7bc46e5478fba736a
+msgid ""
+"**Log link**: every component scales every other component (media with "
+"media, media with seasonality, media with controls). The interaction has "
+"one fixed form and no extra parameters."
+msgstr ""
+"**Enlace log**: cada componente escala a todos los demás (medios con medios,"
+" medios con estacionalidad, medios con controles). La interacción tiene una "
+"única forma fija y no requiere parámetros adicionales."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:20022
+#: 8e0cab19991c48e2a9e663037d6b1185
+msgid ""
+"**Explicit interaction terms**: we add only the interactions that we "
+"expect, each with its own parameters, and the data decide how strong they"
+" are. This costs parameters, and an interaction gets information mostly "
+"from the weeks in which its channels run together."
+msgstr ""
+"**Términos de interacción explícitos**: añadimos solo las interacciones que "
+"esperamos, cada una con sus propios parámetros, y los datos deciden qué tan "
+"fuertes son. Esto cuesta parámetros, y una interacción obtiene información "
+"principalmente de las semanas en las que sus canales operan juntos."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:20024
+#: bc5696bf0eba4f94853ed2e152802260
+#, python-brace-format
+msgid ""
+"See {ref}`mmm_mu_effects_intro`, which adds a channel interaction to the "
+"additive model of this notebook, on the same data, and compares it with "
+"the dependence that the log link creates."
+msgstr ""
+"Véase {ref}`mmm_mu_effects_intro`, que añade una interacción entre canales "
+"al modelo aditivo de este cuaderno, con los mismos datos, y la compara con "
+"la dependencia que crea el enlace log."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:20027
+#: 9dded415a5634aa98287a5925d00a28b
+msgid ""
+"**Other structures**: The `link` argument changes the whole model at "
+"once. `link=\"log\"` makes every component multiplicative and requires "
+"the LogNormal likelihood. Mixed structures are not available through "
+"`link`, for example a multiplicative media factor $e^{\\text{media}}$ "
+"added to additive controls and seasonality. Issue "
+"[#3088](https://github.com/pymc-labs/pymc-marketing/issues/3088) "
+"discusses how to build them."
+msgstr ""
+"**Otras estructuras**: El argumento `link` cambia todo el modelo a la vez. "
+"`link=\"log\"` hace que todos los componentes sean multiplicativos y "
+"requiere la verosimilitud LogNormal. Las estructuras mixtas no están "
+"disponibles a través de `link`, por ejemplo un factor multiplicativo de "
+"medios $e^{\\text{media}}$ sumado a controles y estacionalidad aditivos. El "
+"issue [#3088](https://github.com/pymc-labs/pymc-marketing/issues/3088) "
+"discute cómo construirlas."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:30002
+#: 831db170649f46d0bd5de3803af12720
+msgid "Prepare Notebook"
+msgstr "Preparar el cuaderno"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:50002
+#: 957b1477cc954789ae2ab90a9f8c4cf7
+msgid ""
+"**Caption:** Schematic response surfaces for two channels under the "
+"additive, log-link, and log-log forms. Both axes show spend indices from "
+"0 to 10; color shows the lift of the conditional median (equal to the "
+"mean in the Normal panel) over zero spend, on a shared outcome index "
+"scale with baseline 100. The identity and log-link panels use the same "
+"logistic saturation transform, while the log-log panel uses $\\log(1+x)$."
+" The labels show the lift at three exemplar points: channel 1 alone at "
+"spend 4, channel 2 alone at spend 6, and both together. Parameters are "
+"illustrative, and the schematic omits adstock, controls, and seasonality."
+msgstr ""
+"**Leyenda:** Superficies de respuesta esquemáticas para dos canales bajo las"
+" formas aditiva, con enlace log y log-log. Ambos ejes muestran índices de "
+"gasto de 0 a 10; el color muestra el aumento de la mediana condicional "
+"(igual a la media en el panel Normal) sobre el gasto cero, en una escala de "
+"índice de resultado compartida con línea base 100. Los paneles de identidad "
+"y de enlace log usan la misma transformación de saturación logística, "
+"mientras que el panel log-log usa $\\log(1+x)$. Las etiquetas muestran el "
+"aumento en tres puntos de ejemplo: el canal 1 solo con gasto 4, el canal 2 "
+"solo con gasto 6, y ambos juntos. Los parámetros son ilustrativos, y el "
+"esquema omite adstock, controles y estacionalidad."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:70002
+#: dff244d0252a49cd8d76edb5b7f06a01
+msgid ""
+"The additive panel has curved contours because it sums nonlinear "
+"saturation functions; with linear channel effects instead, its response "
+"surface would be a plane with straight, parallel contours. The log "
+"panel's contours have the same shape, because its outcome is a monotone "
+"function of the same sum of saturated terms. The synergy shows in the "
+"lift values, not in the shape of the contours."
+msgstr ""
+"El panel aditivo tiene contornos curvos porque suma funciones de saturación "
+"no lineales; con efectos de canal lineales, en cambio, su superficie de "
+"respuesta sería un plano con contornos rectos y paralelos. Los contornos del"
+" panel log tienen la misma forma, porque su resultado es una función "
+"monótona de la misma suma de términos saturados. La sinergia se ve en los "
+"valores de aumento, no en la forma de los contornos."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:70004
+#: f6e828fa2c4c4e62b5169ba8ccfc0027
+msgid ""
+"**Takeaway:** In the additive panel, the lift of running both channels "
+"together is the sum of their separate lifts: $50.0 + 56.8 = 106.8$. In "
+"the log panel, the separate lifts sum to $39.6 + 46.0 = 85.6$, but "
+"running both together lifts the outcome by $103.8$. The extra $103.8 - "
+"85.6 = 18.2$ units are the synergy: the log-link response has an "
+"interaction on the outcome scale even though its predictor has no cross "
+"term. The log-log panel has the same multiplicative mechanism, with a "
+"different spend transform: $70.5 - (27.3 + 33.9) = 9.3$ units of synergy."
+" These values illustrate the chosen parameters; they are not fitted "
+"results."
+msgstr ""
+"**Conclusión:** En el panel aditivo, el aumento de ejecutar ambos canales "
+"juntos es la suma de sus aumentos por separado: $50.0 + 56.8 = 106.8$. En el"
+" panel log, los aumentos por separado suman $39.6 + 46.0 = 85.6$, pero "
+"ejecutar ambos juntos eleva el resultado en $103.8$. Las $103.8 - 85.6 = "
+"18.2$ unidades adicionales son la sinergia: la respuesta con enlace log "
+"tiene una interacción en la escala del resultado aunque su predictor no "
+"tenga un término cruzado. El panel log-log tiene el mismo mecanismo "
+"multiplicativo, con una transformación del gasto distinta: $70.5 - (27.3 + "
+"33.9) = 9.3$ unidades de sinergia. Estos valores ilustran los parámetros "
+"elegidos; no son resultados ajustados."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:90002
+#: 033f8cc8ebc24f9397354e095be800b1
+msgid "Data Loading and Preparation"
+msgstr "Carga y preparación de los datos"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:90004
+#: 393721773df141699dda762d5b27b629
+msgid ""
+"We use a synthetic weekly dataset with two media channels (`x1`, `x2`), "
+"two event indicators, and a sales target. All three models will be fitted"
+" to the same data so that any differences in the decomposition reflect "
+"the model specification, not the training set."
+msgstr ""
+"Usamos un conjunto de datos semanal sintético con dos canales de medios "
+"(`x1`, `x2`), dos indicadores de eventos y un objetivo de ventas. Los tres "
+"modelos se ajustarán a los mismos datos, de modo que cualquier diferencia en"
+" la descomposición refleje la especificación del modelo y no el conjunto de "
+"entrenamiento."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:90007
+#: ef5a501fd0ea4cf4b5c0830e885e6c68
+#, python-brace-format
+msgid ""
+"**Data-generating process**: The data come from the additive process of "
+"{ref}`mmm_example`, with geometric adstock and logistic saturation (see "
+"the ROAS Comparison below for the true parameters). So the additive model"
+" is the well-specified one (up to its linear trend, as the true trend is "
+"concave), and the two log models are misspecified on purpose. We ask how "
+"much the link function changes the decomposition, the ROAS and the budget"
+" plan when the truth is additive. A parameter-recovery check, where we "
+"fit each model to data simulated from its own specification, is a natural"
+" next step (see Next Steps)."
+msgstr ""
+"**Proceso generador de datos**: Los datos provienen del proceso aditivo de "
+"{ref}`mmm_example`, con adstock geométrico y saturación logística (véanse "
+"los parámetros verdaderos en la comparación de ROAS más abajo). Por tanto, "
+"el modelo aditivo es el bien especificado (salvo por su tendencia lineal, ya"
+" que la tendencia verdadera es cóncava), y los dos modelos log están mal "
+"especificados a propósito. Nos preguntamos cuánto cambia la función de "
+"enlace la descomposición, el ROAS y el plan de presupuesto cuando la verdad "
+"es aditiva. Una verificación de recuperación de parámetros, en la que "
+"ajustamos cada modelo a datos simulados a partir de su propia "
+"especificación, es un siguiente paso natural (véase Próximos pasos)."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:140002
+#: bc31f91ce37a4aa0b33334f8de73518b
+msgid ""
+"Channel `x1` carries the bulk of the spend and shows clear seasonality; "
+"`x2` is smaller and more sporadic. Sales visually track `x1`, suggesting "
+"it will dominate the estimated media effect. The two event columns (not "
+"plotted) are binary indicators for one-off promotions."
+msgstr ""
+"El canal `x1` concentra la mayor parte del gasto y muestra una "
+"estacionalidad clara; `x2` es más pequeño y esporádico. Visualmente, las "
+"ventas siguen a `x1`, lo que sugiere que dominará el efecto estimado de los "
+"medios. Las dos columnas de eventos (que no se grafican) son indicadores "
+"binarios de promociones puntuales."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:150002
+#: 9664017243de4656b46f12befd04d79d
+msgid "Spend Shares and Prior Configuration"
+msgstr "Proporciones de gasto y configuración de los priors"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:150004
+#: 5c2725bcbce04ba0a5413d60e18f1503
+msgid ""
+"We scale the prior standard deviations for the channel coefficients by "
+"each channel's share of total spend. This way, channels with higher spend"
+" get wider priors, allowing the model to assign them proportionally "
+"larger effects while keeping the overall prior mass comparable across "
+"channels."
+msgstr ""
+"Escalamos las desviaciones estándar de los priors de los coeficientes de los"
+" canales según la proporción de cada canal en el gasto total. De este modo, "
+"los canales con mayor gasto obtienen priors más amplios, lo que permite al "
+"modelo asignarles efectos proporcionalmente mayores y mantener comparable "
+"entre canales la masa total del prior."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:170002
+#: b04b958bb5104be5b4056c5ff00913f2
+msgid "Model 1: Additive (Identity Link)"
+msgstr "Modelo 1: aditivo (enlace identidad)"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:170004
+#: f150334c3f5f41078fe9f816a8210af4
+msgid ""
+"This is the standard additive MMM from the quickstart notebook. The "
+"linear predictor $\\mu$ maps directly to the expected value of $y$ via "
+"the identity link and a Normal likelihood."
+msgstr ""
+"Este es el MMM aditivo estándar del cuaderno de inicio rápido. El predictor "
+"lineal $\\mu$ se asigna directamente al valor esperado de $y$ mediante el "
+"enlace identidad y una verosimilitud Normal."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:200002
+#: 068e660362ad42649dc7b2a524166305
+msgid ""
+"Sampling complete. Before looking into the results, let's check some "
+"diagnostics. First, we count the divergences of the sampler (ideally "
+"zero)."
+msgstr ""
+"El muestreo ha terminado. Antes de ver los resultados, revisemos algunos "
+"diagnósticos. Primero, contamos las divergencias del muestreador (idealmente"
+" cero)."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:220002
+#: d16a6fe46ebf4b83b39bf1be2488d0e8
+msgid ""
+"The additive model has no divergences. Next, we inspect the trace plots "
+"of the media parameters."
+msgstr ""
+"El modelo aditivo no tiene divergencias. A continuación, inspeccionamos los "
+"gráficos de traza de los parámetros de medios."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:240002
+#: fd39b19694664fe2af3c2706fa7e1921
+msgid ""
+"Well-behaved traces show stationary chains that mix well and overlap in "
+"their marginal densities."
+msgstr ""
+"Las trazas bien comportadas muestran cadenas estacionarias que se mezclan "
+"bien y cuyas densidades marginales se superponen."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:240004
+#: 80f5c177efc1455d8c56133ec2a44aa6
+msgid ""
+"Next, we look at the posterior predictive check. The helper below plots "
+"the posterior predictive draws of `y` on the original scale, `y * "
+"target_scale`, which is the same quantity under every link. Under the log"
+" link, the noise-free prediction `mu_original_scale` is the LogNormal "
+"median instead."
+msgstr ""
+"A continuación, observamos la verificación predictiva posterior. La función "
+"auxiliar siguiente grafica las muestras predictivas posteriores de `y` en la"
+" escala original, `y * target_scale`, que es la misma cantidad con cualquier"
+" función de enlace. Con el enlace log, la predicción sin ruido "
+"`mu_original_scale` es, en cambio, la mediana LogNormal."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:260002
+#: aa88901702a94a1eb1e6f7866a90b597
+msgid ""
+"The posterior mean closely tracks the observed data and the HDI bands are"
+" reasonably tight, indicating a good in-sample fit. The model captures "
+"the seasonal pattern visible in the raw sales data."
+msgstr ""
+"La media posterior sigue de cerca los datos observados y las bandas HDI son "
+"razonablemente estrechas, lo que indica un buen ajuste dentro de la muestra."
+" El modelo captura el patrón estacional visible en los datos de ventas sin "
+"procesar."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:270002
+#: 5890aa2835d349ad9b209d2ca6173131
+msgid "Decomposing contributions in the additive model"
+msgstr "Descomposición de las contribuciones en el modelo aditivo"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:270004
+#: fa2584ab244f4809a23b47a7bfe323d6
+msgid ""
+"`compute_mean_contributions_over_time()` uses a **unified counterfactual "
+"decomposition** for all link types. Each column answers: *\"how much "
+"would $\\hat y(t)$ decrease if we removed this component?\"*"
+msgstr ""
+"`compute_mean_contributions_over_time()` usa una **descomposición "
+"contrafactual unificada** para todos los tipos de enlace. Cada columna "
+"responde: *\"¿cuánto disminuiría $\\hat y(t)$ si elimináramos este "
+"componente?\"*"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:270006
+#: d87cdd3a3c03457ba2673f5c41308903
+msgid "For component $j$ with value $v_j(t)$ in the linear predictor:"
+msgstr "Para el componente $j$ con valor $v_j(t)$ en el predictor lineal:"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:270008
+#: 6017ed65e24a441b8cf0ec7c25562b7c
+#, python-brace-format
+msgid ""
+"\n"
+"\\text{contribution}_j(t)\n"
+"= \\mathbb{E}\\bigl[\\text{inv}(\\mu) \\cdot s\\bigr]\n"
+"- \\mathbb{E}\\bigl[\\text{inv}(\\mu - v_j) \\cdot s\\bigr]\n"
+msgstr ""
+"\n"
+"\\text{contribution}_j(t)\n"
+"= \\mathbb{E}\\bigl[\\text{inv}(\\mu) \\cdot s\\bigr]\n"
+"- \\mathbb{E}\\bigl[\\text{inv}(\\mu - v_j) \\cdot s\\bigr]\n"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:270014
+#: 0d8db2cb2de4442d9c18445e111f5697
+#, python-brace-format
+msgid "where $\\text{inv}$ is the inverse link and $s$ = `target_scale`."
+msgstr "donde $\\text{inv}$ es el enlace inverso y $s$ = `target_scale`."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:270016
+#: 619c1d72e1974fa390f9e30152c00d06
+#, python-brace-format
+msgid ""
+"With an identity link $\\text{inv}$ is the identity function, so this "
+"simplifies to:"
+msgstr ""
+"Con un enlace identidad, $\\text{inv}$ es la función identidad, por lo que "
+"esto se simplifica a:"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:270018
+#: 31ead01469314acfb960b391caefcf8f
+#, python-brace-format
+msgid ""
+"\n"
+"\\text{contribution}_j(t) = \\mathbb{E}[v_j(t)] \\cdot s\n"
+msgstr ""
+"\n"
+"\\text{contribution}_j(t) = \\mathbb{E}[v_j(t)] \\cdot s\n"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:270022
+#: 59effa60ef91437f87a8672e7fb31427
+msgid ""
+"The resulting columns **sum exactly to $\\hat y(t)$** at every date. Each"
+" line in the decomposition plot below can be read as *\"this many units "
+"of $y$ came from this component on this date.\"*"
+msgstr ""
+"Las columnas resultantes **suman exactamente $\\hat y(t)$** en cada fecha. "
+"Cada línea del gráfico de descomposición siguiente puede leerse como "
+"*\"estas unidades de $y$ provinieron de este componente en esta fecha.\"*"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:300002
+#: 1c246051f215487496af5cbce19ecbfb
+msgid ""
+"The line plot shows each component's time-varying contribution in "
+"original-scale units."
+msgstr ""
+"El gráfico de líneas muestra la contribución variable en el tiempo de cada "
+"componente en unidades de la escala original."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:310002
+#: c19877fd483d4bc0a51b51ac11b07bc5
+msgid ""
+"In many cases, we are not just interested in the posterior mean "
+"decomposition, but the entire distribution of contributions. We can also "
+"extract this from the model:"
+msgstr ""
+"En muchos casos, no nos interesa solo la descomposición de la media "
+"posterior, sino toda la distribución de las contribuciones. También podemos "
+"extraerla del modelo:"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:340002
+#: 5561518cb74344e688f3acda895e7506
+msgid ""
+"To summarize the relative importance of the two media channels we can "
+"look at their posterior share distributions below."
+msgstr ""
+"Para resumir la importancia relativa de los dos canales de medios, podemos "
+"observar sus distribuciones posteriores de proporción a continuación."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:360002
+#: 6b8e7716831a461ba37fe7ca9ebb5a92
+msgid ""
+"Channel `x1` captures the majority of the estimated media effect, "
+"consistent with its higher spend volume. The posterior distributions are "
+"well separated, giving confidence that the model can distinguish the two "
+"channels."
+msgstr ""
+"El canal `x1` captura la mayor parte del efecto estimado de los medios, en "
+"línea con su mayor volumen de gasto. Las distribuciones posteriores están "
+"bien separadas, lo que da confianza en que el modelo puede distinguir los "
+"dos canales."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:370002
+#: 8b55a0c0619541e7bfb74a45e3c6e459
+msgid "Counterfactual Contributions"
+msgstr "Contribuciones contrafactuales"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:370004
+#: 4444ef69598a499baef9df899c65166f
+msgid ""
+"Before fitting the log and log-log models, it is worth understanding "
+"*how* PyMC-Marketing turns a fitted model into per-component "
+"contributions, because the recipe is identical across links: only the "
+"inverse-link function changes. `compute_mean_contributions_over_time()` "
+"(and its full-posterior sibling "
+"`compute_counterfactual_contributions_dataset()`) answer one question per"
+" component: *\"how much would predicted $y$ drop if we removed this "
+"component?\"*"
+msgstr ""
+"Antes de ajustar los modelos log y log-log, conviene entender *cómo* PyMC-"
+"Marketing convierte un modelo ajustado en contribuciones por componente, "
+"porque la receta es idéntica con todas las funciones de enlace: solo cambia "
+"la función de enlace inversa. `compute_mean_contributions_over_time()` (y su"
+" equivalente de posterior completo, "
+"`compute_counterfactual_contributions_dataset()`) responden una pregunta por"
+" componente: *\"¿cuánto caería $y$ predicho si eliminásemos este "
+"componente?\"*"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:370006
+#: 76f4555591fd4bc6847d090df824cebb
+#, python-brace-format
+msgid ""
+"**1. The counterfactual definition.** For every component $j$ (each "
+"channel, each control, seasonality, the intercept) with log-space value "
+"$v_j(t)$ in the linear predictor $\\mu(t)$, the per-draw, per-period "
+"contribution is $\\text{contribution}_j(t) = \\text{inv}(\\mu(t)) \\cdot "
+"s - \\text{inv}(\\mu(t) - v_j(t)) \\cdot s$, where $\\text{inv}$ is the "
+"inverse link ($\\text{identity}$ or $\\exp$) and $s$ is `target_scale`. "
+"We zero out the component inside $\\mu$, re-apply the inverse link, and "
+"measure the drop on the original scale."
+msgstr ""
+"**1. La definición contrafactual.** Para cada componente $j$ (cada canal, "
+"cada control, la estacionalidad, el intercepto) con valor en el espacio "
+"logarítmico $v_j(t)$ en el predictor lineal $\\mu(t)$, la contribución por "
+"muestra y por período es $\\text{contribution}_j(t) = \\text{inv}(\\mu(t)) "
+"\\cdot s - \\text{inv}(\\mu(t) - v_j(t)) \\cdot s$, donde $\\text{inv}$ es "
+"el enlace inverso ($\\text{identity}$ o $\\exp$) y $s$ es `target_scale`. "
+"Anulamos el componente dentro de $\\mu$, volvemos a aplicar el enlace "
+"inverso y medimos la caída en la escala original."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:370008
+#: 5ee7ba8864e54b6ca92a1b661edf3619
+msgid ""
+"**2. Why a counterfactual and not a direct split?** In a multiplicative "
+"model the components are *added* inside $\\mu$ but *multiplied* on the "
+"$y$-scale ($y = \\prod_c \\exp(v_c)$). There is no additive term on the "
+"$y$-scale to read off as \"channel $c$'s sales\", so the only honest way "
+"to attribute sales is to ask what $y$ would have been without $c$. The "
+"counterfactual is exactly that question."
+msgstr ""
+"**2. ¿Por qué un contrafactual y no una división directa?** En un modelo "
+"multiplicativo, los componentes se *suman* dentro de $\\mu$ pero se "
+"*multiplican* en la escala de $y$ ($y = \\prod_c \\exp(v_c)$). No hay un "
+"término aditivo en la escala de $y$ que pueda leerse como \"las ventas del "
+"canal $c$\", por lo que la única forma honesta de atribuir las ventas es "
+"preguntar cuál habría sido $y$ sin $c$. El contrafactual es exactamente esa "
+"pregunta."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:370010
+#: 690f938f27a14281979649ee46b92f4e
+#, python-brace-format
+msgid ""
+"**3. The identity link is the special case.** When $\\text{inv} = "
+"\\text{identity}$, the formula collapses to $\\text{contribution}_j(t) = "
+"v_j(t) \\cdot s$, the familiar additive decomposition. That is why "
+"identity-link contributions partition $\\hat y(t)$ exactly (they sum to "
+"$\\hat y$), while log-link contributions do not."
+msgstr ""
+"**3. El enlace identidad es el caso especial.** Cuando $\\text{inv} = "
+"\\text{identity}$, la fórmula se reduce a $\\text{contribution}_j(t) = "
+"v_j(t) \\cdot s$, la conocida descomposición aditiva. Por eso las "
+"contribuciones con enlace identidad particionan $\\hat y(t)$ exactamente "
+"(suman $\\hat y$), mientras que las contribuciones con enlace log no."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:370012
+#: 432a3dc66db64a20b2c3ed38c3067653
+msgid ""
+"**4. What it costs under the log link.** Because each component's "
+"counterfactual absorbs its share of every interaction it participates in,"
+" per-component contributions *overlap*: their sum exceeds $\\hat y(t)$. "
+"This is a property of asking a per-component \"what-if\" question in a "
+"non-linear model, not a bug. Each value is individually correct "
+"(*\"removing X costs this much\"*); they simply cannot be stacked into an"
+" exact pie chart."
+msgstr ""
+"**4. Qué cuesta con el enlace log.** Como el contrafactual de cada "
+"componente absorbe su parte de cada interacción en la que participa, las "
+"contribuciones por componente *se superponen*: su suma excede $\\hat y(t)$. "
+"Esto es una propiedad de plantear una pregunta \"qué pasaría si\" por "
+"componente en un modelo no lineal, no un error. Cada valor es correcto "
+"individualmente (*\"eliminar X cuesta esto\"*); simplemente no pueden "
+"apilarse en un gráfico circular exacto."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:370014
+#: e235c1ce1fb441ba8d8a9cccdac80da5
+msgid ""
+"The two models below put this recipe into practice. See the API docs for "
+"`compute_counterfactual_contributions_dataset` for the formal statement "
+"and the full-posterior (credible-interval-preserving) form."
+msgstr ""
+"Los dos modelos siguientes ponen en práctica esta receta. Consulte la "
+"documentación de la API de `compute_counterfactual_contributions_dataset` "
+"para el enunciado formal y la forma de posterior completo (que preserva los "
+"intervalos creíbles)."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:380002
+#: 8106a9995547474c881bc00f97fc81c3
+msgid "Model 2: Log (Multiplicative)"
+msgstr "Modelo 2: log (multiplicativo)"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:380004
+#: 12fe1cf3642a43a68a3c3535b9254d05
+msgid "The predictor $\\mu_t$ is still additive. The `LogNormal` likelihood means"
+msgstr ""
+"El predictor $\\mu_t$ sigue siendo aditivo. La verosimilitud `LogNormal` "
+"implica que"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:380006
+#: df648d61d3884e519fc198d82311734d
+msgid ""
+"\n"
+"\\log(y_{\\text{scaled},t}) \\sim \\text{Normal}(\\mu_t, \\sigma),\n"
+"\\qquad\n"
+"\\operatorname{median}(y_{\\text{scaled},t} \\mid x_t) = \\exp(\\mu_t).\n"
+msgstr ""
+"\n"
+"\\log(y_{\\text{scaled},t}) \\sim \\text{Normal}(\\mu_t, \\sigma),\n"
+"\\qquad\n"
+"\\operatorname{median}(y_{\\text{scaled},t} \\mid x_t) = \\exp(\\mu_t).\n"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:380012
+#: 6cc83cf20b58431d9e2eae9f7f5171a9
+msgid ""
+"Substituting the predictor into $\\exp(\\mu_t)$ turns its sum into a "
+"product of outcome-scale factors. The predictor contains no explicit "
+"cross term such as $x_1 x_2$, but the outcome-scale response still has an"
+" interaction: each channel's absolute lift is multiplied by the other "
+"channels' factors. The counterfactual decomposition below measures these "
+"interacting effects one component at a time."
+msgstr ""
+"Sustituir el predictor en $\\exp(\\mu_t)$ convierte su suma en un producto "
+"de factores en la escala del resultado. El predictor no contiene un término "
+"cruzado explícito como $x_1 x_2$, pero la respuesta en la escala del "
+"resultado sí tiene una interacción: el aumento absoluto de cada canal se "
+"multiplica por los factores de los demás canales. La descomposición "
+"contrafactual siguiente mide estos efectos que interactúan, un componente a "
+"la vez."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:380014
+#: cd0a4037d5404052956d25c027ccfb4d
+msgid ""
+"**Note on trend**: We use `t_norm` (normalized to $[0, 1]$) instead of "
+"the raw integer `t` to avoid exponential blow-up. The coefficient "
+"$\\gamma_t$ now represents the total log-scale trend over the observation"
+" period, and $\\exp(\\gamma_t)$ is the multiplicative factor from start "
+"to end."
+msgstr ""
+"**Nota sobre la tendencia**: Usamos `t_norm` (normalizada a $[0, 1]$) en "
+"lugar del entero sin procesar `t` para evitar un crecimiento exponencial "
+"descontrolado. El coeficiente $\\gamma_t$ representa ahora la tendencia "
+"total en escala logarítmica durante el período de observación, y "
+"$\\exp(\\gamma_t)$ es el factor multiplicativo del inicio al final."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:410002
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:600002
+#: b6a5a60f94034b4caf20b354df4a0fec efc21a1adc8e4dfb931a40820a6f67e6
+msgid ""
+"Sampling complete. We check the divergences and the traces before "
+"proceeding."
+msgstr ""
+"El muestreo ha terminado. Revisamos las divergencias y las trazas antes de "
+"continuar."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:430002
+#: ea6476f7b0524c4f8b9b1123cedea74e
+msgid ""
+"The log model has no divergences either. Next, we look at the trace plots"
+" and the posterior predictive check."
+msgstr ""
+"El modelo log tampoco tiene divergencias. A continuación, observamos los "
+"gráficos de traza y la verificación predictiva posterior."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:460002
+#: 187b2a90a15c4e4b83aab3864aa030ab
+msgid ""
+"The log model's posterior predictive fit is comparable to the additive "
+"model. Because the data was generated additively, both specifications can"
+" approximate it well; the log-link simply re-expresses the same pattern "
+"through an exponential transformation."
+msgstr ""
+"El ajuste predictivo posterior del modelo log es comparable al del modelo "
+"aditivo. Como los datos se generaron de forma aditiva, ambas "
+"especificaciones pueden aproximarlos bien; el enlace log simplemente "
+"reexpresa el mismo patrón mediante una transformación exponencial."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:470002
+#: b83bb213f46c450ba2c5f0d79a011a3b
+msgid "Decomposing contributions in a multiplicative model"
+msgstr "Descomposición de las contribuciones en un modelo multiplicativo"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:470004
+#: fa1bb975cf1a428ba78ad472d957a04e
+msgid ""
+"**The business question:** *\"How much of my weekly sales came from TV, "
+"from search, from seasonality, from baseline demand?\"*"
+msgstr ""
+"**La pregunta de negocio:** *\"¿Qué parte de mis ventas semanales provino de"
+" la TV, de la búsqueda, de la estacionalidad, de la demanda base?\"*"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:470006
+#: c33bdc1c0e814e74abfa9a64f3efc217
+msgid ""
+"For the additive model each term already answered this in the same units "
+"as sales. For a log-link model the components *multiply* each other's "
+"effects (they are exponents inside `exp(·)`), so no single component has "
+"a direct dollar interpretation on its own."
+msgstr ""
+"En el modelo aditivo, cada término ya respondía esto en las mismas unidades "
+"que las ventas. En un modelo con enlace log, los componentes *multiplican* "
+"los efectos de los demás (son exponentes dentro de `exp(·)`), por lo que "
+"ningún componente tiene por sí solo una interpretación directa en dólares."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:470008
+#: ceb45831170b4c23bac5c94a24a1c323
+msgid ""
+"`compute_mean_contributions_over_time()` uses the same **unified "
+"counterfactual decomposition** as for the additive model. For each "
+"component $j$ with log-space value $v_j(t)$:"
+msgstr ""
+"`compute_mean_contributions_over_time()` usa la misma **descomposición "
+"contrafactual unificada** que en el modelo aditivo. Para cada componente $j$"
+" con valor en el espacio logarítmico $v_j(t)$:"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:470010
+#: d3641c4b9a4742a8b5a5ad8a42887178
+msgid ""
+"\n"
+"\\text{contribution}_j(t)\n"
+"= \\mathbb{E}\\Bigl[\\; \\underbrace{\\exp(\\mu(t)) \\cdot s}_{\\hat "
+"y(t)} \\;-\\; \\underbrace{\\exp\\!\\bigl(\\mu(t) - v_j(t)\\bigr) \\cdot "
+"s}_{\\hat y_{\\text{without } j}(t)} \\;\\Bigr]\n"
+msgstr ""
+"\n"
+"\\text{contribution}_j(t)\n"
+"= \\mathbb{E}\\Bigl[\\; \\underbrace{\\exp(\\mu(t)) \\cdot s}_{\\hat y(t)} \\;-\\; \\underbrace{\\exp\\!\\bigl(\\mu(t) - v_j(t)\\bigr) \\cdot s}_{\\hat y_{\\text{without } j}(t)} \\;\\Bigr]\n"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:470015
+#: 9014c59f11d34a44a9fcfad5cda47310
+#, python-brace-format
+msgid ""
+"Note that the difference is taken **inside** the expectation (per "
+"posterior draw) and only then averaged. By linearity of expectation the "
+"posterior *mean* equals $\\mathbb{E}[\\exp(\\mu)\\cdot s] - "
+"\\mathbb{E}[\\exp(\\mu - v_j)\\cdot s]$, so either form gives the same "
+"point estimate, but only the per-draw form yields correct credible "
+"intervals, which is why `compute_counterfactual_contributions_dataset()` "
+"keeps the full `(chain, draw)` posterior."
+msgstr ""
+"Observe que la diferencia se calcula **dentro** de la esperanza (por muestra"
+" posterior) y solo después se promedia. Por la linealidad de la esperanza, "
+"la *media* posterior es igual a $\\mathbb{E}[\\exp(\\mu)\\cdot s] - "
+"\\mathbb{E}[\\exp(\\mu - v_j)\\cdot s]$, de modo que cualquiera de las dos "
+"formas da la misma estimación puntual, pero solo la forma por muestra "
+"produce intervalos creíbles correctos, razón por la cual "
+"`compute_counterfactual_contributions_dataset()` conserva el posterior "
+"completo `(chain, draw)`."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:470017
+#: 0857f30142c2415caf9d9ca103b3e7c2
+msgid ""
+"*Business reading:* each column answers **\"if we removed this component "
+"entirely, how much would predicted sales drop?\"**, a genuine "
+"counterfactual question."
+msgstr ""
+"*Lectura de negocio:* cada columna responde **\"si eliminásemos este "
+"componente por completo, ¿cuánto caerían las ventas predichas?\"**, una "
+"auténtica pregunta contrafactual."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:470019
+#: 803ef99d7aa24e5a9f332f94d48164a1
+msgid "**Why columns do not sum to $\\hat y(t)$**"
+msgstr "**Por qué las columnas no suman $\\hat y(t)$**"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:470021
+#: 6e7dd796893b45e7a91e547169d0a72d
+msgid ""
+"In a multiplicative model, components interact: removing channel A "
+"reduces the *multiplicative base* that channel B amplifies, and vice "
+"versa. Each component's counterfactual captures its own effect **plus its"
+" share of every interaction it participates in**. When you add all per-"
+"component counterfactuals together, the shared interactions are counted "
+"more than once, so the sum exceeds $\\hat y(t)$."
+msgstr ""
+"En un modelo multiplicativo, los componentes interactúan: eliminar el canal "
+"A reduce la *base multiplicativa* que el canal B amplifica, y viceversa. El "
+"contrafactual de cada componente captura su propio efecto **más su parte de "
+"cada interacción en la que participa**. Al sumar todos los contrafactuales "
+"por componente, las interacciones compartidas se cuentan más de una vez, por"
+" lo que la suma excede $\\hat y(t)$."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:470023
+#: 65263d3ed2504a0da330f35168f9a303
+msgid ""
+"This is an inherent property of per-component counterfactuals in any non-"
+"linear model and is **not a defect**. It simply means you cannot stack "
+"these contributions into an exact partition of $\\hat y(t)$. Instead, "
+"interpret each component on its own terms: *\"removing X would cost us "
+"this much.\"*"
+msgstr ""
+"Esta es una propiedad inherente de los contrafactuales por componente en "
+"cualquier modelo no lineal y **no es un defecto**. Simplemente significa que"
+" no se pueden apilar estas contribuciones en una partición exacta de $\\hat "
+"y(t)$. En su lugar, interprete cada componente por separado: *\"eliminar X "
+"nos costaría esto.\"*"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:490002
+#: 9fe659c9eb2a4989ab3e9884bff0a26c
+msgid "How to read the decomposition plot"
+msgstr "Cómo leer el gráfico de descomposición"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:490004
+#: c8e7e20034074a21b975d801bde6732c
+msgid ""
+"Each line shows one component's **counterfactual contribution** in "
+"original-scale units (the same units as $y$, e.g. dollars, revenue, "
+"conversions). It answers: *\"if we removed this component, how much would"
+" predicted sales decrease?\"*"
+msgstr ""
+"Cada línea muestra la **contribución contrafactual** de un componente en "
+"unidades de la escala original (las mismas unidades que $y$, por ejemplo "
+"dólares, ingresos, conversiones). Responde: *\"si eliminásemos este "
+"componente, ¿cuánto disminuirían las ventas predichas?\"*"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:490006
+#: c3979369a414461d8bddf59aaf4eba5e
+msgid ""
+"**Media channels** (x1, x2): the incremental sales lift from each "
+"channel. These fluctuate with spend patterns and are typically non-"
+"negative. They answer *\"how many extra sales did this channel drive each"
+" week?\"*"
+msgstr ""
+"**Canales de medios** (x1, x2): el aumento incremental de ventas de cada "
+"canal. Estos fluctúan con los patrones de gasto y suelen ser no negativos. "
+"Responden *\"¿cuántas ventas adicionales generó este canal cada semana?\"*"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:490007
+#: 8288fe015dd54663b7abbf2d9bba28e7
+msgid ""
+"**Controls** (events, trend): the dollar impact of external factors. "
+"Event contributions spike on event dates; trend captures the long-run "
+"direction."
+msgstr ""
+"**Controles** (eventos, tendencia): el impacto en dólares de factores "
+"externos. Las contribuciones de los eventos presentan picos en las fechas de"
+" los eventos; la tendencia captura la dirección a largo plazo."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:490008
+#: 64b5da5050d743a9ac87236f30778b98
+msgid ""
+"**Seasonality**: the cyclic pattern in sales attributed to time-of-year "
+"effects."
+msgstr ""
+"**Estacionalidad**: el patrón cíclico de las ventas atribuido a los efectos "
+"de la época del año."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:490010
+#: 0a107f60ef514c3899db98396eed1b25
+msgid "**Why the intercept looks different from the additive model**"
+msgstr "**Por qué el intercepto se ve distinto del modelo aditivo**"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:490012
+#: 699695d4ca1442dc9e198d07e2f3f77d
+msgid ""
+"In an additive model the intercept represents a fixed baseline level of "
+"sales: it is flat over time and always positive."
+msgstr ""
+"En un modelo aditivo, el intercepto representa un nivel base fijo de ventas:"
+" es plano en el tiempo y siempre positivo."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:490014
+#: 727a0ea3db6647e1a3be910610b7d8d4
+#, python-brace-format
+msgid ""
+"In a multiplicative (log-link) model the intercept enters as "
+"$e^{\\alpha}$ and combines with media, controls, and seasonality through "
+"multiplication, not addition. There is no portion of $y$ that the "
+"intercept \"owns\" the way it does in an additive model; instead it sets "
+"the log-baseline against which every other component multiplies. When the"
+" other components together already explain most of $y$, the intercept's "
+"posterior centres below zero ($\\alpha < 0$), because $e^{\\alpha} < 1$ "
+"is the multiplicative correction the model needs."
+msgstr ""
+"En un modelo multiplicativo (con enlace log), el intercepto entra como "
+"$e^{\\alpha}$ y se combina con los medios, los controles y la estacionalidad"
+" mediante multiplicación, no suma. No hay una porción de $y$ que el "
+"intercepto \"posea\" como en un modelo aditivo; en cambio, fija la línea "
+"base logarítmica sobre la cual se multiplica cada uno de los demás "
+"componentes. Cuando los demás componentes juntos ya explican la mayor parte "
+"de $y$, el posterior del intercepto se centra por debajo de cero ($\\alpha <"
+" 0$), porque $e^{\\alpha} < 1$ es la corrección multiplicativa que el modelo"
+" necesita."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:490016
+#: 98f3b847ecf74c3bb2e60ebb706d232f
+msgid ""
+"The counterfactual question *\"what if we removed the intercept?\"* "
+"therefore has a counter-intuitive answer: removing a dampening factor "
+"would *increase* predicted sales, which is why the intercept contribution"
+" can be negative in the plot. Its temporal variation comes from the fact "
+"that the counterfactual scales with total predicted sales, approximately:"
+msgstr ""
+"Por tanto, la pregunta contrafactual *\"¿qué pasaría si eliminásemos el "
+"intercepto?\"* tiene una respuesta contraintuitiva: eliminar un factor de "
+"amortiguación *aumentaría* las ventas predichas, razón por la cual la "
+"contribución del intercepto puede ser negativa en el gráfico. Su variación "
+"temporal proviene de que el contrafactual escala con las ventas totales "
+"predichas, aproximadamente:"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:490018
+#: ba4c52258296449b827e2e7286cc0315
+msgid ""
+"\n"
+"\\text{contribution}_{\\text{intercept}}(t) \\approx \\hat y(t) \\cdot (1"
+" - e^{-\\alpha})\n"
+msgstr ""
+"\n"
+"\\text{contribution}_{\\text{intercept}}(t) \\approx \\hat y(t) \\cdot (1 - e^{-\\alpha})\n"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:490022
+#: b82473ec2d5d40baa42c131fae87ff01
+msgid ""
+"When $\\hat y(t)$ is high the dampening effect is large in absolute "
+"terms, so the intercept line mirrors the shape of total sales (including "
+"seasonality and media spikes), just flipped and scaled."
+msgstr ""
+"Cuando $\\hat y(t)$ es alto, el efecto de amortiguación es grande en "
+"términos absolutos, por lo que la línea del intercepto refleja la forma de "
+"las ventas totales (incluidas la estacionalidad y los picos de medios), solo"
+" que invertida y escalada."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:490024
+#: c81ab83b5cc241929396874737d9a7eb
+msgid ""
+"This is not a modeling defect. It reflects the algebraic fact that in a "
+"multiplicative model no single component can be interpreted as a stand-"
+"alone baseline; the intercept simply sets the log-scale level that every "
+"other component multiplies."
+msgstr ""
+"Esto no es un defecto del modelado. Refleja el hecho algebraico de que, en "
+"un modelo multiplicativo, ningún componente puede interpretarse como una "
+"línea base independiente; el intercepto simplemente fija el nivel en escala "
+"logarítmica que multiplican todos los demás componentes."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:490026
+#: 8ccc8b8f47cd42e7a0fdb1cabb4fa113
+msgid "**The non-summing property**"
+msgstr "**La propiedad de no aditividad**"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:490028
+#: c0bf7f0c8dac48f5a75e78f7f8898c55
+msgid ""
+"Unlike the additive model, summing all lines at a given date will give a "
+"total **greater than** $\\hat y(t)$. This is expected: in a "
+"multiplicative model each component amplifies the others, and those "
+"shared interaction effects are counted in every component's "
+"counterfactual. Think of it as overlapping credit rather than a "
+"partitioning error. Each component's value is individually correct: "
+"*\"removing X costs us this much\"*, even though the values cannot be "
+"stacked into an exact pie chart of $\\hat y(t)$."
+msgstr ""
+"A diferencia del modelo aditivo, sumar todas las líneas en una fecha dada "
+"dará un total **mayor que** $\\hat y(t)$. Esto es lo esperado: en un modelo "
+"multiplicativo cada componente amplifica a los demás, y esos efectos de "
+"interacción compartidos se cuentan en el contrafactual de cada componente. "
+"Piénselo como un crédito superpuesto y no como un error de partición. El "
+"valor de cada componente es correcto individualmente: *\"eliminar X nos "
+"cuesta esto\"*, aunque los valores no puedan apilarse en un gráfico circular"
+" exacto de $\\hat y(t)$."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:510002
+#: f8eb8c71e7d64a07a6528d84a893751d
+msgid ""
+"The intercept's large dampening contribution dominates the y-axis and "
+"compresses the other lines. Dropping it makes the channel and control "
+"contributions easier to compare."
+msgstr ""
+"La gran contribución amortiguadora del intercepto domina el eje y y comprime"
+" las demás líneas. Quitarlo facilita comparar las contribuciones de los "
+"canales y los controles."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:530002
+#: a9c51bf3b42b47faa35d375f203923c7
+msgid "This plot looks much closer to the additive model's decomposition."
+msgstr ""
+"Este gráfico se parece mucho más a la descomposición del modelo aditivo."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:540002
+#: d8840d34b52d485cadf1133ccb417f28
+msgid "Contributions per year and for the whole period"
+msgstr "Contribuciones por año y para todo el período"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:540004
+#: 50bc833826b849f28fcd49774af7b3ca
+msgid ""
+"The decomposition above is weekly, like the data. To report it per month,"
+" quarter or year, or as one total with credible intervals, pass `period=`"
+" to `compute_mean_contributions_over_time()` or to "
+"`compute_counterfactual_contributions_dataset()`. The weekly, per-draw "
+"counterfactual is computed first and then summed over the weeks of each "
+"period, draw by draw, so the credible intervals of the totals are right."
+msgstr ""
+"La descomposición anterior es semanal, como los datos. Para informarla por "
+"mes, trimestre o año, o como un único total con intervalos creíbles, pase "
+"`period=` a `compute_mean_contributions_over_time()` o a "
+"`compute_counterfactual_contributions_dataset()`. Primero se calcula el "
+"contrafactual semanal por muestra y luego se suma sobre las semanas de cada "
+"período, muestra por muestra, de modo que los intervalos creíbles de los "
+"totales son correctos."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:540006
+#: 6beac9631ce542c2b0370e03c05e1951
+#, python-brace-format
+msgid ""
+"The order matters under the log link. $\\exp$ is nonlinear in $\\mu$, so "
+"decomposing the summed linear predictor, $\\exp(\\sum_t \\mu_t) - "
+"\\exp(\\sum_t \\mu_t - \\sum_t v_{j,t})$, is not the sum of the weekly "
+"counterfactuals $\\sum_t [\\exp(\\mu_t) - \\exp(\\mu_t - v_{j,t})]$: it "
+"is off by orders of magnitude. Never aggregate the data over time first "
+"(for example with `mmm.data.aggregate_time(...)`) and decompose the "
+"result. The yearly components overlap exactly as the weekly ones do: they"
+" do not sum to the yearly $\\hat y$."
+msgstr ""
+"El orden importa con el enlace log. $\\exp$ no es lineal en $\\mu$, así que "
+"descomponer el predictor lineal sumado, $\\exp(\\sum_t \\mu_t) - "
+"\\exp(\\sum_t \\mu_t - \\sum_t v_{j,t})$, no equivale a la suma de los "
+"contrafactuales semanales $\\sum_t [\\exp(\\mu_t) - \\exp(\\mu_t - "
+"v_{j,t})]$: se desvía en órdenes de magnitud. Nunca agregue primero los "
+"datos en el tiempo (por ejemplo con `mmm.data.aggregate_time(...)`) para "
+"descomponer después el resultado. Los componentes anuales se superponen "
+"exactamente igual que los semanales: no suman el $\\hat y$ anual."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:570002
+#: 9789327ec7694a738c1dc8ec855155df
+msgid "Model 3: Log-Log"
+msgstr "Modelo 3: log-log"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:570004
+#: 029bad62bd0a4f1c9723eeac5ab5a681
+msgid ""
+"The log-log model combines `link=\"log\"` with `LogSaturation`, which "
+"applies $\\beta \\log(1 + x)$ instead of a sigmoidal curve, so both the "
+"response and spend enter on a log scale:"
+msgstr ""
+"El modelo log-log combina `link=\"log\"` con `LogSaturation`, que aplica "
+"$\\beta \\log(1 + x)$ en lugar de una curva sigmoidea, de modo que tanto la "
+"respuesta como el gasto entran en escala logarítmica:"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:570006
+#: dbb8c93980e644da808ce0c27d99491e
+#, python-brace-format
+msgid ""
+"\\log(y) \\sim \\ldots + \\beta_c \\log(1 + \\text{adstock}_c(x_c)) + "
+"\\ldots"
+msgstr "\\log(y) \\sim \\ldots + \\beta_c \\log(1 + \\text{adstock}_c(x_c)) + \\ldots"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:570008
+#: 120e3e2636b74629bd6d00ab4740049b
+msgid ""
+"`LogSaturation` requests **raw (unscaled)** channel inputs "
+"(`requires_unscaled_input=True`): the MMM feeds actual spend to $\\beta_c"
+" \\log(1 + x_c)$ and forces `channel_scale = 1` for those channels, so "
+"the coefficient does not depend on an arbitrary rescaling of spend. "
+"$\\log(1 + x)$ (rather than $\\log x$) keeps the transform finite at $x ="
+" 0$ (common for paused channels) while matching $\\log x$ once spend is "
+"large."
+msgstr ""
+"`LogSaturation` solicita entradas de canal **sin procesar (sin escalar)** "
+"(`requires_unscaled_input=True`): el MMM alimenta a $\\beta_c \\log(1 + "
+"x_c)$ con el gasto real y fuerza `channel_scale = 1` para esos canales, de "
+"modo que el coeficiente no depende de un reescalado arbitrario del gasto. "
+"$\\log(1 + x)$ (en lugar de $\\log x$) mantiene la transformación finita en "
+"$x = 0$ (algo común en canales en pausa) y coincide con $\\log x$ cuando el "
+"gasto es grande."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:570010
+#: a92067bd32c94c22b8e1db7ef0d45ebc
+msgid ""
+"Note that the weekly spend in this dataset lies between $0$ and $1$. On "
+"this range the slope of $\\log(1 + x)$ only falls from $1$ to $1/2$, and "
+"the elasticity $\\beta_c x / (1 + x)$ is at most $\\beta_c / 2$. So "
+"$\\beta_c$ acts more like a semi-elasticity (the percentage change of "
+"sales per unit of spend) than an elasticity here. We come back to this in"
+" the Scaling the Budget section."
+msgstr ""
+"Observe que el gasto semanal de este conjunto de datos se sitúa entre $0$ y "
+"$1$. En este rango, la pendiente de $\\log(1 + x)$ solo baja de $1$ a $1/2$,"
+" y la elasticidad $\\beta_c x / (1 + x)$ es como máximo $\\beta_c / 2$. Por "
+"tanto, aquí $\\beta_c$ actúa más como una semielasticidad (el cambio "
+"porcentual de las ventas por unidad de gasto) que como una elasticidad. "
+"Volveremos sobre esto en la sección Escalar el presupuesto."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:570013
+#: 7028307669194896af7c920d6bcd510d
+msgid "**Why `LogSaturation`?**"
+msgstr "**¿Por qué `LogSaturation`?**"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:570015
+#: 02e32c163ae14b2ab01b1d5010808971
+#, python-brace-format
+msgid ""
+"A log-log model does not need a saturation curve. The log of the spend is"
+" the media term itself: on the sales scale, $\\beta_c \\log(1 + x)$ gives"
+" the media factor $(1 + x)^{\\beta_c}$, with diminishing returns when "
+"$\\beta_c < 1$. The {class}`~pymc_marketing.mmm.mmm.MMM` class requires a"
+" saturation component, so we pass the log transform as `LogSaturation`."
+msgstr ""
+"Un modelo log-log no necesita una curva de saturación. El logaritmo del "
+"gasto es el propio término de medios: en la escala de ventas, $\\beta_c "
+"\\log(1 + x)$ da el factor de medios $(1 + x)^{\\beta_c}$, con rendimientos "
+"decrecientes cuando $\\beta_c < 1$. La clase "
+"{class}`~pymc_marketing.mmm.mmm.MMM` requiere un componente de saturación, "
+"por lo que pasamos la transformación logarítmica como `LogSaturation`."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:570017
+#: fab911406540461a8fe01d97af9eff7b
+msgid ""
+"We do not stack another saturation curve on top, such as a logistic curve"
+" of the log spend. Its extra parameters would control the same curvature "
+"as $\\beta_c$, the data could hardly tell them apart, and the model would"
+" be over-parametrized. Issue [#3221](https://github.com/pymc-labs/pymc-"
+"marketing/issues/3221) tracks a log-log specification without a "
+"saturation component."
+msgstr ""
+"No apilamos otra curva de saturación encima, como una curva logística del "
+"log del gasto. Sus parámetros adicionales controlarían la misma curvatura "
+"que $\\beta_c$, los datos difícilmente podrían distinguirlos y el modelo "
+"estaría sobreparametrizado. El issue [#3221](https://github.com/pymc-"
+"labs/pymc-marketing/issues/3221) da seguimiento a una especificación log-log"
+" sin componente de saturación."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:620002
+#: 392eadd5ba59449fb158e7413a2cdeaa
+msgid ""
+"The log-log model has no divergences either. Next, we look at the trace "
+"plots and the posterior predictive check."
+msgstr ""
+"El modelo log-log tampoco tiene divergencias. A continuación, observamos los"
+" gráficos de traza y la verificación predictiva posterior."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:650002
+#: 21cc845627e14cdb8b4f7168cdc40c42
+msgid ""
+"The log-log model fits the data comparably to the other two "
+"specifications. On this synthetic additive dataset the three models "
+"converge on similar predictions, though their internal decompositions "
+"differ."
+msgstr ""
+"El modelo log-log se ajusta a los datos de forma comparable a las otras dos "
+"especificaciones. En este conjunto de datos sintético aditivo, los tres "
+"modelos convergen en predicciones similares, aunque sus descomposiciones "
+"internas difieren."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:670002
+#: f668796832bd4d14b78ddee66e61e914
+msgid ""
+"The counterfactual decomposition for the log-log model works identically "
+"to the log model: same formula, same non-summing property. The only "
+"difference is the saturation function shape (`LogSaturation` instead of "
+"`LogisticSaturation`), which affects *how much* each channel contributes,"
+" not *how* contributions are computed."
+msgstr ""
+"La descomposición contrafactual del modelo log-log funciona igual que la del"
+" modelo log: misma fórmula, misma propiedad de no aditividad. La única "
+"diferencia es la forma de la función de saturación (`LogSaturation` en lugar"
+" de `LogisticSaturation`), que afecta *cuánto* contribuye cada canal, no "
+"*cómo* se calculan las contribuciones."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:690002
+#: 71b7fad23bbd4d71bbd7fb3e06c63113
+msgid ""
+"As with the log model, dropping the intercept makes the remaining "
+"contributions easier to read."
+msgstr ""
+"Como con el modelo log, quitar el intercepto facilita la lectura de las "
+"contribuciones restantes."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:710002
+#: 437b3aaf8692450db5580e32fc2d0b65
+msgid "Decomposition Comparison"
+msgstr "Comparación de las descomposiciones"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:710004
+#: 4a4b65ab3c8a4877adcc41ec16d1f615
+msgid ""
+"Having fitted all three models to the same data, we now compare their "
+"decompositions side by side. Since this synthetic dataset was generated "
+"with an additive process, the additive model should recover the true "
+"contributions most faithfully. The multiplicative models re-express the "
+"same fit through a different lens; the goal here is to see where they "
+"agree and where the link function choice matters."
+msgstr ""
+"Una vez ajustados los tres modelos a los mismos datos, comparamos ahora sus "
+"descomposiciones lado a lado. Como este conjunto de datos sintético se "
+"generó con un proceso aditivo, el modelo aditivo debería recuperar con mayor"
+" fidelidad las contribuciones verdaderas. Los modelos multiplicativos "
+"reexpresan el mismo ajuste con otra óptica; el objetivo aquí es ver dónde "
+"coinciden y dónde importa la elección de la función de enlace."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:720002
+#: b9925497cacd40a98c9f628e62143b9f
+msgid "Media Contributions"
+msgstr "Contribuciones de los medios"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:720004
+#: 6f04b6edf2ee4b6fb17e506ed9a3963f
+msgid ""
+"The time-series overlay below shows whether the three models agree on the"
+" *shape* of each channel's contribution over time. The bar chart that "
+"follows compares their *relative magnitude* (which channel gets more "
+"credit)."
+msgstr ""
+"La superposición de series de tiempo siguiente muestra si los tres modelos "
+"coinciden en la *forma* de la contribución de cada canal a lo largo del "
+"tiempo. El gráfico de barras que sigue compara su *magnitud relativa* (qué "
+"canal recibe más crédito)."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:760002
+#: 0781f030c337469fbecae313b5f88681
+msgid ""
+"All three models agree on relative channel importance: `x1` consistently "
+"receives the larger share. This is reassuring, even though the "
+"multiplicative models decompose the total differently, they reach the "
+"same directional conclusion about which channel drives more sales."
+msgstr ""
+"Los tres modelos coinciden en la importancia relativa de los canales: `x1` "
+"recibe de forma consistente la mayor proporción. Esto es tranquilizador: "
+"aunque los modelos multiplicativos descomponen el total de manera distinta, "
+"llegan a la misma conclusión direccional sobre qué canal impulsa más ventas."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:770002
+#: ca3c2b51b2fc46df96d7fe27f413f9c2
+msgid "Non-Media Contributions"
+msgstr "Contribuciones no relacionadas con los medios"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:770004
+#: 74d24d6d6b9d47aca779110b0cf029e6
+msgid ""
+"We compare how events and seasonality are attributed across models. "
+"Because these components represent shared structure (not marketing "
+"decision levers), agreement here increases confidence that the media "
+"estimates are not absorbing unrelated variation."
+msgstr ""
+"Comparamos cómo se atribuyen los eventos y la estacionalidad entre los "
+"modelos. Como estos componentes representan estructura compartida (no "
+"palancas de decisión de marketing), la coincidencia aquí aumenta la "
+"confianza en que las estimaciones de los medios no están absorbiendo "
+"variación ajena."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:790002
+#: 7c7913c7361e455ea4b7a5dc6d600f08
+msgid ""
+"Events and seasonality contributions are broadly consistent across "
+"models, with only minor differences in amplitude. This suggests the three"
+" specifications agree on the non-media structure and differ mainly in how"
+" they partition the remaining media effect."
+msgstr ""
+"Las contribuciones de los eventos y la estacionalidad son en general "
+"consistentes entre los modelos, con solo diferencias menores en la amplitud."
+" Esto sugiere que las tres especificaciones coinciden en la estructura no "
+"mediática y difieren principalmente en cómo reparten el efecto restante de "
+"los medios."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:800002
+#: 36d2de706de54dccbdb532ccdf957f3d
+msgid "ROAS Comparison"
+msgstr "Comparación del ROAS"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:800004
+#: 9c533b33e4364b2ca829c3452fc312d6
+#, python-brace-format
+msgid ""
+"The decompositions above cannot be compared across links number-for-"
+"number: under a log link the per-component contributions overlap and do "
+"not sum to $\\hat y(t)$. Return on ad spend (ROAS) *can* be compared. It "
+"is defined by a genuine spend counterfactual (the drop in predicted sales"
+" when a channel's spend is set to zero, divided by that spend), and the "
+"`mmm.incrementality` module evaluates this counterfactual **on the "
+"response scale** for every link. For the additive model the increment "
+"reduces to summing the channel's contribution; under a log link the log-"
+"space change $\\Delta\\mu$ is passed through the inverse link first, "
+"$\\sum_t \\hat y_t \\,(e^{\\Delta\\mu_t} - 1)$, following [Jin et al. "
+"(2017)](https://storage.googleapis.com/gweb-"
+"research2023-media/pubtools/3806.pdf). All three models are therefore "
+"asked the same question in the same units."
+msgstr ""
+"Las descomposiciones anteriores no pueden compararse número a número entre "
+"funciones de enlace: con un enlace log, las contribuciones por componente se"
+" superponen y no suman $\\hat y(t)$. El retorno de la inversión publicitaria"
+" (ROAS) *sí* puede compararse. Se define mediante un contrafactual genuino "
+"del gasto (la caída de las ventas predichas cuando el gasto de un canal se "
+"fija en cero, dividida por ese gasto), y el módulo `mmm.incrementality` "
+"evalúa este contrafactual **en la escala de la respuesta** para cada función"
+" de enlace. Para el modelo aditivo, el incremento se reduce a sumar la "
+"contribución del canal; con un enlace log, el cambio en el espacio "
+"logarítmico $\\Delta\\mu$ se pasa primero por el enlace inverso, $\\sum_t "
+"\\hat y_t \\,(e^{\\Delta\\mu_t} - 1)$, siguiendo a [Jin et al. "
+"(2017)](https://storage.googleapis.com/gweb-"
+"research2023-media/pubtools/3806.pdf). Así, a los tres modelos se les "
+"plantea la misma pregunta en las mismas unidades."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:800006
+#: 92f449b5a2c84f39bfe18f2bc53b78eb
+msgid ""
+"We use the default `central_tendency=\"median\"`: under a LogNormal "
+"likelihood $\\exp(\\mu) \\cdot s$ is the *conditional median* of the "
+"response for each posterior draw, which corresponds to the noise-free "
+"curve of a data-generating process, the right convention for comparing "
+"against a known ground truth. For the identity link the argument is a no-"
+"op (median and mean of the symmetric Normal coincide)."
+msgstr ""
+"Usamos el valor predeterminado `central_tendency=\"median\"`: con una "
+"verosimilitud LogNormal, $\\exp(\\mu) \\cdot s$ es la *mediana condicional* "
+"de la respuesta para cada muestra posterior, que corresponde a la curva sin "
+"ruido de un proceso generador de datos, la convención adecuada para comparar"
+" con una verdad conocida. Con el enlace identidad, el argumento no tiene "
+"efecto (la mediana y la media de la Normal simétrica coinciden)."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:800008
+#: 5e432530335d419d8883e759195a801d
+#, python-brace-format
+msgid ""
+"Because this dataset is simulated, we know the true ROAS. The data comes "
+"from the additive data-generating process of the {ref}`MMM Example "
+"notebook <mmm_example>` (scaled by a factor of $1000$): each channel's "
+"contribution to sales is $1000 \\cdot \\beta_c \\cdot "
+"\\text{logistic}_{\\lambda_c}(\\text{adstock}_{\\alpha_c}(x_c))$ with "
+"$\\alpha = (0.4, 0.2)$, $\\lambda = (4, 3)$, and $\\beta = (3, 2)$. "
+"Applying those known transformations to the observed spend gives the true"
+" incremental sales, hence the true ROAS:"
+msgstr ""
+"Como este conjunto de datos es simulado, conocemos el ROAS verdadero. Los "
+"datos provienen del proceso generador de datos aditivo del {ref}`cuaderno de"
+" ejemplo de MMM <mmm_example>` (escalado por un factor de $1000$): la "
+"contribución de cada canal a las ventas es $1000 \\cdot \\beta_c \\cdot "
+"\\text{logistic}_{\\lambda_c}(\\text{adstock}_{\\alpha_c}(x_c))$ con "
+"$\\alpha = (0.4, 0.2)$, $\\lambda = (4, 3)$ y $\\beta = (3, 2)$. Aplicar "
+"esas transformaciones conocidas al gasto observado da las ventas "
+"incrementales verdaderas y, por tanto, el ROAS verdadero:"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:820002
+#: cc173ca33c76479e8d5c7239a845bf9a
+msgid ""
+"Each model's ROAS posterior comes from `contribution_over_spend` with "
+"`frequency=\"all_time\"`: one number per channel and posterior draw, so "
+"the comparison below carries full uncertainty."
+msgstr ""
+"El posterior del ROAS de cada modelo proviene de `contribution_over_spend` "
+"con `frequency=\"all_time\"`: un número por canal y por muestra posterior, "
+"de modo que la comparación siguiente incorpora toda la incertidumbre."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:850002
+#: 1883f68dd5744b0bb684fb7ad2b3391f
+msgid ""
+"The table below summarizes the same comparison: posterior median, 94% "
+"HDI, and the relative error of the median against the truth."
+msgstr ""
+"La tabla siguiente resume la misma comparación: la mediana posterior, el HDI"
+" del 94% y el error relativo de la mediana respecto de la verdad."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:870002
+#: 3d9ca8b42c5340b4b109673bd08daab0
+msgid ""
+"All three models agree on the ranking (`x1` is roughly twice as efficient"
+" as `x2`) and land in the same range for both channels. The additive "
+"model recovers the truth within about two percent, as expected for the "
+"well-specified model. The log model, although misspecified for this "
+"additive dataset, stays close as well ($-4.6\\%$ on `x1` and $+9.1\\%$ on"
+" `x2`), with $94\\%$ intervals covering the truth for both channels. The "
+"log-log model underestimates `x1`'s ROAS by roughly $20\\%$, with an "
+"interval that excludes the truth: of the three it is the most "
+"misspecified, since $\\beta \\log(1 + x)$ cannot reproduce the logistic "
+"saturation that generated the data. A comparable estimand does not repair"
+" a wrong functional form: it exposes it."
+msgstr ""
+"Los tres modelos coinciden en el orden (`x1` es aproximadamente el doble de "
+"eficiente que `x2`) y caen en el mismo rango para ambos canales. El modelo "
+"aditivo recupera la verdad con un error de alrededor del dos por ciento, "
+"como cabe esperar del modelo bien especificado. El modelo log, aunque está "
+"mal especificado para este conjunto de datos aditivo, también se mantiene "
+"cerca ($-4.6\\%$ en `x1` y $+9.1\\%$ en `x2`), con intervalos del $94\\%$ "
+"que cubren la verdad en ambos canales. El modelo log-log subestima el ROAS "
+"de `x1` en aproximadamente un $20\\%$, con un intervalo que excluye la "
+"verdad: de los tres es el más mal especificado, ya que $\\beta \\log(1 + x)$"
+" no puede reproducir la saturación logística que generó los datos. Un "
+"estimando comparable no repara una forma funcional incorrecta: la pone en "
+"evidencia."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:870004
+#: e7ee3a0a91ec4488a02066c3c17902b8
+msgid ""
+"That comparability is the practical payoff of a link-aware incrementality"
+" computation: the spend counterfactual is always reduced on the response "
+"scale, so ROAS is an estimand you can hold fixed while varying the model "
+"specification: a sound basis for comparing, and stress-testing, "
+"structurally different MMMs. Computed naively in the linear predictor's "
+"space instead, the two log models' \"ROAS\" would not even be in units of"
+" sales."
+msgstr ""
+"Esa comparabilidad es el beneficio práctico de un cálculo de incrementalidad"
+" que tiene en cuenta el enlace: el contrafactual del gasto siempre se reduce"
+" en la escala de la respuesta, de modo que el ROAS es un estimando que se "
+"puede mantener fijo mientras se varía la especificación del modelo: una base"
+" sólida para comparar, y someter a pruebas de estrés, MMM estructuralmente "
+"distintos. Si se calculara de forma ingenua en el espacio del predictor "
+"lineal, el \"ROAS\" de los dos modelos log ni siquiera estaría en unidades "
+"de ventas."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:870006
+#: ed3ba3adcf0b4ff480cec5441b7ad4e4
+msgid ""
+"Why does the misspecified log model recover the ROAS so well? ROAS is an "
+"average over the observed spend, and over that range the media response "
+"of the log model, with logistic curves, can follow the additive truth. "
+"This matters in practice, because on real data every model is "
+"misspecified to some degree."
+msgstr ""
+"¿Por qué el modelo log mal especificado recupera tan bien el ROAS? El ROAS "
+"es un promedio sobre el gasto observado, y en ese rango la respuesta de los "
+"medios del modelo log, con curvas logísticas, puede seguir la verdad "
+"aditiva. Esto importa en la práctica, porque con datos reales todo modelo "
+"está mal especificado en alguna medida."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:870009
+#: 2bd61cf117a34e7483ac1e2efe4cde1a
+msgid ""
+"**Critical Assessment**: This example is easier than real data. The data "
+"are simulated, and the noise is small compared with the media effects. "
+"The spend is drawn at random, independent of the trend and the "
+"seasonality, so nothing confounds the media effects. The additive and the"
+" log models use the adstock and saturation families of the data-"
+"generating process, and the data hold every driver of the simulated "
+"sales. On real data, expect larger differences between specifications."
+msgstr ""
+"**Evaluación crítica**: Este ejemplo es más fácil que los datos reales. Los "
+"datos son simulados y el ruido es pequeño en comparación con los efectos de "
+"los medios. El gasto se genera al azar, de forma independiente de la "
+"tendencia y la estacionalidad, por lo que nada confunde los efectos de los "
+"medios. Los modelos aditivo y log usan las familias de adstock y saturación "
+"del proceso generador de datos, y los datos contienen todos los factores "
+"determinantes de las ventas simuladas. Con datos reales, cabe esperar "
+"mayores diferencias entre las especificaciones."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:880002
+#: 2395a632ddc54403b71e1ce8edf8a48c
+msgid "Budget Optimization"
+msgstr "Optimización del presupuesto"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:880004
+#: 321bfa98795e47d4ae99e9fbc136e4e3
+msgid ""
+"ROAS tells us the *average* return of each channel. A budget decision "
+"needs the *marginal* return: where does the next unit of spend earn the "
+"most? Here we are interested in the following question: do the three "
+"models recommend the same plan for the next quarter, and how close does "
+"each plan get to the best plan under the true data-generating process?"
+msgstr ""
+"El ROAS nos indica el retorno *promedio* de cada canal. Una decisión de "
+"presupuesto necesita el retorno *marginal*: ¿dónde rinde más la siguiente "
+"unidad de gasto? Aquí nos interesa la siguiente pregunta: ¿recomiendan los "
+"tres modelos el mismo plan para el próximo trimestre, y qué tan cerca llega "
+"cada plan del mejor plan bajo el verdadero proceso generador de datos?"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:880006
+#: 8de042b1f1a14645b70fb5f82cc7c0d4
+#, python-brace-format
+msgid ""
+"The optimizer maximizes the posterior mean of "
+"`total_media_contribution_original_scale`, the default objective of "
+"{meth}`~pymc_marketing.mmm.mmm.MMM.budget_optimizer`. Its form depends on"
+" the link:"
+msgstr ""
+"El optimizador maximiza la media posterior de "
+"`total_media_contribution_original_scale`, el objetivo predeterminado de "
+"{meth}`~pymc_marketing.mmm.mmm.MMM.budget_optimizer`. Su forma depende de la"
+" función de enlace:"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:880008
+#: a8dffbb6676c449eaf67910d8921007b
+msgid ""
+"\n"
+"\\begin{aligned}\n"
+"R_{\\text{identity}}(x) &= s \\sum_t \\sum_c m_{t,c}(x) \\\\\n"
+"R_{\\text{log}}(x) &= s \\sum_t e^{b_t} \\left( e^{\\sum_c m_{t,c}(x)} - "
+"1 \\right)\n"
+"\\end{aligned}\n"
+msgstr ""
+"\n"
+"\\begin{aligned}\n"
+"R_{\\text{identity}}(x) &= s \\sum_t \\sum_c m_{t,c}(x) \\\\\n"
+"R_{\\text{log}}(x) &= s \\sum_t e^{b_t} \\left( e^{\\sum_c m_{t,c}(x)} - 1 \\right)\n"
+"\\end{aligned}\n"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:880015
+#: 43962317d8794f3aa654f144049250ef
+#, python-brace-format
+msgid ""
+"Here $x$ is the plan (the weekly spend of each channel), $m_{t,c}(x)$ is "
+"the term of channel $c$ in the linear predictor at date $t$, $b_t$ is the"
+" rest of the linear predictor (intercept, controls and seasonality), and "
+"$s$ is `target_scale`. The sums run over the plan weeks and the adstock "
+"weeks around them."
+msgstr ""
+"Aquí $x$ es el plan (el gasto semanal de cada canal), $m_{t,c}(x)$ es el "
+"término del canal $c$ en el predictor lineal en la fecha $t$, $b_t$ es el "
+"resto del predictor lineal (intercepto, controles y estacionalidad) y $s$ es"
+" `target_scale`. Las sumas recorren las semanas del plan y las semanas de "
+"adstock que las rodean."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:880017
+#: 80b2bc398deb44f2980cfd02044314d5
+msgid "Here are two important remarks:"
+msgstr "Aquí van dos observaciones importantes:"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:880019
+#: b227d4e209e94a6c95a63d6d2a326255
+#, python-brace-format
+msgid ""
+"**Baseline.** Under the log link the response to a plan scales with the "
+"baseline $e^{b_t}$: the same spend earns more in a week with high "
+"baseline sales. Under the identity link the baseline does not enter the "
+"objective."
+msgstr ""
+"**Línea base.** Con el enlace log, la respuesta a un plan escala con la "
+"línea base $e^{b_t}$: el mismo gasto rinde más en una semana con ventas base"
+" altas. Con el enlace identidad, la línea base no entra en el objetivo."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:880020
+#: cacabb41cd8c490c8c8df6cdb4fa4c4b
+msgid ""
+"**Interaction.** Under the log link the channels interact. The marginal "
+"return of channel $c$ carries the factor $e^{\\sum_{c'} m_{t,c'}(x)}$, so"
+" it grows with the spend on the other channels."
+msgstr ""
+"**Interacción.** Con el enlace log, los canales interactúan. El retorno "
+"marginal del canal $c$ lleva el factor $e^{\\sum_{c'} m_{t,c'}(x)}$, por lo "
+"que crece con el gasto en los demás canales."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:880022
+#: 85181200519d4df98392f274e109cb6f
+#, python-brace-format
+msgid ""
+"Now consider a **flat** plan, which spends the same amount $x_c$ on "
+"channel $c$ in every plan week. How does the channel term $m_{t,c}(x)$ "
+"behave over the window?"
+msgstr ""
+"Consideremos ahora un plan **plano**, que gasta la misma cantidad $x_c$ en "
+"el canal $c$ en cada semana del plan. ¿Cómo se comporta el término del canal"
+" $m_{t,c}(x)$ a lo largo de la ventana?"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:880024
+#: 4d45722ede384477be307d4224c09569
+#, python-brace-format
+msgid ""
+"The adstock of a week is a weighted average of the spend of the last $8$ "
+"weeks, with geometric weights $\\alpha^l / \\sum_{l'} \\alpha^{l'}$ that "
+"sum to one. In the first plan weeks it still mixes in the spend made "
+"before the window."
+msgstr ""
+"El adstock de una semana es un promedio ponderado del gasto de las últimas "
+"$8$ semanas, con ponderaciones geométricas $\\alpha^l / \\sum_{l'} "
+"\\alpha^{l'}$ que suman uno. En las primeras semanas del plan aún incorpora "
+"el gasto realizado antes de la ventana."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:880026
+#: 5a7b658761df4e3a94d3fd113c8ce0b6
+msgid ""
+"The weights decay fast, so after two or three weeks the adstock is close "
+"to $x_c$, and it stays there until the last plan week. Over the carry-"
+"over weeks after the plan it decays to zero."
+msgstr ""
+"Las ponderaciones decaen rápido, así que tras dos o tres semanas el adstock "
+"se acerca a $x_c$ y permanece ahí hasta la última semana del plan. Durante "
+"las semanas de arrastre posteriores al plan decae hasta cero."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:880028
+#: 536f692567404a6c9e4fe5e3a1d36adb
+#, python-brace-format
+msgid ""
+"Because the weights sum to one, the adstock that the plan creates, summed"
+" over the plan and carry-over weeks, equals the total spend of the plan: "
+"what the first plan weeks miss shows up again in the carry-over weeks. To"
+" a first approximation, the window therefore behaves like $T = 13$ weeks "
+"in which the channel term is constant, $m_{t,c}(x) \\approx m_c(x_c)$, "
+"the saturation curve of channel $c$ evaluated at $x_c$."
+msgstr ""
+"Como las ponderaciones suman uno, el adstock que crea el plan, sumado sobre "
+"las semanas del plan y de arrastre, es igual al gasto total del plan: lo que"
+" las primeras semanas del plan no alcanzan reaparece en las semanas de "
+"arrastre. En una primera aproximación, la ventana se comporta entonces como "
+"$T = 13$ semanas en las que el término del canal es constante, $m_{t,c}(x) "
+"\\approx m_c(x_c)$, la curva de saturación del canal $c$ evaluada en $x_c$."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:880030
+#: 801bf94923af4a3c90db24e1d096170f
+msgid ""
+"This is not exact for a concave curve, where the edge weeks, with less "
+"adstock, earn a bit more per unit of adstock. We come back to this below."
+msgstr ""
+"Esto no es exacto para una curva cóncava, en la que las semanas de los "
+"extremos, con menos adstock, rinden algo más por unidad de adstock. "
+"Volveremos sobre esto más adelante."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:880032
+#: 0ab83c10cfd64c59a7738a27621d612b
+msgid ""
+"With the media term $M(x) = \\sum_c m_c(x_c)$, the two objectives become,"
+" up to terms that do not depend on the plan,"
+msgstr ""
+"Con el término de medios $M(x) = \\sum_c m_c(x_c)$, los dos objetivos se "
+"convierten, salvo términos que no dependen del plan, en"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:880034
+#: 7f9b4db5b89f44f08c61989a4e33f870
+msgid ""
+"\n"
+"\\begin{aligned}\n"
+"R_{\\text{identity}}(x) &\\approx s \\, T \\, M(x) \\\\\n"
+"R_{\\text{log}}(x) &\\approx s \\left( \\sum_t e^{b_t} \\right) \\left( "
+"e^{M(x)} - 1 \\right).\n"
+"\\end{aligned}\n"
+msgstr ""
+"\n"
+"\\begin{aligned}\n"
+"R_{\\text{identity}}(x) &\\approx s \\, T \\, M(x) \\\\\n"
+"R_{\\text{log}}(x) &\\approx s \\left( \\sum_t e^{b_t} \\right) \\left( e^{M(x)} - 1 \\right).\n"
+"\\end{aligned}\n"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:880041
+#: 407da5f018b442b2b37cc3bbe427d5e1
+msgid ""
+"Both are increasing functions of $M(x)$, and their first factors are "
+"positive and do not depend on the plan. So, over the same budget and the "
+"same guardrails, both objectives are maximized by the plan that maximizes"
+" $M(x)$. In other words, the log model picks the split that an additive "
+"model with the same curves would pick."
+msgstr ""
+"Ambos son funciones crecientes de $M(x)$, y sus primeros factores son "
+"positivos y no dependen del plan. Por tanto, con el mismo presupuesto y los "
+"mismos límites de seguridad, ambos objetivos se maximizan con el plan "
+"que maximiza $M(x)$. En otras palabras, el modelo log elige la distribución "
+"que elegiría un modelo aditivo con las mismas curvas."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:880043
+#: d1fd99080c4f4f94b257cb9ca2f0e096
+msgid "The marginal returns tell the same story. Under the log link"
+msgstr "Los retornos marginales cuentan la misma historia. Con el enlace log"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:880045
+#: 261b11f7c1da42b3b9a20a1bb3e09778
+msgid ""
+"\n"
+"\\frac{\\partial R_{\\text{log}}}{\\partial x_c} \\approx s \\left( "
+"\\sum_t e^{b_t} \\right) e^{M(x)} \\, m_c'(x_c).\n"
+msgstr ""
+"\n"
+"\\frac{\\partial R_{\\text{log}}}{\\partial x_c} \\approx s \\left( \\sum_t e^{b_t} \\right) e^{M(x)} \\, m_c'(x_c).\n"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:880049
+#: b19431800bb24a16a578c858cb64b3c2
+#, python-brace-format
+msgid ""
+"Why does the interaction of the second remark not change the split? The "
+"factor $s \\left( \\sum_t e^{b_t} \\right) e^{M(x)}$ in front of "
+"$m_c'(x_c)$ is the same for both channels, so at every plan the ratio of "
+"the two marginal returns is $m_{x_1}'(x_1) / m_{x_2}'(x_2)$, as in an "
+"additive model with the same curves. Moving budget from `x2` to `x1` "
+"changes $e^{M(x)}$, which scales both marginal returns together, so only "
+"the curves decide which channel earns more."
+msgstr ""
+"¿Por qué la interacción de la segunda observación no cambia la distribución?"
+" El factor $s \\left( \\sum_t e^{b_t} \\right) e^{M(x)}$ delante de "
+"$m_c'(x_c)$ es el mismo para ambos canales, de modo que en cada plan el "
+"cociente de los dos retornos marginales es $m_{x_1}'(x_1) / m_{x_2}'(x_2)$, "
+"como en un modelo aditivo con las mismas curvas. Mover presupuesto de `x2` a"
+" `x1` cambia $e^{M(x)}$, que escala ambos retornos marginales a la vez, por "
+"lo que solo las curvas deciden qué canal rinde más."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:880051
+#: 2f6b9106c165416bae3830ae8d521d41
+#, python-brace-format
+msgid ""
+"The optimizer moves budget to the channel with the higher marginal return"
+" until the two are equal or a guardrail stops it. Only this comparison "
+"matters, so the condition reduces to $m_{x_1}'(x_1) = m_{x_2}'(x_2)$, the"
+" condition of the additive model. The interaction changes how much an "
+"extra unit of budget is worth, not where it goes."
+msgstr ""
+"El optimizador mueve presupuesto al canal con mayor retorno marginal hasta "
+"que ambos se igualan o un límite de seguridad lo detiene. Solo importa"
+" esta comparación, así que la condición se reduce a $m_{x_1}'(x_1) = "
+"m_{x_2}'(x_2)$, la condición del modelo aditivo. La interacción cambia "
+"cuánto vale una unidad adicional de presupuesto, no adónde va."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:880053
+#: bb00e3cd590b4daf9a913e8740eec443
+#, python-brace-format
+msgid ""
+"Keep this in mind: for a flat plan, the baseline $e^{b_t}$ (seasonality, "
+"trend, events) scales the forecasted lift of a log model up or down, but "
+"it leaves the split unchanged."
+msgstr ""
+"Tenga esto presente: para un plan plano, la línea base $e^{b_t}$ "
+"(estacionalidad, tendencia, eventos) aumenta o reduce el aumento "
+"pronosticado de un modelo log, pero deja la distribución sin cambios."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:880055
+#: e6b6aa32a1fc4c8f8906522185575550
+msgid "The argument is approximate for two reasons:"
+msgstr "El argumento es aproximado por dos razones:"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:880057
+#: eb4e6ac65a674d048bb64a2e407c63b0
+#, python-brace-format
+msgid ""
+"**Window edges.** In the first plan weeks and in the carry-over weeks the"
+" adstock has not settled, so the slope of each channel term changes from "
+"week to week, and differently for `x1` and `x2`. The marginal return of a"
+" channel is then a sum of these weekly slopes with the weights $e^{b_t} "
+"e^{M_t(x)}$, where $M_t(x) = \\sum_c m_{t,c}(x)$, and the weights no "
+"longer factor out of the comparison between the channels."
+msgstr ""
+"**Bordes de la ventana.** En las primeras semanas del plan y en las semanas "
+"de arrastre, el adstock no se ha estabilizado, por lo que la pendiente del "
+"término de cada canal cambia de una semana a otra, y de forma distinta para "
+"`x1` y `x2`. El retorno marginal de un canal es entonces una suma de estas "
+"pendientes semanales con las ponderaciones $e^{b_t} e^{M_t(x)}$, donde "
+"$M_t(x) = \\sum_c m_{t,c}(x)$, y las ponderaciones ya no se pueden sacar "
+"como factor común en la comparación entre los canales."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:880058
+#: b7ab6b11f09143ba819611143825b877
+msgid ""
+"**Posterior average.** The optimizer maximizes the posterior mean of the "
+"objective. For each posterior draw both objectives pick the same plan, "
+"but averaged over the draws they do not. The log objective gives more "
+"weight to the draws with a higher baseline and a stronger media effect, "
+"which pulls the plan towards the optimum of those draws."
+msgstr ""
+"**Promedio posterior.** El optimizador maximiza la media posterior del "
+"objetivo. Para cada muestra posterior, ambos objetivos eligen el mismo plan,"
+" pero promediados sobre las muestras no ocurre así. El objetivo log da más "
+"peso a las muestras con una línea base más alta y un efecto de medios más "
+"fuerte, lo que lleva el plan hacia el óptimo de esas muestras."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:880060
+#: fb6d3c9fe26a44929f97c117df80c61a
+msgid ""
+"In the budget sweep below we optimize the media term directly. The gap "
+"between that plan and the log plan measures both effects together."
+msgstr ""
+"En el barrido de presupuesto siguiente optimizamos directamente el término "
+"de medios. La brecha entre ese plan y el plan log mide ambos efectos en "
+"conjunto."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:890002
+#: 5e1673f98222494ab4195c7c093ca244
+msgid "Planning Setup"
+msgstr "Configuración de la planificación"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:890004
+#: 0d51e26379864417bc77dbfc9358d7c8
+msgid ""
+"Let's plan the $13$ weeks after the last observation, 2021-09-06 to "
+"2021-11-29. We make four planning choices here, and you should feel free "
+"to challenge each of them:"
+msgstr ""
+"Planifiquemos las $13$ semanas posteriores a la última observación, del "
+"2021-09-06 al 2021-11-29. Aquí tomamos cuatro decisiones de planificación, y"
+" no dude en cuestionar cada una de ellas:"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:890006
+#: cc4a354313144bf8899c612e59484365
+msgid ""
+"**Budget anchor.** The weekly budget is the average weekly spend over the"
+" training data. The reference plan is the **historical split**: the "
+"average weekly spend of each channel, spread evenly over the plan weeks. "
+"Note that the spend in this dataset is between $0$ and $1$ per week, so "
+"the budgets look small and the ROAS values look large."
+msgstr ""
+"**Ancla del presupuesto.** El presupuesto semanal es el gasto semanal "
+"promedio de los datos de entrenamiento. El plan de referencia es la "
+"**distribución histórica**: el gasto semanal promedio de cada canal, "
+"repartido uniformemente entre las semanas del plan. Observe que el gasto de "
+"este conjunto de datos está entre $0$ y $1$ por semana, por lo que los "
+"presupuestos parecen pequeños y los valores de ROAS parecen grandes."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:890007
+#: 908655098c52488d87f45c3ee4973b18
+#, python-brace-format
+msgid ""
+"**Guardrails.** Each channel can move at most $50\\%$ away from its "
+"historical weekly spend. This is the same box as in "
+"{ref}`mmm_case_study2`, here around the average weekly spend over the "
+"training period. Media teams cannot move budgets arbitrarily from one "
+"quarter to the next, and the guardrails also limit how far a wrong model "
+"can push the plan."
+msgstr ""
+"**Límites de seguridad.** Cada canal puede alejarse como máximo un $50\\%$ "
+"de su gasto semanal histórico. Es el mismo rango que en "
+"{ref}`mmm_case_study2`, aquí alrededor del gasto semanal promedio del "
+"período de entrenamiento. Los equipos de medios no pueden mover los "
+"presupuestos arbitrariamente de un trimestre a otro, y los límites de "
+"seguridad también acotan cuánto puede desviar el plan un modelo equivocado."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:890008
+#: 451ba7bdcb47487786aa36674e9d0e7f
+#, python-brace-format
+msgid ""
+"**Default objective.** We keep the default response variable and the "
+"default `average_response` utility, the posterior mean. See "
+"{ref}`mmm_allocation_assessment` for risk-aware utilities."
+msgstr ""
+"**Objetivo predeterminado.** Mantenemos la variable de respuesta "
+"predeterminada y la utilidad predeterminada `average_response`, la media "
+"posterior. Consulte {ref}`mmm_allocation_assessment` para ver utilidades que"
+" tienen en cuenta el riesgo."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:890009
+#: 90c7afec21524b648b0643899033a8a5
+msgid ""
+"**Planned controls.** The models read three controls: the two event "
+"indicators and the trend (`t` in the additive model, `t_norm` in the log "
+"models). We plan no events in the window, and we expect the trend to "
+"continue. Under the log link this choice scales the forecasted lift, as "
+"we will see in the Forecasted Lift section."
+msgstr ""
+"**Controles planificados.** Los modelos leen tres controles: los dos "
+"indicadores de eventos y la tendencia (`t` en el modelo aditivo, `t_norm` en"
+" los modelos log). No planificamos eventos en la ventana y esperamos que la "
+"tendencia continúe. Con el enlace log, esta decisión escala el aumento "
+"pronosticado, como veremos en la sección Aumento pronosticado."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:890011
+#: 12daf56aaa944e9f935b50e656884ddf
+msgid "First, the window, the weekly budget and the width of the guardrails."
+msgstr ""
+"Primero, la ventana, el presupuesto semanal y el ancho de los límites de "
+"seguridad."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:910002
+#: db954fc215eb4dbda0568ae4e63d377d
+msgid ""
+"Next, the guardrails. For a weekly budget $B$, the reference spend of "
+"each channel is its historical share of the spend, `spend_share` from the"
+" prior configuration above, times $B$."
+msgstr ""
+"A continuación, los límites de seguridad. Para un presupuesto semanal $B$, "
+"el gasto de referencia de cada canal es su proporción histórica del gasto, "
+"`spend_share` de la configuración de priors anterior, multiplicada por $B$."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:910004
+#: 58fc530ad4e94ab4917e780511cffe08
+msgid ""
+"At the historical budget the reference spend is the historical spend "
+"itself, so the box is $\\pm 50\\%$ around it. We use other budgets in the"
+" Scaling the Budget section below."
+msgstr ""
+"Con el presupuesto histórico, el gasto de referencia es el propio gasto "
+"histórico, de modo que el rango es de $\\pm 50\\%$ alrededor de este. Usamos"
+" otros presupuestos en la sección Escalar el presupuesto más abajo."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:930002
+#: cc54977e639348bc81bc8c140f750e2b
+msgid ""
+"We compute the guardrails at the historical budget, which the optimizers "
+"use below."
+msgstr ""
+"Calculamos los límites de seguridad con el presupuesto histórico, que los "
+"optimizadores usan a continuación."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:950002
+#: a27f90b8405d4400a34af1be527aaa12
+#, python-brace-format
+msgid ""
+"Let's look at the historical split and its guardrails. As "
+"{ref}`mmm_case_study2` does, we draw each guardrail band as a uniform "
+"distribution over the allowed weekly spend: the interval covers the whole"
+" band, and its mean marks the historical spend."
+msgstr ""
+"Veamos la distribución histórica y sus límites de seguridad. Como hace "
+"{ref}`mmm_case_study2`, dibujamos cada banda de límite de seguridad como una"
+" distribución uniforme sobre el gasto semanal permitido: el intervalo cubre "
+"toda la banda y su media marca el gasto histórico."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:970002
+#: c008e6d66d254aa9873c60432b412afd
+msgid ""
+"The weekly budget is $0.471$, of which the historical split gives $0.309$"
+" to `x1` and $0.162$ to `x2`. The guardrails let `x1` move between "
+"$0.155$ and $0.464$, and `x2` between $0.081$ and $0.243$."
+msgstr ""
+"El presupuesto semanal es $0.471$, del cual la distribución histórica asigna"
+" $0.309$ a `x1` y $0.162$ a `x2`. Los límites de seguridad permiten que `x1`"
+" se mueva entre $0.155$ y $0.464$, y `x2` entre $0.081$ y $0.243$."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:970004
+#: e361484c8101443e819155864fe30bf5
+msgid ""
+"Recall from the first figure of the notebook that `x2` was either off or "
+"spent between about $0.8$ and $1.0$ in a week. So its whole guardrail "
+"band lies where we never observed its weekly spend. Keep this in mind, as"
+" we come back to it in the Scaling the Budget section."
+msgstr ""
+"Recordemos de la primera figura del cuaderno que `x2` estaba apagado o "
+"gastaba entre aproximadamente $0.8$ y $1.0$ en una semana. Por tanto, toda "
+"su banda de límites de seguridad está en una zona donde nunca observamos su "
+"gasto semanal. Tengamos esto presente, ya que volveremos sobre ello en la "
+"sección Escalar el presupuesto."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:970007
+#: 9c34c8b9476647aeb6f6132759a62c15
+#, python-brace-format
+msgid ""
+"**Median scale**: Under the log link the objective uses $e^{\\mu}$, the "
+"median of the LogNormal likelihood, as the ROAS above does. The mean is "
+"larger by the factor $e^{\\sigma^2 / 2}$ in every posterior draw. This "
+"factor does not depend on the plan, so we work on the median scale "
+"throughout."
+msgstr ""
+"**Escala de la mediana**: Con el enlace log, el objetivo usa $e^{\\mu}$, la "
+"mediana de la verosimilitud LogNormal, igual que el ROAS anterior. La media "
+"es mayor por el factor $e^{\\sigma^2 / 2}$ en cada muestra posterior. Este "
+"factor no depende del plan, por lo que trabajamos en la escala de la mediana"
+" en todo momento."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:980002
+#: ca5bcd1e44e1411cb3c056cec42edc07
+#, python-brace-format
+msgid ""
+"Finally, the planned controls. "
+"{meth}`~pymc_marketing.mmm.mmm.MMM.budget_optimizer` takes them as "
+"`control_data`, a DataFrame laid out like `X`: the date column and one "
+"column per control. It needs a value for every control on every week "
+"after the last observation, through the end of the carry-over: here the "
+"$13$ plan weeks and the $8$ carry-over weeks of the adstock, which has "
+"`l_max=8` in all three models. Columns that a model does not read are "
+"ignored, so one DataFrame with both trend columns serves the three "
+"models."
+msgstr ""
+"Por último, los controles planificados. "
+"{meth}`~pymc_marketing.mmm.mmm.MMM.budget_optimizer` los recibe como "
+"`control_data`, un DataFrame con la misma estructura que `X`: la columna de "
+"fecha y una columna por control. Necesita un valor para cada control en cada"
+" semana posterior a la última observación, hasta el final del arrastre: aquí"
+" las $13$ semanas del plan y las $8$ semanas de arrastre del adstock, que "
+"tiene `l_max=8` en los tres modelos. Las columnas que un modelo no lee se "
+"ignoran, por lo que un único DataFrame con ambas columnas de tendencia sirve"
+" para los tres modelos."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1000002
+#: dfe3bdfefbc44f959ad174f744b01408
+msgid "Optimal Allocation"
+msgstr "Asignación óptima"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1000004
+#: de0f178280cd4af9a305da217f411854
+#, python-brace-format
+msgid ""
+"Now we are ready to pass all these business requirements to the "
+"optimizer. For each model, "
+"{meth}`~pymc_marketing.mmm.mmm.MMM.budget_optimizer` builds a "
+"{class}`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer` for the "
+"window, with the planned controls as `control_data`."
+msgstr ""
+"Ahora estamos listos para pasar todos estos requisitos de negocio al "
+"optimizador. Para cada modelo, "
+"{meth}`~pymc_marketing.mmm.mmm.MMM.budget_optimizer` construye un "
+"{class}`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer` para la "
+"ventana, con los controles planificados como `control_data`."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1020002
+#: 1cd91c5f767849c598a07d2d722ae01c
+msgid ""
+"The date axis of an optimizer has three blocks: carry-in weeks with the "
+"observed spend before the window (so that the adstock does not start "
+"cold), the plan weeks, and carry-over weeks without spend, which collect "
+"the adstock tail of the plan. The controls hold their observed values on "
+"the carry-in weeks and the planned values on the plan and carry-over "
+"weeks. The three optimizers share the same axis, so we read the blocks "
+"from one of them."
+msgstr ""
+"El eje de fechas de un optimizador tiene tres bloques: semanas de entrada "
+"con el gasto observado antes de la ventana (para que el adstock no empiece "
+"en frío), las semanas del plan y las semanas de arrastre sin gasto, que "
+"recogen la cola de adstock del plan. Los controles conservan sus valores "
+"observados en las semanas de entrada y los valores planificados en las "
+"semanas del plan y de arrastre. Los tres optimizadores comparten el mismo "
+"eje, por lo que leemos los bloques de uno de ellos."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1040002
+#: 196cb7414f6d45db8d8d346ba0758b15
+msgid ""
+"Let's draw the window with the observed spend and the historical split "
+"over the plan weeks."
+msgstr ""
+"Dibujemos la ventana con el gasto observado y la distribución histórica "
+"sobre las semanas del plan."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1060002
+#: 3e78a543960642eba981918ff357ccb1
+msgid ""
+"The window has $8$ carry-in weeks, $13$ plan weeks and $8$ carry-over "
+"weeks, as the adstock has `l_max=8`. The carry-in weeks hold the observed"
+" spend, including one burst of `x2`, so the plan does not start from a "
+"cold adstock."
+msgstr ""
+"La ventana tiene $8$ semanas de entrada, $13$ semanas de plan y $8$ semanas "
+"de arrastre, ya que el adstock tiene `l_max=8`. Las semanas de entrada "
+"contienen el gasto observado, incluido un pico de `x2`, de modo que el plan "
+"no parte de un adstock en frío."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1060004
+#: a59ce3d0bfd8462d8b52b3aaa10bdb02
+msgid ""
+"Next, a helper that optimizes the weekly budget within the guardrails. We"
+" start every optimization at the reference split of the budget, which "
+"lies inside the guardrails."
+msgstr ""
+"A continuación, una función auxiliar que optimiza el presupuesto semanal "
+"dentro de los límites de seguridad. Iniciamos cada optimización en la "
+"distribución de referencia del presupuesto, que se encuentra dentro de los "
+"límites de seguridad."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1060006
+#: 2c923a5cff694457a4eac9fbd3908fc3
+#, python-brace-format
+msgid ""
+"SLSQP's `ftol` is an absolute precision target, so, as in "
+"{ref}`mmm_case_study2`, we set it relative to the scale of the objective "
+"at the starting plan. "
+"{meth}`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.evaluate_plan`"
+" gives us that objective without running the solver."
+msgstr ""
+"`ftol` de SLSQP es un objetivo de precisión absoluta, así que, como en "
+"{ref}`mmm_case_study2`, lo fijamos en relación con la escala del objetivo en"
+" el plan inicial. "
+"{meth}`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.evaluate_plan` "
+"nos da ese objetivo sin ejecutar el solucionador."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1080002
+#: 84d82568fd334b4d99d829bcd01cfccb
+msgid "We optimize the weekly budget of each model within the guardrails."
+msgstr ""
+"Optimizamos el presupuesto semanal de cada modelo dentro de los límites de "
+"seguridad."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1100002
+#: 57e46ddd80b44a748f05e29fd8ba36cb
+msgid ""
+"Because we simulated the data, we know the true adstock, saturation and "
+"parameters (see the ROAS Comparison), so we can also compute the true "
+"optimal plan. The Appendix at the end of the notebook derives the true "
+"marginal returns in closed form. Here we solve the exact problem "
+"numerically, including the edges of the window."
+msgstr ""
+"Como simulamos los datos, conocemos el adstock, la saturación y los "
+"parámetros verdaderos (véase la Comparación del ROAS), por lo que también "
+"podemos calcular el plan óptimo verdadero. El Apéndice al final del cuaderno"
+" deriva los retornos marginales verdaderos en forma cerrada. Aquí resolvemos"
+" el problema exacto de forma numérica, incluidos los bordes de la ventana."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1100004
+#: 3f0349b0731742feb773305578afe1dd
+msgid ""
+"The helper below applies the true adstock and saturation to the weekly "
+"spend of one channel. We write it in NumPy because we evaluate it many "
+"times."
+msgstr ""
+"La función auxiliar siguiente aplica el adstock y la saturación verdaderos "
+"al gasto semanal de un canal. La escribimos en NumPy porque la evaluamos "
+"muchas veces."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1120002
+#: ae53ee1562694e85a35e569376dc8c73
+msgid ""
+"The NumPy version reproduces the true ROAS that we computed with the "
+"library transformations."
+msgstr ""
+"La versión en NumPy reproduce el ROAS verdadero que calculamos con las "
+"transformaciones de la biblioteca."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1140002
+#: 342713da10334dbaac65eb660df05d74
+msgid ""
+"Next, the true incremental sales of a plan. We append the plan weeks and "
+"`L_MAX` carry-over weeks without spend to the observed spend history, and"
+" subtract the sales of the same history without any spend in the window."
+msgstr ""
+"A continuación, las ventas incrementales verdaderas de un plan. Añadimos las"
+" semanas del plan y `L_MAX` semanas de arrastre sin gasto al historial de "
+"gasto observado, y restamos las ventas del mismo historial sin ningún gasto "
+"en la ventana."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1140004
+#: 922f65ed45584f6e8af933eb41b3fd9a
+msgid ""
+"The optional `pattern` holds the share of the budget spent in each plan "
+"week. A flat plan spends $1 / 13$ of the budget every week, and we use "
+"other patterns in the Spend Timing section below."
+msgstr ""
+"El argumento opcional `pattern` contiene la proporción del presupuesto "
+"gastada en cada semana del plan. Un plan plano gasta $1 / 13$ del "
+"presupuesto cada semana, y usamos otros patrones en la sección Momento del "
+"gasto más abajo."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1160002
+#: ca2bee5a5a5348e4ab92a8733a5d41e1
+msgid ""
+"With two channels, the budget line $x_1 + x_2 = B$ leaves one free "
+"variable, the spend on `x1`, and `x2` gets the rest. The guardrails "
+"restrict it to $\\max(l_1, B - u_2) \\le x_1 \\le \\min(u_1, B - l_2)$, "
+"where $l_c$ and $u_c$ are the lower and upper guardrails of channel $c$. "
+"The helper below returns this feasible range."
+msgstr ""
+"Con dos canales, la recta de presupuesto $x_1 + x_2 = B$ deja una variable "
+"libre, el gasto en `x1`, y `x2` recibe el resto. Los límites de seguridad la"
+" restringen a $\\max(l_1, B - u_2) \\le x_1 \\le \\min(u_1, B - l_2)$, donde"
+" $l_c$ y $u_c$ son los límites de seguridad inferior y superior del canal "
+"$c$. La función auxiliar siguiente devuelve este rango factible."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1180002
+#: 72d721f735854216b481503ecd6caca0
+msgid ""
+"The true incremental sales are concave in the spend on `x1`, so a bounded"
+" scalar search over the feasible range finds the true optimum."
+msgstr ""
+"Las ventas incrementales verdaderas son cóncavas en el gasto en `x1`, por lo"
+" que una búsqueda escalar acotada sobre el rango factible encuentra el "
+"óptimo verdadero."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1200002
+#: d5d35bb6e86b422ba418a1f158f2aa0f
+msgid ""
+"We collect the plans in one table: the historical split, the three "
+"optimized plans and the true optimum within the same guardrails."
+msgstr ""
+"Reunimos los planes en una tabla: la distribución histórica, los tres planes"
+" optimizados y el óptimo verdadero dentro de los mismos límites de "
+"seguridad."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1220002
+#: 1e828f472b094ec8821075bed4cce03b
+msgid ""
+"At the historical budget, the guardrails restrict the spend on `x1` to "
+"the following feasible range."
+msgstr ""
+"Con el presupuesto histórico, los límites de seguridad restringen el gasto "
+"en `x1` al siguiente rango factible."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1240002
+#: f02c7ae7bea14c3f98c0b36bde0f7ae4
+msgid ""
+"We can now visualize the plans side by side. The shaded range marks where"
+" the boundary between the two channels can sit under the guardrails."
+msgstr ""
+"Ahora podemos visualizar los planes lado a lado. El rango sombreado marca "
+"dónde puede situarse la frontera entre los dos canales bajo los límites de "
+"seguridad."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1260002
+#: 65153f3c87874d46bc6c4c46d5e8057d
+msgid ""
+"All three models and the truth pick the same plan: `x2` drops to its "
+"lower guardrail, $0.081$, and `x1` takes the rest, $0.390$. The binding "
+"guardrail is the floor of `x2`, which is why the boundary between the two"
+" colors sits at the right end of the shaded range. So, within these "
+"guardrails, the link function does not change the plan at this budget."
+msgstr ""
+"Los tres modelos y la verdad eligen el mismo plan: `x2` baja a su límite de "
+"seguridad inferior, $0.081$, y `x1` se queda con el resto, $0.390$. El "
+"límite de seguridad activo es el piso de `x2`, por lo que la frontera entre "
+"los dos colores se sitúa en el extremo derecho del rango sombreado. Así, "
+"dentro de estos límites de seguridad, la función de enlace no cambia el plan"
+" con este presupuesto."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1260004
+#: 2ac9198fdeec4be9b5bf2013fb8ce9a6
+#, python-brace-format
+msgid ""
+"Why do they all agree? To see it, we look at the marginal returns along "
+"the budget line, as {ref}`mmm_case_study2` does at its historical plan."
+msgstr ""
+"¿Por qué todos coinciden? Para verlo, observamos los retornos marginales a "
+"lo largo de la recta de presupuesto, como hace {ref}`mmm_case_study2` en su "
+"plan histórico."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1260006
+#: a153b1d8474548859811e1378c6fe34d
+#, python-brace-format
+msgid ""
+"{meth}`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.evaluate_plan`"
+" evaluates the optimizer at a plan without running the solver. Its "
+"`utility_gradient` is the gradient of the utility: the marginal return of"
+" each channel."
+msgstr ""
+"{meth}`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.evaluate_plan` "
+"evalúa el optimizador en un plan sin ejecutar el solucionador. Su "
+"`utility_gradient` es el gradiente de la utilidad: el retorno marginal de "
+"cada canal."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1260008
+#: 051553f2468d40e0baa33cce0016a996
+msgid ""
+"The gradient is taken with respect to the weekly spend held over the $13$"
+" plan weeks, so we divide it by $13$ to get the incremental sales per "
+"unit of spend, in the units of the ROAS. The helper below evaluates it on"
+" a grid of plans on the budget line."
+msgstr ""
+"El gradiente se toma respecto del gasto semanal mantenido durante las $13$ "
+"semanas del plan, por lo que lo dividimos entre $13$ para obtener las ventas"
+" incrementales por unidad de gasto, en las unidades del ROAS. La función "
+"auxiliar siguiente lo evalúa en una cuadrícula de planes sobre la recta de "
+"presupuesto."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1280002
+#: 7c1cd8f85cb64bc8ab15eaf1cc63757a
+msgid ""
+"For the truth we use central finite differences of "
+"`true_incremental_sales`, divided by $13$ as well."
+msgstr ""
+"Para la verdad usamos diferencias finitas centrales de "
+"`true_incremental_sales`, también divididas entre $13$."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1300002
+#: c433326dd1ed4e3184898bd367ee67a5
+msgid ""
+"We evaluate the marginal returns on a grid of $41$ plans along the budget"
+" line, for the truth and the three models."
+msgstr ""
+"Evaluamos los retornos marginales en una cuadrícula de $41$ planes a lo "
+"largo de la recta de presupuesto, para la verdad y los tres modelos."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1320002
+#: f7ad66bdfc244b0080bce6958c8a047b
+msgid ""
+"The figure below shows the marginal returns of both channels as we move "
+"the budget from `x2` to `x1`."
+msgstr ""
+"La figura siguiente muestra los retornos marginales de ambos canales a "
+"medida que movemos el presupuesto de `x2` a `x1`."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1340002
+#: 7075bb609c564fd5a09377aae884b40c
+msgid ""
+"In every panel the marginal return of `x1` stays above the one of `x2` "
+"over the whole feasible range. So every optimizer keeps moving budget to "
+"`x1` until the floor of `x2` stops it, at the right end of the shaded "
+"range."
+msgstr ""
+"En todos los paneles, el retorno marginal de `x1` se mantiene por encima del"
+" de `x2` en todo el rango factible. Por eso todos los optimizadores siguen "
+"moviendo presupuesto a `x1` hasta que el piso de `x2` los detiene, en el "
+"extremo derecho del rango sombreado."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1340004
+#: c85e43f85cc9407daacb84c423a8f265
+msgid ""
+"Without guardrails, the plans would stop where the two curves cross: at "
+"about $0.46$ for the truth, $0.43$ for the additive model and $0.42$ for "
+"the log model. The log-log curves never cross, because its `x1` marginal "
+"return is almost flat. In other words, at this budget the guardrails make"
+" the plan robust to the choice of the model."
+msgstr ""
+"Sin límites de seguridad, los planes se detendrían donde se cruzan las dos "
+"curvas: en aproximadamente $0.46$ para la verdad, $0.43$ para el modelo "
+"aditivo y $0.42$ para el modelo log. Las curvas del modelo log-log nunca se "
+"cruzan, porque su retorno marginal de `x1` es casi plano. En otras palabras,"
+" con este presupuesto los límites de seguridad hacen que el plan sea robusto"
+" frente a la elección del modelo."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1340006
+#: c31747a96e764ff1a0eb12cd16d42716
+#, python-brace-format
+msgid ""
+"In the log panel the `x1` curve first rises. Moving budget to the channel"
+" with the higher return raises the media term, and the common factor "
+"$e^{M(x)}$ of the second remark lifts both marginal returns."
+msgstr ""
+"En el panel log, la curva de `x1` primero sube. Mover presupuesto al canal "
+"con mayor retorno eleva el término de medios, y el factor común $e^{M(x)}$ "
+"de la segunda observación eleva ambos retornos marginales."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1340008
+#: 5811399e6cfe441eaaea3c5354f26057
+msgid ""
+"The additive panel is close to the truth. The Appendix checks the truth "
+"panel against the closed-form marginal returns."
+msgstr ""
+"El panel aditivo se acerca a la verdad. El Apéndice verifica el panel de la "
+"verdad con los retornos marginales en forma cerrada."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1350002
+#: 252faccc7ea44a5e990be04e550c6758
+msgid "Expected Gain"
+msgstr "Ganancia esperada"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1350004
+#: 39671532d6ed486ca3db70d563da800a
+#, python-brace-format
+msgid ""
+"How much does each model expect to gain over the historical split, and "
+"how much would the plan really gain? "
+"{meth}`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.evaluate_response_distribution`"
+" returns the posterior of the objective at a plan, without predictive "
+"noise."
+msgstr ""
+"¿Cuánto espera ganar cada modelo respecto de la distribución histórica, y "
+"cuánto ganaría realmente el plan? "
+"{meth}`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.evaluate_response_distribution`"
+" devuelve el posterior del objetivo en un plan, sin ruido predictivo."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1350006
+#: fc7b20b7b9a345c5af025876ecde5ec1
+msgid ""
+"The objective also contains the carry-over of the spend made before the "
+"window, so we subtract the response to a plan with no spend. The "
+"difference is the incremental sales of the plan itself."
+msgstr ""
+"El objetivo también contiene el arrastre del gasto realizado antes de la "
+"ventana, así que restamos la respuesta a un plan sin gasto. La diferencia "
+"son las ventas incrementales del propio plan."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1370002
+#: a0ca343aa2374ee69656f228faf36fc8
+msgid ""
+"We compute the relative gain of each optimized plan over the historical "
+"split, per posterior sample, and label each model with its probability of"
+" a positive gain. We also compute the true gain of the true optimum, "
+"within the guardrails and without them (each channel between zero and the"
+" full budget)."
+msgstr ""
+"Calculamos la ganancia relativa de cada plan optimizado respecto de la "
+"distribución histórica, por muestra posterior, y etiquetamos cada modelo con"
+" su probabilidad de una ganancia positiva. También calculamos la ganancia "
+"verdadera del óptimo verdadero, dentro de los límites de seguridad y sin "
+"ellos (cada canal entre cero y el presupuesto completo)."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1390002
+#: ee6808bce6e3473fbc072536262362b9
+msgid "Next, the forest plot of the predicted gains, next to the true gains."
+msgstr ""
+"A continuación, el gráfico de bosque de las ganancias predichas, junto a las"
+" ganancias verdaderas."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1410002
+#: 8cf2e179ce2f42b485b87ce5a336f688
+msgid ""
+"All three models get the same plan, but they promise different gains. The"
+" additive and the log model predict about $3\\%$ and $4\\%$, close to the"
+" true $3.8\\%$. Their $94\\%$ HDIs include zero, and they put $90\\%$ and"
+" $95\\%$ probability on a positive gain: these models are honestly "
+"uncertain about a small gain."
+msgstr ""
+"Los tres modelos obtienen el mismo plan, pero prometen ganancias distintas. "
+"Los modelos aditivo y log predicen alrededor de un $3\\%$ y un $4\\%$, cerca"
+" del $3.8\\%$ verdadero. Sus HDI del $94\\%$ incluyen el cero, y asignan una"
+" probabilidad del $90\\%$ y del $95\\%$ a una ganancia positiva: estos "
+"modelos son honestamente inciertos sobre una ganancia pequeña."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1410004
+#: 3b2cb0f523784ac58c5a9e5d06d549ff
+msgid ""
+"The log-log model predicts about $7\\%$ with an interval that excludes "
+"the truth: it over-promises with confidence. The dotted line shows what "
+"the guardrails cost when the curves are right: without them the best plan"
+" would gain $4.8\\%$ instead of $3.8\\%$."
+msgstr ""
+"El modelo log-log predice alrededor de un $7\\%$ con un intervalo que "
+"excluye la verdad: promete de más con confianza. La línea punteada muestra "
+"lo que cuestan los límites de seguridad cuando las curvas son correctas: sin"
+" ellos, el mejor plan ganaría un $4.8\\%$ en lugar de un $3.8\\%$."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1410006
+#: 46a9fd9ace854b879945662e9a466876
+#, python-brace-format
+msgid ""
+"Note that a relative gain hardly depends on the baseline of the window, "
+"because for a flat plan the factor $\\sum_t e^{b_t}$ approximately "
+"cancels in the ratio. We come back to absolute forecasts in the "
+"Forecasted Lift section."
+msgstr ""
+"Observe que una ganancia relativa apenas depende de la línea base de la "
+"ventana, porque en un plan plano el factor $\\sum_t e^{b_t}$ se cancela "
+"aproximadamente en el cociente. Volveremos sobre los pronósticos absolutos "
+"en la sección Aumento pronosticado."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1420002
+#: fbdeab1f9c684397bb63c800cddb55ce
+msgid "Scaling the Budget"
+msgstr "Escalar el presupuesto"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1420004
+#: 63153d301ca047c1a74ebed64bb49d22
+msgid ""
+"At the historical budget the guardrails bind and the three models agree. "
+"Do they still agree when the budget grows? Let's repeat the optimization "
+"for weekly budgets from $0.2$ to $1.2$ and record the split and the true "
+"incremental sales of every plan, together with the true optimum within "
+"the same guardrails."
+msgstr ""
+"Con el presupuesto histórico, los límites de seguridad están activos y los "
+"tres modelos coinciden. ¿Siguen coincidiendo cuando el presupuesto crece? "
+"Repitamos la optimización para presupuestos semanales de $0.2$ a $1.2$ y "
+"registremos la distribución y las ventas incrementales verdaderas de cada "
+"plan, junto con el óptimo verdadero dentro de los mismos límites de "
+"seguridad."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1420006
+#: a17a690f09d8408787d6bf5c1df0ee18
+msgid ""
+"The guardrails scale with the budget: the reference spend of each channel"
+" is its historical share of the budget. In other words, each channel's "
+"**share** of the budget stays within $\\pm 50\\%$ of its historical "
+"share."
+msgstr ""
+"Los límites de seguridad escalan con el presupuesto: el gasto de referencia "
+"de cada canal es su proporción histórica del presupuesto. En otras palabras,"
+" la **proporción** del presupuesto de cada canal se mantiene dentro de $\\pm"
+" 50\\%$ de su proporción histórica."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1420008
+#: 4e4c1623c8514541bdc11fb612054f01
+msgid ""
+"We also add a fourth plan. The log and the additive model differ in two "
+"ways: the objective (through the link) and the response curves that each "
+"model learns from the same data."
+msgstr ""
+"También añadimos un cuarto plan. El modelo log y el aditivo difieren en dos "
+"aspectos: el objetivo (a través de la función de enlace) y las curvas de "
+"respuesta que cada modelo aprende de los mismos datos."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1420010
+#: f4e1ecfa098749ee839457e554929a9e
+#, python-brace-format
+msgid ""
+"To separate the two, we optimize the media term of the log model, "
+"$\\sum_t \\sum_c m_{t,c}(x)$, directly. This is what an additive model "
+"with the curves of the log model would maximize."
+msgstr ""
+"Para separar ambos, optimizamos directamente el término de medios del modelo"
+" log, $\\sum_t \\sum_c m_{t,c}(x)$. Esto es lo que maximizaría un modelo "
+"aditivo con las curvas del modelo log."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1420012
+#: c088b44be3f14322aed2ff40440fd1b4
+#, python-brace-format
+msgid ""
+"The deterministic `channel_contribution` holds $m_{t,c}$. A custom "
+"utility sums it over dates and channels and averages it over the "
+"posterior samples."
+msgstr ""
+"El determinista `channel_contribution` contiene $m_{t,c}$. Una utilidad "
+"personalizada lo suma sobre las fechas y los canales y lo promedia sobre las"
+" muestras posteriores."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1440002
+#: b55445a0e0454d64a7d4fcd4e14befc2
+msgid ""
+"We pass this utility to an optimizer of the log model, with "
+"`channel_contribution` as the response variable and the same planned "
+"controls."
+msgstr ""
+"Pasamos esta utilidad a un optimizador del modelo log, con "
+"`channel_contribution` como variable de respuesta y los mismos controles "
+"planificados."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1460002
+#: 513286858c54411face1f852545b1cec
+msgid ""
+"Next, the sweep over the weekly budgets for the four optimizers and the "
+"truth."
+msgstr ""
+"A continuación, el barrido sobre los presupuestos semanales para los cuatro "
+"optimizadores y la verdad."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1480002
+#: 8bdb44b1f11f4ba6b296b1a94b264e50
+msgid ""
+"We look at the results in two figures. First, the share of the budget "
+"that each plan gives to `x2`, with the share guardrails as dashed gray "
+"lines and the historical budget as a dotted line."
+msgstr ""
+"Observamos los resultados en dos figuras. Primero, la proporción del "
+"presupuesto que cada plan asigna a `x2`, con los límites de seguridad de "
+"proporción como líneas grises discontinuas y el presupuesto histórico como "
+"una línea punteada."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1500002
+#: bab2370369ae45609e7aa196a5dff453
+msgid "Here is what the split shows:"
+msgstr "Esto es lo que muestra la distribución:"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1500004
+#: 7a70c5612bb74eeeb0ff714b40351922
+msgid ""
+"**Small budgets.** Up to a weekly budget of $0.5$ every plan sits at the "
+"lower share guardrail of `x2`, $17.2\\%$."
+msgstr ""
+"**Presupuestos pequeños.** Hasta un presupuesto semanal de $0.5$, todos los "
+"planes se sitúan en el límite de seguridad inferior de proporción de `x2`, "
+"$17.2\\%$."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1500005
+#: 3034c8b5b72345e4ad4e84f8bb7f95ea
+msgid ""
+"**Additive.** From $0.6$ on, the true optimum leaves the guardrail. The "
+"additive split stays within about $4$ points of it at $0.6$ and within "
+"about $2$ points from $0.7$ on."
+msgstr ""
+"**Aditivo.** A partir de $0.6$, el óptimo verdadero abandona el límite de "
+"seguridad. La distribución aditiva se mantiene a unos $4$ puntos de este en "
+"$0.6$ y a unos $2$ puntos desde $0.7$ en adelante."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1500006
+#: 48cb156c08af410d8278af2ad74702c2
+msgid ""
+"**Log.** The log split gives `x2` about $2$ to $5$ points more than the "
+"additive split and $4$ to $6$ points more than the truth."
+msgstr ""
+"**Log.** La distribución log asigna a `x2` entre $2$ y $5$ puntos más que la"
+" distribución aditiva y entre $4$ y $6$ puntos más que la verdad."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1500007
+#: 5358ec09f6d145f5ad237b97e7664280
+msgid ""
+"**Objective or curves.** The dash-dotted purple line, the curves of the "
+"log model with the additive objective, sits within one point of the log "
+"line. So the link moves the split mainly through the curves that the "
+"model estimates from the data, not through the shape of its objective, as"
+" the flat-plan argument predicts. The small gap between the two lines "
+"measures the edges of the window and the posterior averaging."
+msgstr ""
+"**Objetivo o curvas.** La línea morada de guiones y puntos, las curvas del "
+"modelo log con el objetivo aditivo, se sitúa a menos de un punto de la línea"
+" log. Así, la función de enlace mueve la distribución principalmente a "
+"través de las curvas que el modelo estima a partir de los datos, no a través"
+" de la forma de su objetivo, como predice el argumento del plan plano. La "
+"pequeña brecha entre las dos líneas mide los bordes de la ventana y el "
+"promedio posterior."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1500008
+#: fe9daf75c3074cad9b7c5e1ba42f4e40
+msgid "**Log-log.** The log-log plan stays at the floor of `x2` at every budget."
+msgstr ""
+"**Log-log.** El plan log-log se queda en el piso de `x2` con cualquier "
+"presupuesto."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1500010
+#: 3b7fbab107194b958e41397cff6702b9
+msgid ""
+"Next, we look at what each plan costs in true incremental sales against "
+"the true optimum at the same budget. We first compute the largest cost of"
+" each plan over all budgets."
+msgstr ""
+"A continuación, vemos lo que cuesta cada plan en ventas incrementales "
+"verdaderas frente al óptimo verdadero con el mismo presupuesto. Primero "
+"calculamos el mayor costo de cada plan sobre todos los presupuestos."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1520002
+#: 267c2157e7d94e81b82bbfc87332c38c
+msgid ""
+"The figure below shows the cost of each plan at every budget, with its "
+"largest cost in the legend."
+msgstr ""
+"La figura siguiente muestra el costo de cada plan con cada presupuesto, con "
+"su mayor costo en la leyenda."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1540002
+#: 5dce4bc3a7904588913718a6282302b2
+msgid "Here is what the costs show:"
+msgstr "Esto es lo que muestran los costos:"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1540004
+#: 9ddfa4bca2d4470c9bd70d3928974d00
+msgid ""
+"**Additive and log.** The additive and the log plans cost at most "
+"$0.09\\%$ and $0.23\\%$ of the attainable true sales, and the purple plan"
+" $0.17\\%$."
+msgstr ""
+"**Aditivo y log.** Los planes aditivo y log cuestan como máximo un $0.09\\%$"
+" y un $0.23\\%$ de las ventas verdaderas alcanzables, y el plan morado un "
+"$0.17\\%$."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1540005
+#: 4c277d765867404ca6563c995ecf9bcc
+msgid ""
+"**Log-log.** Staying at the floor of `x2` costs the log-log plan up to "
+"$9.4\\%$ at a budget of $1.2$. The guardrails limit the damage of a wrong"
+" curve, but they do not remove it."
+msgstr ""
+"**Log-log.** Quedarse en el piso de `x2` le cuesta al plan log-log hasta un "
+"$9.4\\%$ con un presupuesto de $1.2$. Los límites de seguridad limitan el "
+"daño de una curva equivocada, pero no lo eliminan."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1540007
+#: 0d6bcd30fb21432783f9bc2f75763af5
+msgid ""
+"Why does the log-log model keep `x2` at its floor? For a flat plan its "
+"media term is $\\beta_c \\log(1 + x_c)$, with marginal return $\\beta_c /"
+" (1 + x_c)$. Over the observed spend range from $0$ to $1$ this slope "
+"only halves."
+msgstr ""
+"¿Por qué el modelo log-log mantiene `x2` en su piso? Para un plan plano, su "
+"término de medios es $\\beta_c \\log(1 + x_c)$, con retorno marginal "
+"$\\beta_c / (1 + x_c)$. En el rango de gasto observado de $0$ a $1$, esta "
+"pendiente solo se reduce a la mitad."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1540009
+#: 2c975a56c8c04abb8448ae91f049b85f
+#, python-brace-format
+msgid ""
+"The slope of the true `x1` curve, proportional to $\\text{sech}^2(2 x_1)$"
+" (see the Appendix), drops to $\\text{sech}^2(2) \\approx 0.07$ of its "
+"starting value."
+msgstr ""
+"La pendiente de la curva verdadera de `x1`, proporcional a $\\text{sech}^2(2"
+" x_1)$ (véase el Apéndice), cae hasta $\\text{sech}^2(2) \\approx 0.07$ de "
+"su valor inicial."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1540011
+#: fef3b6dd38f746dc933d8ad4d6a46729
+msgid ""
+"On the sales scale the log-log media factor of `x1` is $(1 + "
+"x_1)^{\\beta_{x_1}}$, with $\\beta_{x_1}$ close to one (see the log-log "
+"trace plot above), which is almost linear. So the log-log model sees "
+"almost no diminishing returns in `x1`, as the flat `x1` marginal return "
+"in the marginal-return figure shows."
+msgstr ""
+"En la escala de ventas, el factor de medios log-log de `x1` es $(1 + "
+"x_1)^{\\beta_{x_1}}$, con $\\beta_{x_1}$ cercano a uno (véase el gráfico de "
+"trazas log-log anterior), lo que es casi lineal. Así, el modelo log-log casi"
+" no ve rendimientos decrecientes en `x1`, como muestra el retorno marginal "
+"plano de `x1` en la figura de retornos marginales."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1540013
+#: b66fe7f3e2424c66bcf06ebe2cd17757
+msgid ""
+"Here is an important observation: the log-log model underestimates the "
+"ROAS of `x1` by about $21\\%$ (see the ROAS Comparison), yet from a "
+"budget of $0.6$ on it gives `x1` more budget than any other model. ROAS "
+"is an average, while the optimizer follows the marginal return, which "
+"depends on the shape of the curve."
+msgstr ""
+"Aquí hay una observación importante: el modelo log-log subestima el ROAS de "
+"`x1` en aproximadamente un $21\\%$ (véase la Comparación del ROAS), y sin "
+"embargo, a partir de un presupuesto de $0.6$, asigna a `x1` más presupuesto "
+"que cualquier otro modelo. El ROAS es un promedio, mientras que el "
+"optimizador sigue el retorno marginal, que depende de la forma de la curva."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1540015
+#: bcfada74b88b445db54f58b9213a3fd5
+msgid ""
+"A wrong curve shape, and not the log link, drives this misallocation: the"
+" log model, with logistic curves, tracks the truth."
+msgstr ""
+"Una forma de curva equivocada, y no el enlace log, impulsa esta asignación "
+"errónea: el modelo log, con curvas logísticas, sigue a la verdad."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1540018
+#: 17664173ff4d4adfb1616cadc2ac10e3
+msgid ""
+"**Critical Assessment**: Recall from the Planning Setup that the "
+"guardrail band of `x2` lies where we never observed its weekly spend. The"
+" same holds for every weekly level of `x2` that the optimizers choose "
+"here."
+msgstr ""
+"**Evaluación crítica**: Recordemos de la Configuración de la planificación "
+"que la banda de límites de seguridad de `x2` se encuentra donde nunca "
+"observamos su gasto semanal. Lo mismo ocurre con cada nivel semanal de `x2` "
+"que los optimizadores eligen aquí."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1540020
+#: 1ba45ddb3843445c9226b7bb9b9e8e96
+msgid ""
+"The models learn their curves at these levels from the adstock tails of "
+"the bursts and from the functional form of the saturation. Here the "
+"logistic form matches the data-generating process, so the additive and "
+"log plans stay within $0.3\\%$ of the true optimum. On real data the "
+"shape of a curve between observed spend levels is an assumption, and the "
+"optimal split inherits it."
+msgstr ""
+"Los modelos aprenden sus curvas en estos niveles a partir de las colas de "
+"adstock de los picos y de la forma funcional de la saturación. Aquí la forma"
+" logística coincide con el proceso generador de datos, por lo que los planes"
+" aditivo y log se mantienen a menos de un $0.3\\%$ del óptimo verdadero. Con"
+" datos reales, la forma de una curva entre niveles de gasto observados es un"
+" supuesto, y la distribución óptima lo hereda."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1550002
+#: a4308abb0884479f9a06fc7e7ede4178
+msgid "Forecasted Lift"
+msgstr "Aumento pronosticado"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1550004
+#: b920b48242f341a4916fded00d983b4c
+msgid ""
+"So far we compared splits and relative gains, and both hardly depend on "
+"the baseline of the window. The absolute forecast does, under the log "
+"link."
+msgstr ""
+"Hasta ahora comparamos distribuciones y ganancias relativas, y ambas apenas "
+"dependen de la línea base de la ventana. El pronóstico absoluto sí depende "
+"de ella con el enlace log."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1550006
+#: acec49e9239749d691821c587fbf10f0
+msgid ""
+"All the optimizers so far plan with the controls of the Planning Setup: "
+"no events, and the trend continued. What if we had left `control_data` "
+"out? Then {meth}`~pymc_marketing.mmm.mmm.MMM.create_optimization_model`, "
+"which `budget_optimizer` uses, fills the controls of the dates after the "
+"training data with zeros. For the additive model this is harmless, "
+"because the controls do not enter its media objective. For the two log "
+"models, a zero `t_norm` resets the trend factor $e^{\\gamma_t \\, "
+"t_{\\text{norm}}}$ to its value in the first week of the data."
+msgstr ""
+"Todos los optimizadores hasta ahora planifican con los controles de la "
+"Configuración de la planificación: sin eventos y con la tendencia "
+"continuada. ¿Qué pasa si hubiéramos omitido `control_data`? Entonces "
+"{meth}`~pymc_marketing.mmm.mmm.MMM.create_optimization_model`, que usa "
+"`budget_optimizer`, rellena con ceros los controles de las fechas "
+"posteriores a los datos de entrenamiento. Para el modelo aditivo esto es "
+"inofensivo, porque los controles no entran en su objetivo de medios. Para "
+"los dos modelos log, un `t_norm` igual a cero restablece el factor de "
+"tendencia $e^{\\gamma_t \\, t_{\\text{norm}}}$ a su valor en la primera "
+"semana de los datos."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1550008
+#: 78335e95a74b4ef794a9909381f48971
+msgid ""
+"Let's build these zero-filled optimizers. `budget_optimizer` warns when "
+"it zero-fills the controls of a log-link model. We silenced warnings at "
+"the top of the notebook, so we record the user warnings here."
+msgstr ""
+"Construyamos estos optimizadores rellenados con ceros. `budget_optimizer` "
+"emite una advertencia cuando rellena con ceros los controles de un modelo "
+"con enlace log. Silenciamos las advertencias al inicio del cuaderno, así que"
+" aquí registramos las advertencias de usuario."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1570002
+#: b6eb2acd6b3441098be38646633e06d4
+msgid ""
+"The two log models warn about the same $21$ weeks that `planned_controls`"
+" covers, and the additive model does not warn."
+msgstr ""
+"Los dos modelos log advierten sobre las mismas $21$ semanas que cubre "
+"`planned_controls`, y el modelo aditivo no advierte."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1570004
+#: 75dfd86520484c2287cadd78c14515dd
+msgid ""
+"By the flat-plan argument, the continued trend rescales the log objective"
+" without changing its optimal plan, also within the guardrails. So we "
+"forecast the plans of the budget sweep, which we optimized with the trend"
+" continued, once with the zero-filled controls and once with the trend "
+"continued."
+msgstr ""
+"Por el argumento del plan plano, la tendencia continuada reescala el "
+"objetivo log sin cambiar su plan óptimo, también dentro de los límites de "
+"seguridad. Por eso pronosticamos los planes del barrido de presupuesto, que "
+"optimizamos con la tendencia continuada, una vez con los controles "
+"rellenados con ceros y otra con la tendencia continuada."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1590002
+#: 1480f9eaa25444399919fcf21ac3582a
+msgid ""
+"The figure below compares the two forecasts of each model with the true "
+"incremental sales of the same plans (top), and shows them relative to the"
+" truth (bottom). The sales include the carry-over weeks after the window,"
+" and the dotted line marks the historical budget. In the additive panels "
+"the two bands overlap, so only one mixed-color band is visible."
+msgstr ""
+"La figura siguiente compara los dos pronósticos de cada modelo con las "
+"ventas incrementales verdaderas de los mismos planes (arriba), y los muestra"
+" relativos a la verdad (abajo). Las ventas incluyen las semanas de arrastre "
+"posteriores a la ventana, y la línea punteada marca el presupuesto "
+"histórico. En los paneles aditivos, las dos bandas se superponen, por lo que"
+" solo se ve una banda de color mixto."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1610002
+#: 3fb3337cd9f7440886b4f5603bd88794
+msgid ""
+"The two additive bands coincide and cover the truth at every budget: the "
+"controls do not enter the additive media objective."
+msgstr ""
+"Las dos bandas aditivas coinciden y cubren la verdad con cada presupuesto: "
+"los controles no entran en el objetivo de medios aditivo."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1610004
+#: 909cff6e3113490fbf5efd257e07d9b0
+msgid ""
+"For the log model, the forecast with the zero-filled controls sits about "
+"$10\\%$ below the truth at a budget of $0.5$ and close to it at $1.2$. "
+"The forecast with the trend continued sits about $8\\%$ above the truth "
+"at $0.5$ and about $19\\%$ above it at $1.2$. The truth lies between the "
+"two."
+msgstr ""
+"Para el modelo log, el pronóstico con los controles rellenados con ceros "
+"queda alrededor de un $10\\%$ por debajo de la verdad con un presupuesto de "
+"$0.5$ y cerca de ella con $1.2$. El pronóstico con la tendencia continuada "
+"queda alrededor de un $8\\%$ por encima de la verdad con $0.5$ y alrededor "
+"de un $19\\%$ por encima con $1.2$. La verdad queda entre los dos."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1610006
+#: 25ffe7e27efd48bd83fe8dfa680cccd0
+msgid ""
+"The two log forecasts differ by the same *factor* at every budget, the "
+"ratio of their baselines, so the gap between the two bands grows with the"
+" budget. The drift of both bands against the truth, upwards as the budget"
+" grows, comes from the curves instead."
+msgstr ""
+"Los dos pronósticos log difieren por el mismo *factor* con cada presupuesto,"
+" el cociente de sus líneas base, por lo que la brecha entre las dos bandas "
+"crece con el presupuesto. La deriva de ambas bandas respecto de la verdad, "
+"hacia arriba a medida que crece el presupuesto, proviene en cambio de las "
+"curvas."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1610008
+#: 96b1c083f32b48bb8b1eeaf94fd18b85
+msgid ""
+"The log-log forecasts cross the truth. They are too low at small budgets,"
+" including the historical one, and too high at large budgets, by more "
+"than $40\\%$ at $1.2$ with the trend continued. This is the almost linear"
+" $(1 + x_1)^{\\beta_{x_1}}$ media factor again."
+msgstr ""
+"Los pronósticos log-log cruzan la verdad. Son demasiado bajos con "
+"presupuestos pequeños, incluido el histórico, y demasiado altos con "
+"presupuestos grandes, en más de un $40\\%$ con $1.2$ y la tendencia "
+"continuada. Es de nuevo el factor de medios casi lineal $(1 + "
+"x_1)^{\\beta_{x_1}}$."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1610011
+#: 587dc640938445799c8a35b539f014a6
+msgid ""
+"**Critical Assessment**: The true media effect is additive, so the true "
+"lift does not depend on the trend. The log models learn one "
+"multiplicative media effect averaged over the training period, so their "
+"forecasts follow the baseline of the window, on top of any error in the "
+"curves."
+msgstr ""
+"**Evaluación crítica**: El efecto verdadero de los medios es aditivo, por lo"
+" que el aumento verdadero no depende de la tendencia. Los modelos log "
+"aprenden un único efecto multiplicativo de los medios promediado sobre el "
+"período de entrenamiento, por lo que sus pronósticos siguen la línea base de"
+" la ventana, además de cualquier error en las curvas."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1610013
+#: 375df3ca7ce949eda06e8fbce66e6b66
+msgid ""
+"The forecasts with the trend reset to its first value are lower than "
+"those with the trend continued past the end of the data, by the same "
+"factor at every budget. On data that really is multiplicative, the "
+"forecast with the trend continued is the one to use if you expect the "
+"trend to continue."
+msgstr ""
+"Los pronósticos con la tendencia restablecida a su primer valor son más "
+"bajos que los que continúan la tendencia más allá del final de los datos, "
+"por el mismo factor con cada presupuesto. Con datos que realmente son "
+"multiplicativos, el pronóstico con la tendencia continuada es el que "
+"conviene usar si se espera que la tendencia continúe."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1610015
+#: 5f11ef9492d34ba4be359ec691204cf2
+msgid ""
+"For a log-link model, pass the planned controls of the window as "
+"`control_data` before you trust an absolute forecast, and compare plans "
+"by their relative gains."
+msgstr ""
+"Para un modelo con enlace log, pase los controles planificados de la ventana"
+" como `control_data` antes de confiar en un pronóstico absoluto, y compare "
+"los planes por sus ganancias relativas."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1620002
+#: 4a92a1ef6ab6463eb6c0c8617e12cc61
+msgid "Spend Timing"
+msgstr "Momento del gasto"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1620004
+#: e11b4202f0a84e88971d9a3e18a2b62a
+msgid ""
+"The flat-plan argument assumes the same spend every week. What if we also"
+" choose *when* to spend? Under the identity link the baseline does not "
+"enter the objective, so only the adstock and the saturation curves "
+"matter."
+msgstr ""
+"El argumento del plan plano supone el mismo gasto cada semana. ¿Y si también"
+" elegimos *cuándo* gastar? Con el enlace identidad, la línea base no entra "
+"en el objetivo, por lo que solo importan el adstock y las curvas de "
+"saturación."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1620006
+#: 35e257d3502a42e3a44754419c513852
+#, python-brace-format
+msgid ""
+"Under the log link, the baseline $e^{b_t}$ of a week multiplies the media"
+" effect of that week. Let's first see how the baseline $b_t$ of the log "
+"models moves over the plan weeks."
+msgstr ""
+"Con el enlace log, la línea base $e^{b_t}$ de una semana multiplica el "
+"efecto de los medios de esa semana. Veamos primero cómo se mueve la línea "
+"base $b_t$ de los modelos log a lo largo de las semanas del plan."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1620008
+#: 404efc4fd0c04df4af5e20102d13ff0f
+msgid ""
+"We evaluate the linear predictor `mu` and the channel term "
+"`channel_contribution` at a plan with no spend, with the trend continued,"
+" and take their difference. We also evaluate the yearly seasonality on "
+"its own. Both are expressed as a factor against the first plan week."
+msgstr ""
+"Evaluamos el predictor lineal `mu` y el término de canal "
+"`channel_contribution` en un plan sin gasto, con la tendencia continuada, y "
+"tomamos su diferencia. También evaluamos por separado la estacionalidad "
+"anual. Ambos se expresan como un factor respecto de la primera semana del "
+"plan."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1640002
+#: 17152104242d452aad7d0f0f2df37203
+msgid ""
+"The figure below shows the baseline factor of the two log models over the"
+" plan weeks, with the yearly seasonality alone as dashed lines."
+msgstr ""
+"La figura siguiente muestra el factor de línea base de los dos modelos log a"
+" lo largo de las semanas del plan, con la estacionalidad anual sola como "
+"líneas discontinuas."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1660002
+#: bc71180bb1e5464c8f84385e603b1b20
+msgid ""
+"The baseline of both log models grows by about $35\\%$ from early "
+"September to the end of November, almost all of it through the yearly "
+"seasonality. A log-link objective should therefore reward spend later in "
+"the window."
+msgstr ""
+"La línea base de ambos modelos log crece alrededor de un $35\\%$ desde "
+"principios de septiembre hasta fines de noviembre, casi todo a través de la "
+"estacionalidad anual. Por tanto, un objetivo con enlace log debería premiar "
+"el gasto hacia el final de la ventana."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1660004
+#: 8566e861c1bc4eca82c5d8cefbce0378
+msgid ""
+"Let's check this with three spend patterns for the historical split: a "
+"front-loaded ramp, the flat plan, and a back-loaded ramp. The ramps move "
+"linearly between $1.5$ and $0.5$ times the flat weekly spend, and each "
+"pattern holds the share of the budget spent in each plan week."
+msgstr ""
+"Verifiquemos esto con tres patrones de gasto para la distribución histórica:"
+" una rampa concentrada al inicio, el plan plano y una rampa concentrada al "
+"final. Las rampas varían linealmente entre $1.5$ y $0.5$ veces el gasto "
+"semanal plano, y cada patrón contiene la proporción del presupuesto gastada "
+"en cada semana del plan."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1680002
+#: ddf8c446ae10493aaf91af765bad4cc9
+msgid ""
+"The figure below shows the share of the budget that each pattern spends "
+"in each plan week."
+msgstr ""
+"La figura siguiente muestra la proporción del presupuesto que cada patrón "
+"gasta en cada semana del plan."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1700002
+#: 6643f99381ff4a8d8eacb1aea605f10b
+msgid ""
+"The front-loaded ramp spends about $11.5\\%$ of the budget in the first "
+"plan week and about $3.8\\%$ in the last one, and the back-loaded ramp "
+"does the reverse. All three patterns spend the same total."
+msgstr ""
+"La rampa concentrada al inicio gasta alrededor de un $11.5\\%$ del "
+"presupuesto en la primera semana del plan y alrededor de un $3.8\\%$ en la "
+"última, y la rampa concentrada al final hace lo contrario. Los tres patrones"
+" gastan el mismo total."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1700004
+#: e3a6deecbbc243c0b7ea900ea50b5930
+msgid ""
+"The optimizer does not choose these patterns: it takes one as the fixed "
+"input `budget_distribution_over_period`, an array of shape (date, "
+"channel). We use the same pattern for both channels and score the "
+"historical split under each pattern, for the three models with the trend "
+"continued and for the truth."
+msgstr ""
+"El optimizador no elige estos patrones: toma uno como entrada fija "
+"`budget_distribution_over_period`, un arreglo de forma (fecha, canal). "
+"Usamos el mismo patrón para ambos canales y evaluamos la distribución "
+"histórica con cada patrón, para los tres modelos con la tendencia continuada"
+" y para la verdad."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1720002
+#: f1b6e64ffa6746099705911fdabf2e12
+msgid ""
+"Next, the change of the incremental sales against the flat plan for each "
+"pattern."
+msgstr ""
+"A continuación, el cambio de las ventas incrementales respecto del plan "
+"plano para cada patrón."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1740002
+#: 3ba98447d62742718010b01a1c7e21ee
+msgid ""
+"Under the truth and the additive model, the flat plan beats both ramps. "
+"The true sales drop by about $2\\%$ when the spend is front-loaded and by"
+" about $1\\%$ when it is back-loaded, and the additive model sees the "
+"same. Concave curves reward a smooth spend."
+msgstr ""
+"Bajo la verdad y el modelo aditivo, el plan plano supera a ambas rampas. Las"
+" ventas verdaderas caen alrededor de un $2\\%$ cuando el gasto se concentra "
+"al inicio y alrededor de un $1\\%$ cuando se concentra al final, y el modelo"
+" aditivo ve lo mismo. Las curvas cóncavas premian un gasto uniforme."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1740004
+#: 8438d06407e84197be6521fa3cb5468e
+msgid ""
+"The two log models disagree: they prefer the back-loaded plan, by almost "
+"$2\\%$ (log) and about $3\\%$ (log-log), because it puts more of the "
+"budget into the weeks with the higher baseline. On this additive data "
+"that gain does not exist."
+msgstr ""
+"Los dos modelos log discrepan: prefieren el plan concentrado al final, por "
+"casi un $2\\%$ (log) y alrededor de un $3\\%$ (log-log), porque coloca más "
+"presupuesto en las semanas con mayor línea base. Con estos datos aditivos, "
+"esa ganancia no existe."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1740006
+#: 151dbbf3821f44e2974d407aeac3d558
+msgid ""
+"This is the main way in which the link function changes *when* to spend. "
+"Under the log link the objective chases the baseline, which is right only"
+" if media effects really scale with sales."
+msgstr ""
+"Esta es la principal manera en que la función de enlace cambia *cuándo* "
+"gastar. Con el enlace log, el objetivo persigue la línea base, lo cual es "
+"correcto solo si los efectos de los medios realmente escalan con las ventas."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1750002
+#: 6a084693518840afba0bfa1d9cbfffdf
+msgid "Takeaways"
+msgstr "Conclusiones"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1750004
+#: fa57c340bc2742849dd35f4965367b7a
+msgid "Here are the main lessons from the budget optimization:"
+msgstr ""
+"Estas son las principales lecciones de la optimización del presupuesto:"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1750006
+#: 8e98bcbb22f34a04be1cdf118df667fa
+msgid ""
+"**The guardrails can decide the plan.** At the historical budget the "
+"guardrails bind, and all three models and the truth pick the same plan. "
+"The models still disagree on the value of that plan, and the log-log "
+"model over-promises."
+msgstr ""
+"**Los límites de seguridad pueden decidir el plan.** Con el presupuesto "
+"histórico, los límites de seguridad están activos y los tres modelos y la "
+"verdad eligen el mismo plan. Aun así, los modelos discrepan sobre el valor "
+"de ese plan, y el modelo log-log promete de más."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1750007
+#: 3cd292e8dda34c2ab7797f80a690bb05
+msgid ""
+"**The split follows the curves.** For a flat plan the link function "
+"changes the split mainly through the response curves that the model "
+"estimates, not through the shape of its objective. When the guardrails "
+"stop binding, the additive and the log plans lose at most $0.09\\%$ and "
+"$0.23\\%$ of the attainable true sales."
+msgstr ""
+"**La distribución sigue a las curvas.** Para un plan plano, la función de "
+"enlace cambia la distribución principalmente a través de las curvas de "
+"respuesta que el modelo estima, no a través de la forma de su objetivo. "
+"Cuando los límites de seguridad dejan de estar activos, los planes aditivo y"
+" log pierden como máximo un $0.09\\%$ y un $0.23\\%$ de las ventas "
+"verdaderas alcanzables."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1750008
+#: 6f15fe2648f447aeb3a0c6caeab8e95e
+msgid ""
+"**The curve shape matters most when you scale the budget.** The log-log "
+"`x1` curve, $(1 + x_1)^{\\beta_{x_1}}$ on the sales scale with "
+"$\\beta_{x_1}$ close to one, hardly saturates on the observed spend "
+"range. The log-log plan stays at the floor of `x2`, loses up to $9.4\\%$ "
+"of the attainable true sales even with guardrails, and over-forecasts at "
+"high budgets."
+msgstr ""
+"**La forma de la curva importa más cuando se escala el presupuesto.** La "
+"curva log-log de `x1`, $(1 + x_1)^{\\beta_{x_1}}$ en la escala de ventas con"
+" $\\beta_{x_1}$ cercano a uno, apenas se satura en el rango de gasto "
+"observado. El plan log-log se queda en el piso de `x2`, pierde hasta un "
+"$9.4\\%$ de las ventas verdaderas alcanzables incluso con límites de "
+"seguridad, y sobrepronostica con presupuestos altos."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1750009
+#: cd4c7b66ae5947e6b6eb308ed6fcb68d
+msgid ""
+"**The forecast follows the baseline.** Under the log link the forecasted "
+"lift scales with the baseline of the window. Pass the planned controls as"
+" `control_data` before you trust an absolute number, and compare plans by"
+" their relative gains."
+msgstr ""
+"**El pronóstico sigue a la línea base.** Con el enlace log, el aumento "
+"pronosticado escala con la línea base de la ventana. Pase los controles "
+"planificados como `control_data` antes de confiar en una cifra absoluta, y "
+"compare los planes por sus ganancias relativas."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1750010
+#: f8411fb0ab0f447da76a11f187e8ba12
+msgid ""
+"**The timing follows the baseline too.** Under the log link the objective"
+" rewards spend in the weeks with a high baseline, so both log models "
+"prefer the back-loaded plan. This is right only if the media effects "
+"really are multiplicative."
+msgstr ""
+"**El momento también sigue a la línea base.** Con el enlace log, el objetivo"
+" premia el gasto en las semanas con una línea base alta, por lo que ambos "
+"modelos log prefieren el plan concentrado al final. Esto es correcto solo si"
+" los efectos de los medios realmente son multiplicativos."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1760002
+#: 1b77de26ae7948919b46ae99c8dd1002
+msgid "Summary Metrics"
+msgstr "Métricas resumen"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1760004
+#: c8165eb7128a45c8bdef4cf19990a2c7
+msgid ""
+"We close with a quick quantitative comparison, using the evaluation "
+"metrics from `pymc_marketing.metrics`. NMAE and NRMSE are the mean "
+"absolute and root mean squared errors of the posterior-mean prediction, "
+"normalized by the observed range of $y$ so they are comparable across "
+"datasets. CRPS (continuous ranked probability score) scores the posterior"
+" predictive draws of $y$ on the original scale (observation noise "
+"included) against each observation, in the units of $y$: it rewards "
+"calibrated uncertainty, not just an accurate point estimate. All three "
+"models are scored on the same quantity, "
+"`mmm.data.get_predictive_target(\"posterior\")`, which is `y * "
+"target_scale` under every link. Lower is better for all three. "
+"Divergences indicate sampling problems (ideally zero for all models)."
+msgstr ""
+"Cerramos con una comparación cuantitativa rápida, usando las métricas de "
+"evaluación de `pymc_marketing.metrics`. NMAE y NRMSE son el error absoluto "
+"medio y la raíz del error cuadrático medio de la predicción de la media "
+"posterior, normalizados por el rango observado de $y$ para que sean "
+"comparables entre conjuntos de datos. CRPS (puntaje de probabilidad "
+"ranqueada continua) evalúa las muestras predictivas posteriores de $y$ en la"
+" escala original (con el ruido de observación incluido) frente a cada "
+"observación, en las unidades de $y$: premia la incertidumbre calibrada, no "
+"solo una estimación puntual precisa. Los tres modelos se evalúan sobre la "
+"misma cantidad, `mmm.data.get_predictive_target(\"posterior\")`, que es `y *"
+" target_scale` con cualquier función de enlace. Menor es mejor en los tres "
+"casos. Las divergencias indican problemas de muestreo (idealmente cero en "
+"todos los modelos)."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1780002
+#: d3f59ba9fd8544929d4f6ce3f63ecac9
+msgid ""
+"On this dataset, the additive model achieves the lowest prediction error "
+"across all metrics. This is expected: the synthetic data was generated by"
+" an additive process, so the additive model has a structural advantage."
+msgstr ""
+"En este conjunto de datos, el modelo aditivo logra el menor error de "
+"predicción en todas las métricas. Esto es lo esperado: los datos sintéticos "
+"se generaron con un proceso aditivo, por lo que el modelo aditivo tiene una "
+"ventaja estructural."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1780004
+#: 2e2d09e67125488cbb34e435af1deb91
+msgid ""
+"This result should **not** be taken as evidence that the additive model "
+"is universally preferable. On real-world data the true generating process"
+" is unknown, and multiplicative relationships (e.g. media amplifying a "
+"seasonal baseline) are common. The choice of link function should be "
+"guided by:"
+msgstr ""
+"Este resultado **no** debe tomarse como evidencia de que el modelo aditivo "
+"sea universalmente preferible. Con datos del mundo real, el proceso "
+"generador verdadero se desconoce, y las relaciones multiplicativas (por "
+"ejemplo, los medios que amplifican una línea base estacional) son comunes. "
+"La elección de la función de enlace debería guiarse por:"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1780006
+#: a41ec239c2d049058976ac3c09de57a2
+msgid ""
+"**Domain knowledge**: does the business context suggest additive or "
+"multiplicative effects?"
+msgstr ""
+"**Conocimiento del dominio**: ¿el contexto del negocio sugiere efectos "
+"aditivos o multiplicativos?"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1780007
+#: efd567e0522a4074a59091e019efb435
+msgid ""
+"**Data characteristics**: are sales strictly positive? Does the standard "
+"deviation grow in proportion to the mean (favoring log-link)?"
+msgstr ""
+"**Características de los datos**: ¿son las ventas estrictamente positivas? "
+"¿La desviación estándar crece en proporción a la media (lo que favorece el "
+"enlace log)?"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1780008
+#: 5f356d4ed47e4736bbf40e61354a9d92
+msgid ""
+"**Model diagnostics**: convergence, posterior predictive checks, and out-"
+"of-sample performance."
+msgstr ""
+"**Diagnósticos del modelo**: convergencia, verificaciones predictivas "
+"posteriores y desempeño fuera de muestra."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1780010
+#: 8c8b114f32fa4f84879f7e4c7bc05dec
+msgid ""
+"When in doubt, fitting multiple specifications (as done here) and "
+"comparing diagnostics is a practical strategy, anchored on link-"
+"independent estimands like the incrementality-based ROAS above, which "
+"remain comparable no matter how each model maps its linear predictor to "
+"sales."
+msgstr ""
+"Ante la duda, ajustar varias especificaciones (como se hizo aquí) y comparar"
+" los diagnósticos es una estrategia práctica, anclada en estimandos "
+"independientes del enlace como el ROAS basado en incrementalidad visto "
+"antes, que siguen siendo comparables sin importar cómo cada modelo asigne su"
+" predictor lineal a las ventas."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1780012
+#: 50d8a9763b7b45da9de942b07f11ae3b
+msgid ""
+"The same holds for budget decisions. Compare the optimal splits and the "
+"relative gains across specifications, and treat the absolute lift "
+"forecasts and the timing preferences of a log-link model as consequences "
+"of its multiplicative assumption."
+msgstr ""
+"Lo mismo vale para las decisiones de presupuesto. Compare las distribuciones"
+" óptimas y las ganancias relativas entre especificaciones, y trate los "
+"pronósticos de aumento absoluto y las preferencias de momento de un modelo "
+"con enlace log como consecuencias de su supuesto multiplicativo."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1790002
+#: 4142601458454adfb092b320355487b9
+msgid "Next Steps"
+msgstr "Próximos pasos"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1790004
+#: 16cad730e77f4d1ba85efd63a6f7360d
+msgid "Here are three natural extensions of this notebook:"
+msgstr "Estas son tres extensiones naturales de este cuaderno:"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1790006
+#: c17cde76e4724e51ac09dadfe7222885
+msgid ""
+"**Log-log without a saturation component.** We can add a log-log "
+"specification that does not use the saturation slot of the `MMM` class. "
+"Issue [#3221](https://github.com/pymc-labs/pymc-marketing/issues/3221) "
+"tracks it."
+msgstr ""
+"**Log-log sin componente de saturación.** Podemos añadir una especificación "
+"log-log que no use el espacio de saturación de la clase `MMM`. El issue "
+"[#3221](https://github.com/pymc-labs/pymc-marketing/issues/3221) le da "
+"seguimiento."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1790007
+#: 452ae6b8e8f44b9a8a7ca83f6c318215
+#, python-brace-format
+msgid ""
+"**Parameter recovery.** We can simulate data from each of the three "
+"specifications (see {ref}`mmm_data_generator`), and check that each model"
+" recovers the parameters of its own data-generating process. The same "
+"data also show how the other two models do when they are misspecified."
+msgstr ""
+"**Recuperación de parámetros.** Podemos simular datos de cada una de las "
+"tres especificaciones (véase {ref}`mmm_data_generator`) y comprobar que cada"
+" modelo recupera los parámetros de su propio proceso generador de datos. Los"
+" mismos datos también muestran cómo se desempeñan los otros dos modelos "
+"cuando están mal especificados."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1790008
+#: 22aa10aa882d4a9aa7ea51a90d6f89dc
+msgid ""
+"**Mixed structures.** We can model multiplicative media on an additive "
+"baseline, or choose the link and the likelihood separately. The `link` "
+"argument does not offer either today, and issue "
+"[#3088](https://github.com/pymc-labs/pymc-marketing/issues/3088) "
+"discusses them."
+msgstr ""
+"**Estructuras mixtas.** Podemos modelar medios multiplicativos sobre una "
+"línea base aditiva, o elegir por separado la función de enlace y la "
+"verosimilitud. El argumento `link` no ofrece ninguna de las dos hoy, y el "
+"issue [#3088](https://github.com/pymc-labs/pymc-marketing/issues/3088) las "
+"discute."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1800002
+#: 67b0829db7e94cbc9361548a0495bd48
+msgid "Appendix"
+msgstr "Apéndice"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1800004
+#: b6959d2be31047eaaf488cdbe6d8d57b
+msgid "True Marginal Returns"
+msgstr "Retornos marginales verdaderos"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1800006
+#: 4716089bcdc347a2be49a72e9a3b8cab
+msgid ""
+"This appendix derives the true marginal returns behind the true optimal "
+"plan, and checks them against the exact ones that the notebook computes "
+"numerically."
+msgstr ""
+"Este apéndice deriva los retornos marginales verdaderos que sustentan el "
+"plan óptimo verdadero, y los contrasta con los exactos que el cuaderno "
+"calcula de forma numérica."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1800008
+#: 30cb2d6ac0f94265a22d040353a73a7c
+#, python-brace-format
+msgid ""
+"Recall from the ROAS Comparison that channel $c$ adds $1000 \\, \\beta_c "
+"\\, \\text{logistic}_{\\lambda_c}(\\text{adstock}_{\\alpha_c}(x_c))$ to "
+"the weekly sales, with $\\beta = (3, 2)$ and $\\lambda = (4, 3)$. The "
+"logistic saturation is"
+msgstr ""
+"Recordemos de la Comparación del ROAS que el canal $c$ aporta $1000 \\, "
+"\\beta_c \\, "
+"\\text{logistic}_{\\lambda_c}(\\text{adstock}_{\\alpha_c}(x_c))$ a las "
+"ventas semanales, con $\\beta = (3, 2)$ y $\\lambda = (4, 3)$. La saturación"
+" logística es"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1800010
+#: d3d0fcee8f9c437ea7a60ef324fac9b7
+msgid ""
+"\n"
+"\\text{logistic}_{\\lambda}(x) = \\frac{1 - e^{-\\lambda x}}{1 + "
+"e^{-\\lambda x}}.\n"
+msgstr ""
+"\n"
+"\\text{logistic}_{\\lambda}(x) = \\frac{1 - e^{-\\lambda x}}{1 + e^{-\\lambda x}}.\n"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1800014
+#: 5035f32754954a74834c196f296e0383
+#, python-brace-format
+msgid ""
+"Multiplying the numerator and the denominator by $e^{\\lambda x / 2}$ "
+"gives"
+msgstr "Multiplicar el numerador y el denominador por $e^{\\lambda x / 2}$ da"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1800016
+#: 42ff833192224c1f96338c7805c6ae97
+msgid ""
+"\n"
+"\\text{logistic}_{\\lambda}(x) = \\frac{e^{\\lambda x / 2} - e^{-\\lambda"
+" x / 2}}{e^{\\lambda x / 2} + e^{-\\lambda x / 2}} = \\tanh(\\lambda x / "
+"2).\n"
+msgstr ""
+"\n"
+"\\text{logistic}_{\\lambda}(x) = \\frac{e^{\\lambda x / 2} - e^{-\\lambda x / 2}}{e^{\\lambda x / 2} + e^{-\\lambda x / 2}} = \\tanh(\\lambda x / 2).\n"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1800020
+#: 5345e06fe73d4224bb71f98697119b28
+msgid ""
+"For a flat plan the normalized adstock settles at the weekly spend $x_c$,"
+" because its weights sum to one. Once it has settled, channel $c$ sells "
+"$1000 \\, \\beta_c \\tanh(\\lambda_c x_c / 2)$ per week."
+msgstr ""
+"Para un plan plano, el adstock normalizado se estabiliza en el gasto semanal"
+" $x_c$, porque sus ponderaciones suman uno. Una vez estabilizado, el canal "
+"$c$ vende $1000 \\, \\beta_c \\tanh(\\lambda_c x_c / 2)$ por semana."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1800022
+#: 08d3e71dcc024846af7128820ffeee15
+#, python-brace-format
+msgid ""
+"The derivative of $\\tanh(u)$ is $\\text{sech}^2(u)$. With $u = "
+"\\lambda_c x_c / 2$, the chain rule multiplies it by $\\frac{du}{dx_c} = "
+"\\lambda_c / 2$, so the marginal return of channel $c$ is"
+msgstr ""
+"La derivada de $\\tanh(u)$ es $\\text{sech}^2(u)$. Con $u = \\lambda_c x_c /"
+" 2$, la regla de la cadena la multiplica por $\\frac{du}{dx_c} = \\lambda_c "
+"/ 2$, de modo que el retorno marginal del canal $c$ es"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1800024
+#: eff7f8759d3c42799a7b4e2de47d3870
+#, python-brace-format
+msgid ""
+"\n"
+"1000 \\, \\beta_c \\, \\frac{\\lambda_c}{2} \\, \\text{sech}^2(\\lambda_c"
+" x_c / 2) = 500 \\, \\beta_c \\lambda_c \\, \\text{sech}^2(\\lambda_c x_c"
+" / 2).\n"
+msgstr ""
+"\n"
+"1000 \\, \\beta_c \\, \\frac{\\lambda_c}{2} \\, \\text{sech}^2(\\lambda_c x_c / 2) = 500 \\, \\beta_c \\lambda_c \\, \\text{sech}^2(\\lambda_c x_c / 2).\n"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1800028
+#: 1719c7cea6db4e4cbcfe858808539f52
+#, python-brace-format
+msgid ""
+"Here is the intuition. At zero spend $\\text{sech}^2(0) = 1$, so the "
+"marginal return is $500 \\, \\beta_c \\lambda_c$: a small first increment"
+" of spend earns $6000$ per unit in `x1` ($\\beta = 3$, $\\lambda = 4$) "
+"and $3000$ per unit in `x2` ($\\beta = 2$, $\\lambda = 3$). As the spend "
+"grows, $\\text{sech}^2$ falls, and the larger $\\lambda$, the faster it "
+"falls."
+msgstr ""
+"Veamos la intuición. Con gasto cero, $\\text{sech}^2(0) = 1$, así que el "
+"retorno marginal es $500 \\, \\beta_c \\lambda_c$: un primer incremento "
+"pequeño de gasto rinde $6000$ por unidad en `x1` ($\\beta = 3$, $\\lambda = "
+"4$) y $3000$ por unidad en `x2` ($\\beta = 2$, $\\lambda = 3$). A medida que"
+" crece el gasto, $\\text{sech}^2$ cae, y cuanto mayor es $\\lambda$, más "
+"rápido cae."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1800030
+#: 8c2a006980df425baead020c6741abe1
+#, python-brace-format
+msgid ""
+"The marginal return halves where $\\text{sech}^2(\\lambda_c x_c / 2) = "
+"1/2$, that is at $\\lambda_c x_c / 2 = \\text{arccosh}(\\sqrt{2}) "
+"\\approx 0.88$: at $x_1 \\approx 0.44$ for `x1` and $x_2 \\approx 0.59$ "
+"for `x2`. At a weekly spend of $1$, the marginal return of `x1` is down "
+"to $\\text{sech}^2(2) \\approx 0.07$ of its starting value."
+msgstr ""
+"El retorno marginal se reduce a la mitad donde $\\text{sech}^2(\\lambda_c "
+"x_c / 2) = 1/2$, es decir, en $\\lambda_c x_c / 2 = "
+"\\text{arccosh}(\\sqrt{2}) \\approx 0.88$: en $x_1 \\approx 0.44$ para `x1` "
+"y $x_2 \\approx 0.59$ para `x2`. Con un gasto semanal de $1$, el retorno "
+"marginal de `x1` baja hasta $\\text{sech}^2(2) \\approx 0.07$ de su valor "
+"inicial."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1800032
+#: 9cd130dafd624e27ab2b4ecd56edcca6
+msgid ""
+"On the budget line $x_1 + x_2 = B$, the true optimum moves budget to `x1`"
+" until the two marginal returns are equal,"
+msgstr ""
+"Sobre la recta de presupuesto $x_1 + x_2 = B$, el óptimo verdadero mueve "
+"presupuesto a `x1` hasta que los dos retornos marginales son iguales,"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1800034
+#: 9531ce773f3545758eea66752ccd9f7c
+#, python-brace-format
+msgid ""
+"\n"
+"6000 \\, \\text{sech}^2(2 \\, x_1) = 3000 \\, \\text{sech}^2(1.5 \\, "
+"x_2),\n"
+msgstr ""
+"\n"
+"6000 \\, \\text{sech}^2(2 \\, x_1) = 3000 \\, \\text{sech}^2(1.5 \\, x_2),\n"
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1800038
+#: e9bcad0ec2b545dc9ca8361f9006a6b5
+msgid ""
+"or until a guardrail stops it. At the historical budget `x2` is small "
+"near the crossing, so its marginal return is close to $3000$, and the "
+"crossing sits close to the point where the marginal return of `x1` has "
+"halved."
+msgstr ""
+"o hasta que un límite de seguridad lo detiene. Con el presupuesto histórico,"
+" `x2` es pequeño cerca del cruce, por lo que su retorno marginal está cerca "
+"de $3000$, y el cruce se sitúa cerca del punto donde el retorno marginal de "
+"`x1` se ha reducido a la mitad."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1800040
+#: 90c870f6128347489f51b2689b91e64d
+msgid ""
+"The settled weeks are an approximation. Let's compare the closed form "
+"with the exact marginal returns of the Marginal Returns figure, along the"
+" same budget line."
+msgstr ""
+"Las semanas estabilizadas son una aproximación. Comparemos la forma cerrada "
+"con los retornos marginales exactos de la figura de Retornos marginales, a "
+"lo largo de la misma recta de presupuesto."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1820002
+#: f10b623a91f747388bd06e83251bacd0
+msgid ""
+"We also locate where the marginal returns of the two channels cross, by "
+"linear interpolation between the grid points."
+msgstr ""
+"También ubicamos dónde se cruzan los retornos marginales de los dos canales,"
+" mediante interpolación lineal entre los puntos de la cuadrícula."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1840002
+#: f8487f0e860a4a5e971c61d9c3945ad9
+msgid ""
+"We evaluate the closed form on the grid of the Marginal Returns figure, "
+"and locate both crossings."
+msgstr ""
+"Evaluamos la forma cerrada en la cuadrícula de la figura de Retornos "
+"marginales y ubicamos ambos cruces."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1860002
+#: 436d44f5e5d34fcd9a1b1be983f005e3
+msgid ""
+"The figure below compares the closed form (dashed) with the exact "
+"marginal returns (solid), and marks both crossings."
+msgstr ""
+"La figura siguiente compara la forma cerrada (discontinua) con los retornos "
+"marginales exactos (continua), y marca ambos cruces."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1880002
+#: 8996b0d885474600b741afb97021fdeb
+msgid ""
+"The closed form follows the exact marginal returns closely. Both start "
+"near $6000$ for `x1` on the left, where `x1` gets nothing, and end near "
+"$3000$ for `x2` on the right, where `x2` gets nothing."
+msgstr ""
+"La forma cerrada sigue de cerca los retornos marginales exactos. Ambos "
+"comienzan cerca de $6000$ para `x1` a la izquierda, donde `x1` no recibe "
+"nada, y terminan cerca de $3000$ para `x2` a la derecha, donde `x2` no "
+"recibe nada."
+
+#: ../source/notebooks/mmm/mmm_multiplicative.ipynb:1880004
+#: bac1f1ec1dbc46ea9f100be153dcdfb6
+msgid ""
+"The exact marginal returns sit slightly above the closed form at high "
+"spend, because in the edge weeks of the window the adstock is below the "
+"weekly spend, where the curves are steeper. This moves the crossing from "
+"about $0.44$ in the closed form to about $0.46$ in the exact computation."
+" Both lie beyond the guardrails, so within the guardrails the true "
+"optimum stays at the floor of `x2`, as in the Optimal Allocation section."
+msgstr ""
+"Los retornos marginales exactos quedan ligeramente por encima de la forma "
+"cerrada con gasto alto, porque en las semanas de borde de la ventana el "
+"adstock está por debajo del gasto semanal, donde las curvas son más "
+"empinadas. Esto desplaza el cruce de aproximadamente $0.44$ en la forma "
+"cerrada a aproximadamente $0.46$ en el cálculo exacto. Ambos quedan más allá"
+" de los límites de seguridad, por lo que dentro de ellos el óptimo verdadero"
+" permanece en el piso de `x2`, como en la sección Asignación óptima."
+
