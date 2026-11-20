@@ -120,7 +120,7 @@ def monthly_mmm_data():
     """Create monthly-frequency (MS) MMM data for calendar-aware date math tests.
 
     Uses month-start frequency where months have variable lengths (28-31 days).
-    This exposes the _convert_frequency_to_timedelta bug that approximates
+    This exposes date math that approximates
     months as fixed 30-day periods.
 
     Returns dict with:
