@@ -170,8 +170,6 @@ def test_plot_expected_purchases_over_time(
         purchase_history=cdnow_trans,
         customer_id_col="id",
         datetime_col="date",
-        datetime_format="%Y%m%d",
-        time_unit="D",
         plot_cumulative=plot_cumulative,
         set_index_date=set_index_date,
         t=10,

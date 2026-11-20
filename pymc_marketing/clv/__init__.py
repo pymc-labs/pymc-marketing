@@ -29,12 +29,8 @@ from pymc_marketing.clv.plotting import (
     plot_frequency_recency_matrix,
     plot_probability_alive_matrix,
 )
-from pymc_marketing.clv.utils import (
-    customer_lifetime_value,
-    rfm_segments,
-    rfm_summary,
-    rfm_train_test_split,
-)
+from pymc_marketing.clv.rfm import rfm_segments, rfm_summary, rfm_train_test_split
+from pymc_marketing.clv.utils import customer_lifetime_value
 
 __all__ = (
     "BetaGeoBetaBinomModel",

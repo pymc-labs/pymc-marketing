@@ -11,7 +11,6 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-from datetime import datetime
 
 import numpy as np
 import pandas as pd
@@ -22,14 +21,10 @@ from pandas.testing import assert_frame_equal
 from pymc_extras.prior import Prior
 
 from pymc_marketing.clv import GammaGammaModel, ParetoNBDModel
+from pymc_marketing.clv.plotting import _expected_cumulative_transactions
 from pymc_marketing.clv.utils import (
-    _expected_cumulative_transactions,
-    _find_first_transactions,
-    _rfm_quartile_labels,
     customer_lifetime_value,
-    rfm_segments,
     rfm_summary,
-    rfm_train_test_split,
     to_xarray,
 )
 from tests.clv.conftest import set_model_fit
@@ -159,17 +154,16 @@ def fitted_gg(test_summary_data) -> GammaGammaModel:
 
 # TODO: Consolidate this fixture into the tests requiring it?
 @pytest.fixture()
-def df_cum_transactions():
-    cdnow_transactions = pd.read_csv("data/cdnow_transactions.csv")
-
+def df_cum_transactions(cdnow_trans):
+    cdnow_transactions = cdnow_trans
+    # Daily periods, reported in weeks.
     rfm_data = rfm_summary(
         cdnow_transactions,
         customer_id_col="id",
         datetime_col="date",
-        datetime_format="%Y%m%d",
-        time_unit="D",
-        observation_period_end="19970930",
-        time_scaler=7,
+        observation_period_end="1997-09-30",
+        granularity="1d",
+        time_unit="week",
     )
 
     model_config = {
@@ -188,9 +182,8 @@ def df_cum_transactions():
         customer_id_col="id",
         datetime_col="date",
         t=25 * 7,
-        datetime_format="%Y%m%d",
-        time_unit="D",
-        time_scaler=7,
+        granularity="1d",
+        time_unit="week",
     )
     return df_cum
 
@@ -213,15 +206,17 @@ class TestCustomerLifetimeValue:
             ("M", 12.0),
             ("W", 365.25 / 7),
             ("D", 365.25),
-            ("H", 365.25 * 24),
-            ("h", 365.25 * 24),
+            # The names the RFM functions take.
+            ("month", 12.0),
+            ("week", 365.25 / 7),
+            ("day", 365.25),
         ],
     )
     def test_time_unit_scaling(self, time_unit, expected_periods):
         """`future_t` is given in months and scaled into `time_unit` periods.
 
-        A 12-month horizon must map onto a full 365.25-day year for "D", "W" and
-        "H", not the 360 days implied by a flat 30-day month. See issue #2749.
+        A 12-month horizon must map onto a full 365.25-day year for "D" and "W",
+        not the 360 days implied by a flat 30-day month. See issue #2749.
         """
         recorded = []
 
@@ -389,678 +384,6 @@ class TestCustomerLifetimeValue:
         )
 
 
-class TestRFM:
-    @pytest.fixture(scope="class")
-    def transaction_data(self) -> pd.DataFrame:
-        d = [
-            [1, "2015-01-01", 1],
-            [1, "2015-02-06", 2],
-            [2, "2015-01-01", 2],
-            [3, "2015-01-01", 3],
-            [3, "2015-01-02", 1],
-            [3, "2015-01-05", 5],
-            [4, "2015-01-16", 6],
-            [4, "2015-02-02", 3],
-            [4, "2015-02-05", 3],
-            [4, "2015-02-05", 6],
-            [5, "2015-01-16", 3],
-            [5, "2015-01-17", 1],
-            [5, "2015-01-18", 8],
-            [6, "2015-02-02", 5],
-        ]
-        return pd.DataFrame(d, columns=["identifier", "date", "monetary_value"])
-
-    def test_find_first_transactions_test_period_end_none(self, transaction_data):
-        max_date = transaction_data["date"].max()
-        pd.testing.assert_frame_equal(
-            left=_find_first_transactions(
-                transactions=transaction_data,
-                customer_id_col="identifier",
-                datetime_col="date",
-                observation_period_end=None,
-            ),
-            right=_find_first_transactions(
-                transactions=transaction_data,
-                customer_id_col="identifier",
-                datetime_col="date",
-                observation_period_end=max_date,
-            ),
-        )
-
-    @pytest.mark.parametrize(
-        argnames="today",
-        argvalues=["2015-02-07", pd.Period("2015-02-07"), datetime(2015, 2, 7), None],
-        ids=["string", "period", "datetime", "none"],
-    )
-    def test_find_first_transactions_returns_correct_results(
-        self, transaction_data, today
-    ):
-        # Test adapted from
-        # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L137
-
-        actual = _find_first_transactions(
-            transaction_data,
-            "identifier",
-            "date",
-            observation_period_end=today,
-        )
-        expected = pd.DataFrame(
-            [
-                [1, pd.Period("2015-01-01", "D"), True],
-                [1, pd.Period("2015-02-06", "D"), False],
-                [2, pd.Period("2015-01-01", "D"), True],
-                [3, pd.Period("2015-01-01", "D"), True],
-                [3, pd.Period("2015-01-02", "D"), False],
-                [3, pd.Period("2015-01-05", "D"), False],
-                [4, pd.Period("2015-01-16", "D"), True],
-                [4, pd.Period("2015-02-02", "D"), False],
-                [4, pd.Period("2015-02-05", "D"), False],
-                [5, pd.Period("2015-01-16", "D"), True],
-                [5, pd.Period("2015-01-17", "D"), False],
-                [5, pd.Period("2015-01-18", "D"), False],
-                [6, pd.Period("2015-02-02", "D"), True],
-            ],
-            columns=["identifier", "date", "first"],
-            index=[0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13],
-        )  # row indices are skipped for time periods with multiple transactions
-        assert_frame_equal(actual, expected)
-
-    @pytest.mark.parametrize(
-        argnames="today",
-        argvalues=["2015-02-07", pd.Period("2015-02-07"), datetime(2015, 2, 7), None],
-        ids=["string", "period", "datetime", "none"],
-    )
-    def test_find_first_transactions_with_specific_non_daily_frequency(
-        self, transaction_data, today
-    ):
-        # Test adapted from
-        # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L161
-
-        actual = _find_first_transactions(
-            transaction_data,
-            "identifier",
-            "date",
-            observation_period_end=today,
-            time_unit="W",
-        )
-        expected = pd.DataFrame(
-            [
-                [1, pd.Period("2014-12-29/2015-01-04", "W-SUN"), True],
-                [1, pd.Period("2015-02-02/2015-02-08", "W-SUN"), False],
-                [2, pd.Period("2014-12-29/2015-01-04", "W-SUN"), True],
-                [3, pd.Period("2014-12-29/2015-01-04", "W-SUN"), True],
-                [3, pd.Period("2015-01-05/2015-01-11", "W-SUN"), False],
-                [4, pd.Period("2015-01-12/2015-01-18", "W-SUN"), True],
-                [4, pd.Period("2015-02-02/2015-02-08", "W-SUN"), False],
-                [5, pd.Period("2015-01-12/2015-01-18", "W-SUN"), True],
-                [6, pd.Period("2015-02-02/2015-02-08", "W-SUN"), True],
-            ],
-            columns=["identifier", "date", "first"],
-            index=actual.index,
-        )  # we shouldn't really care about row ordering or indexing, but assert_frame_equals is strict about it
-        assert_frame_equal(actual, expected)
-
-    @pytest.mark.parametrize(
-        argnames="today",
-        argvalues=["2015-02-07", pd.Period("2015-02-07"), datetime(2015, 2, 7), None],
-        ids=["string", "period", "datetime", "none"],
-    )
-    def test_find_first_transactions_with_monetary_values(
-        self, transaction_data, today
-    ):
-        # Test adapted from
-        # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L184
-
-        actual = _find_first_transactions(
-            transaction_data,
-            "identifier",
-            "date",
-            "monetary_value",
-            observation_period_end=today,
-        )
-        expected = pd.DataFrame(
-            [
-                [1, pd.Period("2015-01-01", "D"), 1, True],
-                [1, pd.Period("2015-02-06", "D"), 2, False],
-                [2, pd.Period("2015-01-01", "D"), 2, True],
-                [3, pd.Period("2015-01-01", "D"), 3, True],
-                [3, pd.Period("2015-01-02", "D"), 1, False],
-                [3, pd.Period("2015-01-05", "D"), 5, False],
-                [4, pd.Period("2015-01-16", "D"), 6, True],
-                [4, pd.Period("2015-02-02", "D"), 3, False],
-                [4, pd.Period("2015-02-05", "D"), 9, False],
-                [5, pd.Period("2015-01-16", "D"), 3, True],
-                [5, pd.Period("2015-01-17", "D"), 1, False],
-                [5, pd.Period("2015-01-18", "D"), 8, False],
-                [6, pd.Period("2015-02-02", "D"), 5, True],
-            ],
-            columns=["identifier", "date", "monetary_value", "first"],
-        )
-        assert_frame_equal(actual, expected)
-
-    @pytest.mark.parametrize(
-        argnames="today",
-        argvalues=["2015-02-07", pd.Period("2015-02-07"), datetime(2015, 2, 7), None],
-        ids=["string", "period", "datetime", "none"],
-    )
-    def test_find_first_transactions_with_monetary_values_with_specific_non_daily_frequency(
-        self, transaction_data, today
-    ):
-        # Test adapted from
-        # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L210
-
-        actual = _find_first_transactions(
-            transaction_data,
-            "identifier",
-            "date",
-            "monetary_value",
-            observation_period_end=today,
-            time_unit="W",
-        )
-        expected = pd.DataFrame(
-            [
-                [1, pd.Period("2014-12-29/2015-01-04", "W-SUN"), 1, True],
-                [1, pd.Period("2015-02-02/2015-02-08", "W-SUN"), 2, False],
-                [2, pd.Period("2014-12-29/2015-01-04", "W-SUN"), 2, True],
-                [3, pd.Period("2014-12-29/2015-01-04", "W-SUN"), 4, True],
-                [3, pd.Period("2015-01-05/2015-01-11", "W-SUN"), 5, False],
-                [4, pd.Period("2015-01-12/2015-01-18", "W-SUN"), 6, True],
-                [4, pd.Period("2015-02-02/2015-02-08", "W-SUN"), 12, False],
-                [5, pd.Period("2015-01-12/2015-01-18", "W-SUN"), 12, True],
-                [6, pd.Period("2015-02-02/2015-02-08", "W-SUN"), 5, True],
-            ],
-            columns=["identifier", "date", "monetary_value", "first"],
-        )
-        assert_frame_equal(actual, expected)
-
-    @pytest.mark.parametrize(
-        argnames="today",
-        argvalues=["2015-02-07", pd.Period("2015-02-07"), datetime(2015, 2, 7)],
-        ids=["string", "period", "datetime"],
-    )
-    def test_rfm_summary_returns_correct_results(self, transaction_data, today):
-        # Test adapted from
-        # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L239
-
-        actual = rfm_summary(
-            transaction_data, "identifier", "date", observation_period_end=today
-        )
-        expected = pd.DataFrame(
-            [
-                [1, 1.0, 36.0, 37.0],
-                [2, 0.0, 0.0, 37.0],
-                [3, 2.0, 4.0, 37.0],
-                [4, 2.0, 20.0, 22.0],
-                [5, 2.0, 2.0, 22.0],
-                [6, 0.0, 0.0, 5.0],
-            ],
-            columns=["customer_id", "frequency", "recency", "T"],
-        )
-        assert_frame_equal(actual, expected)
-
-    def test_rfm_summary_works_with_string_customer_ids(self):
-        # Test adapted from
-        # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L250
-
-        d = [
-            ["X", "2015-02-01"],
-            ["X", "2015-02-06"],
-            ["Y", "2015-01-01"],
-            ["Y", "2015-01-01"],
-            ["Y", "2015-01-02"],
-            ["Y", "2015-01-05"],
-        ]
-        df = pd.DataFrame(d, columns=["identifier", "date"])
-        rfm_summary(df, "identifier", "date")
-
-    def test_rfm_summary_works_with_int_customer_ids_and_doesnt_coerce_to_float(self):
-        # Test adapted from
-        # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L263
-
-        d = [
-            [1, "2015-02-01"],
-            [1, "2015-02-06"],
-            [1, "2015-01-01"],
-            [2, "2015-01-01"],
-            [2, "2015-01-02"],
-            [2, "2015-01-05"],
-        ]
-        df = pd.DataFrame(d, columns=["identifier", "date"])
-        actual = rfm_summary(df, "identifier", "date")
-        assert actual.index.dtype == "int64"
-
-    def test_rfm_summary_with_specific_datetime_format(
-        self,
-        transaction_data,
-    ):
-        # Test adapted from
-        # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L279
-
-        transaction_data["date"] = transaction_data["date"].map(
-            lambda x: x.replace("-", "")
-        )
-        format = "%Y%m%d"
-        today = "20150207"
-        actual = rfm_summary(
-            transaction_data,
-            "identifier",
-            "date",
-            observation_period_end=today,
-            datetime_format=format,
-            sort_transactions=False,
-        )
-        expected = pd.DataFrame(
-            [
-                [1, 1.0, 36.0, 37.0],
-                [2, 0.0, 0.0, 37.0],
-                [3, 2.0, 4.0, 37.0],
-                [4, 2.0, 20.0, 22.0],
-                [5, 2.0, 2.0, 22.0],
-                [6, 0.0, 0.0, 5.0],
-            ],
-            columns=["customer_id", "frequency", "recency", "T"],
-        )
-        assert_frame_equal(actual, expected)
-
-    def test_rfm_summary_string_dates_match_preconverted_datetimes(self):
-        transactions = pd.DataFrame(
-            {
-                "id": [1, 1, 1],
-                "date": ["11/01/2025", "12/20/2025", "01/15/2026"],
-                "spend": [50.0, 60.0, 70.0],
-            }
-        )
-
-        actual = rfm_summary(
-            transactions,
-            "id",
-            "date",
-            "spend",
-            datetime_format="%m/%d/%Y",
-        )
-        preconverted = rfm_summary(
-            transactions.assign(
-                date=pd.to_datetime(transactions["date"], format="%m/%d/%Y")
-            ),
-            "id",
-            "date",
-            "spend",
-        )
-        expected = pd.DataFrame(
-            [[1, 2.0, 75.0, 75.0, 65.0]],
-            columns=[
-                "customer_id",
-                "frequency",
-                "recency",
-                "T",
-                "monetary_value",
-            ],
-        )
-
-        assert_frame_equal(actual, expected)
-        assert_frame_equal(actual, preconverted)
-
-    def test_rfm_summary_non_daily_frequency(
-        self,
-        transaction_data,
-    ):
-        # Test adapted from
-        # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L292
-
-        today = "20150207"
-        actual = rfm_summary(
-            transaction_data,
-            "identifier",
-            "date",
-            observation_period_end=today,
-            time_unit="W",
-        )
-        expected = pd.DataFrame(
-            [
-                [1, 1.0, 5.0, 5.0],
-                [2, 0.0, 0.0, 5.0],
-                [3, 1.0, 1.0, 5.0],
-                [4, 1.0, 3.0, 3.0],
-                [5, 0.0, 0.0, 3.0],
-                [6, 0.0, 0.0, 0.0],
-            ],
-            columns=["customer_id", "frequency", "recency", "T"],
-        )
-        assert_frame_equal(actual, expected)
-
-    def test_rfm_summary_monetary_values_and_first_transactions(
-        self,
-        transaction_data,
-    ):
-        # Test adapted from
-        # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L311
-
-        today = "20150207"
-        actual = rfm_summary(
-            transaction_data,
-            "identifier",
-            "date",
-            monetary_value_col="monetary_value",
-            observation_period_end=today,
-        )
-        expected = pd.DataFrame(
-            [
-                [1, 1.0, 36.0, 37.0, 2],
-                [2, 0.0, 0.0, 37.0, 0],
-                [3, 2.0, 4.0, 37.0, 3],
-                [4, 2.0, 20.0, 22.0, 6],
-                [5, 2.0, 2.0, 22.0, 4.5],
-                [6, 0.0, 0.0, 5.0, 0],
-            ],
-            columns=["customer_id", "frequency", "recency", "T", "monetary_value"],
-        )
-        assert_frame_equal(actual, expected)
-
-        actual_first_trans = rfm_summary(
-            transaction_data,
-            "identifier",
-            "date",
-            monetary_value_col="monetary_value",
-            observation_period_end=today,
-            include_first_transaction=True,
-        )
-        expected_first_trans = pd.DataFrame(
-            [
-                [1, 2.0, 1.0, 1.5],
-                [2, 1.0, 37.0, 2],
-                [3, 3.0, 33.0, 3],
-                [4, 3.0, 2.0, 6],
-                [5, 3.0, 20.0, 4],
-                [6, 1.0, 5.0, 5],
-            ],
-            columns=["customer_id", "frequency", "recency", "monetary_value"],
-        )
-        assert_frame_equal(actual_first_trans, expected_first_trans)
-
-    def test_rfm_summary_will_choose_the_correct_first_order_to_drop_in_monetary_transactions(
-        self,
-    ):
-        # Test adapted from
-        # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L334
-
-        cust = pd.Series([2, 2, 2])
-        dates_ordered = pd.to_datetime(
-            pd.Series(
-                ["2014-03-14 00:00:00", "2014-04-09 00:00:00", "2014-05-21 00:00:00"]
-            )
-        )
-        sales = pd.Series([10, 20, 25])
-        transaction_data = pd.DataFrame(
-            {"date": dates_ordered, "identifier": cust, "sales": sales}
-        )
-        summary_ordered_data = rfm_summary(
-            transaction_data, "identifier", "date", "sales"
-        )
-
-        dates_unordered = pd.to_datetime(
-            pd.Series(
-                ["2014-04-09 00:00:00", "2014-03-14 00:00:00", "2014-05-21 00:00:00"]
-            )
-        )
-        sales = pd.Series([20, 10, 25])
-        transaction_data = pd.DataFrame(
-            {"date": dates_unordered, "identifier": cust, "sales": sales}
-        )
-        summary_unordered_data = rfm_summary(
-            transaction_data, "identifier", "date", "sales"
-        )
-
-        assert_frame_equal(summary_ordered_data, summary_unordered_data)
-        assert summary_ordered_data["monetary_value"].loc[0] == 22.5
-
-    def test_rfm_summary_statistics_identical_to_hardie_paper(
-        self,
-        cdnow_trans,
-    ):
-        # Test adapted from
-        # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L353
-
-        # see http://brucehardie.com/papers/rfm_clv_2005-02-16.pdf
-        # RFM and CLV: Using Iso-value Curves for Customer Base Analysis
-        summary = rfm_summary(
-            cdnow_trans,
-            "id",
-            "date",
-            "spent",
-            observation_period_end="19971001",
-            datetime_format="%Y%m%d",
-        )
-        results = summary[summary["frequency"] > 0]["monetary_value"].describe()
-
-        assert np.round(results.loc["mean"]) == 35
-        assert np.round(results.loc["std"]) == 30
-        assert np.round(results.loc["min"]) == 3
-        assert np.round(results.loc["50%"]) == 27
-        assert np.round(results.loc["max"]) == 300
-        assert np.round(results.loc["count"]) == 946
-
-    def test_rfm_summary_squashes_period_purchases_to_one_purchase(self):
-        # Test adapted from
-        # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L472
-
-        transactions = pd.DataFrame(
-            [[1, "2015-01-01"], [1, "2015-01-01"]], columns=["identifier", "t"]
-        )
-        actual = rfm_summary(transactions, "identifier", "t", time_unit="W")
-        assert actual.loc[0]["frequency"] == 1.0 - 1.0
-
-    def test_rfm_train_test_split(self, transaction_data):
-        # Test adapted from
-        # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L374
-
-        train_end = "2015-02-01"
-        actual = rfm_train_test_split(transaction_data, "identifier", "date", train_end)
-        assert actual.loc[0]["test_frequency"] == 1
-        assert actual.loc[1]["test_frequency"] == 0
-
-        with pytest.raises(KeyError):
-            actual.loc[6]
-
-    def test_rfm_train_test_split_string_dates_match_preconverted_datetimes(self):
-        transactions = pd.DataFrame(
-            {
-                "id": [1, 1, 1],
-                "date": ["11/01/2025", "12/20/2025", "01/15/2026"],
-                "spend": [50.0, 60.0, 70.0],
-            }
-        )
-
-        actual = rfm_train_test_split(
-            transactions,
-            "id",
-            "date",
-            train_period_end="12/31/2025",
-            datetime_format="%m/%d/%Y",
-            monetary_value_col="spend",
-        )
-        preconverted = rfm_train_test_split(
-            transactions.assign(
-                date=pd.to_datetime(transactions["date"], format="%m/%d/%Y")
-            ),
-            "id",
-            "date",
-            train_period_end=datetime(2025, 12, 31),
-            monetary_value_col="spend",
-        )
-        expected = pd.DataFrame(
-            [[1, 1.0, 49.0, 60.0, 60.0, 1, 70.0, 15.0]],
-            columns=[
-                "customer_id",
-                "frequency",
-                "recency",
-                "T",
-                "monetary_value",
-                "test_frequency",
-                "test_monetary_value",
-                "test_T",
-            ],
-        )
-
-        assert_frame_equal(actual, expected)
-        assert_frame_equal(actual, preconverted)
-
-    @pytest.mark.parametrize("train_end", ("2014-02-07", "2015-02-08"))
-    def test_rfm_train_test_split_throws_better_error_if_test_period_end_is_too_early(
-        self,
-        train_end,
-        transaction_data,
-    ):
-        # Test adapted from
-        # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L387
-
-        test_end = "2014-02-07"
-
-        error_msg = """No data available. Check `test_transactions` and `train_period_end`
-        and confirm values in `transactions` occur prior to those time periods."""
-
-        with pytest.raises(ValueError, match=error_msg):
-            rfm_train_test_split(
-                transaction_data,
-                "identifier",
-                "date",
-                train_end,
-                test_period_end=test_end,
-            )
-
-    def test_rfm_train_test_split_works_with_specific_frequency(self, transaction_data):
-        # Test adapted from
-        # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L412
-
-        test_end = "2015-02-07"
-        train_end = "2015-02-01"
-        actual = rfm_train_test_split(
-            transaction_data,
-            "identifier",
-            "date",
-            train_end,
-            test_period_end=test_end,
-            time_unit="W",
-        )
-        expected_cols = [
-            "customer_id",
-            "frequency",
-            "recency",
-            "T",
-            "test_frequency",
-            "test_T",
-        ]
-        expected = pd.DataFrame(
-            [
-                [1, 0.0, 0.0, 4.0, 1, 1],
-                [2, 0.0, 0.0, 4.0, 0, 1],
-                [3, 1.0, 1.0, 4.0, 0, 1],
-                [4, 0.0, 0.0, 2.0, 1, 1],
-                [5, 0.0, 0.0, 2.0, 0, 1],
-            ],
-            columns=expected_cols,
-        )
-        assert_frame_equal(actual, expected, check_dtype=False)
-
-    def test_rfm_train_test_split_gives_correct_date_boundaries(self, transaction_data):
-        # Test adapted from
-        # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L432
-
-        actual = rfm_train_test_split(
-            transaction_data,
-            "identifier",
-            "date",
-            train_period_end="2015-02-01",
-            test_period_end="2015-02-04",
-        )
-        assert actual["test_frequency"].loc[1] == 0
-        assert actual["test_frequency"].loc[3] == 1
-
-    def test_rfm_train_test_split_with_monetary_value(self, transaction_data):
-        # Test adapted from
-        # https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/tests/test_utils.py#L457
-
-        test_end = "2015-02-07"
-        train_end = "2015-02-01"
-        actual = rfm_train_test_split(
-            transaction_data,
-            "identifier",
-            "date",
-            train_end,
-            test_period_end=test_end,
-            monetary_value_col="monetary_value",
-        )
-        assert (actual["monetary_value"] == [0, 0, 3, 0, 4.5]).all()
-        assert (actual["test_monetary_value"] == [2, 0, 0, 6, 0]).all()
-
-    @pytest.mark.parametrize("config", (None, "custom"))
-    def test_rfm_segmentation_config(self, transaction_data, config):
-        if config is not None:
-            config = {
-                "Test Segment": [
-                    "111",
-                    "222",
-                    "333",
-                    "444",
-                ]
-            }
-            expected = ["Other", "Test Segment", "Other", "Other", "Other", "Other"]
-        else:
-            expected = [
-                "Other",
-                "Inactive Customer",
-                "At Risk Customer",
-                "Premium Customer",
-                "Repeat Customer",
-                "Top Spender",
-            ]
-
-        actual = rfm_segments(
-            transaction_data,
-            "identifier",
-            "date",
-            "monetary_value",
-            segment_config=config,
-        )
-
-        assert (actual["segment"] == expected).all()
-
-    def test_rfm_segmentation_warning(self):
-        # this data will only return two bins for the frequency variable
-        d = [
-            [1, "2015-01-01", 1],
-            [1, "2015-02-06", 2],
-            [2, "2015-01-01", 2],
-            [3, "2015-01-02", 1],
-            [3, "2015-01-05", 3],
-            [4, "2015-01-16", 4],
-            [4, "2015-02-05", 5],
-            [5, "2015-01-17", 1],
-            [5, "2015-01-18", 2],
-            [5, "2015-01-19", 2],
-        ]
-        repetitive_data = pd.DataFrame(d, columns=["id", "date", "monetary_value"])
-
-        with pytest.warns(
-            UserWarning,
-            match=r"RFM score will not exceed 2 for f_quartile. Specify a custom segment_config",
-        ):
-            rfm_segments(
-                repetitive_data,
-                "id",
-                "date",
-                "monetary_value",
-            )
-
-    def test_rfm_quartile_labels(self):
-        # assert recency labels are in reverse order
-        recency = _rfm_quartile_labels("r_quartile", 5)
-        assert recency == [4, 3, 2, 1]
-
-        # assert max_quartile_range = 4 returns a range function for three labels
-        frequency = _rfm_quartile_labels("f_quartile", 4)
-        assert frequency == range(1, 4)
-
-
 def test_expected_cumulative_transactions_dedups_inside_a_time_period(
     fitted_bg, cdnow_trans
 ):
@@ -1069,16 +392,55 @@ def test_expected_cumulative_transactions_dedups_inside_a_time_period(
     https://github.com/CamDavidsonPilon/lifetimes/blob/master/tests/test_utils.py#L623
     """
     by_week = _expected_cumulative_transactions(
-        fitted_bg, cdnow_trans, "date", "id", 10, time_unit="W"
+        fitted_bg, cdnow_trans, "id", "date", 10, time_unit="week"
     )
     by_day = _expected_cumulative_transactions(
-        fitted_bg, cdnow_trans, "date", "id", 10, time_unit="D"
+        fitted_bg, cdnow_trans, "id", "date", 10, time_unit="day"
     )
     assert (by_week["actual"] >= by_day["actual"]).all()
 
 
+def test_expected_cumulative_transactions_does_not_depend_on_row_order(
+    fitted_bg, cdnow_trans
+):
+    """A customer's first purchase is their earliest one, wherever its row is."""
+    expected = _expected_cumulative_transactions(
+        fitted_bg, cdnow_trans, "id", "date", 30
+    )
+    shuffled = cdnow_trans.sample(frac=1, random_state=0)
+    actual = _expected_cumulative_transactions(fitted_bg, shuffled, "id", "date", 30)
+    assert_frame_equal(actual, expected)
+
+
+def test_expected_cumulative_transactions_on_other_dataframes(fitted_bg, cdnow_trans):
+    pl = pytest.importorskip("polars")
+    expected = _expected_cumulative_transactions(
+        fitted_bg, cdnow_trans, "id", "date", 12, time_unit="week"
+    )
+    for frame in (pl.from_pandas(cdnow_trans), pl.from_pandas(cdnow_trans).lazy()):
+        actual = _expected_cumulative_transactions(
+            fitted_bg, frame, "id", "date", 12, time_unit="week"
+        )
+        assert_frame_equal(actual, expected)
+
+
+def test_expected_cumulative_transactions_rejects_a_fractional_step(
+    fitted_bg, cdnow_trans
+):
+    with pytest.raises(ValueError, match="not a whole number of weeks"):
+        _expected_cumulative_transactions(
+            fitted_bg,
+            cdnow_trans,
+            "id",
+            "date",
+            10,
+            granularity="1w",
+            time_unit="month",
+        )
+
+
 def test_expected_cumulative_transactions_monthly_time_unit(fitted_bg, cdnow_trans):
-    """Monthly ``time_unit`` builds the date range with the pandas 3 month-end offset alias."""
+    """Monthly periods come back with a monthly period index."""
     t = 3
     df_cum = _expected_cumulative_transactions(
         fitted_bg,
@@ -1086,8 +448,7 @@ def test_expected_cumulative_transactions_monthly_time_unit(fitted_bg, cdnow_tra
         customer_id_col="id",
         datetime_col="date",
         t=t,
-        datetime_format="%Y%m%d",
-        time_unit="M",
+        time_unit="month",
         set_index_date=True,
     )
 
@@ -1096,154 +457,6 @@ def test_expected_cumulative_transactions_monthly_time_unit(fitted_bg, cdnow_tra
     assert isinstance(df_cum.index, pd.PeriodIndex)
     assert df_cum.index.freqstr == "M"
     assert (df_cum["actual"].diff().dropna() >= 0).all()
-
-
-@pytest.fixture
-def hourly_transactions() -> pd.DataFrame:
-    """Four customers with repeat purchases spread over three days at hour resolution."""
-    return pd.DataFrame(
-        {
-            "id": [1, 1, 1, 2, 2, 3, 3, 3, 3, 4, 4],
-            "date": [
-                "2024-01-01 00:10",
-                "2024-01-01 03:30",
-                "2024-01-02 05:00",
-                "2024-01-01 01:00",
-                "2024-01-01 22:00",
-                "2024-01-01 06:00",
-                "2024-01-01 06:20",
-                "2024-01-02 12:00",
-                "2024-01-03 08:00",
-                "2024-01-01 09:00",
-                "2024-01-02 09:30",
-            ],
-            "monetary_value": [
-                10.0,
-                12.0,
-                8.0,
-                5.0,
-                7.0,
-                20.0,
-                1.0,
-                3.0,
-                4.0,
-                9.0,
-                11.0,
-            ],
-        }
-    )
-
-
-@pytest.mark.parametrize("time_unit", ["H", "h"])
-def test_expected_cumulative_transactions_hourly_time_unit(
-    fitted_bg, hourly_transactions, time_unit
-):
-    """Hourly ``time_unit`` works with the ``H`` and ``h`` spellings on every pandas."""
-    t = 48
-    df_cum = _expected_cumulative_transactions(
-        fitted_bg,
-        hourly_transactions,
-        customer_id_col="id",
-        datetime_col="date",
-        t=t,
-        time_unit=time_unit,
-        set_index_date=True,
-    )
-
-    assert len(df_cum) == t
-    assert isinstance(df_cum.index, pd.PeriodIndex)
-    assert df_cum.index.freqstr == "h"
-    # Repeat transactions within the first 48 hours after the first purchase.
-    assert df_cum["actual"].iloc[-1] == 5
-    assert (df_cum["actual"].diff().dropna() >= 0).all()
-    assert (df_cum["predicted"].diff().dropna() >= 0).all()
-    assert df_cum["predicted"].iloc[-1] > df_cum["predicted"].iloc[0]
-
-
-@pytest.mark.parametrize("time_unit", ["H", "h"])
-def test_rfm_summary_hourly_time_unit(hourly_transactions, time_unit):
-    """``rfm_summary`` measures recency and T in hours for the ``H`` and ``h`` spellings."""
-    summary = rfm_summary(
-        hourly_transactions,
-        customer_id_col="id",
-        datetime_col="date",
-        monetary_value_col="monetary_value",
-        time_unit=time_unit,
-    ).set_index("customer_id")
-
-    assert list(summary.index) == [1, 2, 3, 4]
-    # Customer 3 buys twice inside the same hour, which counts as one period.
-    assert summary["frequency"].tolist() == [2, 1, 2, 1]
-    # Customer 1: first purchase in hour 00:00 of day 1, last in hour 05:00 of day 2.
-    assert summary.loc[1, "recency"] == pytest.approx(29.0)
-    # Observation period ends at the last transaction hour (day 3, 08:00).
-    assert summary.loc[1, "T"] == pytest.approx(56.0)
-    assert np.isfinite(summary[["recency", "T", "monetary_value"]]).all().all()
-
-
-@pytest.fixture
-def sparse_monthly_transactions() -> pd.DataFrame:
-    """Three customers whose purchases span five calendar months."""
-    return pd.DataFrame(
-        {
-            "id": [1, 1, 2, 2, 3],
-            "date": [
-                "2024-01-05",
-                "2024-03-10",
-                "2024-01-20",
-                "2024-05-02",
-                "2024-02-11",
-            ],
-        }
-    )
-
-
-@pytest.mark.parametrize(
-    "time_unit, expected_recency, expected_T",
-    [
-        ("D", [65, 103, 0], [118, 103, 81]),
-        ("W", [9, 15, 0], [17, 15, 12]),
-        ("M", [2, 4, 0], [4, 4, 3]),
-        ("H", [1560, 2472, 0], [2832, 2472, 1944]),
-    ],
-)
-def test_rfm_summary_time_unit(
-    sparse_monthly_transactions, time_unit, expected_recency, expected_T
-):
-    """Recency and T are counted in calendar periods for every documented ``time_unit``.
-
-    Regression test: ``time_unit="M"`` used to raise because numpy has no
-    unambiguous month duration.
-    """
-    summary = rfm_summary(
-        sparse_monthly_transactions,
-        customer_id_col="id",
-        datetime_col="date",
-        time_unit=time_unit,
-    )
-
-    assert summary["customer_id"].tolist() == [1, 2, 3]
-    assert summary["frequency"].tolist() == [1, 1, 0]
-    np.testing.assert_allclose(summary["recency"], expected_recency)
-    np.testing.assert_allclose(summary["T"], expected_T)
-
-
-def test_rfm_train_test_split_monthly_time_unit(sparse_monthly_transactions):
-    """``rfm_train_test_split`` accepts ``time_unit="M"`` and counts the test window in months."""
-    actual = rfm_train_test_split(
-        sparse_monthly_transactions,
-        customer_id_col="id",
-        datetime_col="date",
-        train_period_end="2024-03-31",
-        test_period_end="2024-05-31",
-        time_unit="M",
-    ).set_index("customer_id")
-
-    assert actual["test_T"].tolist() == [2.0, 2.0, 2.0]
-    assert actual.loc[2, "test_frequency"] == 1
-    assert actual.loc[1, "test_frequency"] == 0
-    assert actual.loc[1, "recency"] == 2.0
-    assert actual.loc[1, "T"] == 2.0
 
 
 def test_expected_cumulative_incremental_transactions_equals_r_btyd_walkthrough(
@@ -1273,9 +486,8 @@ def test_expected_cumulative_incremental_transactions_equals_r_btyd_walkthrough(
         customer_id_col="id",
         datetime_col="date",
         t=25 * 7,
-        datetime_format="%Y%m%d",
-        time_unit="D",
-        time_scaler=7,
+        granularity="1d",
+        time_unit="week",
     )
 
     actual_btyd = [1359, 1414, 1484, 1517, 1573, 1672]
@@ -1316,9 +528,6 @@ def test_expected_cumulative_transactions_date_index(fitted_bg, cdnow_trans):
         customer_id_col="id",
         datetime_col="date",
         t=14,
-        datetime_format="%Y%m%d",
-        time_unit="D",
-        time_scaler=1,
         set_index_date=True,
     )
 

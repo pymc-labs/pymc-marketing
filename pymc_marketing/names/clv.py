@@ -47,6 +47,9 @@ class Col:
     M_QUARTILE: Final = "m_quartile"
     RFM_SCORE: Final = "rfm_score"
     SEGMENT: Final = "segment"
+    TEST_FREQUENCY: Final = "test_frequency"
+    TEST_MONETARY_VALUE: Final = "test_monetary_value"
+    TEST_T: Final = "test_T"
 
 
 class Dim:
