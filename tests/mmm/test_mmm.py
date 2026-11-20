@@ -3336,6 +3336,18 @@ def fit_mmm_with_effect(simple_mmm_data, mock_pymc_sample):
     return fit
 
 
+class _FrozenRenamedDateLevelEffect(_DateLevelEffect):
+    """``_DateLevelEffect`` with its contribution frozen.
+
+    The contribution is a Deterministic that only renames the free variable.
+    """
+
+    @property
+    def frozen_deterministics(self) -> list[str]:
+        """The contribution, a view of the free random variable."""
+        return [self.contribution_var_name]
+
+
 @pytest.mark.parametrize(
     "max_batch_elements",
     [
@@ -3344,9 +3356,18 @@ def fit_mmm_with_effect(simple_mmm_data, mock_pymc_sample):
         pytest.param(1, id="a-block-per-draw"),
     ],
 )
-@pytest.mark.parametrize("freeze", [False, True], ids=["unfrozen", "frozen"])
+@pytest.mark.parametrize(
+    "make_effect",
+    [
+        pytest.param(_DateLevelEffect, id="unfrozen"),
+        pytest.param(lambda: _DateLevelEffect(freeze=True), id="frozen"),
+        # A Deterministic that only renames the variable; PyMC drops the view when
+        # it clones the model, and freezing it used to raise ``KeyError``.
+        pytest.param(_FrozenRenamedDateLevelEffect, id="frozen-renamed"),
+    ],
+)
 def test_monthly_incrementality_on_a_date_variable(
-    fit_mmm_with_effect, monkeypatch, freeze, max_batch_elements
+    fit_mmm_with_effect, monkeypatch, make_effect, max_batch_elements
 ):
     """A free random variable over the dates gives each month's contribution.
 
@@ -3356,7 +3377,7 @@ def test_monthly_incrementality_on_a_date_variable(
     carryover, so each channel's increment on a month is its contribution summed
     over that month.
     """
-    mmm = fit_mmm_with_effect(_DateLevelEffect(freeze=freeze))
+    mmm = fit_mmm_with_effect(make_effect())
     if max_batch_elements is not None:
         monkeypatch.setattr(
             CounterfactualEvaluator, "MAX_BATCH_ELEMENTS", max_batch_elements
@@ -3384,6 +3405,25 @@ def test_monthly_incrementality_on_a_date_variable(
     assert json.loads(split.attrs["assumptions"])["evaluation"] == "window"
 
 
+def test_posterior_predictive_on_a_frozen_renaming_deterministic(
+    fit_mmm_with_effect, simple_mmm_data
+):
+    """A frozen renaming deterministic gives the posterior draws of its variable."""
+    mmm = fit_mmm_with_effect(_FrozenRenamedDateLevelEffect())
+
+    predictive = mmm.sample_posterior_predictive(
+        simple_mmm_data["X"],
+        var_names=["level_effect_contribution"],
+        random_seed=1,
+        progressbar=False,
+    )
+
+    expected = mmm.idata.posterior["level_draws"].stack(sample=("chain", "draw"))
+    np.testing.assert_allclose(
+        predictive["level_effect_contribution"].transpose(*expected.dims), expected
+    )
+
+
 def test_monthly_incrementality_evaluates_a_reduced_date_variable(
     fit_mmm_with_effect,
 ):
@@ -3408,12 +3448,15 @@ class _ScaledByDateLevelEffect(_ZeroEffect):
     """A free random variable over the dates that scales the channel contribution.
 
     With ``walk``, the variable holds the steps of a random walk, and the walk, their
-    cumulative sum over ``date``, is a Deterministic whether frozen or not.
+    cumulative sum over ``date``, is a Deterministic whether frozen or not.  With
+    ``renames``, the variable reaches spend through that many Deterministics that
+    only rename it, and the last of them is the one frozen.
     """
 
     prefix: str = "scaled"
     walk: bool = False
     freeze: bool = False
+    renames: int = 0
 
     def incrementality_spec(self) -> IncrementalitySpec:
         """Opt in: the effect reads the channel contribution."""
@@ -3428,6 +3471,8 @@ class _ScaledByDateLevelEffect(_ZeroEffect):
         """
         if not self.freeze:
             return []
+        if self.renames:
+            return [f"{self.prefix}_rename_{self.renames}"]
         return [f"{self.prefix}_walk" if self.walk else f"{self.prefix}_level"]
 
     def create_effect(self, mmm):
@@ -3435,6 +3480,8 @@ class _ScaledByDateLevelEffect(_ZeroEffect):
         level = pmd.Normal(f"{self.prefix}_level", mu=1.0, sigma=0.5, dims="date")
         if self.walk:
             level = pmd.Deterministic(f"{self.prefix}_walk", level.cumsum("date"))
+        for index in range(1, self.renames + 1):
+            level = pmd.Deterministic(f"{self.prefix}_rename_{index}", level)
         contribution = mmm.model["channel_contribution"].sum("channel")
         return pmd.Deterministic(self.contribution_var_name, level * contribution)
 
@@ -3482,6 +3529,38 @@ def test_yearly_incrementality_on_a_variable_that_scales_spend(mock_pymc_sample,
     )
     assert json.loads(unfrozen_split.attrs["assumptions"])["evaluation"] == "full_axis"
     assert "'scaled_level'" in unfrozen_split.attrs["warnings"]
+
+
+@pytest.mark.parametrize("renames", [1, 2], ids=["renamed", "chained"])
+def test_monthly_incrementality_on_a_frozen_renaming_deterministic_that_scales_spend(
+    fit_mmm_with_effect, renames
+):
+    """Freezing a Deterministic that renames the variable is freezing the variable.
+
+    The variable multiplies the channel contribution, so the increments read its
+    values on each window's own dates.  The months keep their windows.
+    """
+    frozen = fit_mmm_with_effect(_ScaledByDateLevelEffect(freeze=True))
+    renamed = fit_mmm_with_effect(
+        _ScaledByDateLevelEffect(freeze=True, renames=renames)
+    )
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "error", message=".*full date axis", category=UserWarning
+        )
+        expected = frozen.incrementality.compute_incremental_contribution(
+            frequency="monthly"
+        )
+        actual = renamed.incrementality.compute_incremental_contribution(
+            frequency="monthly"
+        )
+        split = renamed.incrementality.split_incremental_contribution_over_time(
+            frequency="monthly"
+        )
+
+    np.testing.assert_allclose(actual, expected.transpose(*actual.dims))
+    assert json.loads(split.attrs["assumptions"])["evaluation"] == "window"
 
 
 def test_no_full_axis_warning_where_the_mode_uses_the_full_axis_anyway(

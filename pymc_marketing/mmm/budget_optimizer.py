@@ -263,6 +263,7 @@ from pymc.model.transform.optimization import freeze_dims_and_data
 from pytensor import function
 from pytensor.compile.sharedvalue import SharedVariable, shared
 from pytensor.graph import rewrite_graph
+from pytensor.graph.basic import Variable
 from pytensor.graph.traversal import ancestors
 from pytensor.xtensor.type import XTensorVariable
 from scipy.optimize import OptimizeResult, minimize
@@ -295,6 +296,7 @@ from pymc_marketing.pytensor_utils import (
     ConditionedModel,
     SharedPosterior,
     extract_response_distribution,
+    frozen_variables,
     merge_models,
     reorder_to_model_coords,
 )
@@ -2113,9 +2115,13 @@ class BudgetOptimizer(BaseModel):
                 if len(reached) == 1
                 else f"frozen paths over {self.date_dim!r} that exist"
             )
+            listing = " and ".join(
+                repr(name) if var.name == name else f"{name!r} (a view of {var.name!r})"
+                for name, var in reached.items()
+            )
             message = (
                 f"response_variable {self.response_variable!r} includes "
-                f"{' and '.join(map(repr, reached))}, {paths} only on the dates the "
+                f"{listing}, {paths} only on the dates the "
                 "model was fitted on, so it cannot be optimized on a window."
             )
             default = DEFAULT_RESPONSE_VARIABLE
@@ -2137,12 +2143,15 @@ class BudgetOptimizer(BaseModel):
         self._constraints = {}
         self.set_constraints(constraints=self.constraints)
 
-    def _frozen_date_paths(self, response_variable: str) -> list[str]:
+    def _frozen_date_paths(self, response_variable: str) -> dict[str, Variable]:
         """Return the frozen deterministics over ``date_dim`` an objective reaches.
 
         The traversal stops at every frozen deterministic, as the evaluation does
         when it substitutes their posterior draws, so a path that enters the
-        objective only through another frozen deterministic is not reached.
+        objective only through another frozen deterministic is not reached.  A
+        deterministic that only renames a free random variable stands for that
+        variable, which is what the optimization model's graphs read, see
+        :func:`~pymc_marketing.pytensor_utils.frozen_variables`.
 
         Parameters
         ----------
@@ -2151,24 +2160,21 @@ class BudgetOptimizer(BaseModel):
 
         Returns
         -------
-        list of str
-            The names, in the order of ``frozen_deterministics``.
+        dict of str to Variable
+            The variable each name stands for, by name, in the order of
+            ``frozen_deterministics``.
         """
         model = self._pymc_model
-        frozen = {
-            name: model[name]
-            for name in self.frozen_deterministics or ()
-            if name in model.named_vars
-        }
+        frozen = frozen_variables(model, self.frozen_deterministics or ())
         upstream = set(
             ancestors([model[response_variable]], blockers=list(frozen.values()))
         )
-        return [
-            name
+        return {
+            name: var
             for name, var in frozen.items()
-            if self.date_dim in (model.named_vars_to_dims.get(name) or ())
+            if self.date_dim in (model.named_vars_to_dims.get(var.name) or ())
             and var in upstream
-        ]
+        }
 
     def __copy__(self) -> "BudgetOptimizer":
         """Return a copy that owns its posterior binding and compiled functions.

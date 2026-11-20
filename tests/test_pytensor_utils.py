@@ -46,6 +46,7 @@ from pymc_marketing.pytensor_utils import (
     check_aligned_dims,
     check_aligned_shape,
     extract_response_distribution,
+    frozen_variables,
     merge_models,
     needed_posterior_names,
     non_sample_dims,
@@ -1001,6 +1002,94 @@ def test_needed_posterior_names_stops_at_a_frozen_deterministic():
     )
 
     assert sorted(names) == ["gamma", "scaled"]
+
+
+def _renaming_model() -> pm.Model:
+    """``level`` behind one and two renaming deterministics, and three that are not.
+
+    ``resp`` reads ``level`` only through the chain of renames.
+    """
+    with pm.Model(coords={"date": range(4)}) as model:
+        x = pmd.Data("x", np.ones(4), dims="date")
+        level = pmd.Normal("level", dims="date")
+        renamed = pmd.Deterministic("renamed", level)
+        chained = pmd.Deterministic("chained", renamed)
+        pmd.Deterministic("doubled", level * 2)
+        pmd.Deterministic("shifted", level + 0.0)
+        pmd.Deterministic("constant", ptx.as_xtensor(np.ones(4), dims=("date",)))
+        pmd.Deterministic("resp", x * chained)
+    return model
+
+
+@pytest.mark.parametrize(
+    "clone",
+    [
+        pytest.param(lambda model: model, id="source"),
+        pytest.param(clone_model, id="clone_model"),
+        pytest.param(lambda model: pm.do(model, {"x": np.full(4, 2.0)}), id="do"),
+    ],
+)
+def test_frozen_variables_follows_renames_to_a_free_variable(clone):
+    """A chain of renaming deterministics stands for the variable at its end.
+
+    PyMC registers a deterministic of a clone as its expression, so ``doubled``
+    is no view there, and ``constant`` has no owner; neither is followed.  A name
+    the model does not have is left out, and a repeated one is listed once.
+    """
+    model = clone(_renaming_model())
+
+    held = frozen_variables(
+        model,
+        [
+            "chained",
+            "renamed",
+            "level",
+            "doubled",
+            "shifted",
+            "constant",
+            "missing",
+            "renamed",
+        ],
+    )
+
+    assert {name: var.name for name, var in held.items()} == {
+        "chained": "level",
+        "renamed": "level",
+        "level": "level",
+        "doubled": "doubled",
+        "shifted": "shifted",
+        "constant": "constant",
+    }
+    assert held["chained"] is model["level"]
+
+
+def test_needed_posterior_names_agrees_on_a_model_and_its_clone():
+    """A frozen renaming deterministic gives the same names before and after a clone.
+
+    The clone's graphs read ``level``, so narrowing a posterior on the source
+    model must keep ``level`` for an extraction from the clone.
+    """
+    model = _renaming_model()
+
+    for candidate in (model, clone_model(model)):
+        names = needed_posterior_names(
+            candidate, [candidate["resp"]], frozen_deterministics=["chained"]
+        )
+        assert names == ["level"]
+
+
+def test_conditioned_model_lists_a_renaming_deterministic_as_its_variable():
+    """The frozen names are those of the variables the clone's graphs read."""
+    model = _renaming_model()
+    prior = pm.sample_prior_predictive(draws=3, model=model, random_seed=1).prior
+
+    conditioned = ConditionedModel(
+        model,
+        xr.DataTree.from_dict({"posterior": prior}),
+        frozen_deterministics=["chained", "renamed", "shifted"],
+    )
+
+    assert conditioned.frozen_deterministics == ("level", "shifted")
 
 
 def _spend_path_model() -> pm.Model:

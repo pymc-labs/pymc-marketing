@@ -2253,13 +2253,15 @@ def _channel_model(channels, n_dates=6, node="channel_data"):
     return model, prior.prior
 
 
-def _frozen_path_optimizer(response_variable: str) -> BudgetOptimizer:
+def _frozen_path_optimizer(response_variable: str, renames: int = 0) -> BudgetOptimizer:
     """An optimizer on ``_channel_model``'s graph plus two frozen deterministics.
 
     ``path`` is a random walk over ``date``, as a latent path over the fitted dates
     is, and ``total_response_original_scale`` adds it to the media contribution.
     ``level`` is the walk's mean over ``date``, without a ``date`` dim as an HSGP's
-    frozen mean is, and ``response_with_level`` adds that instead.
+    frozen mean is, and ``response_with_level`` adds that instead.  With
+    *renames*, ``path`` is instead the steps themselves behind that many
+    deterministics that only rename them.
     """
     channels, n_dates = ["a", "b"], 6
     with pm.Model(coords={"channel": channels}) as model:
@@ -2272,7 +2274,13 @@ def _frozen_path_optimizer(response_variable: str) -> BudgetOptimizer:
             "total_media_contribution_original_scale", (channel_data * beta).sum()
         )
         steps = pmd.Normal("steps", sigma=0.1, dims="date")
-        path = pmd.Deterministic("path", steps.cumsum("date"))
+        if renames:
+            path = steps
+            for index in range(renames - 1):
+                path = pmd.Deterministic(f"rename_{index}", path)
+            path = pmd.Deterministic("path", path)
+        else:
+            path = pmd.Deterministic("path", steps.cumsum("date"))
         level = pmd.Deterministic("level", path.mean("date"))
         pmd.Deterministic("total_response_original_scale", media + path.sum("date"))
         pmd.Deterministic("response_with_level", media + level)
@@ -2297,6 +2305,22 @@ def test_objective_reaching_a_frozen_path_over_date_raises():
         r"'total_media_contribution_original_scale', does not include it\.$",
     ):
         _frozen_path_optimizer("total_response_original_scale")
+
+
+@pytest.mark.parametrize("renames", [1, 2], ids=["renamed", "chained"])
+def test_objective_reaching_a_frozen_renaming_deterministic_over_date_raises(renames):
+    """A path that only renames the steps is frozen as the steps, over ``date`` too.
+
+    The optimization model is a clone, whose graphs read the steps rather than
+    the renaming deterministic, so matching the name alone would miss it.
+    """
+    with pytest.raises(
+        NotImplementedError,
+        match=r"^response_variable 'total_response_original_scale' includes 'path' "
+        r"\(a view of 'steps'\), a frozen path over 'date' that exists only on the "
+        r"dates the model was fitted on",
+    ):
+        _frozen_path_optimizer("total_response_original_scale", renames=renames)
 
 
 @pytest.mark.parametrize(

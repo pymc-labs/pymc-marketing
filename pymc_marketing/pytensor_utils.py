@@ -34,6 +34,7 @@ from pymc.model.fgraph import (
     model_from_fgraph,
 )
 from pymc.pytensorf import rvs_in_graph, toposort_replace
+from pytensor.compile.ops import ViewOp
 from pytensor.compile.sharedvalue import SharedVariable, shared
 from pytensor.graph.basic import Constant, Variable
 from pytensor.graph.fg import FunctionGraph
@@ -522,6 +523,50 @@ def aligned_posterior(
     return posterior_da
 
 
+def frozen_variables(
+    pymc_model: Model, frozen_deterministics: Sequence[str]
+) -> dict[str, Variable]:
+    """Return the variable conditioning holds fixed for each frozen name.
+
+    A Deterministic that only renames a free random variable, directly or through
+    a chain of other renaming Deterministics, stands for that variable.  When
+    PyMC clones a model (``pm.do``, ``clone_model``), ``model_from_fgraph``
+    replaces every registered variable by the first variable under its chain of
+    model variables, so the graphs of the clone read the random variable, and the
+    Deterministic is registered again as a new view that nothing reads.  Mapping
+    the name to the random variable gives the same answer on the source model
+    and on a clone.  Any other name stands for its own variable.
+
+    Parameters
+    ----------
+    pymc_model : pm.Model
+        The model the names belong to.
+    frozen_deterministics : sequence of str
+        Names held at their posterior values; a name the model does not have is
+        left out.
+
+    Returns
+    -------
+    dict of str to Variable
+        The variable each name stands for, in the order given.
+    """
+    deterministics = set(pymc_model.deterministics)
+    free_rvs = set(pymc_model.free_RVs)
+    held: dict[str, Variable] = {}
+    for name in frozen_deterministics:
+        if name not in pymc_model.named_vars:
+            continue
+        var = bottom = pymc_model[name]
+        while (
+            bottom in deterministics
+            and bottom.owner is not None
+            and isinstance(bottom.owner.op, ViewOp)
+        ):
+            bottom = bottom.owner.inputs[0]
+        held[name] = bottom if bottom in free_rvs else var
+    return held
+
+
 def needed_posterior_names(
     pymc_model: Model,
     response_vars: Sequence[Variable],
@@ -542,7 +587,8 @@ def needed_posterior_names(
         The response graphs to traverse.
     frozen_deterministics : sequence of str, default ()
         Deterministics held at their posterior values; a name the model does
-        not have is ignored.
+        not have is ignored, and one that only renames a free random variable
+        stands for it, see :func:`frozen_variables`.
 
     Returns
     -------
@@ -551,11 +597,7 @@ def needed_posterior_names(
         depend on, each once.
     """
     blockers = set(pymc_model.free_RVs)
-    blockers.update(
-        pymc_model[name]
-        for name in frozen_deterministics
-        if name in pymc_model.named_vars
-    )
+    blockers.update(frozen_variables(pymc_model, frozen_deterministics).values())
     names: list[str] = []
     for rv in ancestors(response_vars, blockers=blockers):
         if rv in blockers and rv.name is not None:
@@ -588,7 +630,8 @@ def blocked_between(
         The variables the intervention is meant to reach.
     frozen_deterministics : sequence of str, default ()
         Deterministics held at their posterior values; a name the model does
-        not have is ignored.
+        not have is ignored, and one that only renames a free random variable
+        stands for it, see :func:`frozen_variables`.
 
     Returns
     -------
@@ -602,11 +645,7 @@ def blocked_between(
     held = dict.fromkeys(
         [
             *pymc_model.basic_RVs,
-            *(
-                pymc_model[name]
-                for name in frozen_deterministics
-                if name in pymc_model.named_vars
-            ),
+            *frozen_variables(pymc_model, frozen_deterministics).values(),
         ]
     )
     upstream = set(ancestors(targets))
@@ -1276,6 +1315,8 @@ class ConditionedModel:
         A mapping of ``pm.do`` arguments.  ``None`` clones the model unchanged.
     frozen_deterministics : list of str, optional
         Names of Deterministic variables to freeze at their posterior values.
+        A Deterministic that only renames a free random variable is listed as
+        that variable, see :func:`frozen_variables`.
 
     Raises
     ------
@@ -1312,8 +1353,16 @@ class ConditionedModel:
         intervention: Mapping[str, Variable | np.ndarray | float] | None = None,
         frozen_deterministics: list[str] | None = None,
     ) -> None:
-        self.frozen_deterministics: tuple[str, ...] = tuple(frozen_deterministics or ())
         self._model = _apply_intervention(model, intervention)
+        # Named after the variables the clone's graphs read, so a Deterministic
+        # that only renames a free random variable is listed as that variable.
+        declared = tuple(frozen_deterministics or ())
+        held = frozen_variables(self._model, declared)
+        self.frozen_deterministics: tuple[str, ...] = tuple(
+            dict.fromkeys(
+                held[name].name if name in held else name for name in declared
+            )
+        )
         # Every node of the clone, so an input read from outside it can be told
         # from one of the clone's own inputs by identity.  The dim lengths are
         # walked too: a dim no variable is sized by is an ancestor of nothing.
