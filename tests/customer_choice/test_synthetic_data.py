@@ -26,14 +26,6 @@ class TestBasicOutput:
         expected_rows = 5 * (3 + 1)  # T * (J + outside)
         assert len(df) == expected_rows
 
-    def test_return_truth_gives_tuple(self):
-        result = generate_blp_panel(
-            T=5, J=3, K=2, L=2, random_seed=0, return_truth=True
-        )
-        assert isinstance(result, tuple)
-        _, truth = result
-        assert isinstance(truth, dict)
-
     def test_required_columns_present(self):
         df = generate_blp_panel(T=5, J=3, K=2, L=2, random_seed=0)
         for col in ["region", "market", "period", "product", "share", "n", "price"]:

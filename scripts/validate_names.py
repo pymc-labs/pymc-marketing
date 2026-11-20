@@ -13,7 +13,7 @@
 #   limitations under the License.
 """Validate that the names in ``pymc_marketing/names`` are not typed by hand again.
 
-Three checks run over ``pymc_marketing/``:
+Two checks run over ``pymc_marketing/``:
 
 1. A string literal in code must not equal a value of a names module that owns
    the file, and must not end with one of its suffixes. A names module owns a
@@ -24,13 +24,9 @@ Three checks run over ``pymc_marketing/``:
    in a dictionary, so the string names an attribute of a Python object there.
    Groups, variables, dims and columns get no such exemption, because xarray and
    pandas expose them as attributes. Any other exception needs an entry in
-   ``ALLOWED`` for that file.
-2. The MMM dims in ``DEFERRED_DIMS`` may stay literal where a typo raises
-   (``dims=...``, subscripts, reductions). In a position where a typo fails
-   silently (``in``, ``==``, ``.get``, ``.setdefault``, ``hasattr``, set
-   literals, a pandas ``rename`` mapping, a call with ``errors="ignore"``, ...)
-   they follow check 1.
-3. A names constant must not be used inside a function without annotations,
+   ``ALLOWED`` for that file, with a reason and the number of such literals in
+   the file, so a new literal with the same value still fails.
+2. A names constant must not be used inside a function without annotations,
    because ``mypy`` does not check the body of such a function.
 
 The script reads the names modules with ``ast`` and imports nothing from
@@ -64,9 +60,6 @@ SCOPES = {
 }
 SHARED = "shared"
 
-# MMM dims that keep the literal where a typo raises (follow-up of #3190).
-DEFERRED_DIMS = frozenset({"date", "channel", "control", "cv", "sweep"})
-
 _KEYWORD = "__init__ keyword, spelled where the keyword arguments are built"
 _CONFIG_KEY = "model_config key, which stays a literal"
 _LABEL = "plot label"
@@ -77,130 +70,220 @@ _SCRATCH = "scratch variable that never reaches the model or idata"
 _COMPONENT = "prefix of the component and name of its sampled curve"
 _OWN_MODEL = "name of a model that keeps its own names"
 
-# File (relative to ``pymc_marketing/``) -> {value: why the literal may stay there}.
-ALLOWED: dict[str, dict[str, str]] = {
-    "bass/plotting.py": {"T": _LABEL, "imitators": _LABEL, "innovators": _LABEL},
+# File (relative to ``pymc_marketing/``) -> {value: (why the literal may stay there,
+# how many times it appears in the file)}.
+ALLOWED: dict[str, dict[str, tuple[str, int]]] = {
+    "bass/plotting.py": {
+        "T": (_LABEL, 3),
+        "imitators": (_LABEL, 1),
+        "innovators": (_LABEL, 1),
+    },
     "clv/models/beta_geo.py": {
-        "dropout_coefficient": _CONFIG_KEY,
-        "purchase_coefficient": _CONFIG_KEY,
+        "dropout_coefficient": (_CONFIG_KEY, 7),
+        "purchase_coefficient": (_CONFIG_KEY, 3),
     },
     "clv/models/modified_beta_geo.py": {
-        "dropout_coefficient": _CONFIG_KEY,
-        "purchase_coefficient": _CONFIG_KEY,
+        "dropout_coefficient": (_CONFIG_KEY, 6),
+        "purchase_coefficient": (_CONFIG_KEY, 2),
     },
     "clv/models/pareto_nbd.py": {
-        "dropout_coefficient": _CONFIG_KEY,
-        "purchase_coefficient": _CONFIG_KEY,
+        "dropout_coefficient": (_CONFIG_KEY, 3),
+        "purchase_coefficient": (_CONFIG_KEY, 3),
     },
     "clv/models/shifted_beta_geo.py": {
-        "dropout_coefficient": _CONFIG_KEY,
-        "dropout": "name of the sBG likelihood, a different variable from Var.DROPOUT",
+        "dropout_coefficient": (_CONFIG_KEY, 4),
+        "dropout": (
+            "name of the sBG likelihood, a different variable from Var.DROPOUT",
+            1,
+        ),
     },
-    "clv/plotting.py": {"T": _LABEL},
-    "clv/utils.py": {"customer_id": _DEFAULT},
+    "clv/plotting.py": {
+        "T": (_LABEL, 1),
+    },
+    "clv/utils.py": {
+        "customer_id": (_DEFAULT, 1),
+    },
     "customer_choice/_choice_data_mixin.py": {
-        "covariates": _KEYWORD,
-        "depvar": _KEYWORD,
-        "utility_equations": _KEYWORD,
-        "model_config": _KEYWORD,
-        "sampler_config": _KEYWORD,
+        "covariates": (_KEYWORD, 1),
+        "depvar": (_KEYWORD, 1),
+        "utility_equations": (_KEYWORD, 1),
+        "model_config": (_KEYWORD, 1),
+        "sampler_config": (_KEYWORD, 1),
     },
-    "customer_choice/bayesian_blp.py": {"likelihood": "attrs key of the BLP model"},
+    "customer_choice/bayesian_blp.py": {
+        "likelihood": ("attrs key of the BLP model", 1),
+    },
     "customer_choice/maxdiff.py": {
-        "U": _OWN_MODEL,
-        "X": _OWN_MODEL,
-        "model_config": _KEYWORD,
-        "sampler_config": _KEYWORD,
+        "U": (_OWN_MODEL, 1),
+        "X": (_OWN_MODEL, 1),
+        "model_config": (_KEYWORD, 1),
+        "sampler_config": (_KEYWORD, 1),
     },
-    "customer_choice/mixed_logit.py": {"likelihood": _CONFIG_KEY},
+    "customer_choice/mixed_logit.py": {
+        "likelihood": (_CONFIG_KEY, 3),
+    },
     "customer_choice/mnl_logit.py": {
-        "X": "name of the instance attribute that holds the data",
-        "covariates": _KEYWORD,
-        "depvar": _KEYWORD,
-        "utility_equations": _KEYWORD,
-        "likelihood": _CONFIG_KEY,
+        "X": ("name of the instance attribute that holds the data", 1),
+        "covariates": (_KEYWORD, 1),
+        "depvar": (_KEYWORD, 1),
+        "utility_equations": (_KEYWORD, 1),
+        "likelihood": (_CONFIG_KEY, 3),
     },
     "customer_choice/mv_its.py": {
-        "likelihood": _CONFIG_KEY,
-        "y": _OWN_MODEL,
-        "model_config": _KEYWORD,
-        "sampler_config": _KEYWORD,
+        "likelihood": (_CONFIG_KEY, 5),
+        "y": (_OWN_MODEL, 4),
+        "model_config": (_KEYWORD, 1),
+        "sampler_config": (_KEYWORD, 1),
     },
     "customer_choice/nested_logit.py": {
-        "covariates": _KEYWORD,
-        "depvar": _KEYWORD,
-        "utility_equations": _KEYWORD,
-        "likelihood": _CONFIG_KEY,
+        "covariates": (_KEYWORD, 1),
+        "depvar": (_KEYWORD, 1),
+        "utility_equations": (_KEYWORD, 1),
+        "likelihood": (_CONFIG_KEY, 3),
     },
-    "customer_choice/synthetic_data.py": {"X": "key of the synthetic data dictionary"},
-    "experimental/terms/_graph.py": {"mu": _PARAMETER},
-    "mlflow.py": {"model_type": "name of an MLflow parameter"},
+    "customer_choice/synthetic_data.py": {
+        "X": ("key of the synthetic data dictionary", 1),
+    },
+    "data/fivetran.py": {
+        "date": (_DEFAULT, 4),
+    },
+    "experimental/terms/_graph.py": {
+        "mu": (_PARAMETER, 5),
+    },
+    "mlflow.py": {
+        "model_type": ("name of an MLflow parameter", 1),
+    },
+    "mmm/additive_effect.py": {
+        "channel": (_DEFAULT, 2),
+        "date": (_DEFAULT, 7),
+    },
+    "mmm/budget_model.py": {
+        "channel": ("column of the lift test or design DataFrame", 7),
+    },
     "mmm/budget_optimizer.py": {
-        "cost_per_unit": "label and tensor name of the cost table",
-        "date": _COLUMN,
-        "mu_effects": "removed keyword that is still recognised",
+        "cost_per_unit": ("label and tensor name of the cost table", 2),
+        "date": (_COLUMN + ", or " + _DEFAULT, 4),
+        "mu_effects": ("removed keyword that is still recognised", 2),
     },
-    "mmm/builders/factories.py": {"model_config": "YAML key"},
-    "mmm/components/adstock.py": {"adstock": _COMPONENT},
-    "mmm/components/saturation.py": {"saturation": _COMPONENT},
-    "mmm/counterfactual.py": {"time_index": "label of the batched input tensor"},
-    "mmm/events.py": {"saturation": _COMPONENT},
-    "mmm/fourier.py": {"fourier_mode": _DEFAULT},
+    "mmm/builders/factories.py": {
+        "model_config": ("YAML key", 2),
+    },
+    "mmm/components/adstock.py": {
+        "adstock": (_COMPONENT, 2),
+    },
+    "mmm/components/saturation.py": {
+        "saturation": (_COMPONENT, 2),
+    },
+    "mmm/counterfactual.py": {
+        "time_index": ("label of the batched input tensor", 1),
+    },
+    "mmm/data_conversion.py": {
+        "channel": ("public name of a data variable of the input Dataset", 1),
+        "control": ("public name of a data variable of the input Dataset", 1),
+    },
+    "mmm/estimand_label.py": {
+        "induced_spend": ("name of a label field, in the message that names it", 1),
+    },
+    "mmm/events.py": {
+        "saturation": (_COMPONENT, 1),
+    },
+    "mmm/fourier.py": {
+        "fourier_mode": (_DEFAULT, 1),
+    },
     "mmm/incrementality.py": {
-        "adstock": "name of the component passed to a check",
-        "saturation": "name of the component passed to a check",
-        "allocation": "estimand option",
-        "link": "key of the reported assumptions",
-        "time_varying_media": "key of the reported assumptions",
+        "adstock": ("name of the component passed to a check", 2),
+        "saturation": ("name of the component passed to a check", 1),
+        "allocation": ("estimand option", 4),
+        "link": ("key of the reported assumptions", 1),
+        "time_varying_media": ("key of the reported assumptions", 1),
+        "induced_spend": ("name of the argument, in the message that refuses it", 2),
     },
-    "mmm/lift_test.py": {"channel": _COLUMN, "date": _COLUMN, "mu": _PARAMETER},
+    "mmm/lift_test.py": {
+        "channel": (_COLUMN, 1),
+        "date": (_COLUMN, 2),
+        "mu": (_PARAMETER, 1),
+    },
     "mmm/media_transformation.py": {
-        "adstock": "field of the serialized media transformation",
-        "saturation": "field of the serialized media transformation",
+        "adstock": ("field of the serialized media transformation", 2),
+        "saturation": ("field of the serialized media transformation", 2),
     },
     "mmm/mmm.py": {
-        "adstock": _KEYWORD,
-        "saturation": _KEYWORD,
-        "cost_per_unit": _KEYWORD,
-        "link": _KEYWORD,
-        "model_config": _KEYWORD,
-        "sampler_config": _KEYWORD,
-        "time_varying_intercept": _KEYWORD,
-        "time_varying_media": _KEYWORD,
-        "channel": _COLUMN,
-        "date": _COLUMN,
-        "y": _DEFAULT,
+        "adstock": (_KEYWORD, 1),
+        "saturation": (_KEYWORD, 1),
+        "cost_per_unit": (_KEYWORD, 1),
+        "link": (_KEYWORD, 1),
+        "model_config": (_KEYWORD, 1),
+        "sampler_config": (_KEYWORD, 1),
+        "time_varying_intercept": (_KEYWORD, 1),
+        "time_varying_media": (_KEYWORD, 1),
+        "channel": (_COLUMN, 13),
+        "date": (_COLUMN + ", or " + _DEFAULT, 13),
+        "y": (_DEFAULT, 1),
     },
-    "mmm/plot.py": {"date": _COLUMN, "y_original_scale": _LABEL},
-    "mmm/plot_interactive.py": {"channel_scale": _SCRATCH, "date": _COLUMN},
-    "mmm/plotting/decomposition.py": {"y": "matplotlib keyword a caller may not set"},
-    "mmm/plotting/diagnostics.py": {"y": _SCRATCH},
-    "mmm/plotting/transformations.py": {"y": _SCRATCH},
-    "mmm/summary/cv.py": {"cv": _COLUMN, "date": _COLUMN},
-    "mmm/summary/factory.py": {"channel": _COLUMN, "control": _COLUMN, "y": _SCRATCH},
-    "mmm/summary/sensitivity.py": {"sweep": _COLUMN},
-    "mmm/synthetic_data/endogenous_spend.py": {"y": "column of the synthetic data"},
-    "mmm/utils.py": {"adstock": "name of an MMM attribute in a check"},
-    "model_builder.py": {"model_config": _KEYWORD, "sampler_config": _KEYWORD},
-    "pie/model.py": {"model_config": _KEYWORD},
+    "mmm/optimization_variables.py": {
+        "channel": (_DEFAULT, 1),
+        "date": (_DEFAULT, 3),
+    },
+    "mmm/plot.py": {
+        "channel": (_LABEL + ", or " + _DEFAULT, 4),
+        "date": (_COLUMN + ", or " + _LABEL, 8),
+        "y_original_scale": (_LABEL, 1),
+    },
+    "mmm/plot_interactive.py": {
+        "channel": (_DEFAULT, 4),
+        "channel_scale": (_SCRATCH, 3),
+    },
+    "mmm/plotting/cv.py": {
+        "cv": (_DEFAULT, 1),
+    },
+    "mmm/plotting/decomposition.py": {
+        "y": ("matplotlib keyword a caller may not set", 1),
+    },
+    "mmm/plotting/diagnostics.py": {
+        "y": (_SCRATCH, 1),
+    },
+    "mmm/plotting/transformations.py": {
+        "y": (_SCRATCH, 3),
+    },
+    "mmm/scaling.py": {
+        "channel": ("field of the serialized scaling config", 3),
+    },
+    "mmm/sensitivity_analysis.py": {
+        "sweep": ("name of the symbolic sweep tensor", 1),
+    },
+    "mmm/summary/cv.py": {
+        "date": (_COLUMN, 5),
+    },
+    "mmm/summary/factory.py": {
+        "channel": (_COLUMN, 2),
+        "control": (_COLUMN, 1),
+        "y": (_SCRATCH, 1),
+    },
+    "mmm/synthetic_data/endogenous_spend.py": {
+        "channel": ("column of the synthetic data", 2),
+        "date": ("column of the synthetic data", 1),
+        "y": ("column of the synthetic data", 1),
+    },
+    "mmm/utils.py": {
+        "adstock": ("name of an MMM attribute in a check", 1),
+    },
+    "mmm/var_baseline.py": {
+        "channel": ("word in a warning message", 1),
+        "control": ("word in a warning message", 1),
+    },
+    "model_builder.py": {
+        "model_config": (_KEYWORD, 1),
+        "sampler_config": (_KEYWORD, 1),
+    },
+    "pie/model.py": {
+        "model_config": (_KEYWORD, 1),
+    },
 }
 
 ATTRIBUTE_NAME_FUNCTIONS = {"getattr", "hasattr", "setattr", "delattr"}
 # Names classes whose values are dictionary keys and never attributes. Only their
 # values may be typed as the attribute name in ``getattr`` and the like.
 DICTIONARY_KEY_CLASSES = {"Attr", "Key"}
-SILENT_METHODS = {
-    "get",
-    "pop",
-    "setdefault",
-    "startswith",
-    "endswith",
-    "add",
-    "discard",
-}
-SILENT_KEYWORDS = {"errors", "missing_dims"}
-# pandas ``rename`` skips a key that is missing unless ``errors="raise"`` is set.
-RENAME_KEYWORDS = {"columns", "index"}
 NAMES_PACKAGE = "pymc_marketing.names"
 
 
@@ -261,14 +344,6 @@ def read_names_module(path: Path) -> NamesModule:
     return values, suffixes, identifiers
 
 
-def _parents(tree: ast.AST) -> dict[int, ast.AST]:
-    return {
-        id(child): node
-        for node in ast.walk(tree)
-        for child in ast.iter_child_nodes(node)
-    }
-
-
 def _exempt_nodes(tree: ast.AST) -> set[int]:
     """Collect the ids of the string nodes that the rule exempts."""
     exempt: set[int] = set()
@@ -303,65 +378,6 @@ def _attribute_names(tree: ast.AST) -> set[int]:
         and node.func.id in ATTRIBUTE_NAME_FUNCTIONS
         and len(node.args) > 1
     }
-
-
-def _has_keyword(call: ast.Call, names: set[str], value: str) -> bool:
-    return any(
-        keyword.arg in names and _string(keyword.value) == value
-        for keyword in call.keywords
-    )
-
-
-def _is_silent(node: ast.AST, parents: dict[int, ast.AST]) -> bool:
-    """Return whether a typo in the string ``node`` would fail without raising."""
-    parent = parents.get(id(node))
-    if isinstance(parent, (ast.Tuple, ast.List)):
-        node, parent = parent, parents.get(id(parent))
-    if isinstance(parent, ast.Set):
-        return True
-    if isinstance(parent, ast.Compare):
-        return any(
-            isinstance(operator, (ast.In, ast.NotIn, ast.Eq, ast.NotEq))
-            for operator in parent.ops
-        )
-    if isinstance(parent, ast.Dict):
-        # The key of ``df.rename(columns={"date": ...})``.
-        keyword = parents.get(id(parent))
-        call = parents.get(id(keyword))
-        return (
-            node in parent.keys
-            and isinstance(keyword, ast.keyword)
-            and keyword.arg in RENAME_KEYWORDS
-            and isinstance(call, ast.Call)
-            and isinstance(call.func, ast.Attribute)
-            and call.func.attr == "rename"
-            and not _has_keyword(call, {"errors"}, "raise")
-        )
-    if isinstance(parent, ast.keyword):
-        # A value passed by keyword: ``df.drop(columns=["date"], errors="ignore")``.
-        call = parents.get(id(parent))
-        return isinstance(call, ast.Call) and _has_keyword(
-            call, SILENT_KEYWORDS, "ignore"
-        )
-    if (
-        isinstance(parent, ast.Call)
-        and isinstance(parent.func, ast.Name)
-        and len(parent.args) > 1
-        and parent.args[1] is node
-    ):
-        if parent.func.id == "hasattr":
-            return True
-        if parent.func.id == "getattr":
-            return len(parent.args) > 2  # a default hides the typo
-    if isinstance(parent, ast.Call) and node in parent.args:
-        if (
-            isinstance(parent.func, ast.Attribute)
-            and parent.func.attr in SILENT_METHODS
-            and parent.args[0] is node
-        ):
-            return True
-        return _has_keyword(parent, SILENT_KEYWORDS, "ignore")
-    return False
 
 
 def _literals(tree: ast.AST) -> Iterator[tuple[ast.Constant, bool]]:
@@ -497,7 +513,7 @@ def check_source(
         The violations, and the ``ALLOWED`` values of this file that were used.
     """
     violations: list[str] = []
-    used: set[str] = set()
+    used: dict[str, list[int]] = {}
     location = f"pymc_marketing/{relative}"
     tree = ast.parse(source, filename=location)
     identifiers = set().union(*(module[2] for module in names.values()))
@@ -511,7 +527,6 @@ def check_source(
     suffixes = [suffix for owner in owners for suffix in names[owner][1]]
     exempt = _exempt_nodes(tree)
     attribute_names = _attribute_names(tree)
-    parents = _parents(tree)
     allowed = ALLOWED.get(relative, {})
 
     for node, is_fragment in _literals(tree):
@@ -524,16 +539,12 @@ def check_source(
                 for _, constant in values[text]
             ):
                 continue
-            deferred = "mmm" in owners and text in DEFERRED_DIMS
-            if deferred and not _is_silent(node, parents):
-                continue
             if text in allowed:
-                used.add(text)
+                used.setdefault(text, []).append(node.lineno)
                 continue
-            position = " in a position where a typo fails silently" if deferred else ""
             owner, constant = values[text][0]
             violations.append(
-                f"{location}:{node.lineno}: literal {text!r}{position} is "
+                f"{location}:{node.lineno}: literal {text!r} is "
                 f"{constant} in the {owner} names"
             )
         elif any(text.endswith(suffix) for suffix in suffixes):
@@ -546,7 +557,15 @@ def check_source(
             f"{location}:{line}: names constant inside {function}(), which has no "
             "annotations, so mypy does not check it"
         )
-    return violations, used
+    for text, lines in sorted(used.items()):
+        expected = allowed[text][1]
+        if len(lines) != expected:
+            violations.append(
+                f"{location}: {len(lines)} literal(s) {text!r} (lines "
+                f"{', '.join(map(str, sorted(lines)))}), but ALLOWED lists "
+                f"{expected}. Use the constant for a new one, or update the count"
+            )
+    return violations, set(used)
 
 
 def main() -> int:
@@ -579,7 +598,8 @@ def main() -> int:
         print("\n".join(violations))
         print(
             f"\n{len(violations)} problem(s). Use the constant from pymc_marketing/names, "
-            "annotate the function, or add an ALLOWED entry for the file with a reason."
+            "annotate the function, or add an ALLOWED entry for the file with a reason "
+            "and a count."
         )
         return 1
     return 0

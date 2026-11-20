@@ -365,3 +365,79 @@ class TestMediaTransformationRoundtrips:
 )
 def test_media_type_registered(type_key):
     assert type_key in serialization._registry, f"{type_key} not registered"
+
+
+def _transformation(**kwargs) -> MediaTransformation:
+    return MediaTransformation(
+        **{
+            "adstock": GeometricAdstock(l_max=2),
+            "saturation": LogisticSaturation(),
+            "adstock_first": True,
+            **kwargs,
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "kwargs, match",
+    [
+        pytest.param({"adstock": None}, "adstock must be", id="adstock"),
+        pytest.param(
+            {"saturation": GeometricAdstock(l_max=2)},
+            "saturation must be",
+            id="saturation",
+        ),
+        pytest.param({"adstock_first": "no"}, "adstock_first must be", id="str"),
+        pytest.param(
+            {"adstock_first": np.True_}, "adstock_first must be", id="numpy-bool"
+        ),
+    ],
+)
+def test_media_transformation_rejects_wrong_input_types(kwargs, match) -> None:
+    with pytest.raises(TypeError, match=match):
+        _transformation(**kwargs)
+
+
+@pytest.mark.parametrize(
+    "kwargs, error, match",
+    [
+        pytest.param({"columns": "tv"}, TypeError, "columns must be", id="str"),
+        pytest.param({"columns": 5}, TypeError, "columns must be", id="non-iterable"),
+        pytest.param({"columns": ["tv", 1]}, TypeError, r"got 1 \(int\)", id="non-str"),
+        pytest.param({"columns": []}, ValueError, "at least one", id="empty"),
+        pytest.param(
+            {"media_transformation": {}},
+            TypeError,
+            "media_transformation must be",
+            id="media_transformation",
+        ),
+    ],
+)
+def test_media_config_rejects_wrong_input_types(kwargs, error, match) -> None:
+    with pytest.raises(error, match=match):
+        MediaConfig(
+            **{
+                "name": "media",
+                "columns": ["tv"],
+                "media_transformation": _transformation(),
+                **kwargs,
+            }
+        )
+
+
+@pytest.mark.parametrize(
+    "columns",
+    [
+        pytest.param(("tv", "radio"), id="tuple"),
+        pytest.param(pd.Index(["tv", "radio"]), id="pandas-index"),
+        pytest.param(np.array(["tv", "radio"]), id="numpy-array"),
+    ],
+)
+def test_media_config_columns_stored_as_list(columns) -> None:
+    config = MediaConfig(
+        name="media", columns=columns, media_transformation=_transformation()
+    )
+
+    assert config.columns == ["tv", "radio"]
+    assert all(type(column) is str for column in config.columns)
+    assert MediaConfig.from_dict(config.to_dict()) == config

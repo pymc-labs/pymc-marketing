@@ -40,7 +40,7 @@ from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.plotting.cv import MMMCVPlotSuite
 from pymc_marketing.mmm.summary.cv import MMMCVSummaryFactory
 from pymc_marketing.mmm.types import MMMBuilder
-from pymc_marketing.names.mmm import Group, Var, original_scale_name
+from pymc_marketing.names.mmm import Dim, Group, Var, original_scale_name
 from pymc_marketing.serialization import serialization
 
 
@@ -368,8 +368,8 @@ class TimeSliceCrossValidator:
             meta_arr[i] = m
 
         ds_meta = xr.Dataset(
-            {Var.METADATA: ("cv", meta_arr)},
-            coords={"cv": cv_coord},
+            {Var.METADATA: (Dim.CV, meta_arr)},
+            coords={Dim.CV: cv_coord},
         )
 
         # persist on instance for convenience
@@ -419,7 +419,7 @@ class TimeSliceCrossValidator:
 
             combined_kwargs: dict = {}
             # Ensure we pass a concrete list[str] into pd.Index to satisfy type checkers
-            cv_coord = pd.Index([str(n) for n in model_names], name="cv")
+            cv_coord = pd.Index([str(n) for n in model_names], name=Dim.CV)
 
             for group in groups:
                 # collect available datasets for this group
@@ -445,10 +445,10 @@ class TimeSliceCrossValidator:
                     # if concat fails, try to align then concat without coords
                     combined_ds = xr.concat(
                         [
-                            d.dataset.assign_coords({"cv": [n]})
+                            d.dataset.assign_coords({Dim.CV: [n]})
                             for d, n in zip(ds_list, model_names, strict=False)
                         ],
-                        dim="cv",
+                        dim=Dim.CV,
                     )
 
                 combined_kwargs[group] = combined_ds

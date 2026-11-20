@@ -427,7 +427,7 @@ class MMMPlotSuite:
 
         if Dim.DATE not in data.dims:
             raise ValueError(f"Expected 'date' dimension in {var}, but none found.")
-        dates = data.coords["date"].values
+        dates = data.coords[Dim.DATE].values
         ax.plot(dates, median, label=label, alpha=0.9)
 
         if "sample" in data.dims:
@@ -802,7 +802,7 @@ class MMMPlotSuite:
                 raise ValueError(
                     "Expected 'date' dimension in residuals, but none found."
                 )
-            dates = residuals_subset.coords["date"].values
+            dates = residuals_subset.coords[Dim.DATE].values
 
             # 6. Plot HDI bands (wider bands first with lighter alpha)
             alphas = [0.2 + i * 0.2 for i in range(len(hdi_prob))]
@@ -980,7 +980,7 @@ class MMMPlotSuite:
             # Flatten date dimension for distribution plot
             if Dim.DATE in residuals_subset.dims:
                 residuals_flat = residuals_subset.stack(
-                    all_samples=("chain", "draw", "date")
+                    all_samples=("chain", "draw", Dim.DATE)
                 )
             else:
                 residuals_flat = residuals_subset.stack(all_samples=("chain", "draw"))
@@ -1125,7 +1125,7 @@ class MMMPlotSuite:
             data = self.idata.posterior[var_name]
             # Only expand 'date' if missing (needed for time series plotting)
             if Dim.DATE not in data.dims and Dim.DATE in coords:
-                data = data.expand_dims(date=coords["date"])
+                data = data.expand_dims(date=coords[Dim.DATE])
             # Filter indexers to only include dimensions that exist in this variable
             var_indexers = {k: val for k, val in indexers.items() if k in data.dims}
             if var_indexers:
@@ -1541,7 +1541,7 @@ class MMMPlotSuite:
 
             if has_channel_dim:
                 # Get channel values for labeling
-                channel_values = subset.coords["channel"].values
+                channel_values = subset.coords[Dim.CHANNEL].values
 
                 # Convert to DataFrame for seaborn
                 # Transpose so that channel values are columns
@@ -2041,7 +2041,7 @@ class MMMPlotSuite:
         else:
             additional_combinations = [()]
 
-        channels = self.idata.constant_data.coords["channel"].values
+        channels = self.idata.constant_data.coords[Dim.CHANNEL].values
         n_channels = len(channels)
         n_addl = len(additional_combinations)
         n_dims = len(dims_combos)
@@ -2114,7 +2114,7 @@ class MMMPlotSuite:
                 for k, v in (dims or {}).items():
                     if k not in dims_keys:
                         indexers[k] = v
-            indexers["channel"] = channel
+            indexers[Dim.CHANNEL] = channel
 
             x_data = self._select_channel_x_for_indexers(
                 apply_cost_per_unit, **indexers
@@ -2131,7 +2131,7 @@ class MMMPlotSuite:
                 label=str(channel),
             )
             title_dims = (
-                ["channel"] + (list(dims.keys()) if dims else []) + additional_dims
+                [Dim.CHANNEL] + (list(dims.keys()) if dims else []) + additional_dims
             )
             title_combo = (
                 channel,
@@ -2268,7 +2268,7 @@ class MMMPlotSuite:
             additional_combinations = list(itertools.product(*additional_coords))
         else:
             additional_combinations = [()]
-        channels = self.idata.constant_data.coords["channel"].values
+        channels = self.idata.constant_data.coords[Dim.CHANNEL].values
         n_channels = len(channels)
         n_addl = len(additional_combinations)
         n_dims = len(dims_combos)
@@ -2330,7 +2330,7 @@ class MMMPlotSuite:
                 for k, v in (dims or {}).items():
                     if k not in dims_keys:
                         indexers[k] = v
-            indexers["channel"] = ch
+            indexers[Dim.CHANNEL] = ch
             # Select and broadcast curve data for this channel
             curve_idx = {
                 dim: val for dim, val in indexers.items() if dim in curve_data.dims
@@ -2402,7 +2402,7 @@ class MMMPlotSuite:
                 color=colors[list(channels).index(ch)],
             )
             title_dims = (
-                ["channel"] + (list(dims.keys()) if dims else []) + additional_dims
+                [Dim.CHANNEL] + (list(dims.keys()) if dims else []) + additional_dims
             )
             title_combo = (
                 ch,
@@ -2618,7 +2618,7 @@ class MMMPlotSuite:
 
             self._plot_budget_allocation_bars(
                 ax_,
-                samples.coords["channel"].values,
+                samples.coords[Dim.CHANNEL].values,
                 allocated_spend,
                 channel_contribution,
             )
@@ -2870,11 +2870,11 @@ class MMMPlotSuite:
             Title for the subplot.
         """
         # Plot mean values by channel
-        data.mean(dim="sample").plot(hue="channel", ax=ax)
+        data.mean(dim="sample").plot(hue=Dim.CHANNEL, ax=ax)
 
         # Add HDI intervals for each channel
-        channels = data.coords["channel"].values
-        dates = data.coords["date"].values
+        channels = data.coords[Dim.CHANNEL].values
+        dates = data.coords[Dim.DATE].values
 
         for i, channel in enumerate(channels):
             channel_data = data.sel(channel=channel)
@@ -3265,9 +3265,9 @@ class MMMPlotSuite:
                     "idata.constant_data."
                 )
             if apply_cost_per_unit:
-                channel_scale = self.data.get_channel_spend().sum(dim="date")
+                channel_scale = self.data.get_channel_spend().sum(dim=Dim.DATE)
             else:
-                channel_scale = self.data.get_channel_data().sum(dim="date")
+                channel_scale = self.data.get_channel_data().sum(dim=Dim.DATE)
 
         plot_dims = [d for d in x.dims if d not in excluded_dims]
         if plot_dims:
@@ -3355,7 +3355,7 @@ class MMMPlotSuite:
             line_data = line_data.squeeze(drop=True).astype(float)
 
             if Dim.SWEEP in line_data.dims:
-                sweep_dim = "sweep"
+                sweep_dim = Dim.SWEEP
             else:
                 cand = [d for d in line_data.dims if d != "sample"]
                 if not cand:
@@ -3408,7 +3408,7 @@ class MMMPlotSuite:
         # Get sweep coordinate values for absolute x-axis computation
         sweep_coord_values = None
         if x_sweep_axis == "absolute" and Dim.SWEEP in x.coords:
-            sweep_coord_values = np.asarray(x.coords["sweep"].values)
+            sweep_coord_values = np.asarray(x.coords[Dim.SWEEP].values)
 
         axes_flat = axes_array.flatten()
         for idx, combo in enumerate(dim_combinations):
@@ -3528,16 +3528,17 @@ class MMMPlotSuite:
 
         .. code-block:: python
 
-            from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
-
             sweeps = np.linspace(0.5, 1.5, 11)
-            sa = SensitivityAnalysis(mmm.model, mmm.idata)
-            results = sa.run_sweep(
+            sa = mmm.sensitivity
+            # With extend_idata=True the sweep is stored and run_sweep returns None.
+            sa.run_sweep(
                 var_input="channel_data",
                 sweep_values=sweeps,
                 var_names="channel_contribution",
                 sweep_type="multiplicative",
+                extend_idata=True,
             )
+            results = mmm.idata.sensitivity_analysis["x"]
             uplift = sa.compute_uplift_curve_respect_to_base(
                 results, ref=1.0, extend_idata=True
             )
@@ -3631,16 +3632,17 @@ class MMMPlotSuite:
 
         .. code-block:: python
 
-            from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
-
             sweeps = np.linspace(0.5, 1.5, 11)
-            sa = SensitivityAnalysis(mmm.model, mmm.idata)
-            results = sa.run_sweep(
+            sa = mmm.sensitivity
+            # With extend_idata=True the sweep is stored and run_sweep returns None.
+            sa.run_sweep(
                 var_input="channel_data",
                 sweep_values=sweeps,
                 var_names="channel_contribution",
                 sweep_type="multiplicative",
+                extend_idata=True,
             )
+            results = mmm.idata.sensitivity_analysis["x"]
             me = sa.compute_marginal_effects(results, extend_idata=True)
             _ = mmm.plot.marginal_curve(hdi_prob=0.9)
         """
@@ -4275,13 +4277,13 @@ class MMMPlotSuite:
 
         # Sum over date dimension to get total per channel
         if Dim.DATE in channel_contribution_original_scale.dims:
-            numerator = channel_contribution_original_scale.sum(["date"])
+            numerator = channel_contribution_original_scale.sum([Dim.DATE])
         else:
             numerator = channel_contribution_original_scale
 
         # Divide by sum across channels to get share
         if Dim.CHANNEL in numerator.dims:
-            denominator = numerator.sum("channel")
+            denominator = numerator.sum(Dim.CHANNEL)
             channel_contribution_share = numerator / denominator
         else:
             raise ValueError(
@@ -4436,7 +4438,7 @@ class MMMPlotSuite:
                     indexer.update(dict(zip(additional_dims, addl_combo, strict=False)))
                 total_panels.append(indexer)
 
-        cv_labels = list(results.cv_metadata.dataset.coords["cv"].values)
+        cv_labels = list(results.cv_metadata.dataset.coords[Dim.CV].values)
         n_folds = len(cv_labels)
         n_panels = len(total_panels)
         n_axes = max(1, n_panels * n_folds)
@@ -4465,14 +4467,14 @@ class MMMPlotSuite:
                 if hasattr(sel2, "coords") and "sample" in sel2.coords:
                     arr = arr.reshape((-1, 1))
                     x = (
-                        sel2.coords["date"].values
+                        sel2.coords[Dim.DATE].values
                         if Dim.DATE in sel2.coords
                         else [sel2.coords.get(Dim.DATE)]
                     )
                 else:
                     arr = arr.reshape((1, -1))
                     x = (
-                        sel2.coords["date"].values
+                        sel2.coords[Dim.DATE].values
                         if Dim.DATE in sel2.coords
                         else [sel2.coords.get(Dim.DATE)]
                     )
@@ -4483,7 +4485,7 @@ class MMMPlotSuite:
                         arr = arr.T
                     elif dims != ["sample", Dim.DATE]:
                         try:
-                            sel2 = sel2.transpose("sample", "date")
+                            sel2 = sel2.transpose("sample", Dim.DATE)
                             arr = sel2.values
                         except Exception as exc:
                             warnings.warn(
@@ -4492,7 +4494,7 @@ class MMMPlotSuite:
                             )
                             arr = getattr(sel2, "values", sel2)
                 x = (
-                    sel2.coords["date"].values
+                    sel2.coords[Dim.DATE].values
                     if hasattr(sel2, "coords") and Dim.DATE in sel2.coords
                     else None
                 )
@@ -4502,7 +4504,7 @@ class MMMPlotSuite:
                 x = np.atleast_1d(x)
 
             # Compute HDI and median, then plot
-            da = xr.DataArray(arr, dims=["sample", "date"], coords={"date": x})
+            da = xr.DataArray(arr, dims=["sample", Dim.DATE], coords={Dim.DATE: x})
             hdi = az.hdi(da, prob=0.94, dim="sample")
             median = da.median(dim="sample")
             ax.fill_between(
@@ -4550,7 +4552,7 @@ class MMMPlotSuite:
                 try:
                     arr_s = arr_s.transpose(
                         "sample",
-                        "date",
+                        Dim.DATE,
                         *[d for d in arr_s.dims if d not in ("sample", Dim.DATE)],
                     )
                 except (ValueError, KeyError) as exc:
@@ -4798,7 +4800,7 @@ class MMMPlotSuite:
             if ds is None:
                 continue
             if Dim.CV in ds.dataset.coords:
-                cv_labels = list(ds.dataset.coords["cv"].values)
+                cv_labels = list(ds.dataset.coords[Dim.CV].values)
                 break
 
         if cv_labels is None:
@@ -5003,7 +5005,7 @@ class MMMPlotSuite:
                 # determine date coord
                 date_coord = None
                 if Dim.DATE in da_s.coords:
-                    date_coord = "date"
+                    date_coord = Dim.DATE
                 else:
                     technical_skip = {"sample", "chain", "draw"}
                     for coord, vals in da_s.coords.items():
@@ -5074,12 +5076,12 @@ class MMMPlotSuite:
             hasattr(results, Group.CV_METADATA)
             and Dim.CV in results.cv_metadata.dataset.coords
         ):
-            cv_labels = list(results.cv_metadata.dataset.coords["cv"].values)
+            cv_labels = list(results.cv_metadata.dataset.coords[Dim.CV].values)
         elif (
             hasattr(results, "posterior_predictive")
             and Dim.CV in results.posterior_predictive.dataset.coords
         ):
-            cv_labels = list(results.posterior_predictive.dataset.coords["cv"].values)
+            cv_labels = list(results.posterior_predictive.dataset.coords[Dim.CV].values)
         else:
             raise ValueError(
                 "No 'cv' coordinate found in provided DataTree (checked cv_metadata and posterior_predictive)"

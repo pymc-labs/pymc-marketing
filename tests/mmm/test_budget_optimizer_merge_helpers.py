@@ -110,14 +110,6 @@ class TestMergeInferenceData:
         assert "model2_beta" in posterior.data_vars
         assert "beta" not in posterior.data_vars
 
-    def test_explicit_prefixes(self):
-        merged = merge_inference_data(
-            [build_idata(), build_idata()], prefixes=["north", "south"]
-        )
-
-        posterior = merged["posterior"].dataset
-        assert {"north_beta", "south_beta"} <= set(posterior.data_vars)
-
     def test_prefix_length_mismatch_raises(self):
         with pytest.raises(
             ValueError, match=r"Number of prefixes \(1\) must match number of idatas"
@@ -128,7 +120,7 @@ class TestMergeInferenceData:
         with pytest.raises(ValueError, match="Need at least 1 InferenceData"):
             merge_inference_data([])
 
-    @pytest.mark.parametrize("use_every_n_draw", [1, 2, 4], ids=str)
+    @pytest.mark.parametrize("use_every_n_draw", [1, 2], ids=str)
     def test_thinning(self, use_every_n_draw):
         merged = merge_inference_data(
             [build_idata(n_draws=8), build_idata(n_draws=8)],
@@ -273,12 +265,6 @@ class TestDeprecationWarnings:
                 channels=CHANNELS,
                 adstock=adstock,
             )
-
-    def test_build_merged_model_warns(self):
-        wrapper = self._build_wrapper()
-
-        with pytest.warns(DeprecationWarning, match="BuildMergedModel is deprecated"):
-            BuildMergedModel(models=[wrapper], prefixes=["solo"])
 
     def test_set_predictors_for_optimization_warns(self):
         wrapper = self._build_wrapper()

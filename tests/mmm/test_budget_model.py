@@ -425,20 +425,6 @@ class TestInterventions:
 
 
 class TestSerialization:
-    def test_dict_round_trip(self, design):
-        effect = BudgetModelEffect(
-            design=design,
-            channels=["tv"],
-            fourier_order=3,
-            gamma_prior=Prior("Normal", mu=0, sigma=1, dims="budget_channel"),
-        )
-        restored = serialization.deserialize(serialization.serialize(effect))
-        assert isinstance(restored, BudgetModelEffect)
-        assert restored.channels == ["tv"]
-        assert restored.fourier_order == 3
-        assert restored.gamma_prior == effect.gamma_prior
-        pd.testing.assert_frame_equal(restored.design, effect.design)
-
     def test_every_field_round_trips(self, design):
         # Guards against a new field being silently dropped on save/load.
         prior = Prior("Normal", mu=0, sigma=2, dims="other_channel")
