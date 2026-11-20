@@ -226,7 +226,7 @@ ALLOWED: dict[str, dict[str, tuple[str, int]]] = {
     },
     "mmm/plot.py": {
         "channel": (_LABEL + ", or " + _DEFAULT, 4),
-        "date": (_COLUMN + ", or " + _LABEL, 8),
+        "date": (_COLUMN + ", or " + _LABEL, 6),
         "y_original_scale": (_LABEL, 1),
     },
     "mmm/plot_interactive.py": {
@@ -252,7 +252,7 @@ ALLOWED: dict[str, dict[str, tuple[str, int]]] = {
         "sweep": ("name of the symbolic sweep tensor", 1),
     },
     "mmm/summary/cv.py": {
-        "date": (_COLUMN, 5),
+        "date": (_COLUMN, 1),
     },
     "mmm/summary/factory.py": {
         "channel": (_COLUMN, 2),
