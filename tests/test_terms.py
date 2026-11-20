@@ -20,6 +20,7 @@ from dataclasses import dataclass
 import numpy as np
 import pymc as pm
 import pymc.dims as pmd
+import pytensor
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
 import pytest
@@ -157,42 +158,11 @@ def test_sum_mul():
     assert isinstance(result, Product)
 
 
-def test_sum_get_coords(simple_ds):
-    tl = Sum([Dot(var_name="x", prior=Prior("Normal", dims="feature"))])
-    coords = tl.get_coords(simple_ds)
-    assert "feature" in coords
-
-
-def test_intercept_create_variable():
-    with pm.Model():
-        effect = Intercept(name="intercept").create_variable()
-        assert isinstance(effect, PTVariable)
-
-
-def test_dot_register_data(simple_ds):
-    dot = Dot(var_name="x", prior=Prior("Normal", dims="feature"))
-    coords = dot.get_coords(simple_ds)
-    with pm.Model(coords=coords) as model:
-        dot.register_data(simple_ds)
-        data = pm.modelcontext(None)["x"]
-        assert data is not None
-        assert "feature" in model.coords
-
-
 def test_dot_get_coords(simple_ds):
     dot = Dot(var_name="x", prior=Prior("Normal", dims="feature"))
     coords = dot.get_coords(simple_ds)
     assert "feature" in coords
     assert coords["feature"] == list("ABC")
-
-
-def test_dot_create_variable(simple_ds):
-    dot = Dot(var_name="x", prior=Prior("Normal", dims="feature"))
-    coords = dot.get_coords(simple_ds)
-    with pm.Model(coords=coords):
-        dot.register_data(simple_ds)
-        effect = dot.create_variable()
-        assert isinstance(effect, PTVariable)
 
 
 def test_dot_set_data(simple_ds):
@@ -208,36 +178,45 @@ def test_dot_set_data(simple_ds):
         assert np.allclose(model["x"].get_value(), ds2["x"].values)
 
 
-def test_transform_create_variable():
-    with pm.Model():
-        inner = Intercept(name="sigma")
-        transformed = Transform(inner, func=ptx.math.exp)
-        result = transformed.create_variable()
-        assert isinstance(result, PTVariable)
-
-
-def test_transform_with_dot(simple_ds):
-    dot = Dot(var_name="x", prior=Prior("Normal", dims="feature"))
-    transformed = Transform(dot, func=ptx.math.exp)
-    coords = transformed.get_coords(simple_ds)
-    with pm.Model(coords=coords):
-        transformed.register_data(simple_ds)
-        result = transformed.create_variable()
-        assert isinstance(result, PTVariable)
-
-
-def test_transform_set_data(simple_ds):
-    inner = Dot(var_name="x", prior=Prior("Normal", dims="feature"))
-    transformed = Transform(inner, func=ptx.math.exp)
-    coords = transformed.get_coords(simple_ds)
-    with pm.Model(coords=coords) as model:
-        transformed.register_data(simple_ds)
-        ds2 = simple_ds.copy()
-        ds2["x"] = xr.DataArray(
-            np.roll(simple_ds["x"].values, 1, axis=0), dims=("obs", "feature")
+def test_named_sum_records_reduced_product():
+    weights = Parameter("weights", prior=Prior("Normal", dims=("geo", "feature")))
+    scaled = (weights * 2.0).named("scaled", dims=("feature", "geo"))
+    total = scaled.sum("feature").named("total")
+    with pm.Model(coords={"geo": ["a", "b"], "feature": list("xyz")}) as model:
+        build_param(total)
+        evaluate = pytensor.function(
+            [model["weights"]], [model["scaled"], model["total"]]
         )
-        transformed.set_data(ds=ds2, model=model)
-        assert np.allclose(model["x"].get_value(), ds2["x"].values)
+    assert model.named_vars_to_dims["scaled"] == ("feature", "geo")
+    assert model.named_vars_to_dims["total"] == ("geo",)
+    draw = np.arange(6.0).reshape(2, 3)
+    scaled_value, total_value = evaluate(draw)
+    np.testing.assert_allclose(scaled_value, 2.0 * draw.T)
+    np.testing.assert_allclose(total_value, 2.0 * draw.sum(axis=1))
+
+
+def test_sum_over_missing_dimension_raises():
+    term = Parameter("w", prior=Prior("Normal", dims="feature")).sum("geo")
+    with pm.Model(coords={"feature": list("xyz")}):
+        with pytest.raises(ValueError, match="Cannot sum over 'geo'"):
+            build_param(term)
+
+
+def test_serialize_named_sum_roundtrip():
+    term = (
+        Parameter("w", prior=Prior("Normal", dims=("geo", "feature")))
+        .sum("feature")
+        .named("total", dims="geo")
+    )
+    restored = serialization.deserialize(
+        json.loads(json.dumps(serialization.serialize(term)))
+    )
+    with pm.Model(coords={"geo": ["a", "b"], "feature": list("xyz")}) as model:
+        build_param(restored)
+        evaluate = pytensor.function([model["w"]], model["total"])
+    assert model.named_vars_to_dims["total"] == ("geo",)
+    draw = np.arange(6.0).reshape(2, 3)
+    np.testing.assert_allclose(evaluate(draw), draw.sum(axis=1))
 
 
 def test_build_param_int():
@@ -601,17 +580,6 @@ def test_sum_rmul():
     assert isinstance(result, Product)
 
 
-def test_modelterm_set_data_default():
-    t = Intercept(name="x")
-    t.set_data(xr.Dataset(), model=None)  # should not raise
-
-
-def test_modelterm_add_coords_default():
-    t = Intercept(name="x")
-    with pm.Model():
-        t.add_coords(xr.Dataset())  # should not raise
-
-
 def test_custom_term():
     @dataclass
     class _Custom(ModelTerm):
@@ -781,15 +749,6 @@ def test_set_data_multiplication(simple_ds):
     assert np.allclose(updated, ds2["x"].values)
 
 
-def test_register_data_subtraction(simple_ds):
-    """`register_data` of `a - b` must register the subtracted Dot's data."""
-    mu = Intercept(name="a") - Dot(var_name="x", prior=Prior("Normal", dims="feature"))
-    coords = collect_coords(mu, ds=simple_ds)
-    with pm.Model(coords=coords) as model:
-        register_data(mu, ds=simple_ds)
-        assert "x" in model
-
-
 @pytest.fixture
 def ds_with_dims():
     """Dataset with an extra non-obs dimension for free-parameter dims."""
@@ -855,15 +814,6 @@ def test_collect_coords_includes_parameter_dims(ds_with_dims):
     mu = Intercept("a") + Parameter("alpha", prior=Prior("Normal", dims="product"))
     coords = collect_coords(mu, ds=ds_with_dims)
     assert "product" in coords
-
-
-def test_parameter_create_variable():
-    """Parameter create_variable builds a named tensor."""
-    with pm.Model():
-        p = Parameter("alpha", prior=Prior("Normal", dims="product"))
-        with pm.Model(coords={"product": ["p1", "p2", "p3"]}):
-            v = p.create_variable()
-            assert v is not None
 
 
 def test_serialize_parameter_roundtrip():

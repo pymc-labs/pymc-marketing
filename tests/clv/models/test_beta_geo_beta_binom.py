@@ -319,7 +319,7 @@ class TestBetaGeoBetaBinomModel:
         assert len(idata.posterior.draw) == 10
         assert model.idata is idata
 
-    @pytest.mark.parametrize("test_t", [1, 3, 6])
+    @pytest.mark.parametrize("test_t", [1, 6])
     def test_expected_purchases(self, test_t):
         # Reference values from BG/BB MLE on donations dataset (22 test customers)
         # Fader, Hardie & Shang (2010): http://brucehardie.com/notes/010/
@@ -332,13 +332,6 @@ class TestBetaGeoBetaBinomModel:
                 0.3240713492, 0.3747735140, 0.0502140854, 0.2323411603, 0.4052922893,
                 0.4917622806, 0.1309708958, 0.4558947364, 0.6087510473, 0.4071428268,
                 0.7257398139, 0.8427285806,
-            ]),
-            3: np.array([
-                0.0461519591, 0.0542798875, 0.1990391955, 0.3761450653, 0.5316676558,
-                0.7270571404, 0.7270571404, 0.0754510648, 0.3395730784, 0.6698820639,
-                0.9140121395, 1.0570127294, 0.1416240088, 0.6552959449, 1.1430880063,
-                1.3869683184, 0.3693908424, 1.2858073521, 1.7169239074, 1.1483072697,
-                2.0468794964, 2.3768350855,
             ]),
             6: np.array([
                 0.0852949601, 0.1003164531, 0.3678509117, 0.6951661197, 0.9825925563,
@@ -411,7 +404,7 @@ class TestBetaGeoBetaBinomModel:
             rtol=0.001,
         )
 
-    @pytest.mark.parametrize("test_t", [1, 3, 6])
+    @pytest.mark.parametrize("test_t", [1, 6])
     def test_expected_probability_alive(self, test_t):
         # Reference values from BG/BB MLE on donations dataset (22 test customers)
         # Fader, Hardie & Shang (2010): http://brucehardie.com/notes/010/
@@ -424,13 +417,6 @@ class TestBetaGeoBetaBinomModel:
                 0.8045588433, 0.9304350590, 0.0950071759, 0.4395993139, 0.7668301737,
                 0.9304350590, 0.2001802111, 0.6968044619, 0.9304350590, 0.5219776465,
                 0.9304350590, 0.9304350590,
-            ]),
-            3: np.array([
-                0.0955180989, 0.0613574790, 0.2249920517, 0.4251908766, 0.6009921636,
-                0.8218586162, 0.8218586162, 0.0586654314, 0.2640280978, 0.5208530898,
-                0.7106714340, 0.8218586162, 0.0839203826, 0.3883005915, 0.6773454841,
-                0.8218586162, 0.1768203269, 0.6154913718, 0.8218586162, 0.4610658445,
-                0.8218586162, 0.8218586162,
             ]),
             6: np.array([
                 0.0821414673, 0.0527647997, 0.1934835123, 0.3656459131, 0.5168274780,

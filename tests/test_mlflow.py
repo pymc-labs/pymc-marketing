@@ -23,6 +23,7 @@ from importlib import metadata
 from pathlib import Path
 from types import SimpleNamespace
 
+import graphviz
 import mlflow
 import mlflow.artifacts
 import numpy as np
@@ -47,6 +48,7 @@ from pymc_marketing.mlflow import (
     create_log_callback,
     load_mmm,
     load_mmm_from_run,
+    log_arviz_summary,
     log_error,
     log_inference_data,
     log_likelihood_type,
@@ -57,6 +59,7 @@ from pymc_marketing.mlflow import (
     log_versions,
 )
 from pymc_marketing.mmm import MMM, GeometricAdstock, LogisticSaturation
+from pymc_marketing.mmm.mmm import _calibration_frame_to_record
 from pymc_marketing.version import __version__
 
 seed = sum(map(ord, "mlflow-with-pymc"))
@@ -336,17 +339,27 @@ def test_dims_censored_likelihood_type() -> None:
             ValueError("lam < 0 or lam contains NaNs"),
             "Unable to render the model graph. lam < 0 or lam contains NaNs",
         ),
+        # `graph.render` saves the DOT source before it invokes `dot`, so
+        # patching below `save` checks that a failed render leaves no file.
+        (
+            "graphviz.backend.rendering.render",
+            graphviz.ExecutableNotFound(["dot"]),
+            f"Unable to render the model graph. {graphviz.ExecutableNotFound(['dot'])}",
+        ),
     ],
-    ids=["no_graphviz", "render_error", "graph_creation_error"],
+    ids=["no_graphviz", "render_error", "graph_creation_error", "dot_missing"],
 )
 def test_log_model_graph_no_graphviz(
     caplog,
     mocker,
+    monkeypatch,
     model_with_likelihood,
+    tmp_path,
     to_patch,
     side_effect,
     expected_info_message,
 ) -> None:
+    monkeypatch.chdir(tmp_path)
     mocker.patch(
         to_patch,
         side_effect=side_effect,
@@ -354,6 +367,8 @@ def test_log_model_graph_no_graphviz(
     with mlflow.start_run() as run:
         with caplog.at_level(logging.INFO, logger="pymc_marketing.mlflow"):
             log_model_graph(model_with_likelihood, "model_graph")
+
+    assert not list(tmp_path.glob("model_graph*"))
 
     # Only inspect records emitted by pymc-marketing itself. caplog's handler is
     # attached to the root logger, so it also captures unrelated INFO logs from
@@ -761,6 +776,64 @@ def test_log_sample_diagnostics_missing_group(mock_idata, selected_group: str) -
         log_sample_diagnostics(idata)
 
 
+@pytest.mark.parametrize("prefix", ["", "out/"], ids=["name", "missing_dir"])
+def test_arviz_summary_written_outside_working_directory(
+    mock_idata, monkeypatch, tmp_path, prefix
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "summary.html").write_text("user data")
+
+    with mlflow.start_run() as run:
+        log_arviz_summary(mock_idata, f"{prefix}summary.html")
+
+    assert get_run_data(run.info.run_id)[-1] == ["summary.html"]
+    assert (tmp_path / "summary.html").read_text() == "user data"
+    assert not (tmp_path / "out").exists()
+
+
+def test_arviz_summary_log_failure_writes_no_file(
+    mock_idata, mocker, monkeypatch, tmp_path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    mocker.patch("mlflow.log_artifact", side_effect=RuntimeError("upload failed"))
+
+    with pytest.raises(RuntimeError, match="upload failed"):
+        log_arviz_summary(mock_idata, "summary.html")
+
+    assert not list(tmp_path.iterdir())
+
+
+def test_model_graph_log_failure_writes_no_file(
+    model_with_likelihood, mocker, monkeypatch, tmp_path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    log_artifact = mocker.patch(
+        "mlflow.log_artifact", side_effect=RuntimeError("upload failed")
+    )
+
+    with pytest.raises(RuntimeError, match="upload failed"):
+        log_model_graph(model_with_likelihood, "model_graph")
+
+    (logged,) = log_artifact.call_args.args
+    assert Path(logged).name == "model_graph.pdf"
+    assert not Path(logged).exists()
+    assert not list(tmp_path.iterdir())
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["", ".", "reports/..", "reports/"],
+    ids=["empty", "dot", "parent", "trailing_sep"],
+)
+def test_artifact_path_without_file_name_raises(
+    model_with_likelihood, mock_idata, path
+) -> None:
+    with pytest.raises(ValueError, match="must end in a file name"):
+        log_model_graph(model_with_likelihood, path)
+    with pytest.raises(ValueError, match="must end in a file name"):
+        log_arviz_summary(mock_idata, path)
+
+
 def test_force_load_idata_groups_visits_every_group(mock_idata, monkeypatch) -> None:
     """Regression test: ``_force_load_idata_groups`` must load every group.
 
@@ -1111,6 +1184,30 @@ def test_load_mmm_replaces_a_stale_zarr_download(fitted_mmm_run, tmp_path) -> No
 
     assert "posterior" in loaded.idata.children
     assert not (stale / "leftover.txt").exists()
+
+
+@pytest.mark.parametrize(
+    "affected, artifact, artifact_uri, warns",
+    [
+        (True, "idata.zarr", "mlflow-artifacts:/1/abc/artifacts", True),
+        (True, "idata.zarr", "https://host/api/2.0/mlflow-artifacts/1/abc", True),
+        (True, "idata.zarr", "file:///tmp/mlruns/1/abc/artifacts", False),
+        (True, "idata.nc", "mlflow-artifacts:/1/abc/artifacts", False),
+        (False, "idata.zarr", "mlflow-artifacts:/1/abc/artifacts", False),
+    ],
+    ids=["proxied", "http", "local", "netcdf", "fixed-mlflow"],
+)
+def test_warns_when_zarr_download_may_drop_chunks(
+    mocker, recwarn, affected, artifact, artifact_uri, warns
+) -> None:
+    mocker.patch.object(pmm_mlflow, "_MLFLOW_PROXY_DROPS_ZARR_CHUNKS", affected)
+    get_run = mocker.patch.object(pmm_mlflow.mlflow, "get_run")
+    get_run.return_value.info.artifact_uri = artifact_uri
+
+    pmm_mlflow._warn_if_zarr_download_may_drop_chunks("run", artifact)
+
+    matching = [w for w in recwarn if "mlflow/mlflow#27189" in str(w.message)]
+    assert len(matching) == int(warns)
 
 
 @pytest.mark.parametrize("idata_format", ["netcdf", "zarr"], indirect=True)
@@ -1695,3 +1792,52 @@ def test_mlflow_docstrings_have_no_removed_methods(doc_source):
     """
     assert doc_source is not None
     assert "plot_components_contributions" not in doc_source
+
+
+# One record in the format `MMM.add_cost_per_target_calibration` writes; the
+# spend itself lives in the `cost_per_target_spend` group, not in attrs.
+_COST_PER_TARGET_RECORDS = json.dumps(
+    [
+        {
+            "format_version": 2,
+            "name_prefix": "cpt_calibration",
+            "target_column": "cost_per_target",
+            "target_per_cost": False,
+            "central_tendency": "mean",
+            "likelihood": {"dist": "Normal"},
+            "spend_var": "cpt_calibration",
+            **_calibration_frame_to_record(
+                pd.DataFrame(
+                    {
+                        "channel": ["channel_1", "channel_2"],
+                        "cost_per_target": [30.0, 45.0],
+                        "sigma": [2.0, 3.0],
+                    }
+                )
+            ),
+        }
+    ]
+)
+
+
+@pytest.mark.parametrize(
+    "records", ["[]", _COST_PER_TARGET_RECORDS], ids=["empty", "record"]
+)
+def test_log_mmm_configuration_cost_per_target_artifact(mmm, mocker, records):
+    mocker.patch.object(
+        mmm,
+        "create_idata_attrs",
+        return_value={
+            "model_config": "{}",
+            "cost_per_target_calibrations": records,
+        },
+    )
+    log_params = mocker.patch.object(pmm_mlflow.mlflow, "log_params")
+    mocker.patch.object(pmm_mlflow.mlflow, "log_param")
+    log_text = mocker.patch.object(pmm_mlflow.mlflow, "log_text")
+    pmm_mlflow.log_mmm_configuration(mmm)
+    log_params.assert_called_once_with({"model_config": "{}"})
+    if records == "[]":
+        log_text.assert_not_called()
+    else:
+        log_text.assert_called_once_with(records, "cost_per_target_calibrations.json")

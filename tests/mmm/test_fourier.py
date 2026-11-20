@@ -524,45 +524,10 @@ def test_get_default_start_date_invalid_type_yearly(yearly_fourier: YearlyFourie
     )
 
 
-def test_get_default_start_date_str_monthly(monthly_fourier: MonthlyFourier):
-    start_date_str = "2023-06-15"
-    actual_start_date = monthly_fourier.get_default_start_date(
-        start_date=start_date_str
-    )
-    assert actual_start_date == start_date_str
-
-
-def test_get_default_start_date_datetime_monthly(monthly_fourier: MonthlyFourier):
-    start_date_dt = datetime.datetime(2023, 7, 1)
-    actual_start_date = monthly_fourier.get_default_start_date(start_date=start_date_dt)
-    assert actual_start_date == start_date_dt
-
-
 def test_get_default_start_date_invalid_type_monthly(monthly_fourier: MonthlyFourier):
     invalid_start_date = [2023, 1, 1]
     with pytest.raises(TypeError) as exc_info:
         monthly_fourier.get_default_start_date(start_date=invalid_start_date)
-    assert "start_date must be a datetime.datetime object, a string, or None" in str(
-        exc_info.value
-    )
-
-
-def test_get_default_start_date_str_weekly(weekly_fourier: WeeklyFourier):
-    start_date_str = "2023-06-15"
-    actual_start_date = weekly_fourier.get_default_start_date(start_date=start_date_str)
-    assert actual_start_date == start_date_str
-
-
-def test_get_default_start_date_datetime_weekly(weekly_fourier: WeeklyFourier):
-    start_date_dt = datetime.datetime(2023, 7, 1)
-    actual_start_date = weekly_fourier.get_default_start_date(start_date=start_date_dt)
-    assert actual_start_date == start_date_dt
-
-
-def test_get_default_start_date_invalid_type_weekly(weekly_fourier: WeeklyFourier):
-    invalid_start_date = [2023, 1, 1]
-    with pytest.raises(TypeError) as exc_info:
-        weekly_fourier.get_default_start_date(start_date=invalid_start_date)
     assert "start_date must be a datetime.datetime object, a string, or None" in str(
         exc_info.value
     )

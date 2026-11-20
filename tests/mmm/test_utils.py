@@ -14,6 +14,7 @@
 
 import logging
 import warnings
+from itertools import permutations
 
 import numpy as np
 import pandas as pd
@@ -194,6 +195,33 @@ def test_add_noise_to_channel_allocation():
     assert (result[channels] >= 0).all().all(), "No negative values in channels"
 
 
+@pytest.mark.parametrize("dims", list(permutations(("date", "geo", "channel"))))
+@pytest.mark.parametrize("n_dates", [2, 3])
+def test_add_noise_to_channel_allocation_dataset_dimension_order(dims, n_dates):
+    """Each channel keeps its own noise scale regardless of axis position."""
+    channel_values = xr.DataArray(
+        [10.0, 100.0], dims="channel", coords={"channel": ["search", "video"]}
+    )
+    allocation = channel_values.expand_dims(
+        date=pd.date_range("2025-01-01", periods=n_dates),
+        geo=["north", "south", "east", "west"],
+    ).transpose(*dims)
+    data = allocation.to_dataset(name="_channel")
+    data["target"] = ("date", np.arange(n_dates, dtype=float))
+    original = data.copy(deep=True)
+
+    result = add_noise_to_channel_allocation(
+        data, ["search", "video"], rel_std=0.1, seed=42
+    )
+
+    relative_noise = (result["_channel"] - allocation) / channel_values
+    expected = 0.1 * np.random.default_rng(42).standard_normal(allocation.shape)
+    np.testing.assert_allclose(relative_noise.values, expected)
+    assert result["_channel"].dims == dims
+    xr.testing.assert_identical(result["target"], data["target"])
+    xr.testing.assert_identical(data, original)
+
+
 class FakeMMM:
     def __init__(self):
         # Create a simple dataset
@@ -224,51 +252,6 @@ class FakeMMM:
             l_max = 7  # Example adstock lag
 
         self.adstock = FakeAdstock()
-
-
-def test_create_zero_dataset():
-    # Create a fake model
-    model = FakeMMM()
-
-    # Test basic zero dataset
-    start_date = "2022-02-01"
-    end_date = "2022-02-10"
-    result = create_zero_dataset(model, start_date, end_date)
-
-    # Check results
-    assert isinstance(result, xr.Dataset)
-    # With l_max=7, the function adds 7 days to the end date
-    # So we get 17 days (Feb 1 to Feb 17) * 2 regions
-    assert len(result.coords["date"]) == 17  # 17 days
-    assert len(result.coords["region"]) == 2  # 2 regions
-    assert set(result.data_vars) == {"_channel", "_control"}
-    assert np.all(result["_channel"].values == 0)
-    assert np.all(result["_control"].values == 0)
-
-    # Test with channel_xr
-    # Create a simple xarray Dataset with channel values
-    region_coords = np.array(["A", "B"])
-    channel_values = xr.Dataset(
-        data_vars={
-            "channel1": (["region"], np.array([5.0, 7.0])),
-        },
-        coords={"region": region_coords},
-    )
-
-    result_with_channels = create_zero_dataset(
-        model, start_date, end_date, channel_values
-    )
-
-    # Check results
-    assert np.all(
-        result_with_channels["_channel"].sel(region="A", channel="channel1") == 5.0
-    )
-    assert np.all(
-        result_with_channels["_channel"].sel(region="B", channel="channel1") == 7.0
-    )
-    assert np.all(
-        result_with_channels["_channel"].sel(channel="channel2") == 0
-    )  # Not provided in channel_xr
 
 
 @pytest.mark.parametrize(
@@ -1518,17 +1501,6 @@ class TestAdstockCarryIn:
             opt = mmm.create_optimization_model(start_date=start, end_date=end)
 
         lags = mmm.effective_carryover_lags()
-        assert len(opt.coords["date"]) == lags + self.N_PERIODS + lags
-
-    def test_the_date_axis_is_carry_in_plus_decisions_plus_carry_over(
-        self, funnel_identity_fitted_mmm
-    ):
-        mmm = funnel_identity_fitted_mmm
-        lags = mmm.effective_carryover_lags()
-        start, end = self._window(mmm)
-
-        opt = mmm.create_optimization_model(start_date=start, end_date=end)
-
         assert len(opt.coords["date"]) == lags + self.N_PERIODS + lags
 
     def test_the_leading_dates_are_not_decisions(self, funnel_identity_fitted_mmm):

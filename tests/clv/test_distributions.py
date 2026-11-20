@@ -11,6 +11,8 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+from itertools import product
+
 import numpy as np
 import pymc as pm
 import pytensor
@@ -144,6 +146,32 @@ class TestParetoNBD:
         assert prior["prior"]["pareto_nbd"][0].shape == (100, *expected_size)
 
 
+def _bgbb_joint_pmf_reference(alpha, beta, gamma, delta, T):
+    """Enumerate the finite generative process, independently of logp and RNG.
+
+    The active lifetime is capped at T: m < T means dropout before opportunity
+    m + 1, while m == T includes everyone alive through the observation window.
+    Enumerating all binary histories is practical only for small T.
+    """
+    mass = {(0, 0): 0.0}
+    mass.update({(r, x): 0.0 for r in range(1, T + 1) for x in range(1, r + 1)})
+    for m in range(T + 1):
+        lifetime_prob = np.exp(
+            betaln(gamma + (m < T), delta + m) - betaln(gamma, delta)
+        )
+        for history in product((0, 1), repeat=m):
+            frequency = sum(history)
+            recency = max(
+                (t for t, purchase in enumerate(history, start=1) if purchase),
+                default=0,
+            )
+            history_prob = np.exp(
+                betaln(alpha + frequency, beta + m - frequency) - betaln(alpha, beta)
+            )
+            mass[recency, frequency] += lifetime_prob * history_prob
+    return np.array(list(mass)), np.array(list(mass.values()))
+
+
 class TestBetaGeoBetaBinom:
     def test_logp_matches_excel(self):
         # Expected logp values can be found in excel file in http://brucehardie.com/notes/010/
@@ -199,6 +227,57 @@ class TestBetaGeoBetaBinom:
             expected_logp,
             rtol=1e-3,
         )
+
+    def test_logp_length_one_value_broadcasts_to_parameter_batch(self):
+        # Regression test for #2919: with a length-1 value against a batch of
+        # parameter draws, `x` was not broadcast to the batch length, so `scan`
+        # truncated to a single step and the data-dependent term of draw 0 was
+        # reused for every draw, collapsing the posterior variation of
+        # everything flowing through `_logp`.
+        # The draws below must differ from each other: with identical draws the
+        # buggy and the correct computation agree numerically.
+        rng = np.random.default_rng(42)
+        n_draws = 6
+        alpha = 1.204 * np.exp(rng.normal(scale=0.3, size=n_draws))
+        beta = 0.750 * np.exp(rng.normal(scale=0.3, size=n_draws))
+        gamma = 0.657 * np.exp(rng.normal(scale=0.3, size=n_draws))
+        delta = 2.783 * np.exp(rng.normal(scale=0.3, size=n_draws))
+        T = np.full(n_draws, 6)
+
+        # Single customer: t_x=3, x=2
+        value_one = np.array([[3.0, 2.0]])
+        value_tiled = np.repeat(value_one, n_draws, axis=0)
+
+        dist = BetaGeoBetaBinom.dist(
+            alpha=alpha, beta=beta, gamma=gamma, delta=delta, T=T
+        )
+        logp_one = pm.logp(dist, value_one).eval()
+        logp_tiled = pm.logp(dist, value_tiled).eval()
+
+        # A length-1 value must broadcast to the full parameter batch...
+        assert logp_one.shape == (n_draws,)
+        # ...and agree with tiling the customer by hand.
+        np.testing.assert_allclose(logp_one, logp_tiled, rtol=1e-10)
+
+        # Both must vary across draws and match the scalar-parameter logp
+        # draw by draw, so the two batched paths cannot pass by sharing a bug.
+        expected = np.array(
+            [
+                pm.logp(
+                    BetaGeoBetaBinom.dist(
+                        alpha=alpha[i],
+                        beta=beta[i],
+                        gamma=gamma[i],
+                        delta=delta[i],
+                        T=6,
+                    ),
+                    value_one[0],
+                ).eval()
+                for i in range(n_draws)
+            ]
+        )
+        assert np.ptp(expected) > 0.1
+        np.testing.assert_allclose(logp_one, expected, rtol=1e-8)
 
     def test_invalid_value_logp(self):
         beta_geo_beta_binom = BetaGeoBetaBinom.dist(
@@ -267,14 +346,84 @@ class TestBetaGeoBetaBinom:
             )
             prior = pm.sample_prior_predictive(draws=1000, random_seed=42)
             prior = prior["prior"]["beta_geo_beta_binom"][0]
-            recency = prior[:, 0]
-            frequency = prior[:, 1]
+            recency = prior[..., 0]
+            frequency = prior[..., 1]
 
         assert prior.shape == (1000, *expected_size)
 
-        # Loose tolerance due to sampling variance between two independent samples
-        np.testing.assert_allclose(lt_frequency_mean, recency.mean(), rtol=0.9)
-        np.testing.assert_allclose(lt_recency_mean, frequency.mean(), rtol=0.9)
+        # Tolerance allows for sampling variance between two independent samples
+        np.testing.assert_allclose(frequency.mean(), lt_frequency_mean, rtol=0.15)
+        np.testing.assert_allclose(recency.mean(), lt_recency_mean, rtol=0.15)
+
+    @pytest.mark.parametrize(
+        "alpha, beta, gamma, delta, T",
+        [
+            (1.204, 0.750, 0.657, 2.783, 6),  # donations MLE
+            (2.0, 2.0, 0.5, 20.0, 20),  # low dropout, many customers alive at T
+        ],
+    )
+    def test_rng_fn_matches_exact_moments(self, alpha, beta, gamma, delta, T):
+        """Draws stay in the support and match exact BG/BB quantities.
+
+        A customer is alive at opportunity t with probability
+        B(gamma, delta + t) / B(gamma, delta), has purchase probability p at
+        each opportunity while alive, and has recency 0 when they never buy.
+        """
+        draws = 50_000
+        recency, frequency = pm.draw(
+            BetaGeoBetaBinom.dist(
+                alpha=alpha, beta=beta, gamma=gamma, delta=delta, T=T, size=draws
+            ),
+            random_seed=20261026,
+        ).T
+
+        assert (frequency >= 0).all()
+        assert (frequency <= recency).all()
+        assert (recency <= T).all()
+        np.testing.assert_array_equal(recency == 0, frequency == 0)
+
+        t = np.arange(T + 1)
+        alive = np.exp(betaln(gamma, delta + t) - betaln(gamma, delta))
+        purchase = alpha / (alpha + beta)
+        # Opportunities while alive m = 0, ..., T and P(no purchase | m)
+        p_m = np.append(alive[:-1] - alive[1:], alive[-1])
+        p_no_purchase = np.exp(betaln(alpha, beta + t) - betaln(alpha, beta))
+
+        exact = {
+            "E[frequency]": (frequency, purchase * alive[1:].sum()),
+            "P(frequency = 0)": (frequency == 0, (p_m * p_no_purchase).sum()),
+            "P(recency = T)": (recency == T, purchase * alive[-1]),
+        }
+        for name, (sample, expected) in exact.items():
+            se = sample.std() / np.sqrt(draws)
+            assert abs(sample.mean() - expected) < 5 * se, name
+
+    @pytest.mark.parametrize(
+        "alpha, beta, gamma, delta",
+        [(1.204, 0.750, 0.657, 2.783), (2.0, 2.0, 0.5, 20.0)],
+        ids=["donations", "low-dropout"],
+    )
+    def test_rng_fn_matches_exact_joint_distribution(self, alpha, beta, gamma, delta):
+        # T=6 keeps enumeration small and gives all 22 joint cells ample mass.
+        T, n_draws = 6, 30_000
+        states, probabilities = _bgbb_joint_pmf_reference(alpha, beta, gamma, delta, T)
+        np.testing.assert_allclose(probabilities.sum(), 1.0, rtol=0, atol=1e-12)
+        expected = n_draws * probabilities
+        assert (expected >= 5).all()
+
+        draws = pm.draw(
+            BetaGeoBetaBinom.dist(
+                alpha=alpha, beta=beta, gamma=gamma, delta=delta, T=T, size=n_draws
+            ),
+            random_seed=20261101,
+        )
+        counts = np.array([np.all(draws == state, axis=1).sum() for state in states])
+        # Every draw must match one valid pair; do not discard out-of-support
+        # draws or flatten the two coordinates into separate histogram entries.
+        assert counts.sum() == n_draws
+        _, pvalue = scipy.stats.chisquare(counts, expected)
+        # Conservative fixed threshold limits stochastic failures in CI.
+        assert pvalue > 1e-6
 
 
 def _bg_nbd_rng_fn_reference(rng, a, b, r, alpha, T, size):

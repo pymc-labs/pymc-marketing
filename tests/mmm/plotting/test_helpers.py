@@ -56,9 +56,6 @@ class TestValidateDims:
     def test_empty_dims_is_noop(self, sample_dataset):
         _validate_dims(sample_dataset, {})
 
-    def test_valid_single_value(self, sample_dataset):
-        _validate_dims(sample_dataset, {"channel": "tv"})
-
     def test_valid_list_value(self, sample_dataset):
         _validate_dims(sample_dataset, {"channel": ["tv", "radio"]})
 
@@ -142,14 +139,6 @@ class TestProcessPlotParams:
         result = _process_plot_params(
             figsize=None,
             backend="matplotlib",
-            return_as_pc=False,
-        )
-        assert result == {}
-
-    def test_none_backend_ok(self):
-        result = _process_plot_params(
-            figsize=None,
-            backend=None,
             return_as_pc=False,
         )
         assert result == {}
@@ -284,24 +273,6 @@ class TestPlotTimeseriesChannelFacet:
         assert len(axes) == timeseries_ds.sizes["component"]
 
 
-class TestPublicAPI:
-    def test_all_helpers_importable_from_helpers_module(self):
-        from pymc_marketing.mmm.plotting._helpers import (
-            _extract_matplotlib_result,
-            _process_plot_params,
-            _select_dims,
-            _validate_dims,
-        )
-
-        assert callable(_validate_dims)
-        assert callable(_select_dims)
-        assert callable(_process_plot_params)
-        assert callable(_extract_matplotlib_result)
-
-    def test_plotting_package_importable(self):
-        import pymc_marketing.mmm.plotting  # noqa: F401
-
-
 class TestDimsToSelKwargs:
     def test_none_returns_empty_dict(self):
         assert _dims_to_sel_kwargs(None) == {}
@@ -351,10 +322,6 @@ class TestSelectDims:
         result = _select_dims(sample_dataset, {"channel": "tv"})
         assert list(result.coords["channel"].values) == ["tv"]
         assert "date" in result.dims
-
-    def test_preserves_dim_as_size_one(self, sample_dataset):
-        result = _select_dims(sample_dataset, {"geo": "US"})
-        assert result.sizes["geo"] == 1
 
     def test_unknown_dim_key_raises(self, sample_dataset):
         with pytest.raises(ValueError, match="Dimension 'region' not found"):

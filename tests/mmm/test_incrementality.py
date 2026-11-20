@@ -14,17 +14,23 @@
 """Tests for Incrementality module - counterfactual analysis with carryover."""
 
 import copy
+import gc
+import itertools
 import json
 import logging
+import math
 import sys
 import warnings
+import weakref
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Literal
 
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pymc.dims as pmd
 import pytensor.xtensor as ptx
 import pytest
 import xarray as xr
@@ -53,20 +59,32 @@ from pymc_marketing.mmm import (
     WeibullPDFAdstock,
 )
 from pymc_marketing.mmm import incrementality as incrementality_module
-from pymc_marketing.mmm.additive_effect import IncrementalitySpec
+from pymc_marketing.mmm.additive_effect import (
+    IncrementalitySpec,
+    MediatorSpec,
+    MuEffect,
+)
 from pymc_marketing.mmm.counterfactual import (
     CounterfactualEvaluator,
     EvaluationWindows,
 )
+from pymc_marketing.mmm.estimand_label import EstimandLabel
 from pymc_marketing.mmm.incrementality import (
+    CurrentFuture,
     IdentityLinkReducer,
     Incrementality,
     IncrementalReducer,
     LogLinkReducer,
+    PeriodBand,
+    PeriodCurrentFuture,
+    PeriodTotal,
+    ReadoutContext,
     kernel_trailing_lags,
 )
+from pymc_marketing.mmm.link import LinkFunction
 from pymc_marketing.mmm.spend_reach import (
     LINEAR_PREDICTOR,
+    ProbeStatistics,
     SpendProbe,
     SpendReach,
     TemporalReach,
@@ -79,8 +97,24 @@ from pymc_marketing.mmm.transformers import (
     logistic_saturation,
 )
 from pymc_marketing.model_graph import deterministics_to_flat
+from pymc_marketing.pytensor_utils import ConditionedModel
 from pymc_marketing.serialization import serialization
+from tests.mmm.conftest import (
+    FUNNEL_L_MAX,
+    FunnelEffect,
+    GlobalNormalizationEffect,
+    NegativeEffect,
+    _build_funnel_mmm,
+    _build_simple_effect_mmm,
+    _funnel_effect,
+    _media_transformation,
+    mock_fit,
+)
+from tests.mmm.conftest import seed as fit_seed
+from tests.mmm.test_counterfactual import eval_mask
 from tests.mmm.test_spend_reach import (
+    assert_identical_statistics,
+    build_spend_probe,
     effective_l_max,
     measure_reach,
     measure_spend_reach,
@@ -1109,30 +1143,35 @@ class TestIncrementality:
             random_state=42,
         )
 
-        assert result_sub.sizes["chain"] == 1
-        assert result_sub.sizes["draw"] == 10
+        n_chains = simple_fitted_mmm.idata.posterior.sizes["chain"]
+        assert result_sub.sizes["chain"] == n_chains
+        assert result_sub.sizes["draw"] == math.ceil(10 / n_chains)
 
     def test_num_samples_selects_whole_draws_across_chains(self, simple_fitted_mmm):
-        """``num_samples`` counts across chains and carries whole draws through.
+        """``num_samples`` keeps whole draws, under the posterior's labels.
 
         The second chain gets a rescaled ``saturation_beta`` so every
         ``(chain, draw)`` pair yields a distinct increment.  Duplicating the
         posterior instead would let a chain-major/draw-major mix-up pass
-        unnoticed, since both orderings would then select equal values.
+        unnoticed, since both orderings would then select equal values.  The
+        labels are not ``0..n-1``, so a result relabeled by position would
+        fail to line up with the posterior.
         """
         mmm = simple_fitted_mmm
         posterior = mmm.idata.posterior
         if hasattr(posterior, "dataset"):
             posterior = posterior.dataset
 
-        chain2 = posterior.assign_coords(chain=[posterior.chain.values[0] + 1])
+        posterior = posterior.assign_coords(
+            chain=[7], draw=posterior.draw.values + 1000
+        )
+        chain2 = posterior.assign_coords(chain=[9])
         chain2["saturation_beta"] = chain2["saturation_beta"] * 0.5
         multi_chain = xr.concat([posterior, chain2], dim="chain")
         mmm.idata["posterior"] = multi_chain
 
         n_chains = multi_chain.sizes["chain"]
-        n_draws = multi_chain.sizes["draw"]
-        num_samples = 10
+        num_samples = 11  # not a multiple of n_chains, so rounding up is exercised
         assert n_chains == 2
 
         full = mmm.incrementality.compute_incremental_contribution(frequency="all_time")
@@ -1142,27 +1181,17 @@ class TestIncrementality:
             random_state=42,
         )
 
-        # num_samples is a total, not a per-chain count.
-        assert subset.sizes["chain"] == 1
-        assert subset.sizes["draw"] == num_samples
+        for dim in ("chain", "draw"):
+            np.testing.assert_array_equal(full[dim], multi_chain[dim])
+        # num_samples is a total, kept as the same draws in every chain.
+        assert subset.sizes["chain"] == n_chains
+        assert subset.sizes["draw"] == math.ceil(num_samples / n_chains)
 
         # The premise: the chains genuinely disagree, so draw identity matters.
         assert not np.allclose(full.isel(chain=0).values, full.isel(chain=1).values)
 
-        # Same chain-major flat selection that subsample_draws makes.
-        flat_indices = np.random.default_rng(42).choice(
-            n_chains * n_draws, size=num_samples, replace=False
-        )
-        expected = (
-            full.stack(sample=("chain", "draw"))
-            .isel(sample=flat_indices)
-            .transpose("sample", ...)
-        )
-
-        np.testing.assert_allclose(
-            subset.squeeze("chain", drop=True).transpose("draw", ...).values,
-            expected.values,
-            rtol=1e-10,
+        xr.testing.assert_allclose(
+            subset, full.sel(chain=subset.chain, draw=subset.draw), rtol=1e-10
         )
 
     def test_random_state_makes_subsampling_reproducible(self, simple_fitted_mmm):
@@ -1594,6 +1623,37 @@ class TestStackSamples:
         np.testing.assert_allclose(stacked.values, [0.0, 1.0, 2.0, 3.0, 4.0, 5.0])
 
 
+class TestSubsampleDraws:
+    """Choosing the posterior draws a subsampled result is computed from."""
+
+    def test_rounding_up_to_every_draw_returns_the_posterior(self):
+        """Five of six draws round up to three per chain, which is all of them."""
+        posterior = xr.Dataset(
+            {"x": (("chain", "draw"), np.arange(2 * 3, dtype=float).reshape(2, 3))}
+        )
+
+        subsample = incrementality_module._subsample_draws_per_chain(
+            posterior, num_samples=5
+        )
+
+        assert subsample is posterior
+
+    @pytest.mark.parametrize(
+        "subsample",
+        [incrementality_module._subsample_draws_per_chain, subsample_draws],
+        ids=["per_chain", "flattened"],
+    )
+    @pytest.mark.parametrize("num_samples", [0, -1])
+    def test_refuses_fewer_than_one_draw(self, subsample, num_samples):
+        """Zero would return an empty ``draw`` dimension instead of failing."""
+        posterior = xr.Dataset(
+            {"x": (("chain", "draw"), np.arange(2 * 3, dtype=float).reshape(2, 3))}
+        )
+
+        with pytest.raises(ValueError, match="num_samples must be at least 1"):
+            subsample(posterior, num_samples=num_samples)
+
+
 class TestIncrementalReducers:
     """Unit tests for the link-specific reduction, without a fitted model.
 
@@ -1657,6 +1717,30 @@ class TestIncrementalReducers:
 
         expected = 4.0 * np.expm1(0.5) + 8.0 * np.expm1(0.25)
         np.testing.assert_allclose(result.values, [[expected]])
+
+    @pytest.mark.parametrize(
+        "call",
+        [
+            lambda inc: inc.compute_incremental_contribution(frequency="all_time"),
+            lambda inc: inc.split_incremental_contribution_over_time(
+                frequency="original"
+            ),
+        ],
+        ids=["total", "band"],
+    )
+    def test_a_dim_the_reducer_brings_in_is_refused(
+        self, simple_fitted_mmm, monkeypatch, call
+    ):
+        """The increment is laid out by name, so an unexpected dim raises instead of riding along."""
+        real = IdentityLinkReducer.per_date_increment
+
+        def with_extra_dim(self, delta, **kwargs):
+            return real(self, delta, **kwargs).expand_dims(extra=2)
+
+        monkeypatch.setattr(IdentityLinkReducer, "per_date_increment", with_extra_dim)
+
+        with pytest.raises(ValueError, match="extra"):
+            call(simple_fitted_mmm.incrementality)
 
     def test_log_reducer_zero_perturbation_gives_zero(self):
         """No change in the linear predictor means no incremental response."""
@@ -1723,6 +1807,21 @@ class TestIncrementalReducers:
         """The base class cannot be instantiated without a reduction."""
         with pytest.raises(TypeError):
             IncrementalReducer()
+
+    def test_a_reducer_must_decide_how_to_restrict_to_samples(self):
+        """A reducer without ``for_samples`` cannot be instantiated.
+
+        Inheriting ``return self`` while holding a per-sample input would pass
+        every test small enough to be one block, and fail only on a posterior
+        large enough to be split.
+        """
+
+        class Undecided(IncrementalReducer):
+            def per_date_increment(self, delta):
+                return delta
+
+        with pytest.raises(TypeError, match="for_samples"):
+            Undecided()
 
 
 class TestLogLinkIncrementality:
@@ -2020,13 +2119,10 @@ class TestLogLinkIncrementality:
         subsample.  A draw misalignment between the two would weight deltas by
         the wrong draws' baselines -- a silently wrong number, not an error --
         and a self-consistency check cannot see it.  So the subsampled result is
-        compared against the full oracle restricted to the very draws
-        ``subsample_draws`` selects, on a two-chain posterior so the chain-major
-        flattening is observable too.
+        compared against the full oracle at the labels of the draws it reports,
+        on a two-chain posterior so the chain-major flattening is observable too.
         """
         mmm = log_link_two_chain_fitted_mmm
-        posterior = mmm.idata.posterior.dataset
-        n_chains, n_draws = posterior.sizes["chain"], posterior.sizes["draw"]
         num_samples = 10
 
         result = mmm.incrementality.compute_incremental_contribution(
@@ -2034,20 +2130,10 @@ class TestLogLinkIncrementality:
         )
 
         full = compute_log_link_ground_truth_by_period(mmm, frequency="all_time")
-        # Same chain-major flat selection that subsample_draws makes.
-        flat_indices = np.random.default_rng(123).choice(
-            n_chains * n_draws, size=num_samples, replace=False
-        )
-        expected = (
-            full.stack(sample=("chain", "draw"))
-            .isel(sample=flat_indices)
-            .transpose("sample", ...)
-        )
+        expected = full.sel(chain=result.chain, draw=result.draw)
 
         np.testing.assert_allclose(
-            result.squeeze("chain", drop=True).transpose("draw", ...).values,
-            expected.values,
-            rtol=1e-6,
+            result.transpose(*expected.dims).values, expected.values, rtol=1e-6
         )
 
     def test_mean_central_tendency_matches_the_corrected_oracle(
@@ -2308,23 +2394,6 @@ class TestMediatedMuEffects:
 
         xr.testing.assert_allclose(result, expected, rtol=1e-6)
 
-    def test_joint_matches_oracle(self, funnel_log_link_fitted_mmm):
-        """The joint estimand matches an all-channels-at-once oracle."""
-        mmm = funnel_log_link_fitted_mmm
-
-        result = mmm.incrementality.compute_joint_incremental_contribution(
-            frequency="all_time"
-        )
-        expected = compute_log_link_ground_truth_by_period(
-            mmm,
-            frequency="all_time",
-            l_max=effective_l_max(mmm),
-            joint=True,
-        )
-
-        assert "channel" not in result.dims
-        xr.testing.assert_allclose(result, expected, rtol=1e-6)
-
     def test_leave_one_out_overcounts_the_joint(self, funnel_log_link_fitted_mmm):
         """Per-channel increments do not sum to the joint, and are labelled so.
 
@@ -2396,6 +2465,83 @@ class TestMediatedMuEffects:
         # bound is deliberately loose; what it rules out is the path vanishing.
         assert direct_total < 0.95 * full_total
 
+    @pytest.fixture
+    def probed(self, monkeypatch):
+        """Every :class:`ProbedReach` ``_probe_reach`` returns during the test."""
+        results = []
+        probe_reach = Incrementality._probe_reach
+
+        def spy(self, *args, **kwargs):
+            result = probe_reach(self, *args, **kwargs)
+            results.append(result)
+            return result
+
+        monkeypatch.setattr(Incrementality, "_probe_reach", spy)
+        return results
+
+    def test_the_retained_baseline_drops_the_predictor(
+        self, funnel_log_link_fitted_mmm, probed, monkeypatch
+    ):
+        """``mu`` is evaluated for the completeness check, then freed.
+
+        Nothing after the check reads it, and the request holds the baseline
+        until it ends.  The array itself is checked, not the dict key: the
+        saving relies on the probe and the request sharing one baseline dict.
+        """
+        predictors = []
+        evaluate = CounterfactualEvaluator.evaluate_baseline
+
+        def spy(self, *args, **kwargs):
+            out = evaluate(self, *args, **kwargs)
+            predictors.append(weakref.ref(out[LINEAR_PREDICTOR]))
+            return out
+
+        monkeypatch.setattr(CounterfactualEvaluator, "evaluate_baseline", spy)
+        funnel_log_link_fitted_mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time"
+        )
+        gc.collect()
+
+        # Still holds the probe and the baseline.
+        (result,) = probed
+        stats = next(iter(result.probe.probes.values()))
+        # The predictor was there, and the probe checked against it.
+        assert stats.accounted
+        # The first evaluation in _probe_reach is the baseline.
+        assert predictors[0]() is None
+        assert LINEAR_PREDICTOR not in result.baseline
+
+    def test_folding_the_probe_one_sample_at_a_time_changes_nothing(
+        self, mixing_funnel_identity_fitted_mmm, probed, monkeypatch
+    ):
+        """The probe's checks read maxima, so slicing the samples cannot move them.
+
+        The fixtures are small enough to fold in one slice, so the slicing is
+        forced here: one sample per slice, through the reach, the completeness
+        check and the channel-mixing check, on a model that mixes channels.
+        """
+        incr = mixing_funnel_identity_fitted_mmm.incrementality
+
+        whole = incr.compute_incremental_contribution(frequency="all_time")
+        whole_mixes = probed[0].probe.mixes_channels(
+            non_date_dims=probed[0].evaluator.non_date_dims
+        )
+        monkeypatch.setattr(ProbeStatistics, "FOLD_ELEMENTS", 1)
+        sliced = incr.compute_incremental_contribution(frequency="all_time")
+        sliced_mixes = probed[1].probe.mixes_channels(
+            non_date_dims=probed[1].evaluator.non_date_dims
+        )
+
+        first, second = probed
+        assert first.probe.probes.keys() == second.probe.probes.keys()
+        for index, stats in first.probe.probes.items():
+            assert stats.accounted
+            assert_identical_statistics(stats, second.probe.probes[index])
+        assert second.reach == first.reach
+        assert whole_mixes
+        assert sliced_mixes == whole_mixes
+        xr.testing.assert_identical(sliced, whole)
+
     def test_effect_that_ignores_spend_is_left_alone(self, trend_effect_fitted_mmm):
         """A ``mu_effect`` the counterfactual cannot reach needs no opt-in.
 
@@ -2462,6 +2608,114 @@ class TestMediatedMuEffects:
 
         with pytest.raises(NotImplementedError, match="Some path from spend"):
             incr.compute_incremental_contribution(frequency="all_time")
+
+    @pytest.mark.parametrize(
+        "model_fixture, blocked",
+        [
+            pytest.param("latent_demand_fitted_mmm", "latent_demand", id="opted in"),
+            pytest.param(
+                "two_route_latent_demand_fitted_mmm",
+                "latent_demand",
+                id="also reads spend directly",
+            ),
+            pytest.param(
+                "misnamed_latent_demand_fitted_mmm",
+                "latent_demand",
+                id="contribution under another name",
+            ),
+            pytest.param(
+                "duck_typed_latent_demand_fitted_mmm", "duck_demand", id="duck typed"
+            ),
+        ],
+    )
+    def test_a_spend_path_through_a_random_variable_is_refused(
+        self, request, model_fixture, blocked
+    ):
+        """A mediator the posterior holds fixed is named, not left out of the increment.
+
+        ``demand ~ Normal(f(spend), sigma)`` keeps its posterior draws whatever
+        spend is, so the path from spend through it to the target is cut.  The
+        opt-in check is satisfied by the effect's spec, or never sees the effect,
+        and the completeness check compares a predictor and accounted nodes that
+        both fail to move through ``demand``.  Before the structural guard the
+        first case failed with an error about a ``__batch__`` dimension, and the
+        other three returned the rest of the effect of spend as the total.
+        """
+        incr = request.getfixturevalue(model_fixture).incrementality
+
+        with pytest.raises(NotImplementedError, match=blocked):
+            incr.compute_joint_incremental_contribution(frequency="all_time")
+
+    @pytest.mark.parametrize(
+        "request_increment",
+        [
+            pytest.param(
+                lambda incr: incr.contribution_over_spend(frequency="all_time"),
+                id="ratio",
+            ),
+            pytest.param(
+                lambda incr: incr.split_incremental_contribution_over_time(
+                    frequency="monthly"
+                ),
+                id="split on windows",
+            ),
+            pytest.param(
+                lambda incr: incr.split_incremental_contribution_over_time(
+                    frequency="monthly", estimand="allocation"
+                ),
+                id="allocation",
+            ),
+        ],
+    )
+    def test_every_route_refuses_a_blocked_spend_path(
+        self, misnamed_latent_demand_fitted_mmm, request_increment
+    ):
+        """Every public route reads the model through the same door.
+
+        The allocation has structural guards of its own, but they look for a
+        channel-dependent effect, and an effect that was never resolved is not
+        one.  On windows the same model used to fail on the shape of
+        ``demand``'s draws, which span the fitted dates and not the window.
+        """
+        incr = misnamed_latent_demand_fitted_mmm.incrementality
+
+        with pytest.raises(NotImplementedError, match="latent_demand"):
+            request_increment(incr)
+
+    @pytest.mark.parametrize("frequency", ["all_time", "monthly"])
+    @pytest.mark.parametrize(
+        "fixture_name",
+        [
+            pytest.param(
+                "measured_hub_fitted_mmm",
+                id="a likelihood on an indicator of the mediator",
+            ),
+            pytest.param(
+                "non_centered_demand_fitted_mmm",
+                id="demand as a function of spend plus a shock",
+            ),
+        ],
+    )
+    def test_a_mediator_the_counterfactual_moves_matches_the_oracle(
+        self, request, fixture_name, frequency
+    ):
+        """The two ways of writing a mediator that propagates are answered in full.
+
+        A likelihood on an indicator is downstream of spend and feeds nothing,
+        so it is not on a path.  The second model is what the refusal tells an
+        author to write: its random variable does not depend on spend, and the
+        shock built from it is frozen, which is what cuts it to a window.
+        """
+        mmm = request.getfixturevalue(fixture_name)
+
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency=frequency
+        )
+        expected = compute_log_link_ground_truth_by_period(
+            mmm, frequency=frequency, l_max=effective_l_max(mmm)
+        )
+
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
 
     def test_a_second_node_named_mu_leaves_the_increment_unchanged(
         self, funnel_identity_fitted_mmm, shadow_named_node
@@ -3321,7 +3575,7 @@ class TestIncrementalitySpecValidation:
     window of a nonsensical length rather than a message saying so.
     """
 
-    @pytest.mark.parametrize("bad", [-1, -10])
+    @pytest.mark.parametrize("bad", [-1])
     def test_a_negative_window_is_refused(self, bad):
         """A negative carryover length is a mistake, not a shorter window."""
         with pytest.raises(ValidationError, match="additional_carryover_lags"):
@@ -3700,6 +3954,23 @@ def _fit_custom_mmm(data, **kwargs):
     return mmm
 
 
+def _two_relabeled_chains(mmm):
+    """Lay *mmm*'s posterior out as two chains under non-default labels.
+
+    The second chain has its own ``saturation_beta`` and ``adstock_alpha``, so
+    pairing a draw of one array with another draw of the other gives a
+    different number.
+    """
+    posterior = mmm.idata.posterior.dataset.assign_coords(
+        chain=[7], draw=mmm.idata.posterior.draw.values + 1000
+    )
+    chain2 = posterior.assign_coords(chain=[9])
+    chain2["saturation_beta"] = chain2["saturation_beta"] * 0.5
+    chain2["adstock_alpha"] = chain2["adstock_alpha"] * 0.7
+    mmm.idata["posterior"] = xr.concat([posterior, chain2], dim="chain")
+    return mmm
+
+
 @pytest.fixture
 def adstock_last_fitted_mmm(simple_mmm_data):
     """An ``adstock_first=False`` model, where saturation runs before carryover."""
@@ -3753,9 +4024,7 @@ class TestSplitIncrementalContribution:
         def evaluated(*args, **kwargs):
             raise AssertionError("the periods were evaluated")
 
-        monkeypatch.setattr(
-            CounterfactualEvaluator, "evaluate_counterfactual", evaluated
-        )
+        monkeypatch.setattr(CounterfactualEvaluator, "iter_counterfactual", evaluated)
 
     @pytest.mark.parametrize(
         "model_fixture, frequency, counterfactual_spend_factor",
@@ -4177,16 +4446,16 @@ class TestSplitIncrementalContribution:
         assert not any("excluded by convention" in note for note in notes)
         assert any("runs past the end" in note for note in notes) == bool(tail)
 
-    def test_windowed_leading_kernel_has_no_horizon_past_its_spend_date(
+    def test_leading_kernel_the_probe_can_bound_still_uses_the_full_axis(
         self, simple_mmm_data
     ):
-        """A ``Before`` kernel the probe can bound reports no unobserved tail.
+        """A ``Before`` kernel the probe can bound keeps its horizon on the full axis.
 
         With ``adstock_alpha`` near zero the leading weights fall below the
-        probe's tolerance, so the model stays windowed and only lag 0 moves.
-        The horizon floor follows the convolution mode, as the full-axis tail
-        does, so it is ``0`` rather than ``l_max - 1``, and no date past the
-        data is reported unobserved.
+        probe's tolerance, so the probe bounds the reach and only lag 0 moves.
+        Every non-``After`` model is still evaluated on the full axis, and the
+        measured horizon is still reported.  It is ``0`` rather than
+        ``l_max - 1``, so no date past the data is reported unobserved.
         """
         from tests.mmm.conftest import mock_fit
 
@@ -4208,7 +4477,7 @@ class TestSplitIncrementalContribution:
             matrix = incr.split_incremental_contribution_over_time(frequency="original")
         expected = incr.compute_incremental_contribution(frequency="original")
 
-        assert json.loads(matrix.attrs["assumptions"])["evaluation"] == "window"
+        assert json.loads(matrix.attrs["assumptions"])["evaluation"] == "full_axis"
         assert matrix.attrs["effective_horizon"] == 0
         assert bool(matrix.coords["observed"].all())
         assert not bool(matrix.isnull().any())
@@ -4662,7 +4931,7 @@ class TestAllocationEstimand:
         a_first = matrix.sel(spend_date=dates[first], realization_date=dates[landing])
         a_second = matrix.sel(spend_date=dates[second], realization_date=dates[landing])
 
-        posterior = subsample_draws(mmm.idata.posterior.dataset, **subsample())
+        posterior = mmm.idata.posterior.dataset.sel(chain=full.chain, draw=full.draw)
         alpha = posterior["adstock_alpha"].sel(channel="channel_1")
         expected = (alpha ** (landing - first) * 300.0) / (
             alpha ** (landing - second) * 900.0
@@ -4678,10 +4947,9 @@ class TestAllocationEstimand:
         # The ratio and the split hold whatever draws the contribution was
         # computed at.  This is what ties it to the draws the weights come from:
         # each column is the contribution of the very draw the subsample picked.
-        stored = subsample_draws(
-            mmm.idata.posterior.dataset[["channel_contribution_original_scale"]],
-            **subsample(),
-        )["channel_contribution_original_scale"]
+        stored = mmm.idata.posterior.dataset["channel_contribution_original_scale"].sel(
+            chain=full.chain, draw=full.draw
+        )
         expected = stored.rename(date="realization_date").transpose(*full.dims[:2], ...)
         np.testing.assert_allclose(
             full.sum("spend_date")
@@ -5451,17 +5719,35 @@ class TestClosedFormMatrix:
         )
         return closed, pipeline
 
-    @pytest.mark.parametrize("estimand", ["counterfactual", "allocation"])
-    @pytest.mark.parametrize("frequency", ["original", "monthly", "all_time"])
     @pytest.mark.parametrize(
-        "adstock",
+        "adstock, frequency, estimand",
         [
-            GeometricAdstock(l_max=4),
-            GeometricAdstock(l_max=6, normalize=False),
-            DelayedAdstock(l_max=5),
-            WeibullPDFAdstock(l_max=5),
+            pytest.param(
+                adstock, frequency, estimand, id=f"{name}-{frequency}-{estimand}"
+            )
+            for name, adstock in (
+                ("geometric", GeometricAdstock(l_max=4)),
+                ("delayed", DelayedAdstock(l_max=5)),
+                ("weibull-pdf", WeibullPDFAdstock(l_max=5)),
+            )
+            for frequency in ("original", "monthly", "all_time")
+            for estimand in ("counterfactual", "allocation")
+        ]
+        + [
+            # The unnormalized kernel follows the same paths as the normalized
+            # one, so it is kept once per frequency and once per estimand.
+            pytest.param(
+                GeometricAdstock(l_max=6, normalize=False),
+                frequency,
+                estimand,
+                id=f"geometric-unnormalized-{frequency}-{estimand}",
+            )
+            for frequency, estimand in (
+                ("original", "counterfactual"),
+                ("monthly", "allocation"),
+                ("all_time", "counterfactual"),
+            )
         ],
-        ids=["geometric", "geometric-unnormalized", "delayed", "weibull-pdf"],
     )
     def test_it_is_the_pipeline_matrix(
         self, separable_fit, adstock, frequency, estimand
@@ -5541,19 +5827,92 @@ class TestClosedFormMatrix:
         assert closed.sizes["draw"] == 7
         _assert_same_matrix(closed, pipeline)
 
+    @pytest.mark.parametrize(
+        ("split", "method", "estimand"),
+        [
+            ("over_time", "closed_form", "counterfactual"),
+            ("over_time", "closed_form", "allocation"),
+            ("over_time", "pipeline", "allocation"),
+            ("current_future", "closed_form", None),
+        ],
+    )
+    def test_a_subsample_lines_up_with_the_posterior_by_label(
+        self, simple_mmm_data, split, method, estimand
+    ):
+        """The kernel and saturated spend are paired with the draws by label."""
+        mmm = _two_relabeled_chains(
+            _fit_custom_mmm(
+                simple_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
+            )
+        )
+
+        incrementality = mmm.incrementality
+        kwargs = {"frequency": "monthly", "method": method}
+        if split == "over_time":
+            call = incrementality.split_incremental_contribution_over_time
+            kwargs["estimand"] = estimand
+        else:
+            call = incrementality.split_incremental_contribution_current_future
+        full = call(**kwargs)
+        subset = call(**kwargs, num_samples=11, random_state=3)
+
+        np.testing.assert_array_equal(subset["chain"], [7, 9])
+        assert subset.sizes["draw"] == math.ceil(11 / 2)
+        xr.testing.assert_allclose(
+            subset, full.sel(chain=subset.chain, draw=subset.draw), rtol=1e-9
+        )
+
+    @pytest.mark.parametrize("method", ["closed_form", "pipeline"])
+    def test_a_subsample_of_a_posterior_without_labels_keeps_their_positions(
+        self, simple_mmm_data, method
+    ):
+        """Without ``chain``/``draw`` coordinates, the positions are the labels."""
+        mmm = _fit_custom_mmm(
+            simple_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
+        )
+        mmm.idata["posterior"] = mmm.idata.posterior.dataset.drop_vars(
+            ["chain", "draw"]
+        )
+
+        call = mmm.incrementality.split_incremental_contribution_over_time
+        full = call(frequency="monthly", method=method)
+        subset = call(frequency="monthly", method=method, num_samples=4, random_state=0)
+
+        xr.testing.assert_allclose(
+            subset, full.sel(chain=subset.chain, draw=subset.draw), rtol=1e-9
+        )
+
+    @pytest.mark.parametrize("method", ["closed_form", "pipeline"])
+    @pytest.mark.parametrize("num_samples", [None, 4])
+    def test_refuses_repeated_draw_labels(self, simple_mmm_data, method, num_samples):
+        """Two runs concatenated along ``draw`` cannot be matched by label."""
+        mmm = _fit_custom_mmm(
+            simple_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
+        )
+        posterior = mmm.idata.posterior.dataset
+        mmm.idata["posterior"] = xr.concat([posterior, posterior], dim="draw")
+
+        with pytest.raises(ValueError, match="'draw' labels are not unique"):
+            mmm.incrementality.split_incremental_contribution_over_time(
+                frequency="monthly",
+                method=method,
+                num_samples=num_samples,
+                random_state=0,
+            )
+
     def test_no_period_is_evaluated(self, simple_mmm_data, monkeypatch):
         """The pipeline evaluates every period's scenario; the closed form none."""
         mmm = _fit_custom_mmm(
             simple_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
         )
         calls = {"n": 0}
-        original = CounterfactualEvaluator.evaluate_counterfactual
+        original = CounterfactualEvaluator.iter_counterfactual
 
         def counted(self, *args, **kwargs):
             calls["n"] += 1
             return original(self, *args, **kwargs)
 
-        monkeypatch.setattr(CounterfactualEvaluator, "evaluate_counterfactual", counted)
+        monkeypatch.setattr(CounterfactualEvaluator, "iter_counterfactual", counted)
 
         mmm.incrementality.split_incremental_contribution_over_time(
             frequency="monthly", method="closed_form"
@@ -5572,21 +5931,13 @@ class TestClosedFormMatrix:
         )
         incrementality = mmm.incrementality
         posterior = mmm.idata.posterior.dataset
-        labels = {
-            "chain": np.arange(posterior.sizes["chain"]),
-            "draw": np.arange(posterior.sizes["draw"]),
-        }
 
-        saturated = incrementality._saturated_media(posterior, 0.0).assign_coords(
-            labels
-        )
+        saturated = incrementality._saturated_media(posterior, 0.0)
         saturated = saturated * float(mmm.data.get_target_scale())
-        weights = incrementality._adstock_kernel(
-            posterior, divides=False
-        ).assign_coords(labels)
+        weights = incrementality._adstock_kernel(posterior, divides=False)
         rebuilt = sum(incrementality_module._adstock_terms(weights, saturated))
 
-        stored = posterior["channel_contribution_original_scale"].assign_coords(labels)
+        stored = posterior["channel_contribution_original_scale"]
         np.testing.assert_allclose(
             rebuilt.transpose(*stored.dims).values, stored.values, rtol=1e-9, atol=1e-9
         )
@@ -5833,6 +6184,55 @@ class TestClosedFormCurrentFuture:
 
         _assert_same_split(closed, pipeline)
 
+    def test_a_period_without_fitted_dates_is_zero_whatever_the_rounding(
+        self, monthly_mmm_data, monkeypatch
+    ):
+        """A weekly period between two monthly dates scales no spend: its current and
+        future are exactly zero and its future share NaN, as in the closed form.
+
+        The pipeline subtracts a baseline evaluated on the full date axis from one
+        evaluated on the period's window.  The two agree to rounding, not always to
+        the bit, which a baseline one ulp off stands in for.  Current is zero either
+        way, since such a period's window holds no date of its own; it is future
+        that would be a residue, and its share 1.0.
+        """
+        evaluate = CounterfactualEvaluator.evaluate_baseline
+        nudged = []
+
+        def one_ulp_up(self, *args, **kwargs):
+            nudged.append(True)
+            return {
+                name: np.nextafter(values, np.inf)
+                for name, values in evaluate(self, *args, **kwargs).items()
+            }
+
+        monkeypatch.setattr(CounterfactualEvaluator, "evaluate_baseline", one_ulp_up)
+        mmm = _fit_custom_mmm(
+            monthly_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
+        )
+
+        closed, pipeline = self._both(mmm, frequency="weekly")
+
+        assert nudged
+
+        fitted = pd.DatetimeIndex(monthly_mmm_data["X"]["date"])
+        empty = np.array(
+            [
+                not ((fitted >= start) & (fitted <= end)).any()
+                for start, end in zip(
+                    pipeline.period_start.values,
+                    pipeline.spend_date.values,
+                    strict=True,
+                )
+            ]
+        )
+        assert empty.sum() > empty.size / 2
+        quiet = pipeline.isel(spend_date=empty)
+        assert (quiet.current == 0.0).all()
+        assert (quiet.future == 0.0).all()
+        assert quiet.future_share.isnull().all()
+        _assert_same_split(closed, pipeline)
+
     @pytest.mark.parametrize("frequency", ["original", "monthly"])
     def test_a_panel_with_hierarchical_priors(
         self, panel_adstock_last_fitted_mmm, frequency
@@ -5885,7 +6285,7 @@ class TestClosedFormCurrentFuture:
             mmm.incrementality._adstock_parameters(mmm.idata.posterior.dataset),
             horizon,
             progressbar=False,
-        ).assign_coords(chain=closed.chain, draw=closed.draw)
+        )
 
         assert complete.sizes["spend_date"] > 0
         np.testing.assert_allclose(
@@ -5911,13 +6311,9 @@ class TestClosedFormCurrentFuture:
             frequency="original", method="closed_form"
         )
         row = closed.sel(spend_date=closed.complete).isel(spend_date=3, channel=0)
-        share = (
-            adstock.cumulative_weights(
-                mmm.idata.posterior.dataset, 0, progressbar=False
-            )
-            .assign_coords(chain=closed.chain, draw=closed.draw)
-            .isel(channel=0)
-        )
+        share = adstock.cumulative_weights(
+            mmm.idata.posterior.dataset, 0, progressbar=False
+        ).isel(channel=0)
         total = row.current + row.future
 
         per_draw = float((share * total).mean())
@@ -6290,25 +6686,6 @@ class TestClosedFormGuards:
 class TestAllocationHelpers:
     """The pure pieces of the ``estimand="allocation"`` share split."""
 
-    def test_relabel_draws_takes_the_posterior_labels(self):
-        sampled = xr.DataArray(np.zeros((2, 3)), dims=("chain", "draw"))
-
-        relabeled = incrementality_module._relabel_draws(
-            sampled, {"chain": np.array([5, 6]), "draw": np.array([10, 11, 12])}
-        )
-
-        np.testing.assert_array_equal(relabeled["chain"], [5, 6])
-        np.testing.assert_array_equal(relabeled["draw"], [10, 11, 12])
-
-    def test_relabel_draws_refuses_a_sample_of_another_size(self):
-        """A draw lost on the way would pair draw i of one array with draw j."""
-        sampled = xr.DataArray(np.zeros((1, 3)), dims=("chain", "draw"))
-
-        with pytest.raises(ValueError, match="3 draws where the posterior"):
-            incrementality_module._relabel_draws(
-                sampled, {"chain": np.array([0]), "draw": np.arange(4)}
-            )
-
     def test_row_of_dates_maps_dates_to_periods(self):
         dates = pd.date_range("2024-01-01", periods=5, freq="W-MON")
         periods = [(dates[1], dates[2]), (dates[3], dates[3])]
@@ -6396,10 +6773,9 @@ class TestKernelTrailingLags:
             kernel_trailing_lags(4, "Sideways")
 
 
-def _band(values, dates, observed=None):
-    """One period's band: one chain, draw and channel, NaN where unobserved."""
+def _band(values, dates):
+    """One period's band: one chain, draw and channel."""
     values = np.asarray(values, dtype=float)
-    observed = np.isfinite(values) if observed is None else np.asarray(observed)
     return xr.DataArray(
         values.reshape(1, 1, -1, 1),
         dims=("chain", "draw", "realization_date", "channel"),
@@ -6409,7 +6785,7 @@ def _band(values, dates, observed=None):
             "realization_date": pd.DatetimeIndex(dates),
             "channel": ["c"],
         },
-    ).assign_coords(observed=("realization_date", observed))
+    )
 
 
 class TestSplitIncrementalContributionHelpers:
@@ -6582,20 +6958,39 @@ class TestSplitIncrementalContributionHelpers:
         with pytest.raises(ValueError, match="full date axis"):
             Incrementality._check_reach_supports_split(reach, lags=0)
 
+    def _split(self, band, *, start, end, lags, dates, tail_lags):
+        """Split *band* through :class:`PeriodCurrentFuture`, in one block."""
+        window = EvaluationWindows.build(
+            periods=[(start, end)],
+            dates=dates,
+            l_max=tail_lags,
+            freq_offset=self.WEEKLY,
+        ).windows[0]
+        context = ReadoutContext(
+            dates=dates, reported_order={}, tail_lags=tail_lags, freq_offset=self.WEEKLY
+        )
+        readout = PeriodCurrentFuture(lags)
+        return readout.finish_period(
+            readout.reduce_block(band, window=window, context=context),
+            window=window,
+            context=context,
+        )
+
     @pytest.mark.parametrize(
         "lags, current, future",
         [(0, 1.0, 14.0), (1, 3.0, 12.0), (3, 15.0, 0.0)],
     )
-    def test_split_band_counts_lags_after_the_period_end(self, lags, current, future):
+    def test_split_counts_lags_after_the_period_end(self, lags, current, future):
         """Spend on one date: current is lags ``0 .. lags``, future the rest."""
         band = _band([1.0, 2.0, 4.0, 8.0], self.WEEKS[:4])
 
-        got_current, got_future, complete = Incrementality._split_band(
+        got_current, got_future, complete = self._split(
             band,
             start=self.WEEKS[0],
             end=self.WEEKS[0],
             lags=lags,
-            freq_offset=self.WEEKLY,
+            dates=self.WEEKS,
+            tail_lags=3,
         )
 
         assert float(got_current.squeeze()) == current
@@ -6612,25 +7007,27 @@ class TestSplitIncrementalContributionHelpers:
             (3, np.nan, 0.0),
         ],
     )
-    def test_split_band_does_not_sum_an_unobserved_date_as_zero(
-        self, lags, current, future
-    ):
-        """A ``NaN`` date makes the sum it falls in ``NaN``, and the band incomplete."""
-        band = _band([1.0, 2.0, 4.0, np.nan], self.WEEKS[:4])
+    def test_split_does_not_sum_an_unobserved_date_as_zero(self, lags, current, future):
+        """A tail date makes the sum it falls in ``NaN``, and the split incomplete.
 
-        got_current, got_future, complete = Incrementality._split_band(
+        The data ends on the third week, and the carryover reaches the fourth.
+        """
+        band = _band([1.0, 2.0, 4.0], self.WEEKS[:3])
+
+        got_current, got_future, complete = self._split(
             band,
             start=self.WEEKS[0],
             end=self.WEEKS[0],
             lags=lags,
-            freq_offset=self.WEEKLY,
+            dates=self.WEEKS[:3],
+            tail_lags=3,
         )
 
         np.testing.assert_equal(float(got_current.squeeze()), current)
         np.testing.assert_equal(float(got_future.squeeze()), future)
         assert not complete
 
-    def test_split_band_keeps_a_period_end_off_the_data_frequency(self):
+    def test_split_keeps_a_period_end_off_the_data_frequency(self):
         """A month ending mid-week keeps the next Sunday out of its current window.
 
         ``2023-01-31`` plus zero ``W-SUN`` periods rolls forward to
@@ -6639,12 +7036,13 @@ class TestSplitIncrementalContributionHelpers:
         """
         band = _band([1.0, 1.0, 1.0, 1.0, 1.0, 10.0], self.WEEKS)
 
-        current, future, _ = Incrementality._split_band(
+        current, future, _ = self._split(
             band,
             start=pd.Timestamp("2023-01-01"),
             end=pd.Timestamp("2023-01-31"),
             lags=0,
-            freq_offset=self.WEEKLY,
+            dates=self.WEEKS,
+            tail_lags=1,
         )
 
         assert float(current.squeeze()) == 5.0
@@ -6713,6 +7111,474 @@ class TestSplitIncrementalContributionHelpers:
         assert result.coords["spend_date"].values == np.datetime64("2023-04-02")
         assert result.coords["period_start"].values == np.datetime64("2023-01-01")
         assert bool(result.coords["complete"])
+
+
+def _split_joined_band(band, *, start, end, lags, freq_offset):
+    """Split one period's joined band as the split did before it had a readout.
+
+    The reference :class:`PeriodCurrentFuture` is checked against: the band
+    over every sample block, extended by its unobserved tail, summed over the
+    current and the future window.  Neither sum skips ``NaN``.
+    """
+    current_end = Incrementality._current_window_end(
+        end, lags=lags, freq_offset=freq_offset
+    )
+    realization = band.indexes["realization_date"]
+    in_current = (realization >= start) & (realization <= current_end)
+    current = band.isel(realization_date=in_current).sum(
+        "realization_date", skipna=False
+    )
+    future = band.isel(realization_date=realization > current_end).sum(
+        "realization_date", skipna=False
+    )
+    return current, future, bool(band.coords["observed"].all())
+
+
+def _period_band(values, dates, *, chains=1, draws=1, channel=True):
+    """One period of one block: ``(chain, draw, realization_date, [channel,] geo)``.
+
+    *values* are per date; every chain, draw, channel and geo gets them scaled
+    by its own factor, so a mix-up between entries would show.
+    """
+    values = np.asarray(values, dtype=float)
+    n_channels = 2 if channel else 1
+    factors = np.arange(1, chains * draws * n_channels * 2 + 1, dtype=float).reshape(
+        chains, draws, 1, n_channels, 2
+    )
+    band = xr.DataArray(
+        values.reshape(1, 1, -1, 1, 1) * factors,
+        dims=("chain", "draw", "realization_date", "channel", "geo"),
+        coords={
+            "chain": np.arange(chains),
+            "draw": np.arange(draws),
+            "realization_date": pd.DatetimeIndex(dates),
+            "channel": ["c0", "c1"][:n_channels],
+            "geo": ["g0", "g1"],
+        },
+    )
+    return band if channel else band.squeeze("channel", drop=True)
+
+
+class TestReduceMove:
+    """Each readout hands the reducer the change, and ``base`` only when given."""
+
+    DATES = pd.date_range("2023-01-01", periods=6, freq="W-SUN")
+
+    @pytest.fixture
+    def delta(self):
+        return xr.DataArray(
+            np.arange(6.0).reshape(2, 3) / 10,
+            dims=("sample", "date"),
+            coords={"date": self.DATES[:3]},
+        )
+
+    def test_a_total_sums_and_a_band_keeps_the_dates(self, delta):
+        reducer = IdentityLinkReducer(scale=2.0)
+
+        total = PeriodTotal().reduce_move(reducer, delta)
+
+        assert total.dims == ("sample",)
+        np.testing.assert_allclose(
+            total.values, [2.0 * (0.0 + 0.1 + 0.2), 2.0 * (0.3 + 0.4 + 0.5)]
+        )
+        for readout in (PeriodBand(), PeriodCurrentFuture(0)):
+            xr.testing.assert_identical(
+                readout.reduce_move(reducer, delta), reducer.per_date_increment(delta)
+            )
+
+    @pytest.mark.parametrize("readout", [PeriodTotal(), PeriodBand()], ids=type)
+    def test_base_reaches_the_reducer(self, readout, delta):
+        """The mediated path is reduced on top of the move a direct effect keeps."""
+        rng = np.random.default_rng(0)
+        reducer = LogLinkReducer(
+            baseline_response=xr.DataArray(
+                rng.uniform(1, 2, size=(2, 5)),
+                dims=("sample", "date"),
+                coords={"date": self.DATES[:5]},
+            )
+        )
+        base = delta * 0.5
+
+        got = readout.reduce_move(reducer, delta, base=base)
+
+        expected = (
+            reducer.counterfactual_minus_baseline(delta, base=base)
+            if isinstance(readout, PeriodTotal)
+            else reducer.per_date_increment(delta, base=base)
+        )
+        xr.testing.assert_identical(got, expected)
+        assert not np.allclose(got, readout.reduce_move(reducer, delta), rtol=1e-3), (
+            "base changed nothing, so the test cannot tell it was passed"
+        )
+
+    @pytest.mark.parametrize("readout", [PeriodTotal(), PeriodBand()], ids=type)
+    def test_no_base_keyword_without_a_base(self, readout, delta):
+        """A reducer written before ``base`` existed still answers a total."""
+
+        class Legacy(IdentityLinkReducer):
+            def per_date_increment(self, delta):
+                return super().per_date_increment(delta)
+
+            def counterfactual_minus_baseline(self, delta):
+                return self.per_date_increment(delta).sum("date")
+
+        xr.testing.assert_identical(
+            readout.reduce_move(Legacy(scale=2.0), delta),
+            readout.reduce_move(IdentityLinkReducer(scale=2.0), delta),
+        )
+
+
+class TestPeriodReadouts:
+    """Each readout keeps what its output reads, and only that.
+
+    Synthetic bands, no model.  The reference for the current and future split
+    is what the split computed before it had a readout: the band joined over
+    every block, extended by its unobserved tail and put in the reported
+    order, then :func:`_split_joined_band`.
+    """
+
+    DATES = pd.date_range("2023-01-01", periods=6, freq="W-SUN")
+    WEEKLY = pd.tseries.frequencies.to_offset("W-SUN")
+    # The reported order of ``geo`` differs from the order the increment
+    # arrives in, as it can for a reloaded model.
+    CONTEXT = ReadoutContext(
+        dates=DATES,
+        reported_order={"geo": np.array(["g1", "g0"])},
+        tail_lags=3,
+        freq_offset=WEEKLY,
+    )
+
+    @pytest.fixture
+    def windows(self):
+        # Week 1 lands inside the data; week 4 lands on weeks 4 to 7, and the
+        # data ends at week 5, so weeks 6 and 7 are an unobserved tail.
+        return EvaluationWindows.build(
+            periods=[(self.DATES[1], self.DATES[1]), (self.DATES[4], self.DATES[4])],
+            dates=self.DATES,
+            l_max=3,
+            freq_offset=self.WEEKLY,
+        )
+
+    def _reference(self, band, window, lags):
+        joined = Incrementality._append_unobserved_tail(
+            band,
+            window=window,
+            dates=self.DATES,
+            tail_lags=self.CONTEXT.tail_lags,
+            freq_offset=self.WEEKLY,
+        ).sel(self.CONTEXT.reported_order)
+        return _split_joined_band(
+            joined,
+            start=window.start,
+            end=window.end,
+            lags=lags,
+            freq_offset=self.WEEKLY,
+        )
+
+    def _read(self, readout, band, window, *, n_blocks):
+        """Reduce *band* in *n_blocks* blocks of draws per chain, join them, and finish.
+
+        The blocks come chain by chain, as the evaluator yields them.
+        """
+        edges = np.linspace(0, band.sizes["draw"], n_blocks + 1).astype(int)
+        parts = [
+            (
+                {"chain": slice(chain, chain + 1), "draw": slice(start, stop)},
+                readout.reduce_block(
+                    band.isel(chain=[chain], draw=slice(start, stop)),
+                    window=window,
+                    context=self.CONTEXT,
+                ),
+            )
+            for chain in range(band.sizes["chain"])
+            for start, stop in itertools.pairwise(edges)
+        ]
+        return readout.finish_period(
+            Incrementality._join_sample_blocks(parts),
+            window=window,
+            context=self.CONTEXT,
+        )
+
+    @pytest.mark.parametrize(
+        "start, end, tail_lags, expected",
+        [
+            # The carryover ends inside the data.
+            ("2023-01-08", "2023-01-08", 3, []),
+            # Three weeks after 2023-01-29, past the data's end on 2023-02-05.
+            ("2023-01-29", "2023-01-29", 3, ["2023-02-12", "2023-02-19"]),
+            # A month end off the data frequency counts from its last spend date.
+            ("2023-01-01", "2023-01-31", 3, ["2023-02-12", "2023-02-19"]),
+            # No fitted spend date in the period.
+            ("2023-03-01", "2023-03-31", 3, []),
+            # No carryover past the last fitted date.
+            ("2023-02-05", "2023-02-05", 0, []),
+        ],
+        ids=["inside", "past-the-end", "month-end", "no-spend", "no-lags"],
+    )
+    def test_tail_dates(self, start, end, tail_lags, expected):
+        """The dates past the fitted axis, up to the last spend date plus the lags."""
+        window = EvaluationWindows.build(
+            periods=[(pd.Timestamp(start), pd.Timestamp(end))],
+            dates=self.DATES,
+            l_max=tail_lags,
+            freq_offset=self.WEEKLY,
+        ).windows[0]
+
+        tail = Incrementality._tail_dates(
+            window=window,
+            dates=self.DATES,
+            tail_lags=tail_lags,
+            freq_offset=self.WEEKLY,
+        )
+
+        assert list(tail) == list(pd.DatetimeIndex(expected))
+
+    def test_in_reported_order_selects_only_the_dims_a_result_has(self):
+        """A mediator's movement can lack a custom dim the model has."""
+        context = ReadoutContext(
+            dates=self.DATES,
+            reported_order={
+                "geo": np.array(["g1", "g0"]),
+                "brand": np.array(["b1", "b0"]),
+            },
+            tail_lags=0,
+            freq_offset=self.WEEKLY,
+        )
+        movement = xr.DataArray(
+            [1.0, 2.0], dims="geo", coords={"geo": ["g0", "g1"]}, name="movement"
+        )
+
+        result = context.in_reported_order(movement)
+
+        xr.testing.assert_identical(result, movement.sel(geo=["g1", "g0"]))
+
+    @pytest.mark.parametrize("channel", [True, False], ids=["per-channel", "joint"])
+    @pytest.mark.parametrize("n_chains, n_blocks", [(1, 1), (1, 2), (2, 2)])
+    @pytest.mark.parametrize("lags", [0, 1, 2, 3])
+    @pytest.mark.parametrize("period", [0, 1])
+    def test_current_future_matches_splitting_the_joined_band(
+        self, windows, period, lags, n_chains, n_blocks, channel
+    ):
+        """The same sums, ``NaN`` where an unobserved date falls, and ``complete``.
+
+        For the period near the end: with ``lags=0`` the tail is future, so
+        future is ``NaN`` and current is not; with ``lags=2`` the tail
+        straddles both; with ``lags=3`` it is all current and future sums
+        nothing.
+        """
+        window = windows.windows[period]
+        band = _period_band(
+            np.arange(1.0, len(window.eval_dates) + 1),
+            window.eval_dates,
+            chains=n_chains,
+            draws=4,
+            channel=channel,
+        )
+        expected_current, expected_future, expected_complete = self._reference(
+            band, window, lags
+        )
+
+        result = self._read(PeriodCurrentFuture(lags), band, window, n_blocks=n_blocks)
+
+        assert isinstance(result, CurrentFuture)
+        xr.testing.assert_identical(result.current, expected_current.rename("current"))
+        xr.testing.assert_identical(result.future, expected_future.rename("future"))
+        assert result.complete is expected_complete
+        assert result.complete is (period == 0)
+
+    def test_the_tail_makes_a_sum_nan(self, windows):
+        """An unobserved date is not summed as zero, on whichever side it falls."""
+        window = windows.windows[1]
+        band = _period_band([1.0, 2.0], window.eval_dates)
+
+        current, future, _ = self._read(
+            PeriodCurrentFuture(0), band, window, n_blocks=1
+        )
+        assert np.isfinite(current).all()
+        assert np.isnan(future).all()
+
+        current, future, _ = self._read(
+            PeriodCurrentFuture(3), band, window, n_blocks=1
+        )
+        assert np.isnan(current).all()
+        assert (future == 0).all()
+
+    def test_a_month_end_off_the_data_frequency_keeps_the_tail_future(self):
+        """The Sunday after a month end is future, even when it is in the tail.
+
+        The data ends on 2023-01-29 and January ends on Tuesday 2023-01-31, so
+        the tail starts on 2023-02-05.  ``2023-01-31`` plus zero ``W-SUN``
+        periods rolls forward to that Sunday; with ``lags=0`` the tail must
+        stay future and leave January's current value finite.
+        """
+        dates = self.DATES[:5]
+        context = ReadoutContext(
+            dates=dates,
+            reported_order={"geo": np.array(["g1", "g0"])},
+            tail_lags=3,
+            freq_offset=self.WEEKLY,
+        )
+        window = EvaluationWindows.build(
+            periods=[(pd.Timestamp("2023-01-01"), pd.Timestamp("2023-01-31"))],
+            dates=dates,
+            l_max=3,
+            freq_offset=self.WEEKLY,
+        ).windows[0]
+        band = _period_band(np.arange(1.0, 6.0), window.eval_dates)
+        readout = PeriodCurrentFuture(0)
+
+        current, future, complete = readout.finish_period(
+            readout.reduce_block(band, window=window, context=context),
+            window=window,
+            context=context,
+        )
+
+        xr.testing.assert_identical(
+            current,
+            band.sum("realization_date").sel(context.reported_order).rename("current"),
+        )
+        assert np.isnan(future).all()
+        assert complete is False
+
+    @pytest.mark.parametrize("n_chains, n_blocks", [(1, 1), (1, 2), (2, 2)])
+    def test_band_appends_its_tail_in_the_reported_order(
+        self, windows, n_chains, n_blocks
+    ):
+        """A band joined over blocks, extended by its tail, as callers see it."""
+        window = windows.windows[1]
+        band = _period_band([1.0, 2.0], window.eval_dates, chains=n_chains, draws=4)
+
+        result = self._read(PeriodBand(), band, window, n_blocks=n_blocks)
+
+        np.testing.assert_array_equal(result["geo"], ["g1", "g0"])
+        np.testing.assert_array_equal(
+            result.coords["observed"], [True, True, False, False]
+        )
+        xr.testing.assert_identical(
+            result.sel(realization_date=window.eval_dates).drop_vars("observed"),
+            band.sel(self.CONTEXT.reported_order),
+        )
+
+    def test_total_is_labelled_by_the_period_end(self, windows):
+        """A total gets a length-one ``date``, the period's end."""
+        window = windows.windows[0]
+        total = _period_band([1.0, 2.0], window.eval_dates[:2], draws=2).sum(
+            "realization_date"
+        )
+
+        result = self._read(PeriodTotal(), total, window, n_blocks=2)
+
+        assert result.sizes["date"] == 1
+        assert pd.Timestamp(result["date"].values[0]) == window.end
+        xr.testing.assert_identical(
+            result.squeeze("date", drop=True),
+            total.sel(self.CONTEXT.reported_order),
+        )
+
+
+def _three_draws_per_block(monkeypatch):
+    """From here on, evaluate the counterfactual at most three draws of a chain at a time.
+
+    The budget is set from a draw's own size, so every chain is split whatever
+    the model; the number of blocks each call made is recorded.
+    """
+    blocks_per_call = []
+    sample_blocks = CounterfactualEvaluator._sample_blocks
+
+    def three_draws(self, *, n_scenarios, max_window, max_elements):
+        per_draw = self._elements_per_date * max_window * n_scenarios
+        blocks = sample_blocks(
+            self,
+            n_scenarios=n_scenarios,
+            max_window=max_window,
+            max_elements=3 * per_draw,
+        )
+        blocks_per_call.append(len(blocks))
+        return blocks
+
+    monkeypatch.setattr(CounterfactualEvaluator, "_sample_blocks", three_draws)
+    return blocks_per_call
+
+
+class TestSampleBlocks:
+    """Reducing the counterfactual one block of draws at a time changes no result.
+
+    Draws are independent and no block splits the date axis, so a blocked call
+    computes the same numbers as an unblocked one, up to rounding, and joins
+    them back under the posterior's labels.  Up to rounding because the
+    compiled graph may round differently for a different number of draws:
+    whether a case comes out bit for bit equal depends on the posterior and the
+    backend, so the values are compared with a tolerance and the labels
+    exactly.
+    """
+
+    @pytest.mark.parametrize(
+        ("method", "kwargs"),
+        [
+            ("compute_incremental_contribution", {"frequency": "all_time"}),
+            ("compute_incremental_contribution", {"frequency": "monthly"}),
+            ("compute_joint_incremental_contribution", {"frequency": "monthly"}),
+            ("split_incremental_contribution_over_time", {"frequency": "monthly"}),
+            # Pairs the joined result with each date's shares by label.
+            (
+                "split_incremental_contribution_over_time",
+                {"frequency": "monthly", "estimand": "allocation"},
+            ),
+            # Scattered draw labels, which each block has to keep.
+            (
+                "compute_incremental_contribution",
+                {"frequency": "monthly", "num_samples": 7, "random_state": 0},
+            ),
+            (
+                "split_incremental_contribution_current_future",
+                {"frequency": "monthly"},
+            ),
+        ],
+    )
+    def test_blocks_join_back_under_the_posterior_labels(
+        self, simple_mmm_data, monkeypatch, method, kwargs
+    ):
+        """Two relabeled chains, split into blocks of up to three draws, give the same result."""
+        mmm = _two_relabeled_chains(
+            _fit_custom_mmm(
+                simple_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
+            )
+        )
+        call = getattr(mmm.incrementality, method)
+        whole = call(**kwargs)
+        blocks_per_call = _three_draws_per_block(monkeypatch)
+        blocked = call(**kwargs)
+
+        assert blocks_per_call and min(blocks_per_call) > 2
+        np.testing.assert_array_equal(blocked["chain"], [7, 9])
+        for dim in ("chain", "draw"):
+            np.testing.assert_array_equal(blocked[dim], whole[dim])
+        xr.testing.assert_allclose(blocked, whole, rtol=1e-12)
+
+    @pytest.mark.parametrize(
+        ("frequency", "central_tendency"),
+        [("monthly", "median"), ("all_time", "median"), ("monthly", "mean")],
+    )
+    def test_blocks_with_a_mediated_effect(
+        self, funnel_log_link_fitted_mmm, monkeypatch, frequency, central_tendency
+    ):
+        """A dedicated row per channel, a log link and a mean correction are blocked too.
+
+        The log link's baseline response, and the mean correction, carry a value
+        per sample, so each block has to read its own.  Equal to rounding rather
+        than exactly: on the Numba backend the compiled graph can round the
+        mediated effect differently for a different number of draws, by one
+        ulp, and a few entries then differ by up to 3e-15 relative.  The C
+        backend gives identical results.
+        """
+        incrementality = funnel_log_link_fitted_mmm.incrementality
+        kwargs = {"frequency": frequency, "central_tendency": central_tendency}
+        whole = incrementality.compute_incremental_contribution(**kwargs)
+        blocks_per_call = _three_draws_per_block(monkeypatch)
+        blocked = incrementality.compute_incremental_contribution(**kwargs)
+
+        assert blocks_per_call and min(blocks_per_call) > 2
+        xr.testing.assert_allclose(blocked, whole, rtol=1e-12, atol=0)
 
 
 class TestEvaluatorCache:
@@ -6915,13 +7781,14 @@ class TestEvaluatorCache:
     ):
         """Only a cache hit rebinds the draws; a miss is already conditioned on them."""
         rebinds = []
-        real = CounterfactualEvaluator.set_posterior
+        real = ConditionedModel.set_posterior
 
         def counting(self, idata):
             rebinds.append(1)
             return real(self, idata)
 
-        monkeypatch.setattr(CounterfactualEvaluator, "set_posterior", counting)
+        # The model the evaluator wraps, which sees the block loop's rebinds too.
+        monkeypatch.setattr(ConditionedModel, "set_posterior", counting)
 
         incr = simple_fitted_mmm.incrementality
         incr.compute_incremental_contribution(frequency="all_time")
@@ -7151,13 +8018,13 @@ class TestEvaluatorCache:
         """
         mmm = simple_fitted_mmm
         rebound = []
-        real = CounterfactualEvaluator.set_posterior
+        real = ConditionedModel.set_posterior
 
         def recording(self, idata):
             rebound.append(idata)
             return real(self, idata)
 
-        monkeypatch.setattr(CounterfactualEvaluator, "set_posterior", recording)
+        monkeypatch.setattr(ConditionedModel, "set_posterior", recording)
         for seed in (3, 4):
             mmm.incrementality.compute_incremental_contribution(
                 frequency="all_time",
@@ -7221,7 +8088,7 @@ class TestEvaluatorCache:
 
     @pytest.mark.parametrize(
         "failing_method",
-        ["set_posterior", "evaluate_baseline", "evaluate_counterfactual"],
+        ["set_posterior", "evaluate_baseline", "iter_counterfactual"],
     )
     def test_a_failed_call_returns_the_evaluator_to_the_cache(
         self, simple_fitted_mmm, monkeypatch, failing_method, constructed
@@ -7302,3 +8169,1974 @@ class TestConcurrentCalls:
 
         for request, result in results.items():
             np.testing.assert_allclose(result, expected[request], rtol=1e-8)
+
+
+# ============================================================================
+# The paths of an increment: direct, mediated and total
+# ============================================================================
+#
+# The numbers are compared with an oracle that shares neither the batched
+# evaluator nor ``ConditionedModel`` with the module.  The model is cloned, the
+# mediator nodes are turned into inputs that hold their posterior draws, spend is
+# set with ``pm.set_data`` and the response is read with
+# ``sample_posterior_predictive``.  Holding the nodes is the intervention itself,
+# ``do(spend := x', mediators := M(x))``, while the module gets there by leaving
+# terms out of a sum.
+
+FUNNEL_TERM = "funnel_effect_contribution"
+FUNNEL_NODES = ("funnel_demand",)
+"""Demand cuts every route from spend into the funnel's term, so holding it holds the term."""
+
+
+class _NoDataEffect(MuEffect):
+    """An effect built from the model alone, with no data of its own to set."""
+
+    prefix: str
+
+    def create_data(self, mmm) -> None:
+        """No data of its own."""
+
+    def set_data(self, mmm, model, X) -> None:
+        """No data of its own."""
+
+
+class HubEffect(_NoDataEffect):
+    """Spend moves a hub and the hub moves the target: a mediator with one node.
+
+    ``national`` sums the hub over every dimension of a panel but ``date``, so
+    the node carries fewer dimensions than the model.
+    """
+
+    role: str | None = "mediator"
+    units: str | None = None
+    scale: float = 1.0
+    is_spend: bool = False
+    national: bool = False
+
+    def incrementality_spec(self) -> IncrementalitySpec:
+        """Declare the hub, under the effect's prefix as its name."""
+        return IncrementalitySpec(
+            role=self.role,
+            mediators=(
+                MediatorSpec(
+                    name=self.prefix,
+                    variable=f"{self.prefix}_hub",
+                    units=self.units,
+                    scale=self.scale,
+                    is_spend=self.is_spend,
+                ),
+            ),
+        )
+
+    def create_effect(self, mmm):
+        """Add ``beta * hub`` with ``hub`` a saturating function of total spend."""
+        spend = mmm.channel_data_scaled
+        summed = (
+            [dim for dim in spend.dims if dim != "date"] if self.national else "channel"
+        )
+        hub = pmd.Deterministic(
+            f"{self.prefix}_hub", pmd.math.tanh(spend.sum(dim=summed))
+        )
+        beta = pmd.HalfNormal(f"{self.prefix}_beta", sigma=1.0)
+        return pmd.Deterministic(f"{self.prefix}_effect_contribution", beta * hub)
+
+
+class DirectSynergyEffect(NegativeEffect):
+    """A product of the channels' spend, declared as one more direct function of spend."""
+
+    def incrementality_spec(self) -> IncrementalitySpec:
+        """Claim the direct path."""
+        return IncrementalitySpec(role="direct")
+
+
+class CentredControlEffect(_NoDataEffect):
+    """A control centred on its own mean over the fitted dates, inside the graph.
+
+    It does not read spend, so it is no accounted term, and its value on a
+    window is not its value on the full axis.  Compared against the full-axis
+    baseline, the predictor's move on a window would be off by the difference.
+    It reads ``lf_budget``, which the funnel effect registers.
+    """
+
+    def create_effect(self, mmm):
+        """Add ``beta * (lf_budget - mean(lf_budget))``."""
+        series = mmm.model["lf_budget"]
+        beta = pmd.Normal(f"{self.prefix}_beta", sigma=1.0)
+        return pmd.Deterministic(
+            f"{self.prefix}_effect_contribution",
+            beta * (series - series.mean(dim="date")),
+        )
+
+
+class MemoryFunnelEffect(FunnelEffect):
+    """A funnel effect whose term also adds a long-memory transform of another series.
+
+    The term is accounted, and on a window shorter than that memory it takes
+    another value than on the full axis with spend unchanged.
+    """
+
+    evaluation_mode: Literal["auto", "full"] = "auto"
+
+    def incrementality_spec(self) -> IncrementalitySpec:
+        """The funnel's declaration, with the effect's evaluation mode."""
+        return (
+            super()
+            .incrementality_spec()
+            .model_copy(update={"evaluation_mode": self.evaluation_mode})
+        )
+
+    def create_effect(self, mmm):
+        """Add the funnel's term plus a twelve-date adstock of ``lf_budget``."""
+        funnel = super().create_effect(mmm)
+        memory = _media_transformation("memory", (), 12)
+        return pmd.Deterministic(
+            f"{self.prefix}_total_contribution",
+            funnel + memory(mmm.model["lf_budget"], dim="date"),
+        )
+
+    @property
+    def contribution_var_name(self) -> str:
+        """The sum of both parts is what enters the linear predictor."""
+        return f"{self.prefix}_total_contribution"
+
+
+def response(mmm, spend, *, held=(), var=None) -> xr.DataArray:
+    """Evaluate the response, or *var*, per draw and date under *spend*.
+
+    Nodes named in *held* keep their stored posterior draws whatever spend is.
+    """
+    names = [*mmm.frozen_deterministics, *held]
+    model = (
+        deterministics_to_flat(mmm.model, names=names) if names else mmm.model.copy()
+    )
+    log_link = mmm.link == LinkFunction.LOG
+    name = var or ("mu_original_scale" if log_link else "mu")
+    with model:
+        pm.set_data({"channel_data": spend.astype(model["channel_data"].type.dtype)})
+        values = pm.sample_posterior_predictive(
+            mmm.idata, var_names=[name], progressbar=False
+        ).posterior_predictive[name]
+    if var is None and not log_link:
+        values = values * mmm.incrementality.data.get_target_scale()
+    return values
+
+
+def moved_spend(mmm, period, channel, factor) -> np.ndarray:
+    """Actual spend with *period* scaled by *factor*, for one channel or for all."""
+    spend = mmm.model["channel_data"].get_value().copy()
+    dates = mmm.incrementality.data.dates
+    in_period = np.asarray((dates >= period[0]) & (dates <= period[1]))
+    if channel is None:
+        spend[in_period] = spend[in_period] * factor
+    else:
+        spend[in_period, ..., channel] = spend[in_period, ..., channel] * factor
+    return spend
+
+
+def oracle(mmm, *, frequency, factor=0.0, scope="per_channel", held=()) -> dict:
+    """Total, direct and mediated increments by brute force, laid out as the module's.
+
+    Each difference is summed over every fitted date.  The models here are
+    causal filters of spend, so the difference is zero before a period and past
+    its carryover, and the sum equals the module's sum over its window.
+    """
+    incr = mmm.incrementality
+    dates = incr.data.dates
+    periods = incr._create_period_groups(dates[0], dates[-1], frequency)
+    channels = list(mmm.channel_columns)
+    keys = range(len(channels)) if scope == "per_channel" else [None]
+    factual = response(mmm, mmm.model["channel_data"].get_value())
+    sign = 1.0 if factor <= 1.0 else -1.0
+
+    stacked: dict[str, list[xr.DataArray]] = {"total": [], "direct": [], "mediated": []}
+    for period in periods:
+        parts: dict[str, list[xr.DataArray]] = {name: [] for name in stacked}
+        for key in keys:
+            spend = moved_spend(mmm, period, key, factor)
+            moved = response(mmm, spend)
+            moved_held = response(mmm, spend, held=held) if held else moved
+            parts["total"].append(sign * (factual - moved).sum("date"))
+            parts["direct"].append(sign * (factual - moved_held).sum("date"))
+            parts["mediated"].append(sign * (moved_held - moved).sum("date"))
+        for name, values in parts.items():
+            stacked[name].append(
+                xr.concat(values, dim=pd.Index(channels, name="channel"))
+                if scope == "per_channel"
+                else values[0]
+            )
+    ends = pd.DatetimeIndex([end for _, end in periods], name="date")
+    return {
+        name: values[0] if frequency == "all_time" else xr.concat(values, dim=ends)
+        for name, values in stacked.items()
+    }
+
+
+def assert_matches(result: xr.DataArray, expected: xr.DataArray, rtol=1e-6) -> None:
+    """Assert *result* equals *expected* per draw, whatever order the dimensions are in.
+
+    The ``complete`` mark of either side is left out of the comparison.
+    """
+    result = result.drop_vars("complete", errors="ignore")
+    expected = expected.drop_vars("complete", errors="ignore")
+    scale = float(np.abs(expected).max())
+    xr.testing.assert_allclose(
+        result, expected.transpose(*result.dims), rtol=rtol, atol=1e-9 * scale
+    )
+
+
+@pytest.fixture(scope="module")
+def two_mediators_declared_mmm(funnel_mmm_data):
+    """Log-link funnel MMM with a second mediator effect that has its own hub."""
+    return _build_funnel_mmm(
+        funnel_mmm_data,
+        link="log",
+        effects=[_funnel_effect(), HubEffect(prefix="halo")],
+    )
+
+
+@pytest.fixture(scope="module")
+def direct_synergy_fitted_mmm(funnel_mmm_data):
+    """Identity-link MMM whose one effect is declared as a direct function of spend."""
+    return _build_simple_effect_mmm(
+        funnel_mmm_data, DirectSynergyEffect(prefix="synergy"), link="identity"
+    )
+
+
+class TestDirectAndMediated:
+    """The two parts of a total, against the intervention that defines them."""
+
+    @pytest.mark.parametrize(
+        "fixture_name, frequency, factor",
+        [
+            ("funnel_log_link_fitted_mmm", "monthly", 0.0),
+            ("funnel_log_link_fitted_mmm", "all_time", 1.01),
+            ("funnel_identity_fitted_mmm", "all_time", 0.5),
+        ],
+    )
+    def test_the_decomposition_matches_holding_the_mediator(
+        self, request, fixture_name, frequency, factor
+    ):
+        """``direct`` is the response with spend moved and demand where it was.
+
+        Checked per draw, period and channel, under both links, when spend is
+        removed, cut in half and raised.  The factor above one pins the sign:
+        the result is then counterfactual minus actual.
+        """
+        mmm = request.getfixturevalue(fixture_name)
+
+        parts = mmm.incrementality.decompose_incremental_contribution(
+            frequency=frequency, counterfactual_spend_factor=factor
+        )
+
+        expected = oracle(mmm, frequency=frequency, factor=factor, held=FUNNEL_NODES)
+        for name in ("total", "direct", "mediated"):
+            assert_matches(parts[name], expected[name])
+        xr.testing.assert_allclose(
+            parts["direct"] + parts["mediated"], parts["total"], rtol=1e-9
+        )
+        assert float(np.abs(parts["mediated"]).max()) > 1e-3 * float(
+            np.abs(parts["total"]).max()
+        )
+
+    def test_the_joint_scope_moves_every_channel_at_once(
+        self, funnel_log_link_fitted_mmm
+    ):
+        """One number for every channel moved at once, with the same two parts."""
+        mmm = funnel_log_link_fitted_mmm
+
+        parts = mmm.incrementality.decompose_incremental_contribution(
+            frequency="all_time", scope="joint"
+        )
+
+        expected = oracle(mmm, frequency="all_time", scope="joint", held=FUNNEL_NODES)
+        assert "channel" not in parts["direct"].dims
+        for name in ("total", "direct", "mediated"):
+            assert_matches(parts[name], expected[name])
+
+    def test_every_mediator_effect_is_held(self, two_mediators_declared_mmm):
+        """``direct`` holds the nodes of both effects, and its label lists both terms."""
+        mmm = two_mediators_declared_mmm
+
+        parts = mmm.incrementality.decompose_incremental_contribution(
+            frequency="all_time"
+        )
+
+        expected = oracle(mmm, frequency="all_time", held=(*FUNNEL_NODES, "halo_hub"))
+        for name in ("total", "direct", "mediated"):
+            assert_matches(parts[name], expected[name])
+        assert EstimandLabel.read(parts["direct"]).held == (
+            FUNNEL_TERM,
+            "halo_effect_contribution",
+        )
+
+    def test_under_an_additive_link_direct_is_the_channel_contribution(
+        self, funnel_identity_fitted_mmm
+    ):
+        """What the notebooks assemble by hand is right under the identity link.
+
+        Removing a channel removes its contribution, and with the mediators
+        held nothing else moves, so the response drops by exactly that.
+        """
+        mmm = funnel_identity_fitted_mmm
+
+        direct = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time", paths="direct"
+        )
+
+        stored = mmm.idata.posterior["channel_contribution_original_scale"]
+        xr.testing.assert_allclose(
+            direct, stored.sum("date").transpose(*direct.dims), rtol=1e-8
+        )
+
+
+class TestPathsOnThePublicMethods:
+    """``paths=`` on the increments and the ratios, and what each result says of itself."""
+
+    @pytest.mark.parametrize(
+        "method, scope, paths",
+        [
+            ("compute_incremental_contribution", "per_channel", "direct"),
+            ("compute_joint_incremental_contribution", "joint", "mediated"),
+        ],
+    )
+    def test_an_increment_is_the_decomposition_s_variable(
+        self, funnel_log_link_fitted_mmm, method, scope, paths
+    ):
+        """Asking for one part alone gives the number and the label the decomposition gives."""
+        incr = funnel_log_link_fitted_mmm.incrementality
+
+        alone = getattr(incr, method)(frequency="monthly", paths=paths)
+        together = incr.decompose_incremental_contribution(
+            frequency="monthly", scope=scope
+        )
+
+        xr.testing.assert_allclose(alone, together[paths], rtol=1e-12)
+        label = EstimandLabel.read(alone)
+        assert label == EstimandLabel.read(together[paths])
+        assert (label.scope, label.held, label.held_at) == (
+            scope,
+            (FUNNEL_TERM,),
+            "factual",
+        )
+
+    def test_each_ratio_divides_the_part_by_its_own_spend(
+        self, funnel_log_link_fitted_mmm
+    ):
+        """The ratio methods keep their own denominators, the marginal one included."""
+        incr = funnel_log_link_fitted_mmm.incrementality
+        spend = incr._aggregate_spend("all_time")
+        direct = incr.compute_incremental_contribution(
+            frequency="all_time", paths="direct"
+        )
+        mediated = incr.compute_incremental_contribution(
+            frequency="all_time", paths="mediated", counterfactual_spend_factor=1.05
+        )
+
+        roas = incr.contribution_over_spend(frequency="all_time", paths="direct")
+        cac = incr.spend_over_contribution(frequency="all_time", paths="direct")
+        marginal = incr.marginal_contribution_over_spend(
+            frequency="all_time", spend_increase_pct=0.05, paths="mediated"
+        )
+
+        xr.testing.assert_allclose(roas, direct / spend, rtol=1e-12)
+        xr.testing.assert_allclose(
+            cac, (spend / direct).transpose(*cac.dims), rtol=1e-12
+        )
+        xr.testing.assert_allclose(marginal, mediated / (0.05 * spend), rtol=1e-12)
+        assert EstimandLabel.read(roas).definition == (
+            "[Y(x) - Y(x', M(x))] / [S(x) - S(x')]"
+        )
+        assert EstimandLabel.read(marginal).definition == (
+            "[Y(x') - Y(x', M(x))] / [S(x') - S(x)]"
+        )
+
+    @pytest.mark.parametrize(
+        "call, complaint",
+        [
+            pytest.param(
+                lambda incr: incr.compute_incremental_contribution(
+                    frequency="all_time", paths="indirect"
+                ),
+                "paths must be one of",
+                id="an unknown path",
+            ),
+            pytest.param(
+                lambda incr: incr.decompose_incremental_contribution(
+                    frequency="all_time", scope="each"
+                ),
+                "scope must be one of",
+                id="an unknown scope",
+            ),
+            pytest.param(
+                lambda incr: incr.spend_over_contribution(
+                    frequency="all_time", paths="mediated"
+                ),
+                "paths='mediated'",
+                id="spend over a mediated share, which can be zero",
+            ),
+            pytest.param(
+                lambda incr: incr.compute_incremental_contribution(
+                    frequency="all_time", counterfactual_spend_factor=float("inf")
+                ),
+                "counterfactual_spend_factor",
+                id="an infinite spend factor",
+            ),
+            pytest.param(
+                lambda incr: incr.marginal_contribution_over_spend(
+                    frequency="all_time", spend_increase_pct=1e-20
+                ),
+                "too small to change spend",
+                id="an increase too small to change spend",
+            ),
+            pytest.param(
+                lambda incr: incr.decompose_incremental_contribution(
+                    frequency="monthly", start_date="2023-01-31", end_date="2023-01-31"
+                ),
+                "No fitted date",
+                id="a range that holds no fitted date",
+            ),
+        ],
+    )
+    def test_a_request_that_makes_no_sense_is_refused(
+        self, funnel_log_link_fitted_mmm, call, complaint
+    ):
+        """Each refusal names what is wrong with the request."""
+        with pytest.raises(ValueError, match=complaint):
+            call(funnel_log_link_fitted_mmm.incrementality)
+
+
+class TestNothingToHold:
+    """Models without a mediator answer every path, so one loop covers them all."""
+
+    @pytest.mark.parametrize(
+        "fixture_name", ["direct_synergy_fitted_mmm", "simple_fitted_mmm"]
+    )
+    def test_direct_is_the_total_and_mediated_is_zero(self, request, fixture_name):
+        """A direct effect only, or no effect at all: nothing is on the mediated path."""
+        incr = request.getfixturevalue(fixture_name).incrementality
+
+        total = incr.compute_incremental_contribution(frequency="monthly")
+        parts = incr.decompose_incremental_contribution(frequency="monthly")
+
+        for path in ("total", "direct"):
+            xr.testing.assert_allclose(parts[path], total, rtol=1e-12)
+        assert not parts["mediated"].any()
+        label = EstimandLabel.read(parts["mediated"])
+        assert (label.held, label.held_at) == ((), "factual")
+        assert label.accounting_verified is True
+
+    def test_an_effect_with_no_role_is_refused_and_its_total_is_not(
+        self, negative_effect_fitted_mmm
+    ):
+        """Opting in to totals does not say which path a term is on."""
+        incr = negative_effect_fitted_mmm.incrementality
+
+        with pytest.raises(NotImplementedError, match="NegativeEffect"):
+            incr.compute_incremental_contribution(frequency="all_time", paths="direct")
+        with pytest.raises(NotImplementedError, match="NegativeEffect"):
+            incr.decompose_incremental_contribution(frequency="all_time")
+        assert (
+            incr.compute_incremental_contribution(frequency="all_time").notnull().all()
+        )
+
+
+def no_probe_data(funnel_mmm_data) -> dict:
+    """Funnel data whose second channel spends on the last date alone.
+
+    No interior date has every channel spending, so no probe can be placed.
+    """
+    data = {key: value.copy(deep=True) for key, value in funnel_mmm_data.items()}
+    media = data["X"]["media"].values
+    media[:-1, 1] = 0.0
+    data["X_df"]["channel_2"] = media[:, 1]
+    return data
+
+
+@pytest.fixture(scope="module")
+def no_probe_funnel_mmm(funnel_mmm_data):
+    """Log-link funnel MMM on which no probe can be placed."""
+    return _build_funnel_mmm(no_probe_data(funnel_mmm_data), link="log")
+
+
+class TestDefaultTotal:
+    """A request that names no path returns the total, with a label on it."""
+
+    def test_a_total_reads_no_role_and_no_node(self, funnel_mmm_data):
+        """A spec that only a path request would read is never asked for.
+
+        The effect does not read spend, so a total skips it without calling
+        ``incrementality_spec``.  The requests that list mediator nodes do call
+        it, and its error is theirs.
+        """
+
+        class Unreadable(CentredControlEffect):
+            def create_effect(self, mmm):
+                beta = pmd.Normal(f"{self.prefix}_beta", sigma=1.0)
+                return pmd.Deterministic(
+                    f"{self.prefix}_effect_contribution", beta * mmm.model["lf_budget"]
+                )
+
+            def incrementality_spec(self):
+                raise RuntimeError("this spec was not meant to be read")
+
+        mmm = _build_funnel_mmm(
+            funnel_mmm_data,
+            link="log",
+            effects=[_funnel_effect(), Unreadable(prefix="plain")],
+        )
+        incr = mmm.incrementality
+
+        assert (
+            incr.compute_incremental_contribution(frequency="all_time").notnull().all()
+        )
+        with pytest.raises(RuntimeError, match="not meant to be read"):
+            incr.compute_incremental_contribution(frequency="all_time", paths="direct")
+
+    def test_a_total_the_probe_could_not_check_says_so(
+        self, funnel_mmm_data, monkeypatch
+    ):
+        """``accounting_verified`` is false only under the warning that says why."""
+        mmm = _build_funnel_mmm(funnel_mmm_data, link="log")
+        monkeypatch.setattr(type(mmm), "frozen_deterministics", ["mu"])
+
+        with pytest.warns(UserWarning, match="could not be recovered"):
+            total = mmm.incrementality.compute_incremental_contribution(
+                frequency="all_time"
+            )
+
+        assert EstimandLabel.read(total).accounting_verified is False
+
+    def test_a_model_without_effects_has_no_accounting_left_open(self, funnel_mmm_data):
+        """Spend reaches its mean through ``channel_contribution`` alone.
+
+        Where no probe can be placed its total is warned that the reach was
+        not measured, and neither the warning nor the label says the
+        accounting is unverified.
+        """
+        data = no_probe_data(funnel_mmm_data)
+        mmm = _build_funnel_mmm(data, link="log", effects=[])
+
+        with pytest.warns(UserWarning, match="could not be measured") as caught:
+            total = mmm.incrementality.compute_incremental_contribution(
+                frequency="monthly"
+            )
+
+        assert not any("unverified" in str(warning.message) for warning in caught)
+        assert EstimandLabel.read(total).accounting_verified is True
+
+
+class TestAccountingOnRows:
+    """A path request checks, on its own rows, that its terms carry the whole move."""
+
+    def test_a_term_that_does_not_read_spend_may_differ_on_a_window(
+        self, funnel_mmm_data
+    ):
+        """The predictor is compared with itself on the same window.
+
+        A control centred on its date mean takes another value on a window.
+        It cancels between a perturbed row and the factual row of the same
+        window, which the full-axis baseline could not make it do.
+        """
+        mmm = _build_funnel_mmm(
+            funnel_mmm_data,
+            link="log",
+            effects=[_funnel_effect(), CentredControlEffect(prefix="centred")],
+        )
+
+        direct = mmm.incrementality.compute_incremental_contribution(
+            frequency="monthly", paths="direct"
+        )
+
+        expected = oracle(mmm, frequency="monthly", held=FUNNEL_NODES)
+        assert_matches(direct, expected["direct"])
+
+    def test_an_accounted_term_that_differs_on_a_window_is_named(self, funnel_mmm_data):
+        """On a window the term moves without spend moving, and the refusal names it.
+
+        The fix it names works: declared as needing the full axis, the same
+        effect is answered, and matches the intervention.
+        """
+        windowed = _build_funnel_mmm(
+            funnel_mmm_data, link="log", effects=[_funnel_effect(MemoryFunnelEffect)]
+        )
+        full = _build_funnel_mmm(
+            funnel_mmm_data,
+            link="log",
+            effects=[
+                _funnel_effect(MemoryFunnelEffect).model_copy(
+                    update={"evaluation_mode": "full"}
+                )
+            ],
+        )
+
+        with pytest.raises(
+            ValueError, match=r"(?s)'funnel_total_contribution'.*evaluation_mode='full'"
+        ):
+            windowed.incrementality.compute_incremental_contribution(
+                frequency="monthly", paths="direct"
+            )
+        direct = full.incrementality.compute_incremental_contribution(
+            frequency="monthly", paths="direct"
+        )
+
+        expected = oracle(full, frequency="monthly", held=FUNNEL_NODES)
+        assert_matches(direct, expected["direct"])
+
+    def test_a_model_the_probe_cannot_place_is_still_checked(self, no_probe_funnel_mmm):
+        """The rows need no probe, so a path is verified where a total is not.
+
+        Both are warned that the reach could not be measured.  Only the total
+        is told that its accounting goes unverified.
+        """
+        incr = no_probe_funnel_mmm.incrementality
+
+        with pytest.warns(UserWarning, match="goes unverified"):
+            total = incr.compute_incremental_contribution(frequency="monthly")
+        with pytest.warns(UserWarning, match="could not be measured") as caught:
+            direct = incr.compute_incremental_contribution(
+                frequency="monthly", paths="direct"
+            )
+
+        assert not any("unverified" in str(warning.message) for warning in caught)
+        assert EstimandLabel.read(total).accounting_verified is False
+        assert EstimandLabel.read(direct).accounting_verified is True
+
+    def test_a_path_the_terms_do_not_carry_is_refused_on_the_rows(
+        self, funnel_mmm_data
+    ):
+        """Without a probe a total answers with a warning; a path request raises.
+
+        The effect adds its term to the predictor twice and reports it once, so
+        half of the mediated move is in no accounted term.
+        """
+
+        class HalfReportedFunnelEffect(FunnelEffect):
+            def create_effect(self, mmm):
+                reported = super().create_effect(mmm)
+                return 2.0 * reported
+
+        mmm = _build_funnel_mmm(
+            no_probe_data(funnel_mmm_data),
+            link="log",
+            effects=[_funnel_effect(HalfReportedFunnelEffect)],
+        )
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            with pytest.raises(NotImplementedError, match="Some path from spend"):
+                mmm.incrementality.compute_incremental_contribution(
+                    frequency="monthly", paths="direct"
+                )
+
+    def test_a_frozen_predictor_leaves_nothing_to_check_against(
+        self, funnel_mmm_data, monkeypatch
+    ):
+        """A path is never returned unverified, so the request is refused."""
+        mmm = _build_funnel_mmm(funnel_mmm_data, link="log")
+        monkeypatch.setattr(type(mmm), "frozen_deterministics", ["mu"])
+
+        with pytest.raises(NotImplementedError, match="linear predictor"):
+            mmm.incrementality.compute_incremental_contribution(
+                frequency="all_time", paths="direct"
+            )
+
+    @pytest.mark.parametrize(
+        "offsets, named",
+        [
+            pytest.param(
+                {"channel_contribution": 0.0, "f": 1.0},
+                ["f"],
+                id="the term off by more than the tolerance",
+            ),
+            pytest.param(
+                {"channel_contribution": 0.9, "f": 1.0},
+                ["channel_contribution", "f"],
+                id="every such term, in order",
+            ),
+            pytest.param(
+                {"channel_contribution": 0.2, "f": 0.4},
+                ["f"],
+                id="none on its own: the one off most",
+            ),
+        ],
+    )
+    def test_the_terms_off_on_a_window_are_named(self, offsets, named):
+        """The refusal names the terms to declare ``evaluation_mode='full'`` for."""
+        baseline = {name: np.zeros((2, 3)) for name in offsets}
+        factual = {name: np.full((2, 3), offset) for name, offset in offsets.items()}
+
+        found = Incrementality._terms_off_on_window(
+            factual, baseline, accounted=list(offsets), atol=0.5
+        )
+
+        assert found == named
+
+
+class TestTheDecomposition:
+    """The three paths and the spend change, from one evaluation on one set of draws."""
+
+    def test_every_variable_is_computed_on_the_same_draws(
+        self, funnel_log_link_fitted_mmm
+    ):
+        """A ``Generator`` is consumed once, so the parts add up draw for draw."""
+        parts = funnel_log_link_fitted_mmm.incrementality.decompose_incremental_contribution(
+            frequency="monthly", num_samples=8, random_state=np.random.default_rng(3)
+        )
+
+        assert parts["total"].sizes["draw"] == 8
+        xr.testing.assert_allclose(
+            parts["direct"] + parts["mediated"], parts["total"], rtol=1e-9
+        )
+        assert parts.attrs == {}
+        assert {
+            name: EstimandLabel.read(parts[name]).quantity for name in parts.data_vars
+        } == {
+            "total": "incremental_contribution",
+            "direct": "incremental_contribution",
+            "mediated": "incremental_contribution",
+            "spend_change": "spend_change",
+        }
+
+    @pytest.mark.parametrize(
+        "scope, factor, share", [("per_channel", 1.01, 0.01), ("joint", 0.5, 0.5)]
+    )
+    def test_spend_change_is_the_spend_the_counterfactual_moves(
+        self, funnel_log_link_fitted_mmm, factor, share, scope
+    ):
+        """The denominator of any ratio of the parts, on the same periods."""
+        incr = funnel_log_link_fitted_mmm.incrementality
+        spend = incr._aggregate_spend("monthly")
+
+        parts = incr.decompose_incremental_contribution(
+            frequency="monthly", counterfactual_spend_factor=factor, scope=scope
+        )
+
+        expected = share * (spend if scope == "per_channel" else spend.sum("channel"))
+        xr.testing.assert_allclose(parts["spend_change"], expected, rtol=1e-9)
+        assert "chain" not in parts["spend_change"].dims
+        label = EstimandLabel.read(parts["spend_change"])
+        assert label.definition == ("S(x') - S(x)" if factor > 1 else "S(x) - S(x')")
+
+    def test_a_ratio_of_the_parts_is_the_ratio_method(self, funnel_log_link_fitted_mmm):
+        """Arithmetic on one result reproduces a ratio, to rounding."""
+        incr = funnel_log_link_fitted_mmm.incrementality
+
+        parts = incr.decompose_incremental_contribution(frequency="all_time")
+        roas = incr.contribution_over_spend(frequency="all_time")
+
+        xr.testing.assert_allclose(
+            parts["total"] / parts["spend_change"], roas, rtol=1e-9
+        )
+
+
+# ============================================================================
+# The movement of mediator nodes, and the spend a counterfactual induces
+# ============================================================================
+#
+# A movement is compared with the node itself, read with
+# ``sample_posterior_predictive`` under actual spend and under the
+# counterfactual.
+
+LF_SPEND = "funnel_lf_spend"
+DEMAND = "funnel_demand"
+
+
+class IndicatorEffect(_NoDataEffect):
+    """An effect that measures a spend-driven indicator and adds nothing spend moves.
+
+    Its term does not read spend, so the model stays separable: one
+    all-channels counterfactual serves every channel's contribution.  The
+    indicator has no column per channel, so its movement cannot be read that
+    way.  With ``memory`` it also remembers a series of its own over twelve
+    dates, so on a shorter window it takes another value than on the full
+    date axis with spend unchanged, which only ``evaluation_mode`` can fix.
+    ``carryover_lags`` is the effect's ``additional_carryover_lags``, which
+    no reach reconciles, since its term does not read spend.
+    """
+
+    memory: bool = False
+    evaluation_mode: Literal["auto", "full"] = "auto"
+    carryover_lags: int | None = None
+
+    def incrementality_spec(self) -> IncrementalitySpec:
+        """Declare the indicator, reported in searches."""
+        return IncrementalitySpec(
+            additional_carryover_lags=self.carryover_lags,
+            evaluation_mode=self.evaluation_mode,
+            mediators=(
+                MediatorSpec(
+                    name="searches",
+                    variable=f"{self.prefix}_searches",
+                    units="searches",
+                    scale=250.0,
+                    is_spend=False,
+                ),
+            ),
+        )
+
+    def create_effect(self, mmm):
+        """Register the indicator and add a constant level."""
+        n_dates = len(mmm.model.coords["date"])
+        searches = pmd.math.tanh(mmm.channel_data_scaled.sum(dim="channel"))
+        if self.memory:
+            organic = pmd.Data(
+                f"{self.prefix}_organic",
+                1.0 + 0.5 * np.sin(np.arange(n_dates)),
+                dims="date",
+            )
+            memory = _media_transformation("memory", (), 12)
+            searches = searches + memory(organic, dim="date")
+        pmd.Deterministic(f"{self.prefix}_searches", searches)
+        level = pmd.Normal(f"{self.prefix}_level", sigma=0.1)
+        ones = pmd.Data(f"{self.prefix}_ones", np.ones(n_dates), dims="date")
+        return pmd.Deterministic(f"{self.prefix}_effect_contribution", level * ones)
+
+
+class TwoHubsEffect(_NoDataEffect):
+    """A mediator with a hub that can be reported and one that cannot.
+
+    The second hub keeps the ``channel`` dimension, and a movement per channel
+    of a node that already has one would have two meanings.
+    """
+
+    def incrementality_spec(self) -> IncrementalitySpec:
+        """Declare both hubs."""
+        return IncrementalitySpec(
+            role="mediator",
+            mediators=(
+                MediatorSpec(name="pooled", variable=f"{self.prefix}_pooled"),
+                MediatorSpec(name="split", variable=f"{self.prefix}_split"),
+            ),
+        )
+
+    def create_effect(self, mmm):
+        """Add both hubs, each with its own coefficient."""
+        spend = mmm.channel_data_scaled
+        pooled = pmd.Deterministic(
+            f"{self.prefix}_pooled", pmd.math.tanh(spend.sum(dim="channel"))
+        )
+        split = pmd.Deterministic(f"{self.prefix}_split", pmd.math.tanh(spend))
+        beta = pmd.HalfNormal(f"{self.prefix}_beta", sigma=1.0)
+        return pmd.Deterministic(
+            f"{self.prefix}_effect_contribution",
+            beta * (pooled + split.sum(dim="channel")),
+        )
+
+
+class ShrinkingHubEffect(HubEffect):
+    """A spend mediator that more channel spend makes smaller, by a lot."""
+
+    def create_effect(self, mmm):
+        """Add ``beta * hub`` with a hub that falls steeply with spend."""
+        spend = mmm.channel_data_scaled.sum(dim="channel")
+        hub = pmd.Deterministic(f"{self.prefix}_hub", -1e3 * pmd.math.tanh(spend))
+        beta = pmd.HalfNormal(f"{self.prefix}_beta", sigma=1e-3)
+        return pmd.Deterministic(f"{self.prefix}_effect_contribution", beta * hub)
+
+
+class MemoryNodeFunnelEffect(FunnelEffect):
+    """A funnel effect with one more declared node, which remembers another series.
+
+    The node adds a twelve-date adstock of ``lf_budget`` to demand.  On a window
+    shorter than that memory it takes another value than on the full date axis
+    with spend unchanged.
+    """
+
+    evaluation_mode: Literal["auto", "full"] = "auto"
+
+    def incrementality_spec(self) -> IncrementalitySpec:
+        """Add the node and the effect's evaluation mode to the funnel's declaration."""
+        spec = super().incrementality_spec()
+        index = MediatorSpec(name="index", variable=f"{self.prefix}_index")
+        return spec.model_copy(
+            update={
+                "mediators": (*spec.mediators, index),
+                "evaluation_mode": self.evaluation_mode,
+            }
+        )
+
+    def create_effect(self, mmm):
+        """Register the node next to the funnel's term."""
+        term = super().create_effect(mmm)
+        memory = _media_transformation("memory", (), 12)
+        pmd.Deterministic(
+            f"{self.prefix}_index",
+            mmm.model[f"{self.prefix}_demand"]
+            + memory(mmm.model["lf_budget"], dim="date"),
+        )
+        return term
+
+
+class IndexedHubEffect(_NoDataEffect):
+    """A hub, and a second node that scales it by a series written into the graph.
+
+    The series is a constant as long as the date axis and not ``pm.Data``, so
+    the node cannot be evaluated on a window.
+    """
+
+    def incrementality_spec(self) -> IncrementalitySpec:
+        """Declare the hub and the node built on it."""
+        return IncrementalitySpec(
+            role="mediator",
+            mediators=(
+                MediatorSpec(name="hub", variable=f"{self.prefix}_hub"),
+                MediatorSpec(name="index", variable=f"{self.prefix}_index"),
+            ),
+        )
+
+    def create_effect(self, mmm):
+        """Add ``beta * hub`` and register the hub times the constant series."""
+        spend = mmm.channel_data_scaled.sum(dim="channel")
+        hub = pmd.Deterministic(f"{self.prefix}_hub", pmd.math.tanh(spend))
+        n_dates = len(mmm.model.coords["date"])
+        series = pmd.as_xtensor(1.0 + 0.1 * np.arange(n_dates), dims=("date",))
+        pmd.Deterministic(f"{self.prefix}_index", hub * series)
+        beta = pmd.HalfNormal(f"{self.prefix}_beta", sigma=1.0)
+        return pmd.Deterministic(f"{self.prefix}_effect_contribution", beta * hub)
+
+
+def movement_oracle(
+    mmm, variable, *, frequency, factor=0.0, scope="per_channel", scale=1.0
+) -> xr.DataArray:
+    """The node's movement by brute force, laid out as the module's."""
+    incr = mmm.incrementality
+    dates = incr.data.dates
+    periods = incr._create_period_groups(dates[0], dates[-1], frequency)
+    channels = list(mmm.channel_columns)
+    keys = range(len(channels)) if scope == "per_channel" else [None]
+    factual = response(mmm, mmm.model["channel_data"].get_value(), var=variable)
+    sign = scale if factor <= 1.0 else -scale
+
+    stacked = []
+    for period in periods:
+        moves = [
+            sign
+            * (
+                factual
+                - response(mmm, moved_spend(mmm, period, key, factor), var=variable)
+            ).sum("date")
+            for key in keys
+        ]
+        stacked.append(
+            xr.concat(moves, dim=pd.Index(channels, name="channel"))
+            if scope == "per_channel"
+            else moves[0]
+        )
+    if frequency == "all_time":
+        return stacked[0]
+    ends = pd.DatetimeIndex([end for _, end in periods], name="date")
+    return xr.concat(stacked, dim=ends)
+
+
+def expected_complete(mmm, frequency, max_lag) -> list[bool]:
+    """Per period, whether its last spend date plus *max_lag* dates is still fitted."""
+    incr = mmm.incrementality
+    dates = incr.data.dates
+    periods = incr._create_period_groups(dates[0], dates[-1], frequency)
+    step = dates[1] - dates[0]
+    return [
+        bool(dates[dates <= end][-1] + max_lag * step <= dates[-1])
+        for _, end in periods
+    ]
+
+
+@pytest.fixture(scope="module")
+def indicator_fitted_mmm(funnel_mmm_data):
+    """Separable identity-link MMM with a measurement-only node."""
+    return _build_simple_effect_mmm(
+        funnel_mmm_data, IndicatorEffect(prefix="ind"), link="identity"
+    )
+
+
+@pytest.fixture(scope="module")
+def scaled_hub_fitted_mmm(funnel_mmm_data):
+    """Identity-link MMM whose hub is reported in impressions, 250 per model unit."""
+    return _build_simple_effect_mmm(
+        funnel_mmm_data,
+        HubEffect(prefix="halo", units="impressions", scale=250.0),
+        link="identity",
+    )
+
+
+@pytest.fixture(scope="module")
+def two_hubs_fitted_mmm(funnel_mmm_data):
+    """Identity-link MMM with one reportable hub and one that keeps ``channel``."""
+    return _build_simple_effect_mmm(
+        funnel_mmm_data, TwoHubsEffect(prefix="two"), link="identity"
+    )
+
+
+def _panel_mmm(panel_mmm_data, *effects) -> MMM:
+    """Mock-fitted panel MMM over two countries carrying *effects*."""
+    X = panel_mmm_data["X"].copy()
+    for column in X.columns[X.columns.str.startswith("channel_")]:
+        X[column] = X[column].astype(np.float64)
+    mmm = MMM(
+        channel_columns=["channel_1", "channel_2"],
+        date_column="date",
+        target_column="target",
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+    for effect in effects:
+        mmm.add_mu_effect(effect)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        mock_fit(mmm, X, panel_mmm_data["y"], random_seed=fit_seed)
+    return mmm
+
+
+@pytest.fixture(scope="module")
+def panel_hubs_fitted_mmm(panel_mmm_data):
+    """Panel MMM with a spend hub per country and a national one."""
+    return _panel_mmm(
+        panel_mmm_data,
+        HubEffect(prefix="local", units="USD", is_spend=True),
+        HubEffect(prefix="national", units="USD", is_spend=True, national=True),
+    )
+
+
+class TestIncrementalMediator:
+    """How far a spend counterfactual moves a declared node, in its reported units."""
+
+    @pytest.mark.parametrize(
+        "frequency, scope, factor",
+        [
+            ("all_time", "per_channel", 0.0),
+            ("monthly", "joint", 0.0),
+            ("all_time", "per_channel", 1.5),
+        ],
+    )
+    def test_a_movement_is_the_node_under_the_counterfactual(
+        self, funnel_log_link_fitted_mmm, frequency, scope, factor
+    ):
+        """Summed over each period's evaluated dates, per channel or for all at once.
+
+        More spend makes more demand in this model, so the movement is positive
+        whichever way spend is moved: above a factor of one it is counterfactual
+        minus actual.
+        """
+        mmm = funnel_log_link_fitted_mmm
+
+        moved = mmm.incrementality.compute_incremental_mediator(
+            frequency=frequency,
+            scope=scope,
+            counterfactual_spend_factor=factor,
+            mediators=[LF_SPEND],
+        )
+
+        expected = movement_oracle(
+            mmm, LF_SPEND, frequency=frequency, factor=factor, scope=scope
+        )
+        assert list(moved.data_vars) == [LF_SPEND]
+        assert_matches(moved[LF_SPEND], expected)
+        assert (moved[LF_SPEND] > 0).all()
+
+    def test_every_readable_mediator_is_reported_by_default(
+        self, funnel_log_link_fitted_mmm
+    ):
+        """One variable per declared node, each saying which node it is."""
+        moved = funnel_log_link_fitted_mmm.incrementality.compute_incremental_mediator(
+            frequency="all_time"
+        )
+
+        assert set(moved.data_vars) == {DEMAND, LF_SPEND}
+        assert moved.attrs == {}
+        label = EstimandLabel.read(moved[LF_SPEND])
+        assert label.quantity == "incremental_mediator"
+        assert (label.mediator, label.variable) == (LF_SPEND, LF_SPEND)
+        assert (label.units, label.is_spend) == ("USD", True)
+        assert (label.paths, label.central_tendency) == (None, None)
+        assert label.definition == "M(x) - M(x')"
+        assert EstimandLabel.read(moved[DEMAND]).is_spend is False
+
+    def test_a_movement_is_in_the_reported_units(self, scaled_hub_fitted_mmm):
+        """The declared scale converts model units before anything is summed."""
+        mmm = scaled_hub_fitted_mmm
+
+        moved = mmm.incrementality.compute_incremental_mediator(frequency="monthly")
+
+        expected = movement_oracle(mmm, "halo_hub", frequency="monthly", scale=250.0)
+        assert_matches(moved["halo"], expected)
+        assert EstimandLabel.read(moved["halo"]).units == "impressions"
+
+    def test_a_separable_model_still_moves_one_channel_at_a_time(
+        self, indicator_fitted_mmm
+    ):
+        """A node has no column per channel, so each channel gets its own row.
+
+        Read off the one all-channels counterfactual a separable model
+        evaluates, every channel would be given the joint movement.
+        """
+        mmm = indicator_fitted_mmm
+
+        moved = mmm.incrementality.compute_incremental_mediator(frequency="all_time")
+
+        expected = movement_oracle(
+            mmm, "ind_searches", frequency="all_time", scale=250.0
+        )
+        assert_matches(moved["searches"], expected)
+        per_channel = moved["searches"].mean(("chain", "draw"))
+        assert not np.isclose(per_channel[0], per_channel[1], rtol=1e-3)
+
+    def test_a_node_keeps_its_own_dimensions(self, panel_hubs_fitted_mmm):
+        """A national node in a panel model has no ``country`` to report."""
+        mmm = panel_hubs_fitted_mmm
+
+        moved = mmm.incrementality.compute_incremental_mediator(frequency="all_time")
+
+        assert moved["national"].dims == ("chain", "draw", "channel")
+        assert moved["local"].dims == ("chain", "draw", "channel", "country")
+        for name in ("national", "local"):
+            assert_matches(
+                moved[name],
+                movement_oracle(mmm, f"{name}_hub", frequency="all_time"),
+            )
+
+    def test_periods_the_data_cuts_short_are_marked(self, funnel_log_link_fitted_mmm):
+        """``complete`` is false where a node's carryover runs past the fitted dates.
+
+        Lower-funnel spend follows the model's adstock, whose kernel covers
+        ``FUNNEL_L_MAX`` dates.  Only the last month's spend still moves it
+        after the data ends.
+        """
+        mmm = funnel_log_link_fitted_mmm
+        incr = mmm.incrementality
+        reach = FUNNEL_L_MAX - 1
+
+        monthly = incr.compute_incremental_mediator(
+            frequency="monthly", mediators=[LF_SPEND]
+        )
+        without = incr.compute_incremental_mediator(
+            frequency="monthly", mediators=[LF_SPEND], include_carryover=False
+        )
+        all_time = incr.compute_incremental_mediator(
+            frequency="all_time", mediators=[LF_SPEND]
+        )
+
+        assert monthly[LF_SPEND]["complete"].dims == ("date",)
+        assert monthly[LF_SPEND]["complete"].values.tolist() == expected_complete(
+            mmm, "monthly", reach
+        )
+        assert monthly[LF_SPEND]["complete"].values.tolist() == [True] * 5 + [False]
+        assert without[LF_SPEND]["complete"].all()
+        assert all_time[LF_SPEND]["complete"].item() is False
+
+    @pytest.mark.parametrize(
+        ("mode", "l_max"),
+        [
+            (ConvMode.Before, FUNNEL_L_MAX),
+            (ConvMode.Before, 1),
+            (ConvMode.Overlap, 1),
+            (ConvMode.Overlap, 2),
+        ],
+        ids=str,
+    )
+    @pytest.mark.parametrize("link", ["identity", "log"])
+    def test_a_non_after_period_sums_the_forward_carryover_of_an_effect(
+        self, funnel_mmm_data, link, mode, l_max
+    ):
+        """Under a non-``After`` adstock a period sums every date after its end.
+
+        The model's own kernel moves at most ``l_max // 2`` dates after the
+        spend, but the funnel's second adstock carries lower-funnel spend
+        further.  The total, both paths and the movement match the brute-force
+        difference over every fitted date, and only the periods the data cuts
+        short are marked.  With ``Before`` and ``l_max=1``, or ``Overlap`` and
+        ``l_max`` up to 2, the kernel moves no date before the spend, which the
+        probe alone would evaluate on a window.
+        """
+        mmm = _build_funnel_mmm(
+            funnel_mmm_data, link=link, l_max=l_max, adstock_mode=mode
+        )
+        incr = mmm.incrementality
+
+        total = incr.compute_incremental_contribution(frequency="monthly")
+        parts = incr.decompose_incremental_contribution(frequency="monthly")
+        moved = incr.compute_incremental_mediator(
+            frequency="monthly", mediators=[LF_SPEND]
+        )
+
+        expected = oracle(mmm, frequency="monthly", held=FUNNEL_NODES)
+        assert_matches(total, expected["total"])
+        for name in ("total", "direct", "mediated"):
+            assert_matches(parts[name], expected[name])
+        assert_matches(
+            moved[LF_SPEND], movement_oracle(mmm, LF_SPEND, frequency="monthly")
+        )
+        assert moved[LF_SPEND]["complete"].values.tolist() == expected_complete(
+            mmm, "monthly", FUNNEL_L_MAX - 1
+        )
+
+    @pytest.mark.parametrize(
+        ("mode", "l_max"), [(ConvMode.Before, 1), (ConvMode.Overlap, 2)], ids=str
+    )
+    def test_a_full_axis_split_keeps_the_horizon_the_probe_measured(
+        self, funnel_mmm_data, mode, l_max
+    ):
+        """Full-axis evaluation of a non-``After`` model keeps the measured horizon.
+
+        The kernel moves no date before the spend and the probe bounds the
+        funnel's carryover, so the split reports the horizon and the unobserved
+        tail of the ``After`` model with ``l_max=1``, which stays on a window.
+        """
+
+        def split(adstock_mode, adstock_l_max):
+            mmm = _build_funnel_mmm(
+                funnel_mmm_data,
+                link="identity",
+                l_max=adstock_l_max,
+                adstock_mode=adstock_mode,
+            )
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", UserWarning)
+                return mmm.incrementality.split_incremental_contribution_over_time(
+                    frequency="monthly"
+                )
+
+        matrix = split(mode, l_max)
+        reference = split(ConvMode.After, 1)
+
+        assert json.loads(matrix.attrs["assumptions"])["evaluation"] == "full_axis"
+        assert json.loads(reference.attrs["assumptions"])["evaluation"] == "window"
+        assert matrix.attrs["effective_horizon"] == reference.attrs["effective_horizon"]
+        np.testing.assert_array_equal(
+            matrix.coords["observed"].values, reference.coords["observed"].values
+        )
+        assert not bool(matrix.coords["observed"].all())
+        notes = json.loads(matrix.attrs["warnings"])
+        assert not any("could not bound" in note for note in notes)
+
+    def test_a_full_axis_split_keeps_the_lags_the_probe_bounded(self, funnel_mmm_data):
+        """Where the probe cannot bound the reach, the tail keeps the lags it did bound.
+
+        ``Before`` with ``l_max=3`` moves dates before the spend, so
+        ``channel_contribution`` is full-axis and no horizon is reported.  The
+        probe still bounds the funnel effect's reach, 4 lags after the
+        spend.  The tail past the data is those 4 lags, not the kernel's 0
+        trailing lags under ``Before``.
+        """
+        mmm = _build_funnel_mmm(
+            funnel_mmm_data, link="identity", l_max=3, adstock_mode=ConvMode.Before
+        )
+        reach = measure_reach(mmm)
+        assert reach["channel_contribution"].requires_full_axis
+        assert not reach["funnel_effect_contribution"].requires_full_axis
+        tail = reach["funnel_effect_contribution"].max_lag
+        assert tail == 4
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            matrix = mmm.incrementality.split_incremental_contribution_over_time(
+                frequency="monthly"
+            )
+
+        dates = mmm.incrementality.data.dates
+        assert json.loads(matrix.attrs["assumptions"])["evaluation"] == "full_axis"
+        assert "effective_horizon" not in matrix.attrs
+        observed = matrix.coords["observed"]
+        # June's last spend is the last fitted date, so all 4 lags are past it.
+        assert int((~observed.isel(spend_date=-1)).sum()) == tail
+        last = pd.Timestamp(matrix.realization_date.values[-1])
+        assert last == dates[-1] + pd.Timedelta(weeks=tail)
+        assert bool(matrix.where(~observed).isnull().all())
+        notes = json.loads(matrix.attrs["warnings"])
+        assert any("runs past the end" in note for note in notes)
+
+    def test_a_full_axis_node_does_not_set_the_tail(self, funnel_mmm_data):
+        """A node whose reach the probe could not bound is left out of the tail.
+
+        The global effect normalizes over the whole axis, so its lag only says
+        the axis ended first.  The funnel effect stops 4 lags after the spend,
+        past the kernel's 2 trailing lags, and those 4 lags set the tail.
+        """
+        mmm = _build_funnel_mmm(
+            funnel_mmm_data,
+            link="identity",
+            effects=[_funnel_effect(), GlobalNormalizationEffect(prefix="global")],
+        )
+        reach = measure_reach(mmm)
+        assert reach["global_effect_contribution"].requires_full_axis
+        assert not reach["funnel_effect_contribution"].requires_full_axis
+        assert reach["funnel_effect_contribution"].max_lag == 4
+        assert mmm.adstock.l_max - 1 == 2
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            matrix = mmm.incrementality.split_incremental_contribution_over_time(
+                frequency="original"
+            )
+
+        observed = matrix.coords["observed"]
+        assert int((~observed.isel(spend_date=-1)).sum()) == 4
+
+    def test_a_date_reduction_that_stops_moving_early_does_not_set_the_tail(
+        self, funnel_mmm_data
+    ):
+        """A node that reduces over ``date`` is no carryover bound, even short of the end.
+
+        With no spend in the last 6 weeks, normalizing spend by its date-mean
+        moves nothing there, so the effect's last moved date falls short of the
+        axis end.  That lag is not carryover, so the tail stays the kernel's 2
+        trailing lags past the last date.
+        """
+        X_df = funnel_mmm_data["X_df"].copy()
+        X_df.loc[X_df.index[-6:], ["channel_1", "channel_2"]] = 0.0
+        mmm = _build_simple_effect_mmm(
+            {**funnel_mmm_data, "X_df": X_df},
+            GlobalNormalizationEffect(prefix="global"),
+            link="identity",
+        )
+        probe, _, effects = build_spend_probe(mmm)
+        (probe_index,) = probe.probe_indices
+        reach = probe.measure(
+            effects=effects,
+            l_max=mmm.adstock.l_max,
+            trailing_lags=kernel_trailing_lags(mmm.adstock.l_max, mmm.adstock.mode),
+        ).measured["global_effect_contribution"]
+        assert reach.requires_full_axis
+        # The last date the effect moves is before the last fitted date.
+        assert probe_index + reach.max_lag < len(X_df) - 1
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            matrix = mmm.incrementality.split_incremental_contribution_over_time(
+                frequency="original"
+            )
+
+        tail = mmm.adstock.l_max - 1
+        assert tail == 2
+        assert matrix.sizes["realization_date"] == len(X_df) + tail
+
+    def test_where_no_probe_can_be_placed_the_declarations_mark(
+        self, no_probe_funnel_mmm
+    ):
+        """The kernel's lags and the lags the funnel declares stand in for a measurement.
+
+        A request for mediators alone returns no increment, so it is not told
+        that the accounting of one goes unverified.
+        """
+        mmm = no_probe_funnel_mmm
+
+        with pytest.warns(UserWarning, match="could not be measured") as caught:
+            moved = mmm.incrementality.compute_incremental_mediator(
+                frequency="monthly", mediators=[LF_SPEND]
+            )
+
+        assert not any("unverified" in str(warning.message) for warning in caught)
+        declared = (FUNNEL_L_MAX - 1) + FUNNEL_L_MAX
+        assert moved[LF_SPEND]["complete"].values.tolist() == expected_complete(
+            mmm, "monthly", declared
+        )
+
+    @pytest.mark.parametrize("declared", [4, None])
+    def test_where_no_probe_can_be_placed_a_node_s_own_effects_mark_it(
+        self, funnel_mmm_data, declared
+    ):
+        """The effect that declares a node bounds it, also one whose term reads no spend.
+
+        That effect is in no reach, so only its declaration says how far the
+        node carries spend.  Without one, nothing bounds the node and no period
+        is vouched for.
+        """
+        mmm = _build_simple_effect_mmm(
+            no_probe_data(funnel_mmm_data),
+            IndicatorEffect(prefix="ind", carryover_lags=declared),
+            link="identity",
+        )
+
+        with pytest.warns(UserWarning, match="could not be measured"):
+            moved = mmm.incrementality.compute_incremental_mediator(frequency="monthly")
+
+        marks = moved["searches"]["complete"].values.tolist()
+        if declared is None:
+            assert marks == [False] * len(marks)
+        else:
+            expected = expected_complete(mmm, "monthly", (FUNNEL_L_MAX - 1) + declared)
+            assert marks == expected
+            assert True in expected and False in expected
+
+    def test_a_node_that_differs_on_a_window_is_named(self, funnel_mmm_data):
+        """Its movement on a window is not the effect of spend alone.
+
+        The refusal names the node and the fix, and the fix works: declared as
+        needing the full axis, the node is reported and matches the
+        intervention.  A request that does not read the node is answered.
+        """
+        windowed = _build_funnel_mmm(
+            funnel_mmm_data,
+            link="log",
+            effects=[_funnel_effect(MemoryNodeFunnelEffect)],
+        )
+        full = _build_funnel_mmm(
+            funnel_mmm_data,
+            link="log",
+            effects=[
+                _funnel_effect(MemoryNodeFunnelEffect).model_copy(
+                    update={"evaluation_mode": "full"}
+                )
+            ],
+        )
+
+        with pytest.raises(ValueError, match=r"(?s)'index'.*evaluation_mode='full'"):
+            windowed.incrementality.compute_incremental_mediator(frequency="monthly")
+        others = windowed.incrementality.compute_incremental_mediator(
+            frequency="monthly", mediators=[LF_SPEND]
+        )
+        moved = full.incrementality.compute_incremental_mediator(
+            frequency="monthly", mediators=["index"]
+        )
+
+        assert_matches(
+            others[LF_SPEND], movement_oracle(windowed, LF_SPEND, frequency="monthly")
+        )
+        assert_matches(
+            moved["index"], movement_oracle(full, "funnel_index", frequency="monthly")
+        )
+
+    def test_a_node_whose_effect_reads_no_spend_gets_the_full_axis_it_declares(
+        self, funnel_mmm_data
+    ):
+        """The declaration of the effect that declares a node holds for the node.
+
+        Without it the indicator is refused by name, with that declaration as
+        the fix; with it the indicator is reported and matches the intervention.
+        """
+        windowed, full = (
+            _build_simple_effect_mmm(
+                funnel_mmm_data,
+                IndicatorEffect(prefix="ind", memory=True, evaluation_mode=mode),
+                link="identity",
+            )
+            for mode in ("auto", "full")
+        )
+
+        with pytest.raises(ValueError, match=r"(?s)'searches'.*evaluation_mode='full'"):
+            windowed.incrementality.compute_incremental_mediator(frequency="monthly")
+        moved = full.incrementality.compute_incremental_mediator(frequency="monthly")
+
+        assert_matches(
+            moved["searches"],
+            movement_oracle(full, "ind_searches", frequency="monthly", scale=250.0),
+        )
+
+    def test_a_declared_full_axis_keeps_the_measured_marks(self, funnel_mmm_data):
+        """Evaluating on the full date axis does not change how far a period reaches.
+
+        The probe still measures the last lag at which each node moves, and the
+        marks are read off those lags, as they are on a window.
+        """
+        mmm = _build_funnel_mmm(
+            funnel_mmm_data,
+            link="log",
+            effects=[
+                _funnel_effect(MemoryNodeFunnelEffect).model_copy(
+                    update={"evaluation_mode": "full"}
+                )
+            ],
+        )
+        incr = mmm.incrementality
+
+        ratio = incr.contribution_over_spend(
+            frequency="monthly", induced_spend=[LF_SPEND]
+        )
+        moved = incr.compute_incremental_mediator(
+            frequency="monthly", mediators=[LF_SPEND]
+        )
+
+        assert ratio["complete"].values.tolist() == expected_complete(
+            mmm, "monthly", 2 * (FUNNEL_L_MAX - 1)
+        )
+        assert moved[LF_SPEND]["complete"].values.tolist() == expected_complete(
+            mmm, "monthly", FUNNEL_L_MAX - 1
+        )
+
+    def test_a_request_evaluates_only_the_nodes_it_reads(self, funnel_mmm_data):
+        """A node the request does not name cannot fail it.
+
+        The other node of this effect cannot be evaluated on a window at all.
+        """
+        mmm = _build_simple_effect_mmm(
+            funnel_mmm_data, IndexedHubEffect(prefix="i"), link="log"
+        )
+
+        moved = mmm.incrementality.compute_incremental_mediator(
+            frequency="monthly", mediators=["hub"]
+        )
+
+        assert_matches(moved["hub"], movement_oracle(mmm, "i_hub", frequency="monthly"))
+
+    def test_a_node_that_cannot_be_reported_is_named(self, two_hubs_fitted_mmm):
+        """Left out of the default with a warning, and refused when asked for."""
+        incr = two_hubs_fitted_mmm.incrementality
+
+        with pytest.warns(UserWarning, match=r"'split'.*'channel' dimension"):
+            moved = incr.compute_incremental_mediator(frequency="all_time")
+        assert list(moved.data_vars) == ["pooled"]
+
+        with pytest.raises(ValueError, match=r"'split'.*'channel' dimension"):
+            incr.compute_incremental_mediator(frequency="all_time", mediators=["split"])
+
+    @pytest.mark.parametrize(
+        "nodes, declared, reads_response, lags",
+        [
+            pytest.param(
+                {"hub": 2}, 9, False, 2, id="a measurement over a declaration"
+            ),
+            pytest.param(
+                {"hub": 2}, None, False, 2, id="a measurement with nothing declared"
+            ),
+            pytest.param(
+                {"hub": 2}, 9, True, 3, id="a response floored at the kernel's lags"
+            ),
+            pytest.param(
+                {}, 4, False, 3 + 4, id="no probe: the kernel and the declaration"
+            ),
+            pytest.param({}, None, False, None, id="no probe and nothing declared"),
+            pytest.param({"hub": None}, 9, False, None, id="a node with no last lag"),
+        ],
+    )
+    def test_the_marks_read_the_measured_last_lag(
+        self, nodes, declared, reads_response, lags
+    ):
+        """How far a period's carryover lands, from what the probe measured.
+
+        ``None`` in *nodes* stands for a node the probe found still moving at
+        the end of the axis, and an empty *nodes* for a model no probe could be
+        placed on.
+        """
+        measured = {
+            name: (
+                TemporalReach.full_axis()
+                if last is None
+                else TemporalReach(
+                    additional_carryover_lags=0,
+                    requires_full_axis=False,
+                    max_lag=last,
+                )
+            )
+            for name, last in nodes.items()
+        }
+        full_axis = not measured or any(
+            reach.requires_full_axis for reach in measured.values()
+        )
+        reach = SpendReach(
+            effective_l_max=3 + 4,
+            requires_full_axis=full_axis,
+            measured=measured,
+            max_lag=None if full_axis else 2,
+        )
+
+        found = Incrementality._carryover_lags(
+            ["hub"],
+            reach,
+            kernel_lags=3,
+            declared_lags={"hub": declared},
+            reads_response=reads_response,
+        )
+
+        assert found == lags
+
+    @pytest.mark.parametrize(
+        "mediators, complaint",
+        [
+            pytest.param(LF_SPEND, "sequence of names", id="a bare string"),
+            pytest.param([1], "sequence of names", id="a number for a name"),
+            pytest.param([], "at least one", id="an empty list"),
+            pytest.param(
+                [LF_SPEND, LF_SPEND], "more than once", id="a name given twice"
+            ),
+        ],
+    )
+    def test_a_request_for_no_usable_mediator_is_refused(
+        self, funnel_log_link_fitted_mmm, mediators, complaint
+    ):
+        """Refused before anything is compiled."""
+        with pytest.raises(ValueError, match=complaint):
+            funnel_log_link_fitted_mmm.incrementality.compute_incremental_mediator(
+                frequency="all_time", mediators=mediators
+            )
+
+
+class TestInducedSpend:
+    """Spend a counterfactual induces downstream, next to the spend it moves."""
+
+    def test_a_roas_over_all_incremental_spend(self, funnel_log_link_fitted_mmm):
+        """Numerator and denominator are each the intervention's, on the same draws."""
+        mmm = funnel_log_link_fitted_mmm
+        incr = mmm.incrementality
+        spend = incr._aggregate_spend("all_time")
+
+        roas = incr.contribution_over_spend(
+            frequency="all_time", induced_spend=[LF_SPEND]
+        )
+
+        total = oracle(mmm, frequency="all_time")["total"]
+        induced = movement_oracle(mmm, LF_SPEND, frequency="all_time")
+        assert_matches(roas, total / (spend + induced))
+        assert bool((roas < incr.contribution_over_spend(frequency="all_time")).all())
+        label = EstimandLabel.read(roas)
+        assert (label.induced_spend, label.induced_spend_units) == ((LF_SPEND,), "USD")
+        assert label.definition == "[Y(x) - Y(x')] / [S(x) - S(x') + M(x) - M(x')]"
+
+    def test_the_reciprocal_and_the_marginal_ratio_take_it_too(
+        self, funnel_log_link_fitted_mmm
+    ):
+        """Each method adds the induced movement to its own denominator."""
+        incr = funnel_log_link_fitted_mmm.incrementality
+        spend = incr._aggregate_spend("monthly")
+        raised = {"frequency": "monthly", "counterfactual_spend_factor": 1.05}
+        total = incr.compute_incremental_contribution(**raised)
+        induced = incr.compute_incremental_mediator(**raised, mediators=[LF_SPEND])
+
+        marginal = incr.marginal_contribution_over_spend(
+            frequency="monthly", spend_increase_pct=0.05, induced_spend=[LF_SPEND]
+        )
+        roas = incr.contribution_over_spend(
+            frequency="monthly", induced_spend=[LF_SPEND]
+        )
+        cac = incr.spend_over_contribution(
+            frequency="monthly", induced_spend=[LF_SPEND]
+        )
+
+        assert_matches(marginal, total / (0.05 * spend + induced[LF_SPEND]), rtol=1e-9)
+        xr.testing.assert_allclose(cac, 1.0 / roas, rtol=1e-12)
+        assert EstimandLabel.read(marginal).definition == (
+            "[Y(x') - Y(x)] / [S(x') - S(x) + M(x') - M(x)]"
+        )
+        assert EstimandLabel.read(cac).induced_spend == (LF_SPEND,)
+
+    def test_a_ratio_and_the_decomposition_share_one_mark(
+        self, funnel_log_link_fitted_mmm
+    ):
+        """The numerator's carryover reaches further than the mediator's.
+
+        The mediated path chains the funnel's adstock behind the model's, so a
+        period's response still moves two kernels after its spend.  Every
+        variable of the decomposition carries the request's mark, and its label
+        says so, which the label of the same variable without induced spend
+        does not.
+        """
+        mmm = funnel_log_link_fitted_mmm
+        expected = expected_complete(mmm, "monthly", 2 * (FUNNEL_L_MAX - 1))
+
+        roas = mmm.incrementality.contribution_over_spend(
+            frequency="monthly", induced_spend=[LF_SPEND]
+        )
+        parts = mmm.incrementality.decompose_incremental_contribution(
+            frequency="monthly", induced_spend=[LF_SPEND]
+        )
+        unmarked = mmm.incrementality.decompose_incremental_contribution(
+            frequency="monthly"
+        )
+
+        assert expected == [True] * 4 + [False] * 2
+        assert roas["complete"].values.tolist() == expected
+        assert parts["complete"].values.tolist() == expected
+        assert set(parts.data_vars) == {
+            "total",
+            "direct",
+            "mediated",
+            "spend_change",
+            "induced_spend",
+        }
+        assert all(EstimandLabel.read(parts[name]).marked for name in parts.data_vars)
+        assert not EstimandLabel.read(unmarked["total"]).marked
+
+    def test_induced_spend_goes_with_the_total_path(self, funnel_log_link_fitted_mmm):
+        """With the mediators held there is no induced movement to add."""
+        with pytest.raises(ValueError, match="paths='total'"):
+            funnel_log_link_fitted_mmm.incrementality.contribution_over_spend(
+                frequency="all_time", paths="direct", induced_spend=[LF_SPEND]
+            )
+
+    def test_spend_mediators_in_one_currency_add_up(self, panel_mmm_data):
+        """The named mediators are summed into one induced movement."""
+        mmm = _panel_mmm(
+            panel_mmm_data,
+            HubEffect(prefix="dollars", units="USD", is_spend=True),
+            HubEffect(prefix="more", units="USD", is_spend=True),
+        )
+        incr = mmm.incrementality
+
+        parts = incr.decompose_incremental_contribution(
+            frequency="all_time", induced_spend=["dollars", "more"]
+        )
+        moved = incr.compute_incremental_mediator(
+            frequency="all_time", mediators=["dollars", "more"]
+        )
+
+        assert_matches(
+            parts["induced_spend"], moved["dollars"] + moved["more"], rtol=1e-12
+        )
+
+    def test_a_national_mediator_is_not_spread_over_the_geos(
+        self, panel_hubs_fitted_mmm
+    ):
+        """A ratio per geo has no place for it; the decomposition returns it as it is.
+
+        Added to a per-geo denominator, a national movement would be counted
+        once for every geo.  A per-geo node has the model's dimensions, and the
+        two are not added into one movement.
+        """
+        incr = panel_hubs_fitted_mmm.incrementality
+
+        with pytest.raises(ValueError, match=r"'national'.*\('country',\)"):
+            incr.contribution_over_spend(
+                frequency="all_time", induced_spend=["national"]
+            )
+        with pytest.raises(
+            ValueError, match=r"\{'national': \(\), 'local': \('country',\)\}"
+        ):
+            incr.decompose_incremental_contribution(
+                frequency="all_time", induced_spend=["national", "local"]
+            )
+        parts = incr.decompose_incremental_contribution(
+            frequency="all_time", induced_spend=["national"]
+        )
+        moved = incr.compute_incremental_mediator(
+            frequency="all_time", mediators=["national"]
+        )
+
+        assert parts["induced_spend"].dims == ("chain", "draw", "channel")
+        assert_matches(parts["induced_spend"], moved["national"], rtol=1e-12)
+        label = EstimandLabel.read(parts["induced_spend"])
+        assert (label.quantity, label.induced_spend) == ("induced_spend", ("national",))
+        assert label.induced_spend_units == "USD"
+        # Each part summed over its own dimensions before anything is divided.
+        cells = ("channel", "country")
+        roas = parts["total"].sum(cells) / (
+            parts["spend_change"].sum(cells) + parts["induced_spend"].sum("channel")
+        )
+        assert roas.dims == ("chain", "draw")
+        assert bool(np.isfinite(roas).all())
+
+    def test_a_period_without_a_fitted_date_is_answered(
+        self, funnel_log_link_fitted_mmm
+    ):
+        """A range that starts between two fitted dates leaves its first period empty.
+
+        No spend is moved in such a period.  The decomposition reports a spend
+        change of zero for it, and a ratio leaves it out, as it does without
+        induced spend.
+        """
+        incr = funnel_log_link_fitted_mmm.incrementality
+        request = {"frequency": "monthly", "start_date": "2023-01-31"}
+
+        parts = incr.decompose_incremental_contribution(
+            **request, induced_spend=[LF_SPEND]
+        )
+        with_induced = incr.contribution_over_spend(**request, induced_spend=[LF_SPEND])
+        marginal = incr.marginal_contribution_over_spend(
+            **request, induced_spend=[LF_SPEND]
+        )
+        plain = incr.contribution_over_spend(**request)
+
+        assert parts.sizes["date"] == plain.sizes["date"] + 1
+        empty = parts.isel(date=0)
+        assert float(np.abs(empty["spend_change"]).max()) == 0.0
+        assert float(np.abs(empty["total"]).max()) == 0.0
+        for ratio in (with_induced, marginal):
+            assert ratio.indexes["date"].equals(plain.indexes["date"])
+            assert ratio["complete"].dims == ("date",)
+        assert_matches(
+            with_induced,
+            (parts["total"] / (parts["spend_change"] + parts["induced_spend"])).sel(
+                date=plain["date"]
+            ),
+            rtol=1e-9,
+        )
+
+    def test_a_denominator_that_is_not_positive_is_not_divided_by(
+        self, funnel_mmm_data
+    ):
+        """Such a draw is ``NaN``, and the call says how many there are."""
+        mmm = _build_simple_effect_mmm(
+            funnel_mmm_data,
+            ShrinkingHubEffect(prefix="shrink", units="USD", is_spend=True),
+            link="identity",
+        )
+
+        with pytest.warns(UserWarning, match=r"100\.0% of the draws"):
+            roas = mmm.incrementality.contribution_over_spend(
+                frequency="all_time", induced_spend=["shrink"]
+            )
+
+        assert roas.isnull().all()
+
+
+class TestMediatorsTable:
+    """The declared nodes of a model, and what is wrong with each."""
+
+    def test_one_row_per_declared_node(self, funnel_log_link_fitted_mmm):
+        """What a user can pass as ``mediators`` or ``induced_spend``."""
+        table = funnel_log_link_fitted_mmm.incrementality.mediators
+
+        assert list(table.columns) == [
+            "name",
+            "variable",
+            "effects",
+            "units",
+            "scale",
+            "is_spend",
+            "feeds_term",
+            "readable",
+            "problem",
+            "unreadable",
+        ]
+        assert table["name"].tolist() == [DEMAND, LF_SPEND]
+        assert table["is_spend"].tolist() == [False, True]
+        # Missing text is None in every column, with or without text beside it.
+        assert table["units"].tolist() == [None, "USD"]
+        assert table["problem"].tolist() == [None, None]
+        assert table["readable"].all()
+        assert table["effects"].tolist() == [("FunnelEffect",)] * 2
+
+    def test_a_fault_is_a_row_and_not_an_exception(self, two_hubs_fitted_mmm):
+        """The table lists a node that cannot be reported, with the reason."""
+        table = two_hubs_fitted_mmm.incrementality.mediators.set_index("name")
+
+        assert bool(table.loc["pooled", "readable"])
+        assert not table.loc["split", "readable"]
+        assert "'channel' dimension" in table.loc["split", "unreadable"]
+        assert table.loc["split", "problem"] is None
+
+    def test_a_model_without_declarations_has_an_empty_table(self, simple_fitted_mmm):
+        """The columns are there, with nothing in them."""
+        table = simple_fitted_mmm.incrementality.mediators
+
+        assert len(table) == 0
+        assert "readable" in table.columns
+
+
+def test_the_paths_of_a_panel_model_match_holding_its_hubs(panel_hubs_fitted_mmm):
+    """A hub per country and a national one are both held, each in its own dimensions."""
+    mmm = panel_hubs_fitted_mmm
+
+    parts = mmm.incrementality.decompose_incremental_contribution(frequency="all_time")
+
+    expected = oracle(mmm, frequency="all_time", held=["local_hub", "national_hub"])
+    assert EstimandLabel.read(parts["direct"]).held == (
+        "local_effect_contribution",
+        "national_effect_contribution",
+    )
+    for path in ("total", "direct", "mediated"):
+        assert_matches(parts[path], expected[path])
+    assert float(np.abs(parts["mediated"]).max()) > 0
+
+
+class TestPathDeltas:
+    """The change in the linear predictor, one node and one column at a time.
+
+    Synthetic arrays, no model.  The change is read through the window's
+    slices; the reference differences every node over the evaluation masks in
+    full, then keeps a ``channel_contribution`` column or sums the channels.
+    """
+
+    DATES = pd.date_range("2023-01-01", periods=6, freq="W-SUN")
+    N_SAMPLES = 3
+    GEOS = ["g0", "g1"]
+    CHANNELS = ["c0", "c1", "c2"]
+    # The channel axis is not the first non-date axis, so reading a column has
+    # to find it.
+    NON_DATE_DIMS = {
+        "channel_contribution": ("geo", "channel"),
+        "effect_contribution": ("geo",),
+        "mu": ("geo",),
+    }
+
+    @pytest.fixture
+    def windows(self):
+        return EvaluationWindows.build(
+            periods=[(self.DATES[0], self.DATES[1]), (self.DATES[3], self.DATES[4])],
+            dates=self.DATES,
+            l_max=2,
+            freq_offset=pd.tseries.frequencies.to_offset("W-SUN"),
+        )
+
+    @pytest.fixture
+    def arrays(self, windows):
+        rng = np.random.default_rng(0)
+        sizes = {"geo": len(self.GEOS), "channel": len(self.CHANNELS)}
+        counterfactual, baseline = {}, {}
+        for name, dims in self.NON_DATE_DIMS.items():
+            shape = tuple(sizes[dim] for dim in dims)
+            counterfactual[name] = rng.normal(
+                size=(2 * len(windows), self.N_SAMPLES, windows.max_window, *shape)
+            )
+            baseline[name] = rng.normal(size=(self.N_SAMPLES, len(self.DATES), *shape))
+        return counterfactual, baseline
+
+    def _reference(
+        self, counterfactual, baseline, row, window, mask, channel, effects, held
+    ):
+        def delta(name):
+            dims = self.NON_DATE_DIMS[name]
+            return xr.DataArray(
+                counterfactual[name][row][:, mask] - baseline[name][:, window.in_eval],
+                dims=("sample", "date", *dims),
+                coords={
+                    "date": window.eval_dates,
+                    "geo": self.GEOS,
+                    **({"channel": self.CHANNELS} if "channel" in dims else {}),
+                },
+            )
+
+        contribution = delta("channel_contribution")
+        kept = (
+            contribution.sum(dim="channel")
+            if channel is None
+            else contribution.isel(channel=channel, drop=True)
+        )
+        released = None
+        for name in effects:
+            if name in held:
+                released = delta(name) if released is None else released + delta(name)
+            else:
+                kept = kept + delta(name)
+        return kept, released
+
+    @pytest.mark.parametrize(
+        "effects, held",
+        [
+            ((), ()),
+            (("effect_contribution",), ()),
+            (("effect_contribution",), ("effect_contribution",)),
+        ],
+        ids=["no-effect", "effect", "held-effect"],
+    )
+    @pytest.mark.parametrize("channel", [None, 0, 2])
+    def test_matches_differencing_every_node_in_full(
+        self, windows, arrays, channel, effects, held
+    ):
+        """Bitwise the same change, column read or channels summed, held or kept."""
+        counterfactual, baseline = arrays
+
+        for period_idx, window in enumerate(windows.windows):
+            row = 2 * period_idx + 1
+            mask = eval_mask(window, windows.max_window)
+            got = Incrementality._path_deltas(
+                row=row,
+                cf_slice=window.window_eval_slice,
+                window_dates=window.eval_dates,
+                baseline={
+                    name: values[:, window.eval_slice]
+                    for name, values in baseline.items()
+                },
+                counterfactual=counterfactual,
+                non_date_dims=self.NON_DATE_DIMS,
+                coords={"geo": np.array(self.GEOS), "channel": np.array(self.CHANNELS)},
+                effect_names=effects,
+                channel=channel,
+                held_terms=held,
+            )
+            kept, released = self._reference(
+                counterfactual, baseline, row, window, mask, channel, effects, held
+            )
+
+            xr.testing.assert_identical(got.kept, kept)
+            if released is None:
+                assert got.released is None
+            else:
+                xr.testing.assert_identical(got.released, released)

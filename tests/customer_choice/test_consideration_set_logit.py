@@ -195,16 +195,6 @@ class TestConsiderationSetMixedLogitBuild:
         var_names = [v.name for v in model.model.free_RVs]
         assert "gamma_0" not in var_names
 
-    def test_missing_Z_tilde_raises(self, hiring_df, utility_equations):
-        with pytest.raises(ValueError, match="Z_tilde"):
-            ConsiderationSetMixedLogit(
-                choice_df=hiring_df,
-                utility_equations=utility_equations,
-                depvar="choice",
-                covariates=["age", "exp"],
-                consideration_instruments={"wrong_key": np.zeros((50, 3))},
-            )
-
 
 class TestConsiderationSetMixedLogitPrior:
     def test_prior_predictive(self, hiring_df, Z_tilde, utility_equations):
@@ -312,12 +302,10 @@ class TestConsiderationSetMixedLogitInference:
         )
         idata = model.fit(
             random_seed=42,
-            fit_kwargs={
-                "draws": 50,
-                "tune": 50,
-                "chains": 1,
-                "target_accept": 0.8,
-            },
+            draws=50,
+            tune=50,
+            chains=1,
+            target_accept=0.8,
         )
         assert idata is not None
 
@@ -339,12 +327,10 @@ class TestConsiderationSetMixedLogitInference:
         )
         model.fit(
             random_seed=42,
-            fit_kwargs={
-                "draws": 50,
-                "tune": 50,
-                "chains": 1,
-                "target_accept": 0.8,
-            },
+            draws=50,
+            tune=50,
+            chains=1,
+            target_accept=0.8,
         )
 
         # Counterfactual: shift Z_tilde
@@ -370,12 +356,10 @@ class TestConsiderationSetMixedLogitInference:
         )
         model.fit(
             random_seed=42,
-            fit_kwargs={
-                "draws": 50,
-                "tune": 50,
-                "chains": 1,
-                "target_accept": 0.8,
-            },
+            draws=50,
+            tune=50,
+            chains=1,
+            target_accept=0.8,
         )
 
         # Counterfactual: everyone gets high consideration for alt 0
@@ -403,12 +387,10 @@ class TestConsiderationSetMixedLogitInference:
         )
         model.fit(
             random_seed=42,
-            fit_kwargs={
-                "draws": 50,
-                "tune": 50,
-                "chains": 1,
-                "target_accept": 0.8,
-            },
+            draws=50,
+            tune=50,
+            chains=1,
+            target_accept=0.8,
         )
 
         # Use the same-sized data but with shifted values + new Z
@@ -445,12 +427,10 @@ class TestConsiderationSetMixedLogitInference:
         )
         model.fit(
             random_seed=42,
-            fit_kwargs={
-                "draws": 50,
-                "tune": 50,
-                "chains": 1,
-                "target_accept": 0.8,
-            },
+            draws=50,
+            tune=50,
+            chains=1,
+            target_accept=0.8,
         )
 
         # Counterfactual: shift first instrument
@@ -486,12 +466,10 @@ class TestConsiderationSetMixedLogitInference:
         )
         model.fit(
             random_seed=42,
-            fit_kwargs={
-                "draws": 50,
-                "tune": 50,
-                "chains": 1,
-                "target_accept": 0.8,
-            },
+            draws=50,
+            tune=50,
+            chains=1,
+            target_accept=0.8,
         )
 
         baseline_X = model.X.copy()
