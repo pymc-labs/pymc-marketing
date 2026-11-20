@@ -968,4 +968,3 @@ msgstr "Validación fuera de muestra"
 msgid "see the advanced version: {ref}`mmm_upper_funnel_causal_approach`."
 msgstr ""
 "consulte la versión avanzada: {ref}`mmm_upper_funnel_causal_approach`."
-

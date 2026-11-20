@@ -464,4 +464,3 @@ msgstr ""
 "negras). Una buena superposición entre las estimaciones posteriores y las "
 "curvas verdaderas valida que el modelo descompone correctamente la señal "
 "total del objetivo en efectos individuales por canal."
-

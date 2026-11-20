@@ -2349,4 +2349,3 @@ msgid "{ref}`mmm_geolift_calibration` for calibration with geo-level experiments
 msgstr ""
 "{ref}`mmm_geolift_calibration` para la calibración con experimentos a nivel "
 "geográfico."
-

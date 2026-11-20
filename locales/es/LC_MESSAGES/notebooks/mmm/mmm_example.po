@@ -1750,4 +1750,3 @@ msgstr ""
 #~ "(es decir, `one_time`) $x_1$ tiene "
 #~ "contribuciones con retardo más grandes "
 #~ "que $x_2$."
-

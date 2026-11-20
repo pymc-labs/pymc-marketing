@@ -842,4 +842,3 @@ msgstr ""
 "Caso de estudio de calibración con ROAS de PyMC-Marketing: [Calibración de "
 "un MMM con estimaciones de ROAS](https://www.pymc-"
 "marketing.io/en/stable/notebooks/mmm/mmm_roas_calibration.html)."
-

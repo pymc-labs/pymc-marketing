@@ -4083,4 +4083,3 @@ msgstr ""
 "pruebas de elevación <mmm_lift_test>` muestra cómo entra la evidencia "
 "experimental en un MMM; y el {ref}`cuaderno de PIE <pie_example>` predice la"
 " incrementalidad de campaña directamente a partir de experimentos."
-

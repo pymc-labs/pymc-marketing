@@ -765,4 +765,3 @@ msgstr "`budget_bounds` como `xarray.DataArray`"
 #: 6ecbd25c270c4a498ac32490fe979551
 msgid "`start_date`/`end_date` in wrapper constructor"
 msgstr "`start_date`/`end_date` en el constructor del wrapper"
-

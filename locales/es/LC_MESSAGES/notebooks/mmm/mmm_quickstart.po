@@ -819,4 +819,3 @@ msgstr ""
 "Juan Orduz, [Estimación de efectos de medios con PyMC: Adstock, "
 "Saturación y Rendimientos "
 "decrecientes](https://juanitorduz.github.io/pymc_mmm/)"
-

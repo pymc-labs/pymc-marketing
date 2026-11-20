@@ -1104,4 +1104,3 @@ msgstr ""
 #~ "estos eventos estén por debajo del "
 #~ "tamaño del efecto mínimo detectable en"
 #~ " este ejemplo.*"
-

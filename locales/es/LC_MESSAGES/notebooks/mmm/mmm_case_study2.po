@@ -4121,4 +4121,3 @@ msgstr ""
 "sin diferencias, y la log-probabilidad en el mismo punto inicial coincide "
 "hasta el último dígito (la diferencia absoluta se imprime arriba). El "
 "archivo YAML describe este modelo, y no a un pariente cercano suyo."
-

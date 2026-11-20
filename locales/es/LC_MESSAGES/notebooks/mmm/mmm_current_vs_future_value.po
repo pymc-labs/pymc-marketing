@@ -1332,4 +1332,3 @@ msgstr ""
 "Con el valor predeterminado `adstock_first=True` la división sigue "
 "funcionando, pero el contrafactual y la asignación difieren, y cada uno "
 "concilia con una cantidad distinta."
-

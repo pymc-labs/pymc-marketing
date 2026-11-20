@@ -846,4 +846,3 @@ msgid ""
 msgstr ""
 "**Personalizable**: se admiten todos los kwargs de Plotly Express (título, "
 "altura, ancho, colores, etc.)"
-

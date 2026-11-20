@@ -1662,4 +1662,3 @@ msgstr ""
 #~ "Realizar diversos experimentos para cada "
 #~ "canal con diferentes gastos traerá los"
 #~ " mejores resultados."
-

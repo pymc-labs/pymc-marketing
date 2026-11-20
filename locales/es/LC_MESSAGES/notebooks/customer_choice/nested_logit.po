@@ -409,4 +409,3 @@ msgstr ""
 #~ "varían ligeramente en los parámetros "
 #~ "estimados. Verifiquemos las inferencias "
 #~ "contrafactuales."
-

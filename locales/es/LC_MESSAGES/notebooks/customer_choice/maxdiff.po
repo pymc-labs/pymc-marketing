@@ -616,4 +616,3 @@ msgstr ""
 "posterior completa de la utilidad del nuevo ítem. Esto, a su vez, puede "
 "conectarse directamente a un cálculo de cuota de preferencia frente a los "
 "ítems existentes."
-

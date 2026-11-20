@@ -112,4 +112,3 @@ msgstr ""
 #: dfdd21030be942b9af8ce2546b39f38d
 msgid "The results from the samplers are almost identical:"
 msgstr "Los resultados de los muestreadores son casi idénticos:"
-

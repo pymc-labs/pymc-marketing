@@ -1895,4 +1895,3 @@ msgstr ""
 "coeficiente cruzado y el efecto propio del receptor están fuertemente "
 "anticorrelacionados en la posterior, la respuesta honesta es que el par no "
 "está identificado por separado."
-

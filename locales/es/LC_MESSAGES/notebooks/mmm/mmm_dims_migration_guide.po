@@ -463,4 +463,3 @@ msgstr ""
 "[Documentación de "
 "`xtensor`](https://pytensor.readthedocs.io/en/latest/library/xtensor/index.html)"
 " — operaciones con tensores de dimensiones con nombre de PyTensor"
-

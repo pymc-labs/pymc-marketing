@@ -870,4 +870,3 @@ msgstr ""
 #~ " el canal 1 en `geo_b`, pero el"
 #~ " canal 1 nunca influye en el "
 #~ "canal 2."
-

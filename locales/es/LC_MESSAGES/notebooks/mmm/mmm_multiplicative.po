@@ -3934,4 +3934,3 @@ msgstr ""
 "cerrada a aproximadamente $0.46$ en el cálculo exacto. Ambos quedan más allá"
 " de los límites de seguridad, por lo que dentro de ellos el óptimo verdadero"
 " permanece en el piso de `x2`, como en la sección Asignación óptima."
-

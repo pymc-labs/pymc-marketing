@@ -464,4 +464,3 @@ msgstr ""
 " que puedan apoyar inferencias contrafactuales más plausibles sobre los "
 "patrones de sustitución en el mercado bajo intervención. Una de estas "
 "especificaciones de modelo es el modelo logit anidado."
-

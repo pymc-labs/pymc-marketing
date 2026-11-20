@@ -874,4 +874,3 @@ msgstr ""
 "Las salidas de [`xarray`](https://docs.xarray.dev/en/stable/) con las que "
 "hemos estado trabajando en los métodos predictivos de sBG también se pueden "
 "convertir en dataframes para su procesamiento posterior:"
-

@@ -1163,4 +1163,3 @@ msgstr ""
 #~ "Una forma de lograr esto es "
 #~ "mediante la modificación de la "
 #~ "configuración del modelo."
-

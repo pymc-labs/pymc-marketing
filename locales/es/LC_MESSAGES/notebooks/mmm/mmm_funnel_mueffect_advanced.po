@@ -7546,4 +7546,3 @@ msgid ""
 msgstr ""
 "Pearl, J. y Mackenzie, D. (2018). *The Book of Why: The New Science of Cause"
 " and Effect*. Basic Books."
-

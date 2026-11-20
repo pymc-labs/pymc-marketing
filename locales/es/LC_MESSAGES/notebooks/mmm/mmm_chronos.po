@@ -1694,4 +1694,3 @@ msgid ""
 msgstr ""
 "[Repositorio de Amazon Chronos en GitHub](https://github.com/amazon-"
 "science/chronos-forecasting)"
-

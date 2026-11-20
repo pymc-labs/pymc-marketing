@@ -1007,4 +1007,3 @@ msgstr ""
 "La clase `ConsiderationSetMixedLogit` extiende el `MixedLogit` existente con"
 " una etapa de consideración, admite múltiples instrumentos por alternativa y"
 " proporciona `apply_intervention` para el análisis contrafactual."
-

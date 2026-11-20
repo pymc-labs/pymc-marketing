@@ -412,4 +412,3 @@ msgid ""
 msgstr ""
 "A partir de aquí, puede iterar sobre los priors, los supuestos de "
 "agrupamiento y la verosimilitud para su caso de uso específico."
-

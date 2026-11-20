@@ -1384,4 +1384,3 @@ msgstr ""
 msgid "[PyMC-Marketing Multidimensional MMM](mmm_multidimensional_example.ipynb)"
 msgstr ""
 "[MMM multidimensional de PyMC-Marketing](mmm_multidimensional_example.ipynb)"
-

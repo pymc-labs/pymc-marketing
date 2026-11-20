@@ -1039,4 +1039,3 @@ msgstr ""
 "pequeño es útil para iterar rápido, mientras que el predeterminado es una "
 "opción más segura cuando se desconoce la forma de la superficie de "
 "respuesta."
-

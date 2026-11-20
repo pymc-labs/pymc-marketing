@@ -474,4 +474,3 @@ msgstr ""
 "**Este plan repite una sola asignación semanal.** Un problema de ritmo de "
 "inversión necesita un vector de decisión que varíe en el tiempo y la matriz "
 "completa de multiplicadores."
-

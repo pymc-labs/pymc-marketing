@@ -1928,4 +1928,3 @@ msgstr ""
 
 #~ msgid "\\displaystyle 1"
 #~ msgstr "\\displaystyle 1"
-

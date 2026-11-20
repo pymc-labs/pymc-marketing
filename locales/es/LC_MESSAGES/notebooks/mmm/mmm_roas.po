@@ -1272,4 +1272,3 @@ msgstr ""
 #~ " detallada del método en nuestro "
 #~ "cuaderno {ref}`mmm_lift_test`, donde explicamos "
 #~ "el proceso paso a paso."
-

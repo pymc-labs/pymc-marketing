@@ -496,4 +496,3 @@ msgstr ""
 
 #~ msgid "As well as the ability to catch some errors while parsing."
 #~ msgstr "Así como la capacidad de detectar algunos errores durante el análisis."
-

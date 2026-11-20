@@ -3109,4 +3109,3 @@ msgstr ""
 "pragmático habitual bajo alta persistencia. Lo que *no* debe hacer es "
 "diferenciar las series, ya que diferenciar destruye las relaciones de nivel "
 "de las que está hecho el multiplicador de largo plazo."
-

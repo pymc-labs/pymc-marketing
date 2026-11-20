@@ -781,4 +781,3 @@ msgstr ""
 "Comprender la diferencia entre estas visualizaciones es crucial para "
 "interpretar correctamente los resultados de su MMM y tomar decisiones de "
 "marketing informadas."
-

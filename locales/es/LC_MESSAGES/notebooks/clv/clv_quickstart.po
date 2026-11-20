@@ -917,4 +917,3 @@ msgstr ""
 #~ "Este modelado de la incertidumbre puede"
 #~ " ser muy útil al tomar decisiones "
 #~ "de marketing."
-

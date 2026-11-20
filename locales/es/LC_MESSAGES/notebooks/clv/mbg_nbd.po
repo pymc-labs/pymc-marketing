@@ -427,4 +427,3 @@ msgstr ""
 #~ "Para fines de comparación, ajustemos el"
 #~ " modelo utilizando la biblioteca heredada"
 #~ " ``lifetimes``."
-

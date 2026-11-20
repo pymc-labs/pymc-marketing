@@ -398,4 +398,3 @@ msgstr ""
 #~ "¡Ahora estamos listos para ejecutar el"
 #~ " bucle de validación cruzada por "
 #~ "segmentos de tiempo 💪!"
-

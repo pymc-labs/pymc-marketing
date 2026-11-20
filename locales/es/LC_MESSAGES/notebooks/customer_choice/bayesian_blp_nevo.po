@@ -699,4 +699,3 @@ msgstr ""
 "cereales. Los resultados empíricos reales están en Nevo (2001, "
 "Econometrica). Los resultados aquí presentados no deben citarse como "
 "hallazgos de observaciones de mercados reales."
-

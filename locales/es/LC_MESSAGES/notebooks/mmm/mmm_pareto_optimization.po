@@ -3123,4 +3123,3 @@ msgid ""
 msgstr ""
 "**Más restricciones**: agregue topes por canal o gastos mínimos para "
 "contratos comprometidos como objetos `Constraint` adicionales."
-

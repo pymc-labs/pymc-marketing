@@ -2061,4 +2061,3 @@ msgid ""
 msgstr ""
 "Wooldridge, J. M. (2015). Control function methods in applied econometrics. "
 "*Journal of Human Resources*, 50(2), 420-445."
-

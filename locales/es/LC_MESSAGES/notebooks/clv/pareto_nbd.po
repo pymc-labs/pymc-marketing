@@ -904,4 +904,3 @@ msgstr ""
 #~ "ejecuta en segundo plano para estimar"
 #~ " valores escalares para $r$, $\\alpha$, "
 #~ "$s$ y $\\beta$."
-

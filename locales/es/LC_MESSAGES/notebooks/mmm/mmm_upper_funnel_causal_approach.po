@@ -1540,4 +1540,3 @@ msgstr ""
 #~ "también; por consecuencia, la ecuación "
 #~ "causal estructural que se construirá "
 #~ "será:"
-

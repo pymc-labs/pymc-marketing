@@ -404,4 +404,3 @@ msgid ""
 msgstr ""
 "[Asignación de riesgos con modelos de mezcla de marketing](https://www.pymc-"
 "marketing.io/en/stable/notebooks/mmm/mmm_allocation_assessment.html)."
-

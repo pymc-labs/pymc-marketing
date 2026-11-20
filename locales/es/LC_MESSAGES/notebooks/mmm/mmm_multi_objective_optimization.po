@@ -1079,4 +1079,3 @@ msgstr ""
 #~ "encontrar una asignación de presupuesto "
 #~ "equilibrada sin comprometer objetivos "
 #~ "comerciales importantes."
-

@@ -1596,4 +1596,3 @@ msgstr ""
 "Stan](https://github.com/stan-dev/stan/wiki/prior-choice-"
 "recommendations). Aquí puedes encontrar excelentes consejos y referencias"
 " adicionales sobre cómo establecer priors."
-

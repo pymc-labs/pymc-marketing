@@ -3345,4 +3345,3 @@ msgstr ""
 "**Referencias relativas al evento.** Admitir eventos superpuestos, y "
 "ocurrencias que no están separadas aproximadamente por un ciclo, con una "
 "referencia definida en relación con el evento y no con un ciclo fijo."
-

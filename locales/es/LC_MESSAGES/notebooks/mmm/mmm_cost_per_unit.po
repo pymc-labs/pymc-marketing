@@ -1266,4 +1266,3 @@ msgstr ""
 "`assume_delivery_units=True` explícito. Lea `implied_price` en cada canal y "
 "barra la elasticidad antes de confiar en el plan. Consulte "
 "{ref}`mmm_cost_per_unit_price_response`."
-

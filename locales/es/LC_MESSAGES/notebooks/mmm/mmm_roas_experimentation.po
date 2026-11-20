@@ -746,4 +746,3 @@ msgstr ""
 "Vehtari, A., Simpson, D., Gelman, A., Yao, Y. y Gabry, J. (2024). Pareto "
 "smoothed importance sampling. *Journal of Machine Learning Research*, "
 "25(72), 1 a 58."
-

@@ -1758,4 +1758,3 @@ msgstr ""
 msgid "**Price sensitivity** — implied taste profiles per market"
 msgstr ""
 "**Sensibilidad al precio** — perfiles de gustos implícitos por mercado"
-

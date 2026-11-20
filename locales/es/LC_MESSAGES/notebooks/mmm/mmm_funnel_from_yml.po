@@ -685,4 +685,3 @@ msgstr ""
 " proxies ruidosos de una demanda no observada? Esa distinción es exactamente"
 " lo que codifican estas clases de efecto, y la razón por la que un "
 "“FunnelEffect” mal nombrado nunca iba a cubrir todos los DAG."
-

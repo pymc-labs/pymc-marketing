@@ -1321,4 +1321,3 @@ msgstr ""
 "datos que respalde la inferencia sobre escenarios contrafactuales "
 "arbitrariamente lejanos, ¡así que siempre debemos intentar justificar el "
 "argumento contrafactual que hace nuestro modelo!"
-

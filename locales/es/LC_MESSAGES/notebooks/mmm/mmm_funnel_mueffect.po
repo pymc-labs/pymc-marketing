@@ -1420,4 +1420,3 @@ msgstr ""
 "mediadores, mediciones y controles excluidos? ¿Condicionar sobre un canal de"
 " la parte inferior del embudo bloquearía precisamente el camino que intenta "
 "medir?"
-

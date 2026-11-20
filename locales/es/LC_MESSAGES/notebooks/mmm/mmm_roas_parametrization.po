@@ -664,4 +664,3 @@ msgstr ""
 "experimentalmente y permitiendo, al mismo tiempo, que los datos informen la "
 "distribución posterior. Aquí es donde agregar más experimentos con "
 "verosimilitudes **adicionales** ayudará mucho (véase {ref}`mmm_lift_test`)."
-

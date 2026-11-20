@@ -1000,4 +1000,3 @@ msgstr ""
 "dólares futuros pueden comprar menos entrega. Ese flujo de trabajo está "
 "documentado en {ref}`mmm_cost_per_unit`; este cuaderno se detiene en el "
 "preprocesamiento para la atribución."
-

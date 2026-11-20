@@ -368,4 +368,3 @@ msgstr ""
 #~ "Podemos comparar los resultados con los"
 #~ " obtenidos por la biblioteca heredada "
 #~ "``lifetimes`` y la estimación MAP."
-
