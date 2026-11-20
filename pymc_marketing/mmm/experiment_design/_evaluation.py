@@ -1,0 +1,173 @@
+#   Copyright 2022 - 2026 The PyMC Labs Developers
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+
+"""Graph evaluation for posterior experiment designs."""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from functools import cached_property
+from typing import TYPE_CHECKING, cast
+
+import numpy as np
+import pandas as pd
+import pymc as pm
+import pymc.dims as pmd
+import pytensor.xtensor as ptx
+import xarray as xr
+from pytensor import function
+from pytensor.graph.replace import clone_replace
+from pytensor.xtensor.vectorization import vectorize_graph
+
+from pymc_marketing.mmm.components.adstock import GeometricAdstock
+from pymc_marketing.mmm.components.saturation import LogisticSaturation
+from pymc_marketing.mmm.experiment_design._statistics import residual_statistics
+from pymc_marketing.mmm.link import _distribution_name
+from pymc_marketing.names.mmm import Dim, Var
+from pymc_marketing.pytensor_utils import extract_response_distribution
+
+if TYPE_CHECKING:
+    from xarray import DataArray, Dataset
+
+    from pymc_marketing.mmm.mmm import MMM
+
+
+def validate_observed_mean(mmm: MMM, posterior: Dataset) -> None:
+    """Require the predictor to give a valid observed mean for any spend change."""
+    likelihood = mmm.model_config["likelihood"]
+    distribution = _distribution_name(likelihood)
+    # A go-dark intervention can leave a negative predictor although the
+    # fitted predictor was positive. Require a likelihood defined for any mu.
+    if distribution not in {"Normal", "Laplace", "StudentT"}:
+        raise ValueError(
+            "ExperimentDesigner requires a likelihood with a defined conditional mean "
+            "equal to mu for any real mu. Supported likelihoods are Normal, Laplace, "
+            f"and StudentT with a defined mean. Got {distribution!r}."
+        )
+    try:
+        # The link validator rejects wrappers and StudentT without a mean.
+        mmm._link_spec.mean_scale_factor(posterior, likelihood, mmm.output_var)
+    except ValueError as error:
+        raise ValueError(
+            f"ExperimentDesigner requires a defined conditional mean equal to mu. "
+            f"The fitted {distribution!r} likelihood does not meet this requirement."
+        ) from error
+
+
+def fitted_residual_statistics(
+    mmm: MMM, observed: DataArray, posterior: Dataset
+) -> tuple[float, float]:
+    """Calculate scaled residual statistics from aligned weekly training data."""
+    if Var.MU in posterior:
+        fitted_mu = posterior[Var.MU]
+    else:
+        # Older identity-link fits did not store mu in the posterior.
+        training_model = mmm._set_xarray_data(
+            mmm.xarray_dataset, model=mmm.model.copy()
+        )
+        fitted_mu = pm.compute_deterministics(
+            posterior, var_names=[Var.MU], model=training_model, progressbar=False
+        )[Var.MU]
+
+    prediction = fitted_mu.mean(("chain", "draw"))
+    if observed.dims != (Dim.DATE,) or prediction.dims != (Dim.DATE,):
+        raise ValueError("Observed and predicted targets must be weekly time series.")
+    observed, prediction = xr.align(observed, prediction, join="exact")
+    dates = observed.indexes.get(Dim.DATE)
+    if dates is None or dates.inferred_type not in {"datetime", "datetime64"}:
+        raise ValueError("ExperimentDesigner requires regular weekly observations.")
+    local_dates = pd.DatetimeIndex(dates).tz_localize(None)
+    if (
+        len(local_dates) < 2
+        or not ((local_dates[1:] - local_dates[:-1]) == pd.Timedelta(weeks=1)).all()
+    ):
+        raise ValueError("ExperimentDesigner requires regular weekly observations.")
+    return residual_statistics((observed - prediction).values)
+
+
+class ContributionGraph:
+    """Evaluate a channel response graph with posterior values bound."""
+
+    def __init__(self, model: pm.Model, posterior: Dataset, n_channels: int) -> None:
+        self.n_draws = posterior.sizes["chain"] * posterior.sizes["draw"]
+        observed_spend = model[Var.CHANNEL_DATA]
+        self._spend = ptx.xtensor(
+            name="channel_data_input",
+            dtype=observed_spend.dtype,
+            shape=(None, n_channels),
+            dims=(Dim.DATE, Dim.CHANNEL),
+        )
+        response = extract_response_distribution(
+            model, posterior, Var.CHANNEL_CONTRIBUTION
+        )
+        [graph] = clone_replace([response], replace={observed_spend: self._spend})
+        response = cast("ptx.XTensorVariable", graph)
+        if "sample" not in response.dims:
+            # Fixed media parameters have the same response in every draw.
+            draws = np.ones(self.n_draws, dtype=response.dtype)
+            response = response * ptx.as_xtensor(draws, dims=("sample",))
+        self._response = response.transpose("sample", Dim.DATE, Dim.CHANNEL)
+
+    @classmethod
+    def from_fixture(
+        cls, posterior: Dataset, channels: list[str], l_max: int, normalize: bool
+    ) -> ContributionGraph:
+        """Build the fixture's geometric adstock and logistic saturation graph."""
+        n_channels = len(channels)
+        dummy_weeks = l_max + 4
+        adstock = GeometricAdstock(l_max=l_max, normalize=normalize)
+        saturation = LogisticSaturation()
+        adstock.set_dims_for_all_priors((Dim.CHANNEL,))
+        saturation.set_dims_for_all_priors((Dim.CHANNEL,))
+
+        with pm.Model(
+            coords={Dim.CHANNEL: channels, Dim.DATE: np.arange(dummy_weeks)}
+        ) as model:
+            channel_data = pmd.Data(
+                Var.CHANNEL_DATA,
+                value=np.zeros((dummy_weeks, n_channels)),
+                dims=(Dim.DATE, Dim.CHANNEL),
+            )
+            adstocked = adstock.apply(x=channel_data, core_dim=Dim.DATE)
+            contribution = saturation.apply(x=adstocked, core_dim=Dim.DATE)
+            pmd.Deterministic(
+                Var.CHANNEL_CONTRIBUTION, contribution, dims=(Dim.DATE, Dim.CHANNEL)
+            )
+
+        return cls(model, posterior, n_channels)
+
+    @cached_property
+    def _evaluate(self) -> Callable[[np.ndarray], np.ndarray]:
+        return function([self._spend], self._response)
+
+    @cached_property
+    def _evaluate_sweep(self) -> Callable[[np.ndarray], np.ndarray]:
+        sweep = ptx.xtensor(
+            name="spend_sweep",
+            dtype=self._spend.dtype,
+            dims=(Dim.SWEEP, Dim.DATE, Dim.CHANNEL),
+        )
+        response = self._response.isel(**{Dim.DATE: -1})
+        response = vectorize_graph(response, replace={self._spend: sweep})
+        return function([sweep], response.transpose("sample", Dim.SWEEP, Dim.CHANNEL))
+
+    def __call__(self, spend: np.ndarray) -> np.ndarray:
+        """Evaluate (date, channel) spend as (sample, date, channel) contributions."""
+        return np.asarray(self._evaluate(spend.astype(self._spend.dtype, copy=False)))
+
+    def steady_responses(self, spend: np.ndarray) -> np.ndarray:
+        """Return final-period response for each draw, spend scenario and channel."""
+        return np.asarray(
+            self._evaluate_sweep(spend.astype(self._spend.dtype, copy=False))
+        )
