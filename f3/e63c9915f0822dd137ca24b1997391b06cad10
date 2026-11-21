@@ -1,0 +1,19 @@
+tests/mmm/test_events.py
+  s_61e795dba38002::t_8597349fe50b5c 1050,1069-1071
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f3e63c9915f0822dd137ca24b1997391b06cad10",
+  "prompts": {},
+  "sessions": {
+    "s_61e795dba38002": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3a961d8c-3c06-418a-adbd-35a763312b65",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "daimon-pymclabs <daimon@pymc-labs.com>"
+    }
+  }
+}
