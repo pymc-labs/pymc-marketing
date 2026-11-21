@@ -521,6 +521,48 @@ class TestEventAdditiveEffectRoundtrips:
         assert restored.date_dim_name == "custom_date"
         assert type(restored.effect) is EventEffect
         assert type(restored.effect.basis) is GaussianBasis
+        assert restored.period_days is None
+        assert restored.period_anchor == "start"
+
+    def test_roundtrip_period(self):
+        import xarray as xr
+
+        from pymc_marketing.mmm.additive_effect import EventAdditiveEffect
+        from pymc_marketing.mmm.events import EventEffect, GaussianBasis
+
+        df = pd.DataFrame(
+            {
+                "name": ["ev1"],
+                "start_date": ["2024-01-01"],
+                "end_date": ["2024-01-07"],
+            }
+        )
+        original = EventAdditiveEffect(
+            df_events=df,
+            prefix="ev",
+            effect=EventEffect(
+                basis=GaussianBasis(),
+                effect_size=Prior("Normal"),
+                dims="ev",
+            ),
+            period_days=7,
+            period_anchor="end",
+        )
+        data = serialization.serialize(original)
+        assert data["period_days"] == 7
+        assert data["period_anchor"] == "end"
+
+        ds = xr.Dataset.from_dataframe(df.set_index("name"))
+
+        class MockIdata:
+            def __getitem__(self, key):
+                return {"supplementary_data_ev": ds}[key]
+
+        ctx = DeserializationContext(idata=MockIdata())
+        restored = serialization.deserialize(data, context=ctx)
+
+        assert restored.period_days == 7
+        assert restored.period_anchor == "end"
 
 
 @pytest.mark.parametrize(

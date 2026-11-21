@@ -4181,6 +4181,100 @@ def test_create_effect_mu_effect(
     )
 
 
+def _event_total_effect(
+    dates: pd.DatetimeIndex,
+    df_events: pd.DataFrame,
+    effect_size: np.ndarray,
+    **kwargs,
+) -> np.ndarray:
+    """Evaluate ``holiday_total_effect`` on ``dates`` with fixed parameters."""
+    model = pm.Model(coords={"date": dates})
+
+    class MockMMM:
+        pass
+
+    mmm = MockMMM()
+    mmm.model = model
+    mmm.dims = ()
+
+    effect = EventAdditiveEffect(
+        df_events=df_events,
+        prefix="holiday",
+        effect=EventEffect(
+            basis=GaussianBasis(priors={"sigma": 2.0}),
+            effect_size=Prior("Normal", dims="holiday"),
+            dims=("holiday",),
+        ),
+        **kwargs,
+    )
+    with model:
+        effect.create_data(mmm)
+        effect.create_effect(mmm)
+
+    fn = model.compile_fn(model["holiday_total_effect"], inputs=[model["holiday_effect_size"]])
+    return np.asarray(fn({"holiday_effect_size": effect_size}))
+
+
+@pytest.mark.parametrize("anchor, freq", [("start", "W-MON"), ("end", "W-SUN")])
+def test_event_effect_period_sum_matches_daily(df_events, anchor, freq) -> None:
+    """Weekly values with period_days=7 equal the daily effect summed per week.
+
+    The Christmas Holiday event spans several days, so this also covers
+    multi-day events.
+    """
+    weekly_dates = pd.date_range("2024-11-01", "2025-02-15", freq=freq)
+    first_day = weekly_dates[0] - pd.Timedelta(days=6 if anchor == "end" else 0)
+    daily_dates = pd.date_range(first_day, periods=len(weekly_dates) * 7, freq="D")
+    effect_size = np.array([1.0, -2.0])
+
+    daily = _event_total_effect(daily_dates, df_events, effect_size)
+    weekly = _event_total_effect(
+        weekly_dates,
+        df_events,
+        effect_size,
+        period_days=7,
+        period_anchor=anchor,
+    )
+    sampled = _event_total_effect(weekly_dates, df_events, effect_size)
+
+    np.testing.assert_allclose(weekly, daily.reshape(-1, 7).sum(axis=1))
+    # Sampling at the label only sees one day out of seven.
+    assert not np.allclose(sampled, weekly)
+
+
+def test_event_effect_period_sum_daily_is_unchanged(df_events) -> None:
+    dates = pd.date_range("2024-12-01", "2025-01-15", freq="D")
+    effect_size = np.array([1.0, 0.5])
+
+    np.testing.assert_allclose(
+        _event_total_effect(dates, df_events, effect_size, period_days=1),
+        _event_total_effect(dates, df_events, effect_size),
+    )
+
+
+def test_event_effect_period_days_validation(df_events, event_effect) -> None:
+    with pytest.raises(ValidationError):
+        EventAdditiveEffect(
+            df_events=df_events,
+            prefix="holiday",
+            effect=event_effect,
+            period_days=0,
+        )
+
+
+def test_add_events_passes_period(mmm, df_events, create_event_effect) -> None:
+    mmm.add_events(
+        df_events,
+        prefix="holiday",
+        effect=create_event_effect(prefix="holiday"),
+        period_days=7,
+        period_anchor="end",
+    )
+    event_effect = mmm.mu_effects[-1]
+    assert event_effect.period_days == 7
+    assert event_effect.period_anchor == "end"
+
+
 def test_mmm_with_events(
     df_events,
     create_event_effect,
