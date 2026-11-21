@@ -557,6 +557,46 @@ class TemporalReach:
             max_lag=max((reach.max_lag for reach in reaches), default=0),
         )
 
+    @staticmethod
+    def longest_bounded_lag(reaches: Iterable[TemporalReach], *, floor: int) -> int:
+        """Return the last lag at which spend moves a node the probe bounded.
+
+        A node whose reach needs the full axis is left out, because its last
+        moved lag is not carryover known to land there.  One still moving at
+        the last date only shows that the axis ended first.  One that reduces
+        over ``date`` moves dates that carryover does not reach: dividing spend
+        by its date-mean moves every date that carries spend.  One that moves a
+        date before the perturbed one through a ``Before`` or ``Overlap``
+        kernel, such as an effect whose term reads ``channel_contribution``, is
+        left out as well, even though its forward lag is carryover: the probe
+        keeps one flag for both kinds of backward move.
+        ``channel_contribution`` itself loses nothing there, since its forward
+        lag is the kernel's trailing lags, which *floor* is.
+
+        When no node needs the full axis this is the horizon
+        :meth:`SpendProbe.measure` reports as :attr:`SpendReach.max_lag`.
+        Otherwise it is a lower bound on how far carryover lands.
+
+        Parameters
+        ----------
+        reaches : iterable of TemporalReach
+            The per-node reaches.
+        floor : int
+            The least lag returned: the adstock kernel's own trailing lags.
+
+        Returns
+        -------
+        int
+            The number of lags.
+        """
+        return max(
+            floor,
+            max(
+                (reach.max_lag for reach in reaches if not reach.requires_full_axis),
+                default=0,
+            ),
+        )
+
 
 @dataclass(frozen=True)
 class SpendReach:
@@ -598,12 +638,22 @@ class SpendReach:
         ``requires_full_axis``: no window bounds the reach, so there is no
         longest lag to report.  Any other combination raises ``ValueError``, so
         a windowed reach always carries a horizon.
+    uncut_date_paths : tuple of str, default=()
+        Posterior variables with a ``date`` dimension that the evaluator does not
+        cut to windows and whose ``date`` axis meets a windowed one in a term
+        the request reads on each window (the linear predictor only for a path
+        request); see
+        :meth:`~pymc_marketing.mmm.counterfactual.CounterfactualEvaluator.uncut_date_paths`.
+        When there are any, every period is evaluated on the full date axis,
+        where they line up with the dates they were fitted on.  The reach and
+        ``max_lag`` stay as measured: the probe evaluates on the full axis.
     """
 
     effective_l_max: int
     requires_full_axis: bool
     measured: Mapping[str, TemporalReach] = field(default_factory=dict)
     max_lag: int | None = None
+    uncut_date_paths: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         """Reject a windowed reach without a horizon, and the reverse.
@@ -1532,17 +1582,16 @@ class SpendProbe:
             ]
         )
         # The longest lag spend was measured to move anything at, floored at the
-        # kernel's own trailing lags, the same lags full-axis evaluation uses as
-        # its lower bound.  Read off the measurements, not the window: the
-        # window keeps one date of slack past a plain kernel and honours wider
-        # declarations, neither of which is carryover that lands.
+        # kernel's own trailing lags: the same rule the split's unobserved tail
+        # follows under full-axis evaluation.  Read off the measurements, not
+        # the window: the window keeps one date of slack past a plain kernel and
+        # honours wider declarations, neither of which is carryover that lands.
         requires_full_axis = combined.requires_full_axis or mediators_need_full_axis
         max_lag = (
             None
             if requires_full_axis
-            else max(
-                trailing_lags,
-                max(reach.max_lag for reach in measured.values()),
+            else TemporalReach.longest_bounded_lag(
+                measured.values(), floor=trailing_lags
             )
         )
         return SpendReach(

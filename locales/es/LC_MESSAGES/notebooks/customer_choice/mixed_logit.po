@@ -1,0 +1,1323 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2026, PyMC Labs
+# This file is distributed under the same license as the PyMC-Marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyMC-Marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:10002
+#: 76a04636289c4ece872eed90c11cc6c9
+msgid "Mixed Logit (Random Coefficients Logit)"
+msgstr "Logit mixto (logit de coeficientes aleatorios)"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40003
+#: 87fa18aa42274e30aa6040d981bd4632
+msgid ""
+"The **Mixed Logit model** extends the Multinomial Logit (MNL) by allowing"
+" **random coefficients on alternative-specific covariates**, while "
+"maintaining fixed population-level effects for individual-specific "
+"covariates. It improves on the limitations of MNL by capturing unobserved"
+" preference heterogeneity across individuals, but doesn't require the "
+"imposition of market structure assumptions as in Nested Logit models."
+msgstr ""
+"El **modelo logit mixto** extiende el logit multinomial (MNL) al permitir "
+"**coeficientes aleatorios en las covariables específicas de cada "
+"alternativa**, a la vez que mantiene efectos fijos a nivel poblacional para "
+"las covariables específicas del individuo. Mejora las limitaciones del MNL "
+"al capturar la heterogeneidad no observada de las preferencias entre "
+"individuos, pero no requiere imponer supuestos sobre la estructura del "
+"mercado como en los modelos de logit anidado."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40005
+#: f49e49d3469345f0b7e44a43ccb0f087
+msgid ""
+"This implementation additionally supports a **control function approach "
+"to endogeneity**, allowing potentially endogenous alternative-specific "
+"regressors (e.g. price) to be included in a structurally interpretable "
+"way."
+msgstr ""
+"Esta implementación admite además un **enfoque de función de control para la"
+" endogeneidad**, lo que permite incluir regresores específicos de cada "
+"alternativa potencialmente endógenos (por ejemplo, el precio) de una manera "
+"estructuralmente interpretable."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40007
+#: a5da8dc83e404e59bfcae2001a19decd
+msgid ""
+"A defining feature of the model is the explicit decomposition of utility "
+"into:"
+msgstr ""
+"Una característica definitoria del modelo es la descomposición explícita de "
+"la utilidad en:"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40009
+#: c06c9da09471403caea0bd6b13a0e354
+msgid "**Alternative-specific covariates**"
+msgstr "**Covariables específicas de cada alternativa**"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40010
+#: e8cc65b259be4bdc84b7c9d17abe76a9
+msgid "**Individual-specific covariates**"
+msgstr "**Covariables específicas del individuo**"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40011
+#: 72236fccbd9544c18d69efa0d24af577
+msgid "**Random effects on alternative-specific covariates**"
+msgstr ""
+"**Efectos aleatorios en las covariables específicas de cada alternativa**"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40012
+#: d3dfe5f7c6fb46e3acdb7cf563db006d
+msgid "**Control function terms correcting for endogeneity**"
+msgstr "**Términos de función de control que corrigen la endogeneidad**"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40014
+#: e0a27b383b754085bb0fa967711a62c9
+msgid ""
+"The central idea of Mixed Logit discrete choice models is, as with Nested"
+" Logit and Multinomial choice models, to represent an individual's "
+"subjective utility for any good in a marketplace as a function of the "
+"observable attributes of that good, while allowing for how individual "
+"circumstance and market forces can shift or alter that utility "
+"calculation."
+msgstr ""
+"La idea central de los modelos de elección discreta de tipo logit mixto es, "
+"al igual que en los modelos logit anidado y de elección multinomial, "
+"representar la utilidad subjetiva que un individuo asigna a cualquier bien "
+"en un mercado como una función de los atributos observables de ese bien, a "
+"la vez que se permite que las circunstancias individuales y las fuerzas del "
+"mercado desplacen o alteren ese cálculo de utilidad."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40017
+#: a9350b67996e4401abdeccc24be18c8b
+msgid "Utility Decomposition with Random Effects and Endogeneity Correction"
+msgstr ""
+"Descomposición de la utilidad con efectos aleatorios y corrección de la "
+"endogeneidad"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40018
+#: 650c0f743b4d4b72a15f4d8a2cd45d38
+msgid "In the decomposition of the utility metric, we let individual"
+msgstr ""
+"En la descomposición de la métrica de utilidad, dejamos que el individuo"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40020
+#: da370aa300d74a99b3194499c487f7fb
+msgid ""
+"$n = 1, \\ldots, N $   choose among alternatives   $ j = 1, \\ldots, J $ "
+"at choice occasion   $t = 1, \\ldots, T_n $."
+msgstr ""
+"$n = 1, \\ldots, N $   elija entre las alternativas   $ j = 1, \\ldots, J $ "
+"en la ocasión de elección   $t = 1, \\ldots, T_n $."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40026
+#: 520509044e1b4309a75cc38f6040df44
+msgid "The latent utility for alternative \\( j \\) is"
+msgstr "La utilidad latente de la alternativa \\( j \\) es"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40028
+#: e7241368aadf4a888df627069a15f764
+msgid ""
+"\n"
+"U_{njt}\n"
+"=\n"
+"\\underbrace{\n"
+"\\boldsymbol{\\alpha}\n"
+"}_{\\text{alt-specific fixed effects}}\n"
+"+\n"
+"\\underbrace{\n"
+"\\mathbf{x}_{njt}^\\top \\boldsymbol{\\beta}_n\n"
+"}_{\\text{alt-specific random effects}}\n"
+"+\n"
+"\\underbrace{\n"
+"\\mathbf{z}_{n}^\\top \\boldsymbol{\\gamma}_j\n"
+"}_{\\text{individual-specific effects}}\n"
+"+\n"
+"\\overbrace{\n"
+"\\underbrace{\n"
+"\\mathbf{r}_{njt}^\\top \\boldsymbol{\\lambda_{cf}}\n"
+"}_{\\text{control function}}\n"
+"}^{\\text{optional endogeneity correction}}\n"
+"+\n"
+"\\varepsilon_{njt}\n"
+msgstr ""
+"\n"
+"U_{njt}\n"
+"=\n"
+"\\underbrace{\n"
+"\\boldsymbol{\\alpha}\n"
+"}_{\\text{alt-specific fixed effects}}\n"
+"+\n"
+"\\underbrace{\n"
+"\\mathbf{x}_{njt}^\\top \\boldsymbol{\\beta}_n\n"
+"}_{\\text{alt-specific random effects}}\n"
+"+\n"
+"\\underbrace{\n"
+"\\mathbf{z}_{n}^\\top \\boldsymbol{\\gamma}_j\n"
+"}_{\\text{individual-specific effects}}\n"
+"+\n"
+"\\overbrace{\n"
+"\\underbrace{\n"
+"\\mathbf{r}_{njt}^\\top \\boldsymbol{\\lambda_{cf}}\n"
+"}_{\\text{control function}}\n"
+"}^{\\text{optional endogeneity correction}}\n"
+"+\n"
+"\\varepsilon_{njt}\n"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40052
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40085
+#: 7df9db9efa6e4e268dd9d40dae994f41 b1943d11198c4e40bac5015f784117b2
+msgid "where:"
+msgstr "donde:"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40054
+#: 423429e824e5483f939d30b7d1c5b445
+#, python-brace-format
+msgid "$\\mathbf{x}_{njt}$: alternative-specific covariates"
+msgstr "$\\mathbf{x}_{njt}$: covariables específicas de cada alternativa"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40055
+#: 4b7df020f14848f799166e2cd3040a4e
+#, python-brace-format
+msgid "$\\boldsymbol{\\beta}_n$: individual-specific random coefficients"
+msgstr ""
+"$\\boldsymbol{\\beta}_n$: coeficientes aleatorios específicos del individuo"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40056
+#: fd90f1c08fa649828ccc0ef3150f8613
+#, python-brace-format
+msgid ""
+"$\\boldsymbol{\\alpha} $: fixed coefficients on alternative-specific "
+"covariates"
+msgstr ""
+"$\\boldsymbol{\\alpha} $: coeficientes fijos de las covariables específicas "
+"de cada alternativa"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40057
+#: 774a2f50e74d4e679ccd01da96fb1c1a
+#, python-brace-format
+msgid "$\\mathbf{z}_n$: alternative-specific covariates"
+msgstr "$\\mathbf{z}_n$: covariables específicas de cada alternativa"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40058
+#: 77c15053f82b47c691d957c97aab99dc
+#, python-brace-format
+msgid ""
+"$\\boldsymbol{\\gamma}_j$: individual-specific coefficients on $ "
+"\\mathbf{z}_n $"
+msgstr ""
+"$\\boldsymbol{\\gamma}_j$: coeficientes específicos del individuo de $ "
+"\\mathbf{z}_n $"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40059
+#: 91b689c70eac40118c2e0a5b609add72
+#, python-brace-format
+msgid "$\\mathbf{r}_{njt}$: control function residuals"
+msgstr "$\\mathbf{r}_{njt}$: residuos de la función de control"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40060
+#: 47441f5fe2734852b4d21ccf80d732d9
+msgid "$\\boldsymbol{\\lambda_{cf}}$: control function coefficients"
+msgstr "$\\boldsymbol{\\lambda_{cf}}$: coeficientes de la función de control"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40061
+#: ae4b4f29a84b439fa18f90bdb731bfc6
+#, python-brace-format
+msgid "$\\varepsilon_{njt} \\sim \\text{i.i.d. EV}_1$"
+msgstr "$\\varepsilon_{njt} \\sim \\text{i.i.d. EV}_1$"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40064
+#: de084a795b2f4203b1ed98b8ac509c25
+msgid "Motivation: Control Function for Endogeneity"
+msgstr "Motivación: función de control para la endogeneidad"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40066
+#: 3d172e602c6642c9ae85d14d158d1d20
+msgid ""
+"Alternative-specific variables such as **price** may be endogenous due to"
+" correlation with unobserved components of utility. Direct inclusion of "
+"such variables can bias estimates of both fixed and random coefficients."
+msgstr ""
+"Las variables específicas de cada alternativa, como el **precio**, pueden "
+"ser endógenas debido a su correlación con componentes no observados de la "
+"utilidad. Incluir directamente estas variables puede sesgar las estimaciones"
+" tanto de los coeficientes fijos como de los aleatorios."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40068
+#: 680ca66ae9c54f10a39b7a903586da60
+msgid "The control function approach addresses this by:"
+msgstr "El enfoque de función de control aborda esto mediante:"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40070
+#: a826fbb40dc94204befdce27357b7c41
+msgid "Modeling the endogenous regressor in a first-stage equation"
+msgstr "Modelado del regresor endógeno en una ecuación de primera etapa"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40071
+#: e140124135ad4257a8da6d6731a1c5a9
+msgid "Including the resulting residual in the utility function"
+msgstr "Inclusión del residuo resultante en la función de utilidad"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40073
+#: d4ecea4d268f4324980300328c08b12c
+msgid "First-Stage Model"
+msgstr "Modelo de primera etapa"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40075
+#: da9571c432f04486ab6793e57ea914df
+#, python-brace-format
+msgid ""
+"Let $p_{njt}$ denote an endogenous alternative-specific regressor (e.g. "
+"price). The first-stage model is"
+msgstr ""
+"Sea $p_{njt}$ un regresor endógeno específico de cada alternativa (por "
+"ejemplo, el precio). El modelo de primera etapa es"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40077
+#: 7cacde4e49bd43e2ba722865102227cc
+#, python-brace-format
+msgid ""
+"\n"
+"p_{njt}\n"
+"=\n"
+"\\mathbf{q}_{njt}^\\top \\boldsymbol{A}\n"
+"+\n"
+"r_{njt}\n"
+msgstr ""
+"\n"
+"p_{njt}\n"
+"=\n"
+"\\mathbf{q}_{njt}^\\top \\boldsymbol{A}\n"
+"+\n"
+"r_{njt}\n"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40087
+#: 21c39cc1e69847cdb5addc889f8dd126
+#, python-brace-format
+msgid "$\\mathbf{q}_{njt}$ includes instruments and exogenous controls"
+msgstr "$\\mathbf{q}_{njt}$ incluye los instrumentos y los controles exógenos"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40088
+#: 172bf53eaafe4d60bd563b51a45e5b3d
+msgid "$A$ is a set of instruments for price"
+msgstr "$A$ es un conjunto de instrumentos para el precio"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40089
+#: a8d3be6b3acc4f64ae31a2e5de2f4d42
+#, python-brace-format
+msgid "$r_{njt}$ is the first-stage residual"
+msgstr "$r_{njt}$ es el residuo de la primera etapa"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40091
+#: 3c9825fa239840e8a0ee46a33211d3a6
+msgid "The estimated residual"
+msgstr "El residuo estimado"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40093
+#: 36d19f8c542b4d3d97d10aaa18101e16
+#, python-brace-format
+msgid ""
+"\n"
+"\\hat{r}_{njt}\n"
+msgstr ""
+"\n"
+"\\hat{r}_{njt}\n"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40097
+#: 15e58ae36b5d48a5b502a7ef5f9097a7
+msgid "is carried forward into the choice model."
+msgstr "se traslada al modelo de elección."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40099
+#: 1a994ae254794982ab26dfb4a9fba852
+msgid "Second-Stage Utility Adjustment"
+msgstr "Ajuste de la utilidad en la segunda etapa"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40101
+#: 2dbe31bea4754a3db47c9be6fcbba40d
+msgid "The residual enters utility linearly as a control function:"
+msgstr ""
+"El residuo entra en la utilidad de forma lineal como una función de control:"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40103
+#: 08655b6db245479c848abb63f08e3292
+#, python-brace-format
+msgid ""
+"\n"
+"U_{njt}\n"
+"=\n"
+"\\cdots\n"
+"+\n"
+"\\lambda_{cf} \\, \\hat{r}_{njt}\n"
+"+\n"
+"\\varepsilon_{njt}\n"
+msgstr ""
+"\n"
+"U_{njt}\n"
+"=\n"
+"\\cdots\n"
+"+\n"
+"\\lambda_{cf} \\, \\hat{r}_{njt}\n"
+"+\n"
+"\\varepsilon_{njt}\n"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40113
+#: 8e4d8becda004314887bdd343f2f2a37
+#, python-brace-format
+msgid ""
+"A statistically significant $\\lambda_{cf}$ indicates endogeneity in the "
+"original regressor."
+msgstr ""
+"Un $\\lambda_{cf}$ estadísticamente significativo indica endogeneidad en el "
+"regresor original."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40115
+#: 87e1b7d2c5c04024afba5730a13159e0
+msgid ""
+"This approach preserves the structural interpretation of the utility "
+"coefficients while correcting for bias."
+msgstr ""
+"Este enfoque preserva la interpretación estructural de los coeficientes de "
+"utilidad a la vez que corrige el sesgo."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40117
+#: e1058d8fc0d5476ebe6af141e22046bb
+msgid "Random Effects Specification"
+msgstr "Especificación de los efectos aleatorios"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40119
+#: ab751982a67149e1b11e2ffb0c7ba234
+msgid ""
+"The mixed logit model implements **random effects through a hierarchical "
+"(multilevel) structure**, in which individual-specific coefficients are "
+"treated as draws from a common population-level distribution."
+msgstr ""
+"El modelo logit mixto implementa los **efectos aleatorios mediante una "
+"estructura jerárquica (multinivel)**, en la que los coeficientes específicos"
+" de cada individuo se tratan como muestras de una distribución común a nivel"
+" poblacional."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40121
+#: be713fd2a3fd405494a3af03d0c49fa6
+msgid ""
+"For each individual \\( n \\) and each random coefficient \\( k \\), the "
+"preference parameter is modeled as"
+msgstr ""
+"Para cada individuo \\( n \\) y cada coeficiente aleatorio \\( k \\), el "
+"parámetro de preferencia se modela como"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40123
+#: 4265bbb3b0d04ebeb3865beb59b53562
+#, python-brace-format
+msgid ""
+"\n"
+"\\beta_{n,k} \\sim Normal(\\mu_k, \\sigma_k^2)\n"
+msgstr ""
+"\n"
+"\\beta_{n,k} \\sim Normal(\\mu_k, \\sigma_k^2)\n"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40127
+#: fc9ef99b14ce4268afd9059e962fe10c
+msgid "The key features of this specification are:"
+msgstr "Las características clave de esta especificación son:"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40129
+#: a62e077fd9f74384bacd669d9f0c1662
+msgid ""
+"**Independence across coefficients**   Each random coefficient is assumed"
+" to be independent of the others. The joint distribution of the random "
+"effects has a diagonal covariance structure."
+msgstr ""
+"**Independencia entre coeficientes**   Se supone que cada coeficiente "
+"aleatorio es independiente de los demás. La distribución conjunta de los "
+"efectos aleatorios tiene una estructura de covarianza diagonal."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40132
+#: 55da7aeb30ed48bab814aa7c107086b9
+msgid ""
+"**Hierarchical pooling across individuals**   Although coefficients are "
+"independent across dimensions, they are *not* estimated independently for"
+" each individual. Instead, all individual-level coefficients are linked "
+"through shared population-level parameters $\\mu_k$ and $\\sigma_k$."
+msgstr ""
+"**Agrupamiento jerárquico entre individuos**   Aunque los coeficientes son "
+"independientes entre dimensiones, *no* se estiman de manera independiente "
+"para cada individuo. En cambio, todos los coeficientes a nivel individual "
+"están vinculados a través de parámetros poblacionales compartidos $\\mu_k$ y"
+" $\\sigma_k$."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40135
+#: 017bf3eed73c4ace9f995eae382b1072
+msgid ""
+"**Partial pooling**   Individual-level estimates borrow strength from the"
+" population distribution. Individuals with limited data are shrunk more "
+"strongly toward the population mean, while individuals with richer choice"
+" histories exhibit greater dispersion."
+msgstr ""
+"**Agrupamiento parcial**   Las estimaciones a nivel individual toman "
+"información prestada de la distribución poblacional. Los individuos con "
+"pocos datos se contraen con más fuerza hacia la media poblacional, mientras "
+"que los individuos con historiales de elección más ricos muestran una mayor "
+"dispersión."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40138
+#: 5e2ab110b8db4e59acde97cca0c76f3a
+msgid ""
+"This hierarchical structure allows the model to capture systematic "
+"preference heterogeneity while remaining computationally tractable and "
+"avoiding the complexity of estimating full covariance matrices."
+msgstr ""
+"Esta estructura jerárquica permite al modelo capturar la heterogeneidad "
+"sistemática de las preferencias y, al mismo tiempo, seguir siendo "
+"computacionalmente manejable y evitar la complejidad de estimar matrices de "
+"covarianza completas."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40140
+#: 7aecb4d7d5904058b4e4bcfaa755f2fe
+msgid ""
+"Importantly, while the random coefficients are independent *a priori*, "
+"they may exhibit **posterior dependence** induced by the data and the "
+"structure of the utility function."
+msgstr ""
+"Es importante destacar que, aunque los coeficientes aleatorios son "
+"independientes *a priori*, pueden exhibir una **dependencia posterior** "
+"inducida por los datos y por la estructura de la función de utilidad."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40143
+#: d03cff51c90e4154ad64c380c77955c0
+msgid "Random Effects vs. Endogeneity Control: A Modeling Trade-off"
+msgstr ""
+"Efectos aleatorios frente a control de la endogeneidad: un compromiso de "
+"modelado"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40145
+#: 7c75f7c6e0424a5bb3d3c84d9541ee49
+msgid ""
+"The mixed logit model combines two powerful mechanisms for explaining "
+"variation in observed choices: random coefficients and control functions "
+"for endogeneity. While both address sources of unexplained variation in "
+"utility, they do so in fundamentally different ways, and understanding "
+"the trade-off between them is essential for sound model specification and"
+" interpretation."
+msgstr ""
+"El modelo logit mixto combina dos mecanismos poderosos para explicar la "
+"variación en las elecciones observadas: los coeficientes aleatorios y las "
+"funciones de control para la endogeneidad. Aunque ambos abordan fuentes de "
+"variación no explicada en la utilidad, lo hacen de maneras fundamentalmente "
+"distintas, y comprender el compromiso entre ellos es esencial para una "
+"especificación e interpretación sólidas del modelo."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40147
+#: d1f07e2a98344bfcb6d60ce6eb729d3d
+msgid ""
+"Random effects explain variation by imposing structure on preferences. By"
+" allowing coefficients on alternative-specific attributes—such as "
+"price—to vary across individuals, the model attributes persistent "
+"differences in behavior to latent taste heterogeneity. In effect, "
+"unexplained dispersion in choice behavior is absorbed by assuming that "
+"individuals systematically value attributes differently, and that these "
+"preferences are stable across repeated choice occasions. This is a "
+"structural explanation: variation is interpreted as reflecting genuine "
+"differences in preferences."
+msgstr ""
+"Los efectos aleatorios explican la variación imponiendo estructura sobre las"
+" preferencias. Al permitir que los coeficientes de los atributos específicos"
+" de cada alternativa, como el precio, varíen entre individuos, el modelo "
+"atribuye las diferencias persistentes en el comportamiento a una "
+"heterogeneidad latente de gustos. En efecto, la dispersión no explicada del "
+"comportamiento de elección se absorbe suponiendo que los individuos valoran "
+"los atributos de forma sistemáticamente distinta y que estas preferencias "
+"son estables a lo largo de ocasiones de elección repetidas. Esta es una "
+"explicación estructural: la variación se interpreta como reflejo de "
+"diferencias genuinas en las preferencias."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40149
+#: c4fb862090ec40b985f67cd32e4d7afc
+msgid ""
+"The control function approach addresses a different source of variation: "
+"endogeneity arising from correlation between observed attributes and "
+"unobserved utility components. In many choice settings, prices are not "
+"set exogenously. They may reflect unobserved product quality, local "
+"market conditions, or strategic pricing responses that are also relevant "
+"to consumers’ utility. In this case, variation in choices driven by these"
+" unobservables should not be attributed to preference heterogeneity. "
+"Instead, the control function explicitly removes the component of the "
+"endogenous regressor that is correlated with the unobserved utility "
+"shock, reallocating that variation away from the structural preference "
+"parameters."
+msgstr ""
+"El enfoque de función de control aborda una fuente de variación distinta: la"
+" endogeneidad que surge de la correlación entre los atributos observados y "
+"los componentes no observados de la utilidad. En muchos contextos de "
+"elección, los precios no se fijan de manera exógena. Pueden reflejar la "
+"calidad no observada del producto, las condiciones del mercado local o "
+"respuestas estratégicas de fijación de precios que también son relevantes "
+"para la utilidad de los consumidores. En este caso, la variación en las "
+"elecciones impulsada por estos factores no observados no debe atribuirse a "
+"la heterogeneidad de las preferencias. En cambio, la función de control "
+"elimina explícitamente el componente del regresor endógeno que está "
+"correlacionado con el shock de utilidad no observado, reasignando esa "
+"variación fuera de los parámetros estructurales de preferencia."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40151
+#: 87febe21cc7b4d81b465ae1a2af615f8
+msgid ""
+"When both mechanisms are present, there is an important tension. Random "
+"effects are flexible and can “explain away” substantial variation in "
+"choices, even when that variation is in fact driven by endogeneity. If "
+"prices are endogenous and no control function is included, the model may "
+"incorrectly interpret systematic price–utility correlation as evidence of"
+" heterogeneous price sensitivity. Conversely, a strong control function "
+"can substantially reduce the residual variation attributed to random "
+"coefficients, leading to smaller estimated heterogeneity."
+msgstr ""
+"Cuando ambos mecanismos están presentes, surge una tensión importante. Los "
+"efectos aleatorios son flexibles y pueden “explicar” una variación "
+"sustancial en las elecciones, incluso cuando esa variación en realidad es "
+"impulsada por la endogeneidad. Si los precios son endógenos y no se incluye "
+"una función de control, el modelo puede interpretar incorrectamente la "
+"correlación sistemática entre precio y utilidad como evidencia de una "
+"sensibilidad heterogénea al precio. Por el contrario, una función de control"
+" sólida puede reducir sustancialmente la variación residual atribuida a los "
+"coeficientes aleatorios, lo que lleva a una heterogeneidad estimada menor."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40153
+#: 8d613c3c59854386994c48fa058e46db
+msgid ""
+"The strength and provenance of the pricing instrument therefore play a "
+"central role in how variance is partitioned. A weak or poorly motivated "
+"instrument may fail to isolate the endogenous component of price "
+"variation, leaving the random effects to absorb both true preference "
+"heterogeneity and spurious correlation. A strong instrument—one that "
+"shifts prices for reasons plausibly orthogonal to consumer utility—allows"
+" the control function to explain the appropriate portion of variance, "
+"leaving the random coefficients to capture genuine differences in tastes."
+msgstr ""
+"Por lo tanto, la solidez y la procedencia del instrumento de precios "
+"desempeñan un papel central en la forma en que se reparte la varianza. Un "
+"instrumento débil o poco justificado puede no lograr aislar el componente "
+"endógeno de la variación del precio, dejando que los efectos aleatorios "
+"absorban tanto la heterogeneidad real de las preferencias como la "
+"correlación espuria. Un instrumento sólido, es decir, uno que modifica los "
+"precios por razones plausiblemente ortogonales a la utilidad del consumidor,"
+" permite que la función de control explique la porción adecuada de la "
+"varianza, dejando que los coeficientes aleatorios capturen las diferencias "
+"genuinas de gustos."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40155
+#: fdab4efc0f32478cab33735cd346c841
+msgid ""
+"From a modeling perspective, this means that random effects and "
+"endogeneity controls should not be viewed as substitutes, but as "
+"complementary tools with distinct interpretive roles. Random effects "
+"encode structural assumptions about preference heterogeneity; control "
+"functions encode identifying assumptions about the data-generating "
+"process for endogenous regressors. Careful instrument selection and "
+"transparent justification are therefore critical, as they directly "
+"determine how variation in observed choices is attributed—either to "
+"latent preferences or to market-level forces operating outside the "
+"utility specification."
+msgstr ""
+"Desde una perspectiva de modelado, esto significa que los efectos aleatorios"
+" y los controles de endogeneidad no deben verse como sustitutos, sino como "
+"herramientas complementarias con funciones interpretativas distintas. Los "
+"efectos aleatorios codifican supuestos estructurales sobre la heterogeneidad"
+" de las preferencias; las funciones de control codifican supuestos de "
+"identificación sobre el proceso generador de datos de los regresores "
+"endógenos. Por ello, una selección cuidadosa de los instrumentos y una "
+"justificación transparente son críticas, ya que determinan directamente cómo"
+" se atribuye la variación en las elecciones observadas, ya sea a "
+"preferencias latentes o a fuerzas a nivel de mercado que operan fuera de la "
+"especificación de la utilidad."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40157
+#: 473ced50b2c94534b4a2b8284eff8434
+msgid ""
+"In applied work, examining how the estimated heterogeneity changes with "
+"and without the control function can be informative. Large shifts in the "
+"variance of random coefficients after introducing a valid instrument "
+"often signal that what initially appeared to be taste heterogeneity was, "
+"in fact, driven by endogeneity."
+msgstr ""
+"En el trabajo aplicado, puede resultar informativo examinar cómo cambia la "
+"heterogeneidad estimada con y sin la función de control. Los cambios grandes"
+" en la varianza de los coeficientes aleatorios tras introducir un "
+"instrumento válido suelen indicar que lo que inicialmente parecía "
+"heterogeneidad de gustos estaba, en realidad, impulsado por la endogeneidad."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40160
+#: 7d98560dd038451b83411587bb029c6b
+msgid "Travel Choice Example"
+msgstr "Ejemplo de elección de viaje"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:40161
+#: c1f8c0c41f5e4cab9d8c94e2b350c08e
+msgid ""
+"Let's first look at an example of how to implement a Mixed Logit model "
+"with out endogeneity correction using PyMC-Marketing. We will use a "
+"travel choice dataset that contains information on individuals' choices "
+"among different modes of transportation (car, bus, train, air) along with"
+" various attributes of each mode."
+msgstr ""
+"Veamos primero un ejemplo de cómo implementar un modelo logit mixto sin "
+"corrección de endogeneidad usando PyMC-Marketing. Usaremos un conjunto de "
+"datos de elección de viaje que contiene información sobre las elecciones de "
+"los individuos entre diferentes modos de transporte (automóvil, autobús, "
+"tren, avión), junto con varios atributos de cada modo."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:70002
+#: 1ee878c8a15744e7be88863e7b313ac9
+msgid ""
+"The above code block specifies and initializes a mixed logit model for a "
+"transportation mode choice problem with four alternatives: **car**, "
+"**bus**, **train**, and **air**. Each string in utility_eqs defines the "
+"utility for one transportation mode relative to the baseline alternative."
+" The choice set consists of four mutually exclusive alternatives, and the"
+" observed choice is stored in the mode column of the data frame. The "
+"baseline alternative is implicitly defined as the last alternative in the"
+" list (in this case, \"air\")."
+msgstr ""
+"El bloque de código anterior especifica e inicializa un modelo logit mixto "
+"para un problema de elección de modo de transporte con cuatro alternativas: "
+"**car** (automóvil), **bus** (autobús), **train** (tren) y **air** (avión). "
+"Cada cadena de texto en utility_eqs define la utilidad de un modo de "
+"transporte en relación con la alternativa base. El conjunto de elección "
+"consta de cuatro alternativas mutuamente excluyentes, y la elección "
+"observada se almacena en la columna mode del DataFrame. La alternativa base "
+"se define implícitamente como la última alternativa de la lista (en este "
+"caso, \"air\")."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:70004
+#: 483150b2711140ebb5301c777ba1ef0e
+msgid "**Alternative-Specific Covariates**"
+msgstr "**Covariables específicas de cada alternativa**"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:70006
+#: 1ac86e630a114165a7f97d0f5a84ad90
+msgid ""
+"The left-hand side of each formula includes alternative-specific "
+"attributes:"
+msgstr ""
+"El lado izquierdo de cada fórmula incluye atributos específicos de cada "
+"alternativa:"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:70008
+#: f9f70e06ec454fe488a423cafe610e30
+msgid "wait_*: waiting time"
+msgstr "wait_*: tiempo de espera"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:70010
+#: 5cc6bff69dd94692b50932b47044ce49
+msgid "vcost_*: variable cost"
+msgstr "vcost_*: costo variable"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:70012
+#: f749e3118703402dbae8adddb861db07
+msgid "travel_*: in-vehicle travel time"
+msgstr "travel_*: tiempo de viaje dentro del vehículo"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:70014
+#: 39b59439fde84083be462aee57d99ad9
+msgid ""
+"These variables vary across alternatives and choice occasions and enter "
+"utility with fixed population-level coefficients by default."
+msgstr ""
+"Estas variables varían entre alternativas y ocasiones de elección, y por "
+"defecto entran en la utilidad con coeficientes fijos a nivel poblacional."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:70016
+#: 8ced93f8cff649d7831d3dd1cd39c58f
+msgid "**Individual-Specific Covariates**"
+msgstr "**Covariables específicas del individuo**"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:70018
+#: 06049e4a1f5743f3b97f05cfb44b0257
+msgid ""
+"The middle component of the formula (| income |) specifies income as an "
+"individual-specific covariate. Income does not vary across alternatives "
+"but shifts the relative utility of each mode through alternative-specific"
+" coefficients. This allows income to affect, for example, the "
+"attractiveness of air travel differently than car or bus."
+msgstr ""
+"El componente central de la fórmula (| income |) especifica el ingreso como "
+"una covariable específica del individuo. El ingreso no varía entre "
+"alternativas, pero desplaza la utilidad relativa de cada modo a través de "
+"coeficientes específicos de cada alternativa. Esto permite que el ingreso "
+"afecte, por ejemplo, el atractivo del viaje en avión de manera diferente que"
+" el del automóvil o el autobús."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:70020
+#: 22503bf010c34ae6af43a712f0c6999f
+msgid "**Random Effects on Alternative-Specific Covariates**"
+msgstr ""
+"**Efectos aleatorios en las covariables específicas de cada alternativa**"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:70022
+#: 935e72f13e7b42b7926c6953c4fc6b18
+msgid ""
+"The right-hand side of the formula specifies wait_* as a random "
+"coefficient. This means that sensitivity to waiting time is allowed to "
+"vary across individuals: The random effect applies only to the "
+"alternative-specific waiting-time variables and is constant across all "
+"choice occasions for a given individual. Other alternative-specific "
+"covariates (vcost_* and travel_*) are treated as fixed effects."
+msgstr ""
+"El lado derecho de la fórmula especifica wait_* como un coeficiente "
+"aleatorio. Esto significa que se permite que la sensibilidad al tiempo de "
+"espera varíe entre individuos: el efecto aleatorio se aplica únicamente a "
+"las variables de tiempo de espera específicas de cada alternativa y es "
+"constante en todas las ocasiones de elección de un mismo individuo. Las "
+"demás covariables específicas de cada alternativa (vcost_* y travel_*) se "
+"tratan como efectos fijos."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:90002
+#: 04de08dbd13c4cbc81dbd18c7955d780
+msgid "**The Model Graph**"
+msgstr "**El grafo del modelo**"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:90004
+#: c3ca89272033416bb79a15a49436a8a8
+msgid ""
+"We can visualize the model structure using Graphviz to see how the "
+"components relate to each other:"
+msgstr ""
+"Podemos visualizar la estructura del modelo con Graphviz para ver cómo se "
+"relacionan los componentes entre sí:"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:110002
+#: ef2a51d820004fa2b9cf90d9d7e6f006
+msgid ""
+"This table summarizes posterior estimates from a mixed logit model with "
+"alternative-specific intercepts (alphas), fixed coefficients on "
+"alternative-specific covariates (betas_non_random) and the hierarchical "
+"random coefficients on waiting time (mu_random, sigma_random)."
+msgstr ""
+"Esta tabla resume las estimaciones posteriores de un modelo logit mixto con "
+"intercepto específico de cada alternativa (alphas), coeficientes fijos en "
+"las covariables específicas de cada alternativa (betas_non_random) y los "
+"coeficientes aleatorios jerárquicos del tiempo de espera (mu_random, "
+"sigma_random)."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:130002
+#: 5ae140f935b54a60931bb6bb0ecf3d66
+msgid ""
+"For example if we see `alphas_[car]` implies a strongly negative mean "
+"(−8.18) with a tight credible interval well below zero, which imples that"
+" after accounting for wait time, travel time, cost, and income, car is "
+"substantially less preferred relative to the baseline. While "
+"`betas_non_random_[vcost]` shows a negative mean (−0.007), indicating "
+"that higher variable costs decrease utility across all individuals on "
+"average, as expected. While the random coefficient on wait time "
+"(`mu_random_[wait]` and `sigma_random_[wait]`) indicates that, on "
+"average, individuals dislike longer wait times (mean of −0.208), there is"
+" considerable heterogeneity in this preference (standard deviation of "
+"0.12), suggesting that some individuals are much more sensitive to wait "
+"times than others. The model samples well and effects seem well "
+"identified."
+msgstr ""
+"Por ejemplo, si vemos que `alphas_[car]` implica una media fuertemente "
+"negativa (−8.18) con un intervalo creíble estrecho muy por debajo de cero, "
+"esto implica que, tras tener en cuenta el tiempo de espera, el tiempo de "
+"viaje, el costo y el ingreso, el automóvil es sustancialmente menos "
+"preferido en relación con la alternativa base. Por su parte, "
+"`betas_non_random_[vcost]` muestra una media negativa (−0.007), lo que "
+"indica que, en promedio, un mayor costo variable reduce la utilidad de todos"
+" los individuos, como era de esperar. Mientras que el coeficiente aleatorio "
+"del tiempo de espera (`mu_random_[wait]` y `sigma_random_[wait]`) indica "
+"que, en promedio, a los individuos les disgustan los tiempos de espera más "
+"largos (media de −0.208), existe una considerable heterogeneidad en esta "
+"preferencia (desviación estándar de 0.12), lo que sugiere que algunos "
+"individuos son mucho más sensibles a los tiempos de espera que otros. El "
+"modelo muestrea bien y los efectos parecen estar bien identificados."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:130004
+#: a5875c61c81e4357a1501cf4eee155b6
+msgid ""
+"High level, this suggests that train is structurally preferred while car "
+"is strongly disfavored, and wait time is an important driver of choice "
+"with meaningful individual differences."
+msgstr ""
+"A grandes rasgos, esto sugiere que el tren es estructuralmente preferido "
+"mientras que el automóvil es fuertemente desfavorecido, y que el tiempo de "
+"espera es un factor importante de la elección, con diferencias individuales "
+"significativas."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:150002
+#: f408ee28846b4442b3b858952228ea84
+msgid ""
+"The combination of a negative mean and a nontrivial standard deviation "
+"implies that aiting time is a key driver of choice, average disutility is"
+" strong and individual differences matter meaningfully."
+msgstr ""
+"La combinación de una media negativa y una desviación estándar no trivial "
+"implica que el tiempo de espera es un factor clave de la elección, que la "
+"desutilidad promedio es fuerte y que las diferencias individuales importan "
+"de manera significativa."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:160002
+#: be750073ce3d4de6a9d5789bff78124f
+msgid "Counterfactual Analysis"
+msgstr "Análisis contrafactual"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:160003
+#: e9ef7b463e0e421ab71d99d887ef7174
+msgid ""
+"We can use the fitted mixed logit model to perform counterfactual "
+"analysis by simulating changes in choice probabilities under different "
+"scenarios. For example, we can analyze how reducing wait times for bus "
+"and train while increasing wait time for air travel affects market "
+"shares. Similar to the MNL and Nested Logit examples, we first create a "
+"new dataset reflecting the policy change, then use the model to predict "
+"choice probabilities under this new scenario. Let's simulate a scenario "
+"where wait times for bus and train are halved, while wait time for air "
+"travel is increased by 50%."
+msgstr ""
+"Podemos usar el modelo logit mixto ajustado para realizar un análisis "
+"contrafactual simulando cambios en las probabilidades de elección bajo "
+"diferentes escenarios. Por ejemplo, podemos analizar cómo afecta a las "
+"cuotas de mercado reducir los tiempos de espera del autobús y del tren "
+"mientras se aumenta el tiempo de espera del viaje en avión. De manera "
+"similar a los ejemplos de MNL y logit anidado, primero creamos un nuevo "
+"conjunto de datos que refleja el cambio de política y luego usamos el modelo"
+" para predecir las probabilidades de elección bajo este nuevo escenario. "
+"Vamos a simular un escenario en el que los tiempos de espera del autobús y "
+"del tren se reducen a la mitad, mientras que el tiempo de espera del viaje "
+"en avión aumenta un 50%."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:190002
+#: fe91cdf7a4894c9298dd859dbb3e993e
+msgid ""
+"As we would expect, reducing wait times for bus and train increases their"
+" market shares, while increasing wait time for air travel decreases its "
+"share. The mixed logit model captures these changes while accounting for "
+"individual-level preference heterogeneity, providing a nuanced "
+"understanding of how policy interventions impact choice behavior across "
+"the population. In particular, the model allows us to see how different "
+"segments of the population respond differently to changes in wait times, "
+"reflecting the underlying heterogeneity captured by the random "
+"coefficients. The inference supported here depends strongly on the "
+"stability of the preference orderings in the market."
+msgstr ""
+"Como cabría esperar, reducir los tiempos de espera del autobús y del tren "
+"aumenta sus cuotas de mercado, mientras que aumentar el tiempo de espera del"
+" viaje en avión disminuye la suya. El modelo logit mixto captura estos "
+"cambios y, al mismo tiempo, tiene en cuenta la heterogeneidad de las "
+"preferencias a nivel individual, lo que proporciona una comprensión matizada"
+" de cómo las intervenciones de política afectan el comportamiento de "
+"elección en toda la población. En particular, el modelo nos permite ver cómo"
+" distintos segmentos de la población responden de manera diferente a los "
+"cambios en los tiempos de espera, reflejando la heterogeneidad subyacente "
+"capturada por los coeficientes aleatorios. La inferencia que se apoya aquí "
+"depende en gran medida de la estabilidad de los órdenes de preferencia en el"
+" mercado."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:190004
+#: 7c5a231fb8e14859b5af0c1317455e37
+msgid ""
+"In a behavioral counterfactual, we ask: Holding the estimated utility "
+"function fixed, how would predicted choices change if an attribute took "
+"on a different value? This interpretation is valid only if the attribute "
+"being manipulated is exogenous—that is, if it is uncorrelated with the "
+"unobserved determinants of utility. When this condition holds, the "
+"estimated coefficient represents a causal marginal effect, and "
+"counterfactual simulations can be interpreted causally."
+msgstr ""
+"En un contrafactual conductual, nos preguntamos: manteniendo fija la función"
+" de utilidad estimada, ¿cómo cambiarían las elecciones predichas si un "
+"atributo tomara un valor diferente? Esta interpretación solo es válida si el"
+" atributo que se manipula es exógeno, es decir, si no está correlacionado "
+"con los determinantes no observados de la utilidad. Cuando esta condición se"
+" cumple, el coeficiente estimado representa un efecto marginal causal y las "
+"simulaciones contrafactuales pueden interpretarse de forma causal."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:190006
+#: 15968f3e3e83458b83c95be5f1d0af15
+msgid "The Threat of Price Endogeneity"
+msgstr "La amenaza de la endogeneidad del precio"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:190008
+#: fece8e970b5c47f4a453cca023c7bdb2
+msgid ""
+"Endogeneity arises when an observed attribute—such as price—is correlated"
+" with unobserved components of utility. In demand settings, prices often "
+"reflect factors like product quality, brand positioning, local market "
+"conditions, or firm strategies that are not fully observed by the analyst"
+" but are observed (at least partially) by consumers. By combining mixed "
+"logit models with an explicit endogeneity correction, we retain the "
+"strengths of rich behavioral modeling while ensuring that counterfactuals"
+" correspond to credible causal interventions. In the next section, we "
+"show how the control function approach integrates naturally into the "
+"mixed logit framework, allowing causal counterfactual analysis without "
+"sacrificing flexibility or interpretability. The control function "
+"approach can generally be thought of as a instrumental variables strategy"
+" adapted to the discrete choice context, providing a principled way to "
+"address endogeneity while preserving the behavioral richness of mixed "
+"logit models."
+msgstr ""
+"La endogeneidad surge cuando un atributo observado, como el precio, está "
+"correlacionado con componentes no observados de la utilidad. En contextos de"
+" demanda, los precios suelen reflejar factores como la calidad del producto,"
+" el posicionamiento de marca, las condiciones del mercado local o las "
+"estrategias de las empresas que el analista no observa por completo, pero "
+"que los consumidores sí observan (al menos parcialmente). Al combinar los "
+"modelos logit mixto con una corrección explícita de la endogeneidad, "
+"conservamos las fortalezas de un modelado conductual rico y, al mismo "
+"tiempo, garantizamos que los contrafactuales correspondan a intervenciones "
+"causales creíbles. En la siguiente sección mostramos cómo el enfoque de "
+"función de control se integra de forma natural en el marco del logit mixto, "
+"lo que permite un análisis contrafactual causal sin sacrificar flexibilidad "
+"ni interpretabilidad. En general, el enfoque de función de control puede "
+"considerarse una estrategia de variables instrumentales adaptada al contexto"
+" de elección discreta, que ofrece una manera fundamentada de abordar la "
+"endogeneidad preservando la riqueza conductual de los modelos logit mixto."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:190010
+#: c0a894ade5ab40daa0cffbadfafca98a
+msgid ""
+"To demonstrate this we will need a valid instrument for price in the "
+"travel mode choice dataset. Potential instruments could include variables"
+" like fuel prices, distance to nearest airport, or regional economic "
+"indicators that affect prices but are plausibly exogenous to individual "
+"utility. But as we don't have data to hand on such instruments we will "
+"force the issue by simulating an instrumental variable relationship and "
+"the re-estimate the mixed logit model with endogeneity correction to show"
+" how this works in practice."
+msgstr ""
+"Para demostrarlo necesitaremos un instrumento válido para el precio en el "
+"conjunto de datos de elección de modo de viaje. Los posibles instrumentos "
+"podrían incluir variables como los precios del combustible, la distancia al "
+"aeropuerto más cercano o indicadores económicos regionales que afectan los "
+"precios pero que son plausiblemente exógenos a la utilidad individual. Pero "
+"como no tenemos a mano datos sobre tales instrumentos, forzaremos la "
+"situación simulando una relación de variable instrumental y volviendo a "
+"estimar el modelo logit mixto con corrección de endogeneidad para mostrar "
+"cómo funciona esto en la práctica."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:210002
+#: 3512293fc6684f7bac95ca05f689f8aa
+msgid ""
+"Having created our \"instrument data\", we will feed it through the model"
+" without observing the choice data `y`, then we will forward sample the "
+"model to obtain synthetic choices under a particular regime where the "
+"variance can be decomposed into preference heterogeneity and endogeneity "
+"components."
+msgstr ""
+"Una vez creados nuestros \"datos del instrumento\", los pasaremos por el "
+"modelo sin observar los datos de elección `y`, y luego muestrearemos el "
+"modelo hacia adelante para obtener elecciones sintéticas bajo un régimen "
+"particular en el que la varianza puede descomponerse en componentes de "
+"heterogeneidad de las preferencias y de endogeneidad."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:230002
+#: 342318f72d16495a97428ddc1df37553
+msgid ""
+"Now we forward sample from the model to obtain synthetic choices under "
+"the new regime."
+msgstr ""
+"Ahora muestreamos el modelo hacia adelante para obtener elecciones "
+"sintéticas bajo el nuevo régimen."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:250002
+#: c2f60b46fa1e47ef920f4ef979e3aad8
+msgid ""
+"With the synthetic choices generated under the new regime, we can now "
+"analyze how the inclusion of the control function for endogeneity affects"
+" the estimated market shares compared to the original mixed logit model "
+"without endogeneity correction. What we're aiming to see is how the price"
+" instrument allows us to disentangle true preference heterogeneity from "
+"spurious variation driven by endogenous pricing."
+msgstr ""
+"Con las elecciones sintéticas generadas bajo el nuevo régimen, ahora podemos"
+" analizar cómo afecta la inclusión de la función de control para la "
+"endogeneidad a las cuotas de mercado estimadas, en comparación con el modelo"
+" logit mixto original sin corrección de endogeneidad. Lo que buscamos ver es"
+" cómo el instrumento de precios nos permite separar la verdadera "
+"heterogeneidad de las preferencias de la variación espuria impulsada por una"
+" fijación de precios endógena."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:270002
+#: a18d730f4fe54047b086803870e0736a
+msgid "Again, the model samples well and the parameters seem well identified."
+msgstr ""
+"Nuevamente, el modelo muestrea bien y los parámetros parecen estar bien "
+"identificados."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:290002
+#: 5e1a6eb64e764c37939035abe309a368
+msgid ""
+"However, we can also see how accurately the model recovers the true "
+"parameters used to generate the synthetic data. And while the estimates "
+"are close, there are some deviations likely due to sampling variability "
+"and the complexity of disentangling preference heterogeneity from "
+"endogeneity effects. A larger sample size or stronger instruments could "
+"help improve recovery of the true parameters."
+msgstr ""
+"Sin embargo, también podemos ver con qué precisión el modelo recupera los "
+"verdaderos parámetros usados para generar los datos sintéticos. Y aunque las"
+" estimaciones son cercanas, hay algunas desviaciones probablemente debidas a"
+" la variabilidad muestral y a la complejidad de separar la heterogeneidad de"
+" las preferencias de los efectos de la endogeneidad. Un tamaño de muestra "
+"mayor o instrumentos más fuertes podrían ayudar a mejorar la recuperación de"
+" los verdaderos parámetros."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:320002
+#: 772bc6d77a054967b346e2c495f69cd4
+msgid "Panel Data and Preference Stability"
+msgstr "Datos de panel y estabilidad de las preferencias"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:320004
+#: ea4a9cc50ec84f17bc9bd1e0e5a8a620
+msgid ""
+"Let's now extend the mixed logit model to handle panel data, where "
+"individuals make multiple choices over time. This allows us to capture "
+"preference stability and dynamics across repeated choice occasions."
+msgstr ""
+"Vamos a extender ahora el modelo logit mixto para manejar datos de panel, en"
+" los que los individuos toman múltiples decisiones a lo largo del tiempo. "
+"Esto nos permite capturar la estabilidad y la dinámica de las preferencias a"
+" lo largo de ocasiones de elección repetidas."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:350002
+#: fd64c594e2bf4f2eb3d32b1a5a2423cc
+msgid "Train and Test Split for Panel Data"
+msgstr "División en entrenamiento y prueba para datos de panel"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:350003
+#: b51da5015f3a4006aec044542727a249
+msgid ""
+"We can split the panel data into training and testing sets while ensuring"
+" that all choice occasions for a given individual are contained within "
+"either the training or testing set. In this way, we can evaluate the "
+"model's predictive performance on unseen individuals while preserving the"
+" integrity of the panel structure and assessing preference stability."
+msgstr ""
+"Podemos dividir los datos de panel en conjuntos de entrenamiento y de prueba"
+" asegurándonos de que todas las ocasiones de elección de un mismo individuo "
+"estén contenidas en el conjunto de entrenamiento o en el de prueba. De este "
+"modo, podemos evaluar el desempeño predictivo del modelo en individuos no "
+"vistos, preservando la integridad de la estructura de panel y evaluando la "
+"estabilidad de las preferencias."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:370002
+#: f9860d6313474f48b0471d376bfcd5e8
+msgid "We will now train both models."
+msgstr "Ahora entrenaremos ambos modelos."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:400002
+#: 02055263ee13413082993d65a80648a1
+msgid "The Model Structure"
+msgstr "La estructura del modelo"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:400004
+#: 8597343847e1481fa5b92a84f48a03bf
+msgid ""
+"We have added multiple observations per individual in the data. This is "
+"reflected in the model graph, but we retain only one random effect term "
+"on the price coefficient per individual i.e we say that the individual "
+"preference is such that it is stable across time."
+msgstr ""
+"Hemos añadido múltiples observaciones por individuo en los datos. Esto se "
+"refleja en el grafo del modelo, pero conservamos un solo término de efecto "
+"aleatorio en el coeficiente del precio por individuo, es decir, decimos que "
+"la preferencia individual es tal que se mantiene estable a lo largo del "
+"tiempo."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:420002
+#: e2cd5f14d2554a38bfb2646cbbd9028b
+msgid ""
+"We can observe a broad stability in the model inferred parameters across "
+"the train and test splits."
+msgstr ""
+"Podemos observar una amplia estabilidad en los parámetros inferidos por el "
+"modelo entre las particiones de entrenamiento y de prueba."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:440002
+#: 681fd4531404407aa4a0589fccdf7ad8
+msgid ""
+"The same information is probably better reflected in a graph, and we can "
+"see how the reference alternative parameters remain unidentified. This is"
+" a reminder that discrete choice models estimate relative utility over "
+"the baseline `private` choice."
+msgstr ""
+"Probablemente la misma información se refleje mejor en un gráfico, y podemos"
+" ver cómo los parámetros de la alternativa de referencia permanecen sin "
+"identificar. Esto es un recordatorio de que los modelos de elección discreta"
+" estiman la utilidad relativa respecto de la opción base `private`."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:460002
+#: bf32898cdc774bc8a07d361fe415f3f0
+msgid ""
+"But the real test is whether we can use what we learned about the "
+"preference ordering from the consumer's first five observed choices to "
+"predict the market share determined by their subsequent choices. To do "
+"this we take our trained model and update the data with the test inputs. "
+"We then sample the posterior predictive distribution and evaluate the "
+"accuracy of the forecast market share using a posterior predictive check."
+msgstr ""
+"Pero la verdadera prueba es si podemos usar lo que aprendimos sobre el orden"
+" de preferencias a partir de las primeras cinco elecciones observadas del "
+"consumidor para predecir la cuota de mercado determinada por sus elecciones "
+"posteriores. Para ello tomamos nuestro modelo entrenado y actualizamos los "
+"datos con las entradas de prueba. Luego muestreamos la distribución "
+"predictiva posterior y evaluamos la precisión de la cuota de mercado "
+"pronosticada mediante un chequeo predictivo posterior."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:490002
+#: 9ade52d906324e16be8d50db52444832
+msgid ""
+"These plots confirm a kind of robustness to the individual taste profiles"
+" that allow for effect out of sample predictions."
+msgstr ""
+"Estos gráficos confirman cierta robustez frente a los perfiles de gustos "
+"individuales, que permite realizar predicciones eficaces fuera de muestra."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:500002
+#: 83f40c698080453eac26b5bf50fbcacd
+msgid "Panel Data and Robust Counterfactuals: How Robust?"
+msgstr "Datos de panel y contrafactuales robustos: ¿qué tan robustos?"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:500004
+#: af0815c0979c4740871e66f593c4c656
+msgid ""
+"As we've seen panel data can play a central role in validating discrete "
+"choice models, particularly mixed logit specifications that posit stable,"
+" individual-level preference heterogeneity. By observing the same "
+"decision-makers across multiple choice occasions, panel data allow the "
+"model to distinguish persistent preference orderings from transitory "
+"noise. This structure enables out-of-sample prediction at the individual "
+"level, providing a meaningful check on whether estimated preferences "
+"generalize beyond the estimation sample. When a mixed logit model "
+"successfully predicts future choices for the same individuals under new "
+"choice situations, it lends credibility to the interpretation that the "
+"estimated heterogeneity reflects stable behavioral traits rather than "
+"overfitting or incidental correlations."
+msgstr ""
+"Como hemos visto, los datos de panel pueden desempeñar un papel central en "
+"la validación de los modelos de elección discreta, en particular de las "
+"especificaciones de logit mixto que postulan una heterogeneidad de "
+"preferencias estable a nivel individual. Al observar a los mismos tomadores "
+"de decisiones a lo largo de múltiples ocasiones de elección, los datos de "
+"panel permiten al modelo distinguir los órdenes de preferencia persistentes "
+"del ruido transitorio. Esta estructura permite la predicción fuera de "
+"muestra a nivel individual, lo que ofrece una verificación significativa de "
+"si las preferencias estimadas se generalizan más allá de la muestra de "
+"estimación. Cuando un modelo logit mixto predice con éxito las elecciones "
+"futuras de los mismos individuos en nuevas situaciones de elección, otorga "
+"credibilidad a la interpretación de que la heterogeneidad estimada refleja "
+"rasgos de comportamiento estables y no un sobreajuste o correlaciones "
+"incidentales."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:500006
+#: 86be136a24284462a60f52d42c51bc23
+msgid ""
+"At the same time, it is important to recognize the limits of what such "
+"validation can establish. Strong out-of-sample performance confirms the "
+"model’s ability to capture behavioral regularities, but it does not "
+"guarantee that the resulting counterfactuals are causally robust. In "
+"particular, when market conditions shift in ways that alter the price-"
+"setting environment—through policy changes, competitive entry, or supply "
+"shocks—the relationship between prices and unobserved attributes may "
+"change as well. In such cases, counterfactuals that rely on historically "
+"estimated preferences can remain behaviorally coherent yet fail to "
+"correspond to the outcomes of feasible market interventions. Panel data "
+"strengthen confidence in preference stability, but credible causal "
+"counterfactuals still require careful attention to endogeneity and the "
+"economic forces that generate prices in the first place. See the work of "
+"Train and Petrin in \"A Control Function Approach to Endogeneity in "
+"Consumer Choice Models\" for more details."
+msgstr ""
+"Al mismo tiempo, es importante reconocer los límites de lo que dicha "
+"validación puede establecer. Un buen desempeño fuera de muestra confirma la "
+"capacidad del modelo para capturar regularidades de comportamiento, pero no "
+"garantiza que los contrafactuales resultantes sean causalmente robustos. En "
+"particular, cuando las condiciones del mercado cambian de maneras que "
+"alteran el entorno de fijación de precios, ya sea por cambios de política, "
+"entrada de competidores o shocks de oferta, la relación entre los precios y "
+"los atributos no observados también puede cambiar. En tales casos, los "
+"contrafactuales que se basan en preferencias estimadas históricamente pueden"
+" seguir siendo coherentes desde el punto de vista conductual, pero no "
+"corresponder a los resultados de intervenciones de mercado factibles. Los "
+"datos de panel refuerzan la confianza en la estabilidad de las preferencias,"
+" pero los contrafactuales causales creíbles aún requieren prestar atención "
+"cuidadosa a la endogeneidad y a las fuerzas económicas que generan los "
+"precios en primer lugar. Consulte el trabajo de Train y Petrin, \"A Control "
+"Function Approach to Endogeneity in Consumer Choice Models\", para obtener "
+"más detalles."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:500008
+#: ea1059f792b647eb9c65ff20228c48d0
+msgid "Conclusion"
+msgstr "Conclusión"
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:500010
+#: f7604b8e537b4393a8fc4b524b6b7979
+msgid ""
+"For these reasons, our implementation combines a mixed logit "
+"specification with an explicit control function instrumental variables "
+"(IV) approach to price endogeneity. The mixed logit component leverages "
+"panel data to recover stable, individual-level preference orderings and "
+"to support rich behavioral counterfactuals. The control function "
+"component, in turn, disciplines the interpretation of price sensitivity "
+"by separating exogenous price variation from variation driven by "
+"unobserved market forces. Together, these elements allow the model to "
+"support counterfactual analysis that is both behaviorally credible and "
+"causally interpretable. In particular, the inclusion of a pricing "
+"instrument ensures that heterogeneity in price response reflects genuine "
+"differences in preferences rather than distortions arising from "
+"endogenous price formation, preserving the validity of counterfactual "
+"simulations under policy-relevant price changes."
+msgstr ""
+"Por estas razones, nuestra implementación combina una especificación de "
+"logit mixto con un enfoque explícito de variables instrumentales (IV) de "
+"función de control para la endogeneidad del precio. El componente de logit "
+"mixto aprovecha los datos de panel para recuperar órdenes de preferencia "
+"estables a nivel individual y para respaldar contrafactuales conductuales "
+"ricos. El componente de función de control, a su vez, disciplina la "
+"interpretación de la sensibilidad al precio al separar la variación exógena "
+"de los precios de la variación impulsada por fuerzas de mercado no "
+"observadas. En conjunto, estos elementos permiten que el modelo respalde un "
+"análisis contrafactual que es tanto conductualmente creíble como causalmente"
+" interpretable. En particular, la inclusión de un instrumento de precios "
+"garantiza que la heterogeneidad en la respuesta al precio refleje "
+"diferencias genuinas en las preferencias y no distorsiones derivadas de una "
+"formación de precios endógena, preservando la validez de las simulaciones "
+"contrafactuales ante cambios de precios relevantes para las políticas."
+
+#: ../source/notebooks/customer_choice/mixed_logit.ipynb:500012
+#: a3666aaa3300491fb54b2161743823d9
+msgid ""
+"In discrete choice contexts we're aiming at modelling two mechanisms that"
+" either (a) posit robust individual preference or (b) leverage exogenous "
+"shocks to solve the simultaneous equations that govern our system, "
+"adjusting for unobserved sources of confounding. Causal inference is "
+"hard. We are balancing an array of estimation strategies to find and "
+"isolate mechanisms that support robust and reliable counterfactual "
+"inference. There is no data derived model which will support inference "
+"over arbitrarily distant counterfactual scenarios, so we must always "
+"attempt to justify the counterfactual argument our model makes!"
+msgstr ""
+"En los contextos de elección discreta buscamos modelar dos mecanismos que "
+"(a) postulan una preferencia individual robusta o (b) aprovechan shocks "
+"exógenos para resolver las ecuaciones simultáneas que gobiernan nuestro "
+"sistema, ajustando por fuentes no observadas de confusión. La inferencia "
+"causal es difícil. Estamos equilibrando un conjunto de estrategias de "
+"estimación para encontrar y aislar mecanismos que respalden una inferencia "
+"contrafactual robusta y fiable. No existe ningún modelo derivado de los "
+"datos que respalde la inferencia sobre escenarios contrafactuales "
+"arbitrariamente lejanos, ¡así que siempre debemos intentar justificar el "
+"argumento contrafactual que hace nuestro modelo!"

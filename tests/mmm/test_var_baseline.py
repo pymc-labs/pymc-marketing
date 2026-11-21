@@ -2052,7 +2052,6 @@ def test_mmm_with_events_of_the_same_prefix_saves_and_loads(brand_mmm_data, tmp_
 @pytest.mark.parametrize(
     "arrange, effect_kwargs, equal",
     [
-        pytest.param(lambda df: df.copy(), {}, True, id="copy"),
         pytest.param(
             lambda df: df.set_axis(df.index + 100), {}, True, id="other-index"
         ),

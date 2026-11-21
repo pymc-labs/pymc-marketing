@@ -1,0 +1,844 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2026, PyMC Labs
+# This file is distributed under the same license as the PyMC-Marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyMC-Marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:10003
+#: edb692d99f0e4d1f8aa4bcaa2934219a
+msgid "Prior and Likelihood Sensitivity in the MMM Workflow"
+msgstr ""
+"Sensibilidad del prior y de la verosimilitud en el flujo de trabajo de MMM"
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:10005
+#: d09363cf9639476593649b7f03b3295c
+msgid ""
+"MMMs often combine separately specified priors because encoding every "
+"dependency between model parameters is difficult. A prior intended to be "
+"weak can become influential through its interaction with other model "
+"components, while some posterior quantities may be only weakly informed "
+"by the observed data. Prior and likelihood sensitivity analysis checks "
+"which posterior quantities respond to the prior or likelihood, revealing "
+"unintended prior influence, weak likelihood information, and potential "
+"tension between prior knowledge and the data."
+msgstr ""
+"Los MMM suelen combinar priors especificados por separado porque codificar "
+"cada dependencia entre los parámetros del modelo es difícil. Un prior "
+"pensado para ser débil puede volverse influyente por su interacción con "
+"otros componentes del modelo, mientras que algunas cantidades posteriores "
+"pueden estar informadas solo débilmente por los datos observados. El "
+"análisis de sensibilidad del prior y de la verosimilitud comprueba qué "
+"cantidades posteriores responden al prior o a la verosimilitud, y revela la "
+"influencia no deseada del prior, la poca información de la verosimilitud y "
+"la posible tensión entre el conocimiento previo y los datos."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:10007
+#: d119ea830e7344aab8bf57e37b2f0c42
+msgid ""
+"The goal here is not to introduce every MMM diagnostic, but to show one "
+"practical workflow:"
+msgstr ""
+"El objetivo aquí no es presentar todos los diagnósticos de MMM, sino mostrar"
+" un flujo de trabajo práctico:"
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:10009
+#: 9bb7c2f2e6734a779518d1fb23d67391
+msgid "fit an initial MMM with a stakeholder-informed **business prior** on ROAS,"
+msgstr ""
+"ajustar un MMM inicial con un **prior de negocio** sobre el ROAS, basado en "
+"la información de las partes interesadas,"
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:10010
+#: 5ba4aa9c3c3540c5ae690920a93aa5c9
+msgid ""
+"distinguish sensitivity in internal parameters from sensitivity in the "
+"ROAS estimate,"
+msgstr ""
+"distinguir la sensibilidad en los parámetros internos de la sensibilidad en "
+"la estimación del ROAS,"
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:10011
+#: 32be1fbec14c41a98f84963aa7562c37
+msgid "communicate the decision-relevant conflict instead of tuning it away, and"
+msgstr ""
+"comunicar el conflicto relevante para la decisión en lugar de eliminarlo "
+"mediante ajustes, y"
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:10012
+#: 6fb552a2cf524f72b15e785ef5f989bd
+msgid ""
+"add lift-test evidence to see whether the conflict and prior sensitivity "
+"disappear."
+msgstr ""
+"agregar evidencia de pruebas de elevación para ver si el conflicto y la "
+"sensibilidad al prior desaparecen."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:10014
+#: c23b3260bd044076bbad225749964520
+#, python-brace-format
+msgid ""
+"This case study uses the synthetic, confounded data from PyMC-Marketing's"
+" {ref}`ROAS lift-test case study <mmm_roas>`. We keep the synthetic true "
+"ROAS hidden until the end, so the modeling decisions are based on "
+"diagnostics and domain assumptions rather than the answer key."
+msgstr ""
+"Este caso de estudio usa los datos sintéticos y con confusores del "
+"{ref}`caso de estudio de ROAS con pruebas de elevación <mmm_roas>` de PyMC-"
+"Marketing. Mantenemos oculto el ROAS verdadero sintético hasta el final, de "
+"modo que las decisiones de modelado se basen en diagnósticos y supuestos del"
+" dominio y no en la respuesta correcta."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:20002
+#: d7867b88fe6a4c3ab7411c81bdf6a30a
+msgid "Prepare Notebook"
+msgstr "Preparar el cuaderno"
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:50002
+#: 07abb68bb5914754a759b2fb8fe9ee05
+msgid "Data"
+msgstr "Datos"
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:50004
+#: 9df2e41ac0c04c1cbdc81750706a68a2
+msgid ""
+"The observed data contain 2.5 years of weekly spend for two media "
+"channels, `x1` and `x2`, plus the target `y`. The data-generating process"
+" includes an unobserved confounder, `z`, that affects spend and sales. A "
+"model that cannot observe `z` can predict sales well while assigning the "
+"wrong ROAS to the channels."
+msgstr ""
+"Los datos observados contienen 2.5 años de gasto semanal en dos canales de "
+"medios, `x1` y `x2`, además de la variable objetivo `y`. El proceso "
+"generador de datos incluye un confusor no observado, `z`, que afecta al "
+"gasto y a las ventas. Un modelo que no puede observar `z` puede predecir "
+"bien las ventas y aun así asignar un ROAS incorrecto a los canales."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:90002
+#: d20b1ff5bdb240489b377941f81e9502
+msgid "1. Initial Model: Business Prior and Observational Data"
+msgstr "1. Modelo inicial: prior de negocio y datos observacionales"
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:90004
+#: 01a1b57bd8f442deb29f2810241871d8
+msgid ""
+"Stakeholders expect ROAS near 100 for `x1` and 150 for `x2`. We call "
+"these expectations the **business prior**: functionally, they express "
+"prior understanding before fitting the MMM. Because ROAS is a derived "
+"quantity rather than a free model parameter, PyMC-Marketing represents "
+"this prior with `add_cost_per_target_calibration`, an extra model factor "
+"on the implied ROAS."
+msgstr ""
+"Las partes interesadas esperan un ROAS cercano a 100 para `x1` y a 150 para "
+"`x2`. Llamamos a estas expectativas el **prior de negocio**: funcionalmente,"
+" expresan el conocimiento previo antes de ajustar el MMM. Como el ROAS es "
+"una cantidad derivada y no un parámetro libre del modelo, PyMC-Marketing "
+"representa este prior con `add_cost_per_target_calibration`, un factor "
+"adicional del modelo sobre el ROAS implícito."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:90010
+#: 61d17a1490e34901a4c90b1394d2dd97
+msgid ""
+"The initial model also has weakly informative media priors, a flexible "
+"time-varying baseline intended to capture non-media-related trends in "
+"sales, and a separate yearly seasonality component."
+msgstr ""
+"El modelo inicial también tiene priors débilmente informativos para los "
+"medios, una línea base flexible y variable en el tiempo, pensada para "
+"capturar las tendencias de las ventas no relacionadas con los medios, y un "
+"componente separado de estacionalidad anual."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:140002
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:360002
+#: 80d664a662e244b49fe54486f07e74ed b83bd1b5b9604c95932a6d17a8a1deec
+msgid "Model Diagnostics"
+msgstr "Diagnósticos del modelo"
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:140004
+#: 22fdbd6d41994cfe98929c0db602e492
+msgid ""
+"Before interpreting ROAS, we verify that the fit has no divergences, a "
+"maximum R-hat below 1.01, and adequate bulk and tail effective sample "
+"sizes."
+msgstr ""
+"Antes de interpretar el ROAS, verificamos que el ajuste no tenga "
+"divergencias, que el R-hat máximo sea inferior a 1.01 y que los tamaños de "
+"muestra efectivos del cuerpo y de las colas sean adecuados."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:160002
+#: de8a12136c2b406eac9aa46e2a8338a2
+msgid ""
+"Let us also inspect the estimated channel, baseline, and seasonal "
+"contributions as a sense check of the contribution decomposition. The "
+"fitted baseline captures an increasing long-run trend. The seasonality "
+"estimate and the `x1` media contribution both show recurring temporal "
+"structure, so they could plausibly compete to explain some variation."
+msgstr ""
+"Inspeccionemos también las contribuciones estimadas de los canales, de la "
+"línea base y de la estacionalidad como una verificación de sentido común de "
+"la descomposición de contribuciones. La línea base ajustada captura una "
+"tendencia creciente a largo plazo. Tanto la estimación de la estacionalidad "
+"como la contribución de medios de `x1` muestran una estructura temporal "
+"recurrente, por lo que podrían competir de forma plausible para explicar "
+"parte de la variación."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:180002
+#: 5f4605476f314cedbf1708122155c7f4
+msgid "Prior Sensitivity Check"
+msgstr "Verificación de la sensibilidad del prior"
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:180004
+#: 2df10ee085074be3b78cc8853021a45a
+msgid ""
+"We next assess the prior and likelihood sensitivity of ROAS. This shows "
+"how strongly each component influences the reported estimates and helps "
+"identify unexpectedly influential priors."
+msgstr ""
+"A continuación evaluamos la sensibilidad del ROAS al prior y a la "
+"verosimilitud. Esto muestra con qué fuerza influye cada componente en las "
+"estimaciones reportadas y ayuda a identificar priors inesperadamente "
+"influyentes."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:180006
+#: 84eb31cfb8e14dafa5e1ed20f951f224
+msgid ""
+"To answer this, we use **power-scaling sensitivity analysis** "
+"([Kallioinen et al., "
+"2024](https://link.springer.com/article/10.1007/s11222-023-10366-5)), a "
+"diagnostic that evaluates how much influence each prior or likelihood "
+"component exerts on the posterior by scaling its log-density with a power"
+" parameter $\\alpha$."
+msgstr ""
+"Para ello, usamos el **análisis de sensibilidad por escalado de potencia** "
+"([Kallioinen et al., "
+"2024](https://link.springer.com/article/10.1007/s11222-023-10366-5)), un "
+"diagnóstico que evalúa cuánta influencia ejerce cada componente del prior o "
+"de la verosimilitud sobre la distribución posterior, al escalar su log-"
+"densidad con un parámetro de potencia $\\alpha$."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:180008
+#: 9ea734cb66f643c1a695a19c6e8b114a
+msgid "The standard posterior is"
+msgstr "La distribución posterior estándar es"
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:180010
+#: 5c47a18c85a94c7888db0d53e72b0ba4
+msgid "p(\\theta \\mid y) \\propto p(y \\mid \\theta) \\, p(\\theta)"
+msgstr "p(\\theta \\mid y) \\propto p(y \\mid \\theta) \\, p(\\theta)"
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:180012
+#: e12767c79e11422fbe48c51d6f79d21e
+msgid "and we consider two power-scaling variants:"
+msgstr "y consideramos dos variantes de escalado de potencia:"
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:180014
+#: ca69598442c64a449ccfdd7600188cd8
+msgid ""
+"**Prior sensitivity**: $p(\\theta \\mid y) \\propto p(y \\mid \\theta) "
+"\\, p(\\theta)^\\alpha$"
+msgstr ""
+"**Sensibilidad del prior**: $p(\\theta \\mid y) \\propto p(y \\mid \\theta) "
+"\\, p(\\theta)^\\alpha$"
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:180015
+#: 0a5596612cb4483ead105581e0f5bee4
+msgid ""
+"**Likelihood sensitivity**: $p(\\theta \\mid y) \\propto p(y \\mid "
+"\\theta)^\\alpha \\, p(\\theta)$"
+msgstr ""
+"**Sensibilidad de la verosimilitud**: $p(\\theta \\mid y) \\propto p(y \\mid"
+" \\theta)^\\alpha \\, p(\\theta)$"
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:180017
+#: d637abb064364874abb6e4e7e10d3192
+msgid ""
+"When $\\alpha = 1$, the model is fitted to the original specification. "
+"When $\\alpha < 1$, the scaled component is weakened; when $\\alpha > 1$,"
+" it is amplified. By examining how posterior quantities of interest "
+"change as we perturb $\\alpha$, we can see how tension between the priors"
+" and likelihood affects the estimates we want to report."
+msgstr ""
+"Cuando $\\alpha = 1$, el modelo se ajusta con la especificación original. "
+"Cuando $\\alpha < 1$, el componente escalado se debilita; cuando $\\alpha > "
+"1$, se amplifica. Al examinar cómo cambian las cantidades posteriores de "
+"interés cuando perturbamos $\\alpha$, podemos ver cómo la tensión entre los "
+"priors y la verosimilitud afecta a las estimaciones que queremos reportar."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:180019
+#: 2ca260f012d94c98b9f7637172745269
+msgid ""
+"The following figure illustrates power scaling on a standard Normal "
+"distribution: $\\alpha < 1$ makes the distribution wider, whereas "
+"$\\alpha > 1$ makes it tighter."
+msgstr ""
+"La siguiente figura ilustra el escalado de potencia sobre una distribución "
+"Normal estándar: $\\alpha < 1$ hace la distribución más ancha, mientras que "
+"$\\alpha > 1$ la hace más estrecha."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:200002
+#: 45e0bd0844e74efea336e53440eee102
+msgid ""
+"A **key practical advantage is that we do not need to refit the model**. "
+"We approximate the posterior at different $\\alpha$ values using "
+"**Pareto-smoothed importance sampling (PSIS)** ([Vehtari et al., "
+"2024](https://www.jmlr.org/papers/v25/19-556.html)) from the original "
+"posterior samples. Because importance reweighting can reduce the "
+"effective sample size, we deliberately retain 2,000 draws across each of "
+"six chains, for 12,000 posterior draws in total."
+msgstr ""
+"Una **ventaja práctica clave es que no necesitamos volver a ajustar el "
+"modelo**. Aproximamos la distribución posterior para distintos valores de "
+"$\\alpha$ mediante el **muestreo de importancia suavizado por Pareto "
+"(PSIS)** ([Vehtari et al., "
+"2024](https://www.jmlr.org/papers/v25/19-556.html)) a partir de las muestras"
+" posteriores originales. Como la reponderación por importancia puede reducir"
+" el tamaño de muestra efectivo, conservamos deliberadamente 2,000 muestras "
+"en cada una de las seis cadenas, para un total de 12,000 muestras "
+"posteriores."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:200004
+#: 5ad72baefe1149aea872f76e9e622687
+msgid ""
+"We begin with one focused call to `az.psense_summary`. The three "
+"arguments identify different parts of the analysis:"
+msgstr ""
+"Comenzamos con una llamada concreta a `az.psense_summary`. Los tres "
+"argumentos identifican partes distintas del análisis:"
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:200006
+#: 7b92666968f54cc78e2c785daee03bf8
+msgid ""
+"`var_names` selects the **posterior or predictive targets** whose "
+"sensitivity we want to measure;"
+msgstr ""
+"`var_names` selecciona los **objetivos posteriores o predictivos** cuya "
+"sensibilidad queremos medir;"
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:200007
+#: 7fff86f886c949079b256bfb38fecc1c
+msgid "`prior_var_names` selects the prior term or block that we perturb;"
+msgstr ""
+"`prior_var_names` selecciona el término o bloque del prior que perturbamos;"
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:200008
+#: 23410aece1564e9fa38e5bc037c06bf5
+msgid ""
+"`likelihood_var_names` selects the likelihood term or block that we "
+"perturb."
+msgstr ""
+"`likelihood_var_names` selecciona el término o bloque de la verosimilitud "
+"que perturbamos."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:200010
+#: f69a2fda1a4247048010e65991bd3bb5
+msgid ""
+"In this example we perturb the prior on `saturation_beta` and the "
+"likelihood while measuring their effects on ROAS and both saturation "
+"parameters. This illustrates how changing one prior can affect several "
+"posterior quantities."
+msgstr ""
+"En este ejemplo perturbamos el prior de `saturation_beta` y la "
+"verosimilitud, y medimos sus efectos sobre el ROAS y sobre ambos parámetros "
+"de saturación. Esto ilustra cómo el cambio de un solo prior puede afectar a "
+"varias cantidades posteriores."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:220002
+#: ade833f8527a4256893a57dacf037db9
+msgid ""
+"The `prior` and `likelihood` columns quantify how much each posterior "
+"target changes under a small perturbation through a similarity distance "
+"on a scale from 0 to 1. Prior sensitivity above 0.05 triggers a flag for "
+"further investigation."
+msgstr ""
+"Las columnas `prior` y `likelihood` cuantifican cuánto cambia cada objetivo "
+"posterior ante una pequeña perturbación, mediante una distancia de similitud"
+" en una escala de 0 a 1. Una sensibilidad del prior superior a 0.05 activa "
+"una señal para investigar con más detalle."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:220004
+#: 7b2dee8b929b42188952a9e2aaa32286
+msgid "This compact example contains each type of result we need to interpret:"
+msgstr ""
+"Este ejemplo compacto contiene cada tipo de resultado que necesitamos "
+"interpretar:"
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:220006
+#: 8cf17e0008844f6cb05a9c8b4c62d65e
+msgid ""
+"A check mark means that no prior-related warning is triggered. In our "
+"case, ROAS is not sensitive to the `saturation_beta` prior. For `x1`, the"
+" value 0.272 under `likelihood` indicates that the posterior is sensitive"
+" to the likelihood."
+msgstr ""
+"Una marca de verificación significa que no se activa ninguna advertencia "
+"relacionada con el prior. En nuestro caso, el ROAS no es sensible al prior "
+"de `saturation_beta`. Para `x1`, el valor 0.272 en `likelihood` indica que "
+"la distribución posterior es sensible a la verosimilitud."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:220007
+#: b91a1c3dc8804ec586ebd3a5a010fe5a
+msgid ""
+"**Potential prior-data conflict** means that the posterior target "
+"responds to both the selected prior and the likelihood. For `x1`, both "
+"saturation parameters are flagged. The summary identifies potential "
+"conflict; the directional plot below shows whether strengthening the "
+"prior and likelihood pulls the posterior summaries in different "
+"directions."
+msgstr ""
+"**Posible conflicto entre el prior y los datos** significa que el objetivo "
+"posterior responde tanto al prior seleccionado como a la verosimilitud. Para"
+" `x1`, ambos parámetros de saturación están señalados. El resumen identifica"
+" un posible conflicto; el gráfico direccional de abajo muestra si fortalecer"
+" el prior y la verosimilitud empuja los resúmenes posteriores en direcciones"
+" distintas."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:220008
+#: 0fc2b33eaf2647b69b097e6cff479ca8
+msgid ""
+"**Potential strong prior / weak likelihood** means that the posterior "
+"responds to the prior but only weakly to the likelihood. For `x2`, the "
+"individual saturation parameters are therefore weakly informed by the "
+"observed sales data relative to the information carried by the "
+"`saturation_beta` prior."
+msgstr ""
+"**Posible prior fuerte / verosimilitud débil** significa que la distribución"
+" posterior responde al prior pero solo débilmente a la verosimilitud. Para "
+"`x2`, por lo tanto, los parámetros de saturación individuales están poco "
+"informados por los datos de ventas observados en relación con la información"
+" que aporta el prior de `saturation_beta`."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:220010
+#: 3dc0d6915fa64c868695fcd00d16ad8c
+msgid ""
+"Notice that scaling only the `saturation_beta` prior also affects "
+"`saturation_lam`. The two parameters jointly define the saturation curve "
+"and can compensate for one another, while we see that their joint "
+"implication for ROAS remains considerably more stable."
+msgstr ""
+"Tenga en cuenta que escalar únicamente el prior de `saturation_beta` también"
+" afecta a `saturation_lam`. Los dos parámetros definen conjuntamente la "
+"curva de saturación y pueden compensarse entre sí, aunque vemos que su "
+"implicación conjunta para el ROAS permanece considerablemente más estable."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:230002
+#: 27d911a8d2604b7bad28b42a49d2f4a8
+msgid ""
+"We now expand the same check across the model. We group the prior terms "
+"into media, baseline, business, and seasonality blocks, and group the "
+"posterior targets into ROAS, media parameters, and seasonality "
+"coefficients."
+msgstr ""
+"Ahora ampliamos la misma verificación a todo el modelo. Agrupamos los "
+"términos del prior en bloques de medios, línea base, negocio y "
+"estacionalidad, y agrupamos los objetivos posteriores en ROAS, parámetros de"
+" medios y coeficientes de estacionalidad."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:230004
+#: 942940c799ab447a902840c166bd675c
+msgid ""
+"The helper below keeps both levels of output: a compact matrix containing"
+" the maximum sensitivity within each posterior-target and prior-block "
+"combination, and the complete row-level summaries used to construct it. "
+"The matrix supports a quick scan, while the detailed results let us "
+"identify the exact parameter and channel behind any flag. Because every "
+"call uses PSIS to reweight the fitted posterior draws, looping over the "
+"blocks is fast and does not refit the model."
+msgstr ""
+"La función auxiliar de abajo conserva ambos niveles de salida: una matriz "
+"compacta con la sensibilidad máxima dentro de cada combinación de objetivo "
+"posterior y bloque del prior, y los resúmenes completos a nivel de fila "
+"usados para construirla. La matriz permite un vistazo rápido, mientras que "
+"los resultados detallados nos permiten identificar el parámetro y el canal "
+"exactos detrás de cualquier señal. Como cada llamada usa PSIS para "
+"reponderar las muestras posteriores ajustadas, recorrer los bloques en un "
+"bucle es rápido y no requiere volver a ajustar el modelo."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:260002
+#: e267c7e9b92140c59d573e6248154bb7
+msgid ""
+"The matrix separates sensitivity of the internal model parameters from "
+"sensitivity of the reporting target. Individual saturation and "
+"seasonality parameters can display prior sensitivity when multiple model "
+"components are jointly explaining the observed patterns. That does not "
+"automatically imply that the conclusions of our analysis are sensitive: "
+"ROAS is not sensitive to tightening the media parameter priors."
+msgstr ""
+"La matriz separa la sensibilidad de los parámetros internos del modelo de la"
+" sensibilidad del objetivo que se reporta. Los parámetros individuales de "
+"saturación y de estacionalidad pueden mostrar sensibilidad al prior cuando "
+"varios componentes del modelo explican conjuntamente los patrones "
+"observados. Eso no implica automáticamente que las conclusiones de nuestro "
+"análisis sean sensibles: el ROAS no es sensible a restringir los priors de "
+"los parámetros de medios."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:260004
+#: b0d7e7d782044e47a2a7062c0b99b5c7
+msgid ""
+"The seasonality coefficients respond to the baseline prior. This overlap "
+"is not decision-relevant for our analysis: both components describe non-"
+"media fluctuations for which we have no observed predictors, and we do "
+"not need to attribute those fluctuations precisely between a recurring "
+"seasonal pattern and a smooth time-varying baseline. Crucially, all-time "
+"ROAS remains insensitive to both prior blocks. The seasonality-prior "
+"column rounds to `0.000` because the `Normal(0, 2)` prior is broad "
+"relative to the fitted Fourier coefficients. Its density therefore "
+"changes very little under local power scaling. This is an expected result"
+" for a weakly informative prior."
+msgstr ""
+"Los coeficientes de estacionalidad responden al prior de la línea base. Este"
+" solapamiento no es relevante para la decisión en nuestro análisis: ambos "
+"componentes describen fluctuaciones no relacionadas con los medios para las "
+"que no tenemos predictores observados, y no necesitamos atribuir esas "
+"fluctuaciones con precisión entre un patrón estacional recurrente y una "
+"línea base suave que varía en el tiempo. Fundamentalmente, el ROAS de todo "
+"el período sigue siendo insensible a ambos bloques del prior. La columna del"
+" prior de estacionalidad se redondea a `0.000` porque el prior `Normal(0, "
+"2)` es amplio en relación con los coeficientes de Fourier ajustados. Por lo "
+"tanto, su densidad cambia muy poco bajo un escalado de potencia local. Este "
+"es un resultado esperado para un prior débilmente informativo."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:260006
+#: e2b67ebd7f344e2e96413d6eb6c86c7f
+msgid ""
+"Before looking at the ROAS sensitivity to both the business prior and the"
+" observed sales, which is a key result of our analysis, we inspect the "
+"individual media parameters in more detail."
+msgstr ""
+"Antes de analizar la sensibilidad del ROAS tanto al prior de negocio como a "
+"las ventas observadas, que es un resultado clave de nuestro análisis, "
+"inspeccionamos con más detalle los parámetros de medios individuales."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:280002
+#: aa7da75dba2b49a78763987fb0f88176
+msgid ""
+"The table above shows that the saturation curve of channel `x2` is weakly"
+" informed by the data, while both corresponding parameters for channel "
+"`x1` show potential prior-data conflicts. Below, we can plot how some "
+"selected posterior quantities shift as we scale the priors and "
+"likelihood. We see that both the mean and the standard deviation of the "
+"posteriors for channel `x2` are barely affected by the likelihood "
+"scaling, while especially the `saturation_beta` and `saturation_lam` of "
+"channel `x1` show prior and likelihood scaling pulling the posterior mean"
+" in opposite directions."
+msgstr ""
+"La tabla de arriba muestra que la curva de saturación del canal `x2` está "
+"poco informada por los datos, mientras que ambos parámetros correspondientes"
+" del canal `x1` muestran posibles conflictos entre el prior y los datos. A "
+"continuación, podemos graficar cómo cambian algunas cantidades posteriores "
+"seleccionadas al escalar los priors y la verosimilitud. Vemos que tanto la "
+"media como la desviación estándar de las distribuciones posteriores del "
+"canal `x2` apenas se ven afectadas por el escalado de la verosimilitud, "
+"mientras que, especialmente en `saturation_beta` y `saturation_lam` del "
+"canal `x1`, el escalado del prior y de la verosimilitud empuja la media "
+"posterior en direcciones opuestas."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:300002
+#: 1641407cb6614dceb3c7de1e60c59e5a
+msgid ""
+"In the top-left panel, strengthening the `saturation_lam[x1]` prior "
+"increases the posterior mean, while weakening it decreases the mean. The "
+"likelihood has the opposite pattern: strengthening it decreases the "
+"posterior mean, while weakening it increases the mean. In this "
+"diagnostic, the selected media priors pull `saturation_lam[x1]` upward "
+"while the observed sales pull it downward."
+msgstr ""
+"En el panel superior izquierdo, fortalecer el prior de `saturation_lam[x1]` "
+"aumenta la media posterior, mientras que debilitarlo la disminuye. La "
+"verosimilitud muestra el patrón opuesto: fortalecerla disminuye la media "
+"posterior, mientras que debilitarla la aumenta. En este diagnóstico, los "
+"priors de medios seleccionados empujan `saturation_lam[x1]` hacia arriba "
+"mientras que las ventas observadas lo empujan hacia abajo."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:320002
+#: fbca9f7709644e9fb6ab39515bd27685
+msgid ""
+"The `x1` ROAS posterior responds in opposite directions when "
+"strengthening the business prior and the likelihood, which is the "
+"decision-relevant potential conflict identified above. The `x2` ROAS "
+"estimate is less sensitive to this business-prior perturbation. We cannot"
+" resolve the `x1` conflict by deciding that either source must be "
+"correct. Instead of tuning the model toward either one, we return to the "
+"marketing team and recommend lift tests that directly inform the channel "
+"response."
+msgstr ""
+"La distribución posterior del ROAS de `x1` responde en direcciones opuestas "
+"al fortalecer el prior de negocio y la verosimilitud, lo cual es el posible "
+"conflicto relevante para la decisión identificado antes. La estimación del "
+"ROAS de `x2` es menos sensible a esta perturbación del prior de negocio. No "
+"podemos resolver el conflicto de `x1` decidiendo que una de las dos fuentes "
+"debe ser la correcta. En lugar de ajustar el modelo hacia una de ellas, "
+"volvemos al equipo de marketing y recomendamos pruebas de elevación que "
+"informen directamente la respuesta del canal."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:330002
+#: efd330c0df9444dfa4af1e01bc0d2ac1
+msgid "2. Lift-Test Update: Adding New Evidence"
+msgstr "2. Actualización con pruebas de elevación: agregar nueva evidencia"
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:330004
+#: 052277fba3584cdd92db1918f5e77b55
+msgid ""
+"For this synthetic case study, we construct two illustrative lift-test "
+"measurements for `x1` at different spend levels from the simulation's "
+"data-generating process. They represent the incremental sales that "
+"experiments would observe; in a real application, they would come from "
+"lift-test analysis. The initial observational model is fitted before "
+"introducing these measurements."
+msgstr ""
+"Para este caso de estudio sintético, construimos dos mediciones ilustrativas"
+" de pruebas de elevación para `x1` en distintos niveles de gasto, a partir "
+"del proceso generador de datos de la simulación. Representan las ventas "
+"incrementales que observarían los experimentos; en una aplicación real, "
+"provendrían del análisis de pruebas de elevación. El modelo observacional "
+"inicial se ajusta antes de introducir estas mediciones."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:330006
+#: 63aa167f9e09471991040a14caed18d8
+msgid ""
+"Each row below contains pre-test spend `x`, spend change `delta_x`, "
+"measured incremental sales `delta_y`, and its uncertainty `sigma`. These "
+"measurements add likelihood information anchored to the saturation curve,"
+" so we expect the ROAS estimate to become less prior-sensitive."
+msgstr ""
+"Cada fila de abajo contiene el gasto previo a la prueba `x`, el cambio en el"
+" gasto `delta_x`, las ventas incrementales medidas `delta_y` y su "
+"incertidumbre `sigma`. Estas mediciones agregan información de verosimilitud"
+" anclada a la curva de saturación, por lo que esperamos que la estimación "
+"del ROAS sea menos sensible al prior."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:360004
+#: 6bcad1f126bc4693a9e5ea2b04a71038
+msgid "We again verify convergence before interpreting the lift-calibrated model."
+msgstr ""
+"Verificamos de nuevo la convergencia antes de interpretar el modelo "
+"calibrado con pruebas de elevación."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:390002
+#: c865787631ba4595a48980769ec27682
+msgid ""
+"The lift tests directly inform the `x1` response; the ROAS comparison "
+"below shows their effect on the reporting target."
+msgstr ""
+"Las pruebas de elevación informan directamente la respuesta de `x1`; la "
+"comparación del ROAS de abajo muestra su efecto sobre el objetivo que se "
+"reporta."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:420002
+#: 87f9f86644d2449fb7a9474e6d729b70
+msgid ""
+"The lift tests move the `x1` ROAS posterior substantially and reduce its "
+"uncertainty, while `x2` changes little because it receives no lift-test "
+"information. We next check whether this update also reduces sensitivity "
+"to the business prior."
+msgstr ""
+"Las pruebas de elevación desplazan sustancialmente la distribución posterior"
+" del ROAS de `x1` y reducen su incertidumbre, mientras que `x2` cambia poco "
+"porque no recibe información de pruebas de elevación. A continuación "
+"verificamos si esta actualización también reduce la sensibilidad al prior de"
+" negocio."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:450002
+#: b9ad13e5f3f94ded8c9e1db47f537d90
+msgid ""
+"The observational sales and lift-test measurements together form the "
+"likelihood for the updated model. The sales observations alone are "
+"confounded, but the lift tests add causal evidence about the `x1` "
+"response and can help correct the resulting ROAS bias. In this case that "
+"evidence happens to align with the business prior."
+msgstr ""
+"Las ventas observacionales y las mediciones de las pruebas de elevación "
+"forman juntas la verosimilitud del modelo actualizado. Las ventas observadas"
+" por sí solas tienen confusores, pero las pruebas de elevación agregan "
+"evidencia causal sobre la respuesta de `x1` y pueden ayudar a corregir el "
+"sesgo resultante en el ROAS. En este caso, esa evidencia resulta coincidir "
+"con el prior de negocio."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:450004
+#: aaaa0307be1c40f597f22cfc3d347d01
+msgid ""
+"The lift update changes the parameter-level warning pattern, including "
+"higher likelihood sensitivity for media parameters and new potential "
+"prior-likelihood conflict flags. We do not investigate those warnings "
+"further here because this case study focuses on all-time channel ROAS, "
+"not on optimizing spend or precisely characterizing each saturation "
+"curve. If a decision required the shape of a saturation curve—for "
+"example, budget optimization or spend-response planning—we would need "
+"additional experiments or external information targeted at identifying "
+"that curve."
+msgstr ""
+"La actualización con pruebas de elevación cambia el patrón de advertencias a"
+" nivel de parámetros, e incluye una mayor sensibilidad de la verosimilitud "
+"para los parámetros de medios y nuevas señales de posible conflicto entre el"
+" prior y la verosimilitud. No investigamos esas advertencias más a fondo "
+"aquí porque este caso de estudio se centra en el ROAS de todo el período por"
+" canal, no en optimizar el gasto ni en caracterizar con precisión cada curva"
+" de saturación. Si una decisión requiriera la forma de una curva de "
+"saturación (por ejemplo, la optimización del presupuesto o la planificación "
+"de la respuesta al gasto), necesitaríamos experimentos adicionales o "
+"información externa orientada a identificar esa curva."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:450006
+#: ec0b7930ab5146dfb552a1b6b0c48cd6
+msgid ""
+"The reporting target is nevertheless stable: ROAS remains below the "
+"practical threshold for the media, baseline, and seasonality prior "
+"blocks, while sensitivity to the business prior falls below the "
+"threshold. The earlier ROAS prior-likelihood conflict is therefore no "
+"longer detected by the power-scaling diagnostic."
+msgstr ""
+"Sin embargo, el objetivo que se reporta es estable: el ROAS permanece por "
+"debajo del umbral práctico para los bloques del prior de medios, de línea "
+"base y de estacionalidad, mientras que la sensibilidad al prior de negocio "
+"cae por debajo del umbral. Por lo tanto, el diagnóstico de escalado de "
+"potencia ya no detecta el conflicto previo entre el prior y la verosimilitud"
+" del ROAS."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:460002
+#: 1fa4bf07ceaf45ab9ce8e5df5819fe92
+msgid "3. Retrospective Validation and Takeaways"
+msgstr "3. Validación retrospectiva y conclusiones"
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:460004
+#: 39afdd21fdef4e17800b31bcd5ddce0f
+msgid ""
+"Only now do we reveal the simulation truth. In real projects this row "
+"would not exist; here it checks whether the workflow moved us in the "
+"right direction without using the answer key to choose the model."
+msgstr ""
+"Solo ahora revelamos la verdad de la simulación. En proyectos reales esta "
+"fila no existiría; aquí sirve para comprobar si el flujo de trabajo nos "
+"movió en la dirección correcta sin usar la respuesta correcta para elegir el"
+" modelo."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:500002
+#: be2fea5f7ca04b7881e609d54c1e5cde
+msgid ""
+"Retrospectively, the lift-calibrated `x1` posterior moves closer to the "
+"synthetic truth, but its 94% HDI still does not cover that value. The "
+"`x2` posterior receives no lift-test information and its interval also "
+"does not cover the truth, so it should not be treated as validated. This "
+"illustrates that low prior sensitivity is not evidence that an estimate "
+"is correct."
+msgstr ""
+"En retrospectiva, la distribución posterior de `x1` calibrada con pruebas de"
+" elevación se acerca a la verdad sintética, pero su HDI del 94% aún no cubre"
+" ese valor. La distribución posterior de `x2` no recibe información de "
+"pruebas de elevación y su intervalo tampoco cubre la verdad, por lo que no "
+"debe tratarse como validada. Esto ilustra que una baja sensibilidad al prior"
+" no es evidencia de que una estimación sea correcta."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:510002
+#: c1ada93a764f4e3fa3ff43cab0784795
+msgid "**Reporting checklist**"
+msgstr "**Lista de verificación para reportar**"
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:510004
+#: 9e239f3b8c854920931114b44b1a8487
+msgid ""
+"Define the quantity of interest before fitting; here it is all-time "
+"channel ROAS."
+msgstr ""
+"Defina la cantidad de interés antes de ajustar; aquí es el ROAS por canal de"
+" todo el período."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:510005
+#: 4a8e5e43d74b49c39c2ac8b8c7a7d102
+msgid ""
+"Check prior sensitivity for that quantity after the initial fit, not only"
+" generic parameter diagnostics."
+msgstr ""
+"Verifique la sensibilidad del prior para esa cantidad después del ajuste "
+"inicial, y no solo los diagnósticos genéricos de los parámetros."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:510006
+#: 5535b7a67c8f444283607440df2c28f3
+msgid ""
+"Distinguish sensitivity in internal parameters from sensitivity in the "
+"reporting target."
+msgstr ""
+"Distinga la sensibilidad en los parámetros internos de la sensibilidad en el"
+" objetivo que se reporta."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:510007
+#: 91f4d7beec2547309ae2bbcd13a34e8c
+msgid ""
+"If the model and business prior disagree, report the conflict and propose"
+" evidence that would resolve it."
+msgstr ""
+"Si el modelo y el prior de negocio discrepan, reporte el conflicto y "
+"proponga evidencia que lo resolvería."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:510008
+#: 46aa51f6347f4555af947433c874503b
+msgid ""
+"Lift tests can add enough causal information that ROAS is no longer "
+"meaningfully sensitive to the original prior choices."
+msgstr ""
+"Las pruebas de elevación pueden agregar suficiente información causal como "
+"para que el ROAS ya no sea sensible de forma significativa a las elecciones "
+"originales de priors."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:520002
+#: 45a3babb55224d24977329eb7ef134f2
+msgid "References"
+msgstr "Referencias"
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:520004
+#: 7509714d68df470c98757a9920336d8d
+msgid ""
+"Kallioinen, N., Paananen, T., Bürkner, P.-C., & Vehtari, A. (2024). "
+"Detecting and diagnosing prior and likelihood sensitivity with power-"
+"scaling. *Statistics and Computing*, 34, 46."
+msgstr ""
+"Kallioinen, N., Paananen, T., Bürkner, P.-C. y Vehtari, A. (2024). Detecting"
+" and diagnosing prior and likelihood sensitivity with power-scaling. "
+"*Statistics and Computing*, 34, 46."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:520005
+#: daf720f1827644edbfde3010c2294d38
+msgid ""
+"Vehtari, A., Simpson, D., Gelman, A., Yao, Y., & Gabry, J. (2024). Pareto"
+" smoothed importance sampling. *Journal of Machine Learning Research*, "
+"25(72), 1–58."
+msgstr ""
+"Vehtari, A., Simpson, D., Gelman, A., Yao, Y. y Gabry, J. (2024). Pareto "
+"smoothed importance sampling. *Journal of Machine Learning Research*, "
+"25(72), 1–58."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:520006
+#: f044a14df9784a1790aeff219e79c1fd
+msgid ""
+"PyMC-Marketing ROAS case study: [Mitigating Unobserved Confounders in "
+"MMMs with Lift Test Likelihoods](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_roas.html)."
+msgstr ""
+"Caso de estudio de ROAS de PyMC-Marketing: [Mitigación de confusores no "
+"observados en MMM con verosimilitudes de pruebas de "
+"elevación](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_roas.html)."
+
+#: ../source/notebooks/mmm/mmm_prior_sensitivity.ipynb:520007
+#: efd8aafc74e2421ebff5e733e4d5f73c
+msgid ""
+"PyMC-Marketing ROAS calibration case study: [Calibrating an MMM with ROAS"
+" Estimates](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_roas_calibration.html)."
+msgstr ""
+"Caso de estudio de calibración con ROAS de PyMC-Marketing: [Calibración de "
+"un MMM con estimaciones de ROAS](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_roas_calibration.html)."

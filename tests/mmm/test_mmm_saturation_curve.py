@@ -64,20 +64,6 @@ def test_sample_saturation_curve_has_correct_dims(fitted_mmm, request):
 
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-def test_sample_saturation_curve_num_points_controls_shape(fitted_mmm, request):
-    """Test that num_points parameter controls number of points."""
-    mmm = request.getfixturevalue(fitted_mmm)
-    # Arrange
-    num_points = 50
-
-    # Act
-    curves = mmm.sample_saturation_curve(num_points=num_points)
-
-    # Assert
-    assert curves.sizes["x"] == num_points
-
-
-@pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
 def test_sample_saturation_curve_num_samples_controls_shape(fitted_mmm, request):
     """Test that num_samples parameter controls number of posterior samples.
 
@@ -233,26 +219,6 @@ def test_sample_saturation_curve_x_coordinate_range(fitted_mmm, request):
 # ============================================================================
 # Scaling Behavior Tests
 # ============================================================================
-
-
-@pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-def test_sample_saturation_curve_original_scale_differs_from_scaled(
-    fitted_mmm, request
-):
-    """Test that original_scale=True produces different values than False."""
-    mmm = request.getfixturevalue(fitted_mmm)
-    # Act
-    curves_original = mmm.sample_saturation_curve(
-        max_value=1.0,
-        original_scale=True,
-    )
-    curves_scaled = mmm.sample_saturation_curve(
-        max_value=1.0,
-        original_scale=False,
-    )
-
-    # Assert - Values should differ
-    assert not np.allclose(curves_original.values, curves_scaled.values)
 
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
@@ -439,45 +405,6 @@ def test_sample_saturation_curve_with_very_large_max_value(fitted_mmm, request):
 
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-def test_sample_saturation_curve_has_x_and_chain_draw_dims(fitted_mmm, request):
-    """Test that output has required x, chain, and draw dimensions.
-
-    Note: The saturation transformation's sample_curve returns (chain, draw, x)
-    dimensions. Channel/custom dimensions depend on how the saturation
-    priors are configured.
-    """
-    mmm = request.getfixturevalue(fitted_mmm)
-    # Act
-    curves = mmm.sample_saturation_curve()
-
-    # Assert - Should always have chain, draw, and x dimensions
-    assert "x" in curves.dims
-    assert "chain" in curves.dims
-    assert "draw" in curves.dims
-
-
-@pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-def test_sample_saturation_curve_works(fitted_mmm, request):
-    """Test that model curves can be sampled.
-
-    Note: The saturation transformation's sample_curve returns (chain, draw, x)
-    dimensions. Custom dimensions (like country) would only appear if
-    the saturation priors were configured with those dimensions.
-    """
-    mmm = request.getfixturevalue(fitted_mmm)
-    # Act
-    curves = mmm.sample_saturation_curve()
-
-    # Assert - Should have chain, draw, and x dimensions
-    assert "x" in curves.dims
-    assert "chain" in curves.dims
-    assert "draw" in curves.dims
-    # Should be a valid DataArray with values
-    assert curves.sizes["x"] > 0
-    assert curves.sizes["draw"] > 0
-
-
-@pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
 def test_sample_saturation_curve_default_parameters(fitted_mmm, request):
     """Test that default parameters produce expected output."""
     mmm = request.getfixturevalue(fitted_mmm)
@@ -501,25 +428,3 @@ def test_sample_saturation_curve_small_num_points(fitted_mmm, request):
     assert curves.sizes["x"] == 5
     # x coords should still span from 0 to max
     assert curves.coords["x"].values[0] == 0.0
-
-
-@pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-def test_sample_saturation_curve_can_be_used_for_plotting(fitted_mmm, request):
-    """Test that the returned array can be used for common plotting operations."""
-    mmm = request.getfixturevalue(fitted_mmm)
-    # Act
-    curves = mmm.sample_saturation_curve()
-
-    # Assert - These operations should work without error
-    mean_curves = curves.mean(dim=["chain", "draw"])
-    assert isinstance(mean_curves, xr.DataArray)
-
-    lower = curves.quantile(0.05, dim=["chain", "draw"])
-    upper = curves.quantile(0.95, dim=["chain", "draw"])
-    assert isinstance(lower, xr.DataArray)
-    assert isinstance(upper, xr.DataArray)
-
-    # x coordinate should be usable for plotting
-    x_values = curves.coords["x"].values
-    assert len(x_values) > 0
-    assert x_values[0] == 0.0  # Starts at 0

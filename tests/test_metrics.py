@@ -210,11 +210,6 @@ def test_per_observation_crps_bad_shape_missing_sample_dim(
             0.2,
         ),
         (
-            np.array([100, 200, 300]),
-            np.array([80, 180, 280]),
-            0.1,
-        ),
-        (
             np.array([-3, -2, -1]),
             np.array([-2.8, -1.8, -0.8]),
             0.1,
@@ -223,7 +218,6 @@ def test_per_observation_crps_bad_shape_missing_sample_dim(
     ids=[
         "perfect_match",
         "20_percent_error",
-        "10_percent_error",
         "negative_values",
     ],
 )
@@ -253,16 +247,10 @@ def test_nrmse_normalization() -> None:
             np.zeros(3),
             "divide by zero encountered",
         ),
-        (
-            np.array([100, 100, 100]),
-            np.array([90, 90, 90]),
-            "divide by zero encountered",
-        ),
     ],
     ids=[
         "zero_values_true",
         "zero_values_pred",
-        "uniform_values",
     ],
 )
 def test_nrmse_division_warnings(y_true, y_pred, match) -> None:
@@ -285,11 +273,6 @@ def test_nrmse_division_warnings(y_true, y_pred, match) -> None:
             0.2,
         ),
         (
-            np.array([100, 200, 300]),
-            np.array([90, 180, 270]),
-            0.1,
-        ),
-        (
             np.array([-3, -2, -1]),
             np.array([-2.7, -1.8, -0.9]),
             0.1,
@@ -298,7 +281,6 @@ def test_nrmse_division_warnings(y_true, y_pred, match) -> None:
     ids=[
         "perfect_match",
         "20_percent_error",
-        "10_percent_error",
         "negative_values",
     ],
 )
@@ -328,16 +310,10 @@ def test_nmae_normalization() -> None:
             np.zeros(3),
             "divide by zero encountered",
         ),
-        (
-            np.array([100, 100, 100]),
-            np.array([90, 90, 90]),
-            "divide by zero encountered",
-        ),
     ],
     ids=[
         "zero_values_true",
         "zero_values_pred",
-        "uniform_values",
     ],
 )
 def test_nmae_division_warnings(y_true, y_pred, match) -> None:

@@ -9,47 +9,47 @@ msgid ""
 msgstr ""
 "Project-Id-Version: pymc-marketing local\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: es <LL@li.org>\n"
 "Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
-"Generated-By: Babel 2.17.0\n"
+"Generated-By: Babel 2.18.0\n"
 
 #: ../source/notebooks/general/model_configuration.ipynb:10003
-#: 93a66a7fcd544f62b74afc10389741da
+#: 61acd021a86a4bb988e42bc380b2fb90
 msgid "Model Configuration"
 msgstr "Configuración del modelo"
 
 #: ../source/notebooks/general/model_configuration.ipynb:10005
-#: 7fd06aa25e6241b2bdc3452d19f3a3d1
+#: 8d75b2feb2294f288dad8a2511d2d170
 msgid ""
 "This notebook provides details about the model configuration in PyMC-"
-"Marketing. This API provides a very flexible way to express the model Priors"
-" and likelihoods so that we can have enough expressiveness to build custom "
-"models."
+"Marketing. This API provides a very flexible way to express the model "
+"Priors and likelihoods so that we can have enough expressiveness to build"
+" custom models."
 msgstr ""
 "Este cuaderno proporciona detalles sobre la configuración del modelo en "
 "PyMC-Marketing. Esta API ofrece una forma muy flexible de expresar los "
-"Priors y las verosimilitudes del modelo para que podamos tener suficiente "
-"expresividad para construir modelos personalizados."
+"Priors y las verosimilitudes del modelo para que podamos tener suficiente"
+" expresividad para construir modelos personalizados."
 
 #: ../source/notebooks/general/model_configuration.ipynb:20002
-#: 820dc3baa3224c4faa3c56970ad9a58e
+#: 0c3038be0db0414aa07446611ed8b08e
 msgid "Setup"
 msgstr "Configuración"
 
 #: ../source/notebooks/general/model_configuration.ipynb:50002
-#: 0953b65ade804649a856937f49538b10
+#: 6fb7c35dff4543ffad60c9285dbae5b0
 msgid "Prior Distributions"
 msgstr "Distribuciones Previas"
 
 #: ../source/notebooks/general/model_configuration.ipynb:50004
-#: 7fb8ab63c8ce4bf0a707bdaa7a31066c
+#: 942bbf6118fb454fbdbb938304bbda2b
 #, python-brace-format
 msgid ""
 "The {class}`~pymc_extras.prior.Prior` class is our way to expression "
@@ -59,46 +59,45 @@ msgstr ""
 "distribuciones y relaciones entre ellas."
 
 #: ../source/notebooks/general/model_configuration.ipynb:50006
-#: e0c98f54cfdc41219ad878d4cc582c20
+#: c1074fca34e54b1f9a33cc0455201764
 msgid "Basic Usage"
 msgstr "Uso básico"
 
 #: ../source/notebooks/general/model_configuration.ipynb:50008
-#: 9b9e4920c00446fa879c5702da45c1a5
+#: 7161f4df8e29434386671498184a150a
 msgid ""
-"Every prior will need a distribution name that comes from `PyMC`. View the "
-"full list in the documentation "
+"Every prior will need a distribution name that comes from `PyMC`. View "
+"the full list in the documentation "
 "[here](https://www.pymc.io/projects/docs/en/stable/api/distributions.html)."
 msgstr ""
-"Cada distribución anterior necesitará un nombre de distribución que provenga"
-" de `PyMC`. Vea la lista completa en la documentación "
+"Cada distribución anterior necesitará un nombre de distribución que "
+"provenga de `PyMC`. Vea la lista completa en la documentación "
 "[aquí](https://www.pymc.io/projects/docs/en/stable/api/distributions.html)."
 
 #: ../source/notebooks/general/model_configuration.ipynb:70002
-#: f57508d6fed9461a9d87428954541834
+#: 9077f0deb0e24b47985b821df3537012
 msgid "If not, then an exception will be raised."
 msgstr "Si no, se generará una excepción."
 
 #: ../source/notebooks/general/model_configuration.ipynb:90002
-#: b4c27d24969a479bb02d822e39e68cdc
+#: 7dd1b062af844736805cb2181559e2bb
 msgid ""
 "Specific parameters can be passed as **keyword arguments** but are not "
 "required if the `PyMC` distribution has defaults."
 msgstr ""
-"Se pueden pasar parámetros específicos como **argumentos de palabra clave**,"
-" pero no son obligatorios si la distribución `PyMC` tiene valores "
-"predeterminados."
+"Se pueden pasar parámetros específicos como **argumentos de palabra "
+"clave**, pero no son obligatorios si la distribución `PyMC` tiene valores"
+" predeterminados."
 
 #: ../source/notebooks/general/model_configuration.ipynb:110002
-#: 77ebe9be4dab4e1999a32026f7ff7618
-msgid ""
-"There will be a check at initialization against the `PyMC` distribution."
+#: a9dfb21092ec442db7ff4d9a04476761
+msgid "There will be a check at initialization against the `PyMC` distribution."
 msgstr ""
-"Se realizará una verificación en la inicialización contra la distribución "
-"`PyMC`."
+"Se realizará una verificación en la inicialización contra la distribución"
+" `PyMC`."
 
 #: ../source/notebooks/general/model_configuration.ipynb:130002
-#: 3bbe0796c279440d99bf00927962551c
+#: 9b3b2edee1df4f54b168cc4c0dec0203
 msgid ""
 "However, there are some limitations to that. Take this invalid "
 "parameterization below:"
@@ -107,91 +106,90 @@ msgstr ""
 "parametrización inválida a continuación:"
 
 #: ../source/notebooks/general/model_configuration.ipynb:150002
-#: fad2a7ba20f5469182135455e963c6c7
+#: 97997be224cc421788949c791810bac4
 msgid ""
 "The `create_variable` method is used to make variables from this "
 "distribution and it isn't until then that there is an error."
 msgstr ""
-"El método `create_variable` se utiliza para crear variables a partir de esta"
-" distribución y no es hasta entonces que se produce un error."
+"El método `create_variable` se utiliza para crear variables a partir de "
+"esta distribución y no es hasta entonces que se produce un error."
 
 #: ../source/notebooks/general/model_configuration.ipynb:170002
-#: 47ead6dcfc114c9296ab0c0322f4f22a
+#: 5df7b39bae414060a75426e640ce9d8e
 msgid "This goes for incorrect values as well!"
 msgstr "¡Esto se aplica también a los valores incorrectos!"
 
 #: ../source/notebooks/general/model_configuration.ipynb:190002
-#: 07cee572fb974a399e4fe77d964c2774
+#: c2a0b8ec2e4942fdbe1e7e2ff3ba795a
 msgid ""
-"The `dims` parameter are used to express the dimensions of the distribution."
-" This variable is not part of a model so the values are not reflected with "
-"the distribution itself."
+"The `dims` parameter are used to express the dimensions of the "
+"distribution. This variable is not part of a model so the values are not "
+"reflected with the distribution itself."
 msgstr ""
 "El parámetro `dims` se utiliza para expresar las dimensiones de la "
 "distribución. Esta variable no forma parte de un modelo, por lo que los "
 "valores no se reflejan en la distribución misma."
 
 #: ../source/notebooks/general/model_configuration.ipynb:210002
-#: 9b080d7aa12c4759beeb8e892c18af5e
+#: 9871238f8c9f433ea7b1226e4c45e8ed
 msgid ""
-"If there are dimensions, then the coords need to exist in the larger model. "
-"But they exist separately and can defined in advance."
+"If there are dimensions, then the coords need to exist in the larger "
+"model. But they exist separately and can defined in advance."
 msgstr ""
-"Si hay dimensiones, entonces las coordenadas deben existir en el modelo más "
-"grande. Pero existen por separado y pueden definirse de antemano."
+"Si hay dimensiones, entonces las coordenadas deben existir en el modelo "
+"más grande. Pero existen por separado y pueden definirse de antemano."
 
 #: ../source/notebooks/general/model_configuration.ipynb:210005
-#: 60e75a3a13cd435eaab2a04728613617
+#: 9fc76b6206fe43c282d44aaabaf9b094
 msgid ""
-"Each `Prior` instance is just instructions to create a variable, so they can"
-" be used multiple times!"
+"Each `Prior` instance is just instructions to create a variable, so they "
+"can be used multiple times!"
 msgstr ""
 "Cada instancia de `Prior` son simplemente instrucciones para crear una "
 "variable, ¡así que se pueden usar múltiples veces!"
 
 #: ../source/notebooks/general/model_configuration.ipynb:230002
-#: 9454ec3b592b4a1ba1b6b13b5f3c814e
+#: 637fb25ad5994e49899f6cb551b46aa6
 msgid "If the coords were not specified then this would cause a PyMC error."
-msgstr ""
-"Si las coordenadas no se especificaron, esto causaría un error de PyMC."
+msgstr "Si las coordenadas no se especificaron, esto causaría un error de PyMC."
 
 #: ../source/notebooks/general/model_configuration.ipynb:250002
-#: b4f466cc7d3b4060bd93a3197b70af3f
+#: 9960f83ab71f4d2e8abaca3606348ba3
 msgid ""
-"The variables can get arbitrarily large as well by providing additional dims"
-" in a tuple."
+"The variables can get arbitrarily large as well by providing additional "
+"dims in a tuple."
 msgstr ""
 "Las variables también pueden volverse arbitrariamente grandes al "
 "proporcionar dimensiones adicionales en una tupla."
 
 #: ../source/notebooks/general/model_configuration.ipynb:280002
-#: fc4c7fa8ecdd4af3b17a65468e445f7b
+#: 1e0b865ac7fe44239e231a432c60a01c
 msgid "Hierarchical Variables"
 msgstr "Variables Jerárquicas"
 
 #: ../source/notebooks/general/model_configuration.ipynb:280004
-#: e6db2c0a14cb44bc8a999185ad6d0a8a
+#: 9637a4468ea84b8c9a01e666d6e3c0fd
 msgid ""
 "Hierarchical variables can be defined by using distributions as the "
-"parameters of another distribution. The parent distributions will usually "
-"have a larger dimensionality than each of the parameters."
+"parameters of another distribution. The parent distributions will usually"
+" have a larger dimensionality than each of the parameters."
 msgstr ""
-"Las variables jerárquicas se pueden definir utilizando distribuciones como "
-"los parámetros de otra distribución. Las distribuciones parentales "
+"Las variables jerárquicas se pueden definir utilizando distribuciones "
+"como los parámetros de otra distribución. Las distribuciones parentales "
 "generalmente tendrán una dimensionalidad mayor que cada uno de los "
 "parámetros."
 
 #: ../source/notebooks/general/model_configuration.ipynb:300002
-#: cc751740856d43729a4949ae65e6d8c2
+#: f869cef9f29c4972818bf6da4a28c1b8
 msgid ""
-"We can use the `to_graph` method to create visualize the variable with dummy"
-" coordinates."
+"We can use the `to_graph` method to create visualize the variable with "
+"dummy coordinates."
 msgstr ""
 "Podemos utilizar el método `to_graph` para visualizar la variable con "
 "coordenadas ficticias."
 
 #: ../source/notebooks/general/model_configuration.ipynb:300005
-#: c41b1294d20e4f38b1c34a482de48d63
+#: d584a399e6e548c6a3406cf1d16f0c0e
 msgid ""
 "No need to worry about variable naming! The child parameters will all be "
 "automatically named based on the parent."
@@ -200,99 +198,99 @@ msgstr ""
 "parámetros hijos se nombrarán automáticamente en función del padre."
 
 #: ../source/notebooks/general/model_configuration.ipynb:320003
-#: a3801b8bc21c4979b0cc16a25276f854
+#: 30ece3b8d9c2428e835996b5a9a0c3d8
 msgid "The validity of the parameter values will not be checked."
 msgstr "La validez de los valores de los parámetros no será verificada."
 
 #: ../source/notebooks/general/model_configuration.ipynb:320006
-#: 95cece05419a4ea4bb4435d137d5103d
+#: a43e61006f5b46ed8a11600614dcfd99
 msgid ""
-"There can be negative sigma parameter in a Normal distribution whether that "
-"comes from value or another distribution!"
+"There can be negative sigma parameter in a Normal distribution whether "
+"that comes from value or another distribution!"
 msgstr ""
-"Puede haber un parámetro sigma negativo en una distribución Normal, ya sea "
-"que provenga de un valor o de otra distribución."
+"Puede haber un parámetro sigma negativo en una distribución Normal, ya "
+"sea que provenga de un valor o de otra distribución."
 
 #: ../source/notebooks/general/model_configuration.ipynb:350003
-#: 40816e8a3de24e6ca3cd3a2e86c1061e
+#: 7040e530ccce4ed4b6e01d6a18da1c04
 msgid ""
-"Model reparamterizations can help with model convergence depending on the "
-"model posterior!"
+"Model reparamterizations can help with model convergence depending on the"
+" model posterior!"
 msgstr ""
 "Las reparametrizaciones del modelo pueden ayudar con la convergencia del "
 "modelo dependiendo de la posterior del modelo."
 
 #: ../source/notebooks/general/model_configuration.ipynb:350006
-#: 462009535f0e42faa69b97191e75745c
+#: df406e808d8b4db2ab0597e4b415cea4
 msgid ""
 "For Normal distribution, the common non-centered parameterization is "
 "supported with the `centered` flag."
 msgstr ""
-"Para la distribución Normal, se admite la parametrización no centrada común "
-"con la bandera `centered`."
+"Para la distribución Normal, se admite la parametrización no centrada "
+"común con la bandera `centered`."
 
 #: ../source/notebooks/general/model_configuration.ipynb:370002
-#: d43347ee87de4804855b5d6b0b24c437
+#: 2b59c5c275944d41a99d733e861403bd
 msgid ""
-"Other distributions can be hierarchical as well. Just use distributions for "
-"parameters of a parent distribution. For instance, the Beta distribution has"
-" two positive parameters, `alpha` and `beta` which can be reflect as "
-"HalfNormal distributions."
+"Other distributions can be hierarchical as well. Just use distributions "
+"for parameters of a parent distribution. For instance, the Beta "
+"distribution has two positive parameters, `alpha` and `beta` which can be"
+" reflect as HalfNormal distributions."
 msgstr ""
 "Otras distribuciones también pueden ser jerárquicas. Simplemente use "
-"distribuciones para los parámetros de una distribución padre. Por ejemplo, "
-"la distribución Beta tiene dos parámetros positivos, `alpha` y `beta`, que "
-"pueden reflejarse como distribuciones HalfNormal."
+"distribuciones para los parámetros de una distribución padre. Por "
+"ejemplo, la distribución Beta tiene dos parámetros positivos, `alpha` y "
+"`beta`, que pueden reflejarse como distribuciones HalfNormal."
 
 #: ../source/notebooks/general/model_configuration.ipynb:390002
-#: 150fad3c055f4cd286316340f611868d
+#: 2a7b249e52bf4ee1bef127a29925addc
 msgid "Transformations"
 msgstr "Transformaciones"
 
 #: ../source/notebooks/general/model_configuration.ipynb:390004
-#: a6faa2423aa74370809b34641624d7dd
+#: 087a0af29d97438b9367282cd948cf34
 msgid ""
-"The `transform` variable can be used for any of the distributions to change "
-"its domain."
+"The `transform` variable can be used for any of the distributions to "
+"change its domain."
 msgstr ""
 "La variable `transform` se puede utilizar para cualquiera de las "
 "distribuciones para cambiar su dominio."
 
 #: ../source/notebooks/general/model_configuration.ipynb:390006
-#: 432c38a5bfb942d0a8ffce365a1c736c
+#: 880f039e9b514a639844eda1cf40dd20
 msgid ""
-"These transformations will be taken from `pytensor.tensor` or `pm.math` in "
-"that order."
+"These transformations will be taken from `pytensor.tensor` or `pm.math` "
+"in that order."
 msgstr ""
-"Estas transformaciones se tomarán de `pytensor.tensor` o `pm.math` en ese "
-"orden."
+"Estas transformaciones se tomarán de `pytensor.tensor` o `pm.math` en ese"
+" orden."
 
 #: ../source/notebooks/general/model_configuration.ipynb:390008
-#: 111560e9d2044eb79116ac995334e431
+#: ec46c815cbd84815a5e6086afabc524a
 msgid ""
-"Below is a non-centered hierarchical Normal distribution that is put through"
-" a sigmoid function in order to change the domain to (0, 1)."
+"Below is a non-centered hierarchical Normal distribution that is put "
+"through a sigmoid function in order to change the domain to (0, 1)."
 msgstr ""
-"A continuación se presenta una distribución Normal jerárquica no centrada "
-"que se somete a una función sigmoide con el fin de cambiar el dominio a (0, "
-"1)."
+"A continuación se presenta una distribución Normal jerárquica no centrada"
+" que se somete a una función sigmoide con el fin de cambiar el dominio a "
+"(0, 1)."
 
 #: ../source/notebooks/general/model_configuration.ipynb:410002
-#: bb67df5cede349ae9218cfb610397d59
+#: fe1ec4691a6242178bf962d05924c811
 msgid "Prior Visualization"
 msgstr "Visualización previa"
 
 #: ../source/notebooks/general/model_configuration.ipynb:410004
-#: 86b469bcaf554119a88816ab0935e1ec
+#: 1eb511904b244ca4868903d3a44fed19
 msgid ""
-"For scalar distributions, make use of the `preliz` attribute of the model in"
-" order to visualize."
+"For scalar distributions, make use of the `preliz` attribute of the model"
+" in order to visualize."
 msgstr ""
-"Para distribuciones escalares, utilice el atributo `preliz` del modelo para "
-"visualizar."
+"Para distribuciones escalares, utilice el atributo `preliz` del modelo "
+"para visualizar."
 
 #: ../source/notebooks/general/model_configuration.ipynb:410007
-#: f070abe498e045a2bd813e87aef668d7
+#: 99166fdbdfd547b8a92180333c306c64
 msgid ""
 "Defaults for the parameters will have to be provided or there will be an "
 "error."
@@ -301,86 +299,85 @@ msgstr ""
 "producirá un error."
 
 #: ../source/notebooks/general/model_configuration.ipynb:430003
-#: b6ff3770ae4a4ebca1fb847ba6acff9f
+#: bcdc7b88d49e49ac810a3e31adabf4e4
 msgid ""
-"Using the `constrain` method can help hone in on a prior. It is a wrapper "
-"around [PreliZ's `maxent` "
+"Using the `constrain` method can help hone in on a prior. It is a wrapper"
+" around [PreliZ's `maxent` "
 "function](https://preliz.readthedocs.io/en/latest/api_reference.html#preliz.unidimensional.maxent)."
 msgstr ""
-"Utilizar el método `constrain` puede ayudar a centrarse en un previo. Es un "
-"envoltorio alrededor de la función `maxent` de "
+"Utilizar el método `constrain` puede ayudar a centrarse en un previo. Es "
+"un envoltorio alrededor de la función `maxent` de "
 "[PreliZ](https://preliz.readthedocs.io/en/latest/api_reference.html#preliz.unidimensional.maxent)."
 
 #: ../source/notebooks/general/model_configuration.ipynb:450002
-#: 1149081311484ee4bdf40b1ea7060690
+#: fd667ad2f3f04518990295984fbd20ec
 msgid ""
 "To keep a parameter value fixed, pass it to the Prior instance. In the "
 "following example, the mean is fixed at 2."
 msgstr ""
-"Para mantener un valor de parámetro fijo, pásalo a la instancia de Prior. En"
-" el siguiente ejemplo, la media está fija en 2."
+"Para mantener un valor de parámetro fijo, pásalo a la instancia de Prior."
+" En el siguiente ejemplo, la media está fija en 2."
 
 #: ../source/notebooks/general/model_configuration.ipynb:470002
-#: 7c8c989ab8fb4c2c90e701a716da43e4
+#: ff50f99f47cd4567b791f1d71d1765b7
 msgid ""
-"For more complicated distributions, consider using the `sample_prior` method"
-" in order to access the prior. Or PreliZ's functions like [predictive "
-"explorer](https://preliz.readthedocs.io/en/latest/examples/observed_space_examples.html#predictive-"
-"explorer)."
+"For more complicated distributions, consider using the `sample_prior` "
+"method in order to access the prior. Or PreliZ's functions like "
+"[predictive "
+"explorer](https://preliz.readthedocs.io/en/latest/examples/gallery/predictive_explorer.html)."
 msgstr ""
 "Para distribuciones más complicadas, considere utilizar el método "
-"`sample_prior` para acceder al previo. O las funciones de PreliZ como "
-"[explorador "
-"predictivo](https://preliz.readthedocs.io/en/latest/examples/observed_space_examples.html#predictive-"
-"explorer)."
+"`sample_prior` para acceder al previo. O bien, las funciones de PreliZ como "
+"el [explorador "
+"predictivo](https://preliz.readthedocs.io/en/latest/examples/gallery/predictive_explorer.html)."
 
 #: ../source/notebooks/general/model_configuration.ipynb:470006
-#: 3d6054314b2c442cabc99bb6c86df880
+#: bf0c40c9c36f4c83af0e76e860188246
 msgid "Any coordinates will have to be passed like in `pm.Model`."
 msgstr "Cualquier coordenada deberá ser pasada como en `pm.Model`."
 
 #: ../source/notebooks/general/model_configuration.ipynb:490002
-#: 05578f49106946c692dafbc6736e6708
+#: f5efdb54999843d38c42c39786fe971e
 msgid ""
-"The prior variables can be visualized in whatever way works best. Here is a "
-"KDE of the variables to see the marginal distributions."
+"The prior variables can be visualized in whatever way works best. Here is"
+" a KDE of the variables to see the marginal distributions."
 msgstr ""
 "Las variables anteriores se pueden visualizar de la manera que mejor "
 "funcione. Aquí hay un KDE de las variables para ver las distribuciones "
 "marginales."
 
 #: ../source/notebooks/general/model_configuration.ipynb:510002
-#: 6efe0bf20f9a4a349376760e290877fc
+#: 69abea7b3cb846c6a2fa2d7df52495a9
 msgid ""
-"Use any workflow to make sense of the prior distribution! For instance, the "
-"joint distribution which shows these two channels are correlated due to the "
-"hierarchical generation."
+"Use any workflow to make sense of the prior distribution! For instance, "
+"the joint distribution which shows these two channels are correlated due "
+"to the hierarchical generation."
 msgstr ""
 "¡Utilice cualquier flujo de trabajo para dar sentido a la distribución "
 "previa! Por ejemplo, la distribución conjunta que muestra que estos dos "
 "canales están correlacionados debido a la generación jerárquica."
 
 #: ../source/notebooks/general/model_configuration.ipynb:530002
-#: bedd0571bfa54d8f93d9b6d35366b3f8
+#: 50274d72739a4272b0dc4bf02500fdd3
 msgid "Automatic Broadcasting"
 msgstr "Transmisión Automática"
 
 #: ../source/notebooks/general/model_configuration.ipynb:530004
-#: e8008da26da647a3af9722c0db25d35d
+#: 4d13a1ff0dae43658ca5364b3820226f
 msgid "The broadcasting of the dims will be handled automatically."
 msgstr "La transmisión de los niveles se manejará automáticamente."
 
 #: ../source/notebooks/general/model_configuration.ipynb:530006
-#: a37c24653e404acfb8e95b46ce523a24
+#: 413da4e4a765498db04d0c19167e2aed
 msgid ""
-"For instance, the `mu` of the variable needs to be transposed in order to "
-"work with `(\"channel\", \"geo\")` dims."
+"For instance, the `mu` of the variable needs to be transposed in order to"
+" work with `(\"channel\", \"geo\")` dims."
 msgstr ""
-"Por ejemplo, el `mu` de la variable necesita ser transpuesto para trabajar "
-"con las dimensiones `(\"channel\", \"geo\")`."
+"Por ejemplo, el `mu` de la variable necesita ser transpuesto para "
+"trabajar con las dimensiones `(\"channel\", \"geo\")`."
 
 #: ../source/notebooks/general/model_configuration.ipynb:530008
-#: 029dee1aed1f46568f835a98f30b499b
+#: 15e165f61ec54d368cf0112836753d17
 msgid ""
 "With all this functionality, we can see that the prior distributions can "
 "become quite expressive!"
@@ -389,36 +386,36 @@ msgstr ""
 "pueden volverse bastante expresivas."
 
 #: ../source/notebooks/general/model_configuration.ipynb:550002
-#: 4f9c2db807ef4588a6ab1f87ebe1720f
+#: 269ba7cdfc874cd0b4f0cee4aa9608b0
 msgid ""
-"And the user can spend more time thinking about just the assumptions of the "
-"variables rather than logic to ensure the dimensions work."
+"And the user can spend more time thinking about just the assumptions of "
+"the variables rather than logic to ensure the dimensions work."
 msgstr ""
-"Y el usuario puede dedicar más tiempo a reflexionar sobre las suposiciones "
-"de las variables en lugar de la lógica para asegurar que las dimensiones "
-"funcionen."
+"Y el usuario puede dedicar más tiempo a reflexionar sobre las "
+"suposiciones de las variables en lugar de la lógica para asegurar que las"
+" dimensiones funcionen."
 
 #: ../source/notebooks/general/model_configuration.ipynb:570002
-#: 6fe353c2e7ac4a9b82ab206fe139ddf1
+#: 455bba49c4af4a998f55f03801c2ef5f
 msgid "Serialization"
 msgstr "Serialización"
 
 #: ../source/notebooks/general/model_configuration.ipynb:570004
-#: 6340a8dabd324675b00633d81fd36d0d
+#: e4187e1f74754859b3e59cb04835c88e
 msgid ""
 "The `to_dict` and `from_dict` methods can be helpful for storage of the "
 "distributions."
 msgstr ""
-"Los métodos `to_dict` y `from_dict` pueden ser útiles para el almacenamiento"
-" de las distribuciones."
+"Los métodos `to_dict` y `from_dict` pueden ser útiles para el "
+"almacenamiento de las distribuciones."
 
 #: ../source/notebooks/general/model_configuration.ipynb:600002
-#: d9a2c94f10f04dd2943254ed0ca79ecd
+#: 72a273995e7b439e8de81e7b463645fd
 msgid "Use in PyMC-Marketing"
 msgstr "Usar en PyMC-Marketing"
 
 #: ../source/notebooks/general/model_configuration.ipynb:600004
-#: 0189b7788c6a43f983e5aed4a6ffbbad
+#: f9c62abdc09b4f4d9eb5b2ac9a86cdd0
 msgid ""
 "Distributions will be expressed in this manner throughout the package "
 "including but not limited to:"
@@ -427,12 +424,12 @@ msgstr ""
 "incluyendo pero no limitándose a:"
 
 #: ../source/notebooks/general/model_configuration.ipynb:600006
-#: 0ae24fcf2e264e508c6b452ec762d5c6
+#: 3e5d191747c84d71a1b20b4a1299d11d
 msgid "MMM components"
 msgstr "Componentes MMM"
 
 #: ../source/notebooks/general/model_configuration.ipynb:600007
-#: 69370d1b22724d75934497feebefaebe
+#: 1970dce582b34a298f909dd17fba6d92
 msgid ""
 "[media transformations](https://www.pymc-"
 "marketing.io/en/stable/notebooks/mmm/mmm_components.html#media-"
@@ -443,55 +440,40 @@ msgstr ""
 "transformations)"
 
 #: ../source/notebooks/general/model_configuration.ipynb:600009
-#: 6fd85db8804f49749dabf9890bd4cf66
+#: c638a7648f5444278ffaac376a0b2fba
 msgid "Backwards compatibility"
 msgstr "Compatibilidad hacia atrás"
 
 #: ../source/notebooks/general/model_configuration.ipynb:600011
-#: b463cf0047364ae3970800e682ea07be
+#: edfebe4f97114e36b0bca26d89de9470
 msgid ""
 "The `from_dict` method will create a `Prior` instance from the previous "
 "format."
 msgstr ""
-"El método `from_dict` creará una instancia de `Prior` a partir del formato "
-"anterior."
+"El método `from_dict` creará una instancia de `Prior` a partir del "
+"formato anterior."
 
 #: ../source/notebooks/general/model_configuration.ipynb:600013
-#: ed5c6ca7f3ad44edb5db8e67651d3dd0
+#: fefac9f2fe1e4b6c9efd618fc1a2a8dc
 msgid "For instance, take this previous configuration:"
 msgstr "Por ejemplo, tome esta configuración anterior:"
 
 #: ../source/notebooks/general/model_configuration.ipynb:620002
-#: 0f17705ffb934d2f9571f55d6218b0f9
+#: 7051ef25b762434faaba946df8514b08
 msgid ""
-"This can be parsed with the `Prior.from_dict` constructor for each key. Much"
-" more consise too!"
+"This can be parsed with the `Prior.from_dict` constructor for each key. "
+"Much more consise too!"
 msgstr ""
-"Esto se puede analizar con el constructor `Prior.from_dict` para cada clave."
-" ¡Mucho más conciso también!"
+"Esto se puede analizar con el constructor `Prior.from_dict` para cada "
+"clave. ¡Mucho más conciso también!"
 
 #: ../source/notebooks/general/model_configuration.ipynb:650002
-#: 366c5b41ed254655a3b3be3ee66ca0f7
-msgid ""
-"The `parse_model_config` function will do just this and is used internally. "
-"It also provides some deprecation warnings."
-msgstr ""
-"La función `parse_model_config` hará exactamente esto y se utiliza "
-"internamente. También proporciona algunas advertencias de desaprobación."
-
-#: ../source/notebooks/general/model_configuration.ipynb:670002
-#: 58a8f7602cd943589fcb1085b8c048d6
-msgid "As well as the ability to catch some errors while parsing."
-msgstr ""
-"Así como la capacidad de detectar algunos errores durante el análisis."
-
-#: ../source/notebooks/general/model_configuration.ipynb:690002
-#: 0957ae1567a34d069372044a2046e38d
+#: fb23d0f8bf3c495a9940a6b8d572f21c
 msgid "Appendix: Validation"
 msgstr "Apéndice: Validación"
 
-#: ../source/notebooks/general/model_configuration.ipynb:690004
-#: 2b6c12c3aec543109b8ed4ccf6a26066
+#: ../source/notebooks/general/model_configuration.ipynb:650004
+#: f210c3cd60544a4080bafd0e3377a008
 msgid ""
 "Behind the scenes, the `Prior` class uses th `validate_call` from "
 "[`Pydantic`](https://docs.pydantic.dev/latest/concepts/validators/) to "
@@ -500,3 +482,17 @@ msgstr ""
 "Detrás de escena, la clase `Prior` utiliza `validate_call` de "
 "[`Pydantic`](https://docs.pydantic.dev/latest/concepts/validators/) para "
 "asegurar que los parámetros sean válidos."
+
+#~ msgid ""
+#~ "The `parse_model_config` function will do "
+#~ "just this and is used internally. "
+#~ "It also provides some deprecation "
+#~ "warnings."
+#~ msgstr ""
+#~ "La función `parse_model_config` hará "
+#~ "exactamente esto y se utiliza "
+#~ "internamente. También proporciona algunas "
+#~ "advertencias de desaprobación."
+
+#~ msgid "As well as the ability to catch some errors while parsing."
+#~ msgstr "Así como la capacidad de detectar algunos errores durante el análisis."

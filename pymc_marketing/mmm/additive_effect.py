@@ -693,10 +693,11 @@ class MuEffect(SerializableBaseModel, ABC):
 
         Used by :meth:`MMM.compute_counterfactual_contributions_dataset` to
         locate the effect's linear-predictor contribution and include it in
-        the decomposition.  The default assumes the effect registers
-        ``f"{self.prefix}_effect_contribution"`` (the convention used by
-        :class:`LinearTrendEffect` and :class:`EventEffect`); effects that
-        register a different name must override this property.
+        the decomposition.  The default is
+        :func:`~pymc_marketing.names.mmm.effect_contribution_name`, that is
+        ``f"{self.prefix}_effect_contribution"``.  Effects that register a
+        different name override this property, as :class:`FourierEffect` and
+        :class:`EventAdditiveEffect` do.
 
         Raises
         ------
@@ -792,6 +793,27 @@ class MuEffect(SerializableBaseModel, ABC):
         optimizer refuses any objective that reaches a frozen path over ``date``; an
         effect that freezes one should also override ``supports_new_dates`` to
         return ``False``, so that prediction on other dates is refused.
+
+        A free random variable with a ``date`` dimension holds its draws over all
+        fitted dates. Where its ``date`` axis meets a windowed one (spend,
+        ``time_index``, date-indexed data or a frozen path) in a term the
+        increment reads on each window, incrementality evaluates every period on
+        the full date axis and warns, which is correct but slower than a window.
+        A variable that only adds to the linear predictor keeps the windows for a
+        total, since a total reads the predictor on the full axis only; a request
+        for the direct or mediated path reads it on each window. To keep the
+        windows, list a date-indexed Deterministic of the variable's own path,
+        taken before it meets that axis and so not reading the channel data, such
+        as the cumulative sum of a random walk's steps. A listed path is cut to
+        each window before the graph reads it, so a sum, cumulative sum or mean
+        over ``date`` taken after it covers only the window: list the variable
+        itself only when the graph reads it date by date up to that point. Listing
+        a deterministic that only renames the variable, such as
+        ``Deterministic(name, rv)``, currently raises a ``KeyError`` in
+        incrementality. Only a dimension named ``date`` counts: incrementality does
+        not notice a variable over the fitted dates declared under another
+        dimension name and can read it at the wrong dates, so declare such a
+        variable over ``date`` or list its path here.
         """
         return []
 
@@ -1623,9 +1645,14 @@ class EventAdditiveEffect(MuEffect):
         event_effect = self.effect.apply(X, name=self.prefix)
 
         return pmd.Deterministic(
-            f"{self.prefix}_total_effect",
+            self.contribution_var_name,
             event_effect.sum(dim=self.prefix),
         )
+
+    @property
+    def contribution_var_name(self) -> str:
+        """Event effects register ``f"{prefix}_total_effect"``."""
+        return f"{self.prefix}_total_effect"
 
     def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
         """Set the data for new predictions."""

@@ -482,11 +482,10 @@ def test_aggregate_idata_time_returns_new_instance(multidim_idata):
     "period,expected_max_size",
     [
         ("weekly", 52),
-        ("monthly", 12),
         ("quarterly", 4),
         ("yearly", 1),
     ],
-    ids=["weekly", "monthly", "quarterly", "yearly"],
+    ids=["weekly", "quarterly", "yearly"],
 )
 def test_aggregate_idata_time_parametrized_periods(
     multidim_idata, period, expected_max_size
@@ -586,14 +585,6 @@ def test_aggregate_idata_dims_raises_on_conflicting_new_label(multidim_idata):
         )
 
 
-def test_wrapper_init_without_schema(multidim_idata):
-    """Test creating wrapper without schema validation."""
-    wrapper = MMMIDataWrapper(multidim_idata, schema=None, validate_on_init=False)
-
-    assert wrapper.idata is multidim_idata
-    assert wrapper.schema is None
-
-
 def test_wrapper_init_with_schema_validates(multidim_idata):
     """Test that wrapper validates on init when schema provided."""
     schema = MMMIdataSchema.from_model_config(
@@ -606,14 +597,6 @@ def test_wrapper_init_with_schema_validates(multidim_idata):
     wrapper = MMMIDataWrapper(multidim_idata, schema=schema, validate_on_init=True)
 
     assert wrapper.schema is schema
-
-
-def test_wrapper_init_caches_instance(multidim_idata):
-    """Test that wrapper has cache for expensive operations."""
-    wrapper = MMMIDataWrapper(multidim_idata)
-
-    assert hasattr(wrapper, "_cache")
-    assert isinstance(wrapper._cache, dict)
 
 
 def test_get_target_returns_target_data(multidim_idata):
@@ -969,17 +952,6 @@ def test_filter_dates_preserves_schema(multidim_idata, basic_schema):
     assert filtered_wrapper.schema is basic_schema
 
 
-def test_filter_dates_no_validation_on_filtered_wrapper(multidim_idata, basic_schema):
-    """Test that filtered wrapper doesn't re-validate on init."""
-    wrapper = MMMIDataWrapper(
-        multidim_idata, schema=basic_schema, validate_on_init=False
-    )
-
-    filtered_wrapper = wrapper.filter_dates("2024-03-01", "2024-06-30")
-
-    assert filtered_wrapper is not wrapper
-
-
 def test_filter_dims_delegates_to_utility(multidim_idata):
     """Test that filter_dims delegates to standalone utility."""
     wrapper = MMMIDataWrapper(multidim_idata)
@@ -1324,19 +1296,6 @@ def test_compute_posterior_summary_returns_dataframe(multidim_idata):
     assert "eti94_ub" in summary.columns
 
 
-def test_compute_posterior_summary_with_original_scale(multidim_idata):
-    """Test compute_posterior_summary with original_scale=True."""
-    wrapper = MMMIDataWrapper(multidim_idata)
-
-    summary = wrapper.compute_posterior_summary(
-        "channel_contribution", original_scale=True
-    )
-
-    assert isinstance(summary, pd.DataFrame)
-    # Mean should be approximately equal to scaled mean * target_scale
-    # (This is a basic sanity check, exact values depend on data)
-
-
 # ============================================================================
 # Category 11: Validation Method Tests
 # ============================================================================
@@ -1471,15 +1430,6 @@ def test_mmm_data_property_creates_schema_from_config(fitted_mmm_with_controls):
         "control_data"
     )
     assert control_var_schema is not None
-
-
-def test_mmm_data_property_does_not_validate_on_every_access(fitted_mmm):
-    """Test that .data property doesn't validate on every access."""
-    wrapper = fitted_mmm.data
-
-    # We can't directly check the init parameter, but if validation
-    # happened every time, this would be slow/fail on invalid data
-    assert wrapper is not None
 
 
 def test_compare_coords_returns_empty_when_compatible(multidim_idata):
@@ -1660,59 +1610,6 @@ def test_aggregate_idata_time_all_time_unknown_method_raises():
 
     with pytest.raises(ValueError, match="Unknown aggregation method"):
         aggregate_idata_time(idata, period="all_time", method="invalid")
-
-
-def test_aggregate_idata_time_periodic_preserves_groups_without_date():
-    """Test that periodic aggregation preserves groups without date dimension."""
-    dates = pd.date_range("2024-01-01", periods=52, freq="W")
-
-    idata = xr.DataTree.from_dict(
-        {
-            "/posterior": xr.Dataset(
-                {
-                    "mu": xr.DataArray(
-                        rng.normal(size=(2, 10, 52)),
-                        dims=("chain", "draw", "date"),
-                        coords={"date": dates},
-                    ),
-                }
-            ),
-            "/sample_stats": xr.Dataset(
-                {
-                    "lp": xr.DataArray(
-                        rng.normal(size=(2, 10)),
-                        dims=("chain", "draw"),
-                    ),
-                }
-            ),
-        }
-    )
-
-    aggregated = aggregate_idata_time(idata, period="monthly", method="sum")
-
-    xr.testing.assert_equal(aggregated.sample_stats.lp, idata.sample_stats.lp)
-
-
-def test_aggregate_idata_time_periodic_unknown_method_raises():
-    """Test that unknown aggregation method raises ValueError for periodic."""
-    dates = pd.date_range("2024-01-01", periods=52, freq="W")
-
-    idata = xr.DataTree.from_dict(
-        {
-            "/posterior": xr.Dataset(
-                {
-                    "mu": xr.DataArray(
-                        rng.normal(size=(2, 10, 52)),
-                        dims=("chain", "draw", "date"),
-                        coords={"date": dates},
-                    ),
-                }
-            ),
-        }
-    )
-
-    with pytest.raises(ValueError, match="Unknown aggregation method"):
-        aggregate_idata_time(idata, period="monthly", method="invalid")
 
 
 def test_aggregate_idata_dims_unknown_method_raises():

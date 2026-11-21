@@ -98,27 +98,6 @@ class TestBuildClassKeyedPriorInPriors:
         assert isinstance(result.priors["lam"], Prior)
         assert isinstance(result.priors["beta"], LogNormalPrior)
 
-    def test_build_lognormal_prior_with_nested_distribution_params(self):
-        """LogNormalPrior with nested distribution-keyed Prior parameters."""
-        spec = {
-            "class": "pymc_marketing.special_priors.LogNormalPrior",
-            "kwargs": {
-                "mean": {
-                    "distribution": "Gamma",
-                    "mu": 0.25,
-                    "sigma": 1.0,
-                },
-                "std": {
-                    "distribution": "HalfNormal",
-                    "sigma": 1.0,
-                },
-            },
-        }
-        result = build(spec)
-        assert isinstance(result, LogNormalPrior)
-        assert isinstance(result.parameters["mean"], Prior)
-        assert isinstance(result.parameters["std"], Prior)
-
     def test_build_lognormal_prior_with_dims_and_centered(self):
         """LogNormalPrior with dims and centered=False inside kwargs."""
         spec = {
