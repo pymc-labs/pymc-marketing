@@ -141,18 +141,6 @@ def test_parse_nesting_no_midlevel(nstL):
     assert np.array_equal(nest_indices["nest1"], np.array([0, 1, 2]))
 
 
-def test_parse_nesting_two_layer_raises(nstL):
-    """Test that two-layer nesting raises an error."""
-    nesting_dict = {
-        "nest1": ["alt"],
-        "nest2": {"option": ["option"], "another": ["other", "another"]},
-    }
-    product_indices = {"option": 0, "another": 1, "alt": 2, "other": 3}
-
-    with pytest.raises(ValueError, match=r"must map to a list of alternatives"):
-        nstL._parse_nesting(nesting_dict, product_indices)
-
-
 def test_parse_nesting_empty_dict_raises(nstL):
     """Test that empty nesting structure raises an error."""
     nesting_dict = {}

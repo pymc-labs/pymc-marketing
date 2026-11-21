@@ -18,6 +18,7 @@ from typing import Annotated, Any
 
 from pydantic import BaseModel, Field
 
+from pymc_marketing.names import Key
 from pymc_marketing.serialization import serialization
 
 
@@ -53,7 +54,9 @@ class HSGPKwargs(BaseModel):
         Number of basis functions. Default is 200.
     L : float, optional
         Extent of basis functions. Set this to reflect the expected range of in+out-of-sample data
-        (considering that time-indices are zero-centered).Default is `X_mid * 2` (identical to `c=2` in HSGP).
+        (considering that time-indices are zero-centered). Default is twice the largest distance of the
+        time index from `X_mid` (`X_mid * 2` for an index starting at 0 and centred at its mean;
+        identical to `c=2` in HSGP).
         By default it is None.
     eta_lam : float
         Exponential prior for the variance. Default is 1.
@@ -80,5 +83,5 @@ class HSGPKwargs(BaseModel):
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "HSGPKwargs":
         """Reconstruct from a dict."""
-        filtered = {k: v for k, v in data.items() if k != "__type__"}
+        filtered = {k: v for k, v in data.items() if k != Key.TYPE}
         return cls.model_validate(filtered)

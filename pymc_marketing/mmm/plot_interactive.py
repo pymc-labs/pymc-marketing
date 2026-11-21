@@ -126,6 +126,7 @@ from pymc.util import RandomState
 
 from pymc_marketing.data.idata.schema import Frequency
 from pymc_marketing.mmm.summary import MMMSummaryFactory
+from pymc_marketing.names.mmm import Dim
 
 # Type aliases matching MMMSummaryFactory for consistency
 ComponentType = Literal["channel", "control", "seasonality", "baseline"]
@@ -731,8 +732,8 @@ class MMMPlotlyFactory:
         x = plotly_kwargs.get("x")
         color = plotly_kwargs.get("color")
 
-        if "date" in nw_df.columns and len(nw_df["date"].unique()) > 1:
-            if "date" not in [x, color]:
+        if Dim.DATE in nw_df.columns and len(nw_df[Dim.DATE].unique()) > 1:
+            if Dim.DATE not in [x, color]:
                 raise ValueError("choose either x='date' or color='date'")
 
         if required_column not in [x, color]:
@@ -943,7 +944,7 @@ class MMMPlotlyFactory:
 
         nw_df, plotly_kwargs = self._prepare_summaries_for_bar_plot(
             df=df,
-            required_column="channel",
+            required_column=Dim.CHANNEL,
             default_title="Return on Ad Spend",
             auto_facet=auto_facet,
             single_dim_facet=single_dim_facet,
@@ -1032,17 +1033,17 @@ class MMMPlotlyFactory:
         nw_df = nw.from_native(df)
 
         # Validate required columns
-        required_cols = {"date", "mean", "observed"}
+        required_cols = {Dim.DATE, "mean", "observed"}
         if not required_cols.issubset(set(nw_df.columns)):
             raise ValueError(
                 f"DataFrame missing required columns: {required_cols - set(nw_df.columns)}"
             )
 
         # Sort by date for proper line plotting
-        nw_df = nw_df.sort("date")
+        nw_df = nw_df.sort(Dim.DATE)
 
         # Create long-format DataFrame with both predicted and observed
-        id_cols = ["date", *self.custom_dims]
+        id_cols = [Dim.DATE, *self.custom_dims]
         plot_df = nw_df.select(*id_cols, "mean", "observed").unpivot(
             on=["mean", "observed"],
             index=id_cols,
@@ -1070,10 +1071,10 @@ class MMMPlotlyFactory:
         # plot observed and predicted lines
         fig = px.line(
             plot_df.to_native(),
-            x="date",
+            x=Dim.DATE,
             y="value",
             color="series",
-            labels={"value": "Value", "date": "Date", "series": ""},
+            labels={"value": "Value", Dim.DATE: "Date", "series": ""},
             hover_data=hover_data,
             **plotly_kwargs,
         )
@@ -1088,7 +1089,7 @@ class MMMPlotlyFactory:
             self._add_hdi_bands(
                 fig,
                 nw_df,
-                x="date",
+                x=Dim.DATE,
                 lower_col=lower_col,
                 upper_col=upper_col,
                 facet_row=facet_row,
@@ -1444,7 +1445,7 @@ class MMMPlotlyFactory:
 
             # Determine join columns: "channel" plus any custom dimensions
             # that are present in both the scale DataFrame and the data
-            join_cols = ["channel"]
+            join_cols = [Dim.CHANNEL]
             for dim in self.custom_dims:
                 if dim in nw_scale.columns and dim in nw_df.columns:
                     join_cols.append(dim)
@@ -1556,7 +1557,7 @@ class MMMPlotlyFactory:
 
         return self._plot_curves(
             df=df,
-            x="time since exposure",
+            x=Dim.TIME_SINCE_EXPOSURE,
             hdi_prob=hdi_prob,
             hdi_opacity=hdi_opacity,
             title="Adstock Curves",
@@ -1721,7 +1722,7 @@ class MMMPlotlyFactory:
 
         nw_df, plotly_kwargs = self._prepare_summaries_for_bar_plot(
             df=df,
-            required_column="channel",
+            required_column=Dim.CHANNEL,
             default_title="Channel Share of Contribution",
             auto_facet=auto_facet,
             single_dim_facet=single_dim_facet,

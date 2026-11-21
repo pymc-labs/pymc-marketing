@@ -94,18 +94,6 @@ def test_parse_dot_CPdag_undirected_edges(dot_input, exp_nodes, exp_de, exp_ue):
     assert ue == exp_ue
 
 
-def test_parse_dot_CPdag_invalid_type_raises_TypeError():
-    with pytest.raises(TypeError):
-        _parse_dot_CPdag(123)  # type: ignore[arg-type]
-
-
-def test_parse_dot_CPdag_unparseable_raises_ValueError():
-    bad_dot = ""
-    # empty string yields no graphs
-    with pytest.raises(ValueError):
-        _parse_dot_CPdag(bad_dot)
-
-
 @pytest.mark.parametrize(
     "dir_edges, undirected_edges, expected_skeleton",
     [

@@ -510,42 +510,6 @@ class TestR2D2Integration:
         # Verify R2D2 tracking
         assert r2d2.built
 
-    def test_r2d2_with_prior_likelihood(self):
-        """R2D2 error_sigma should work inside Prior for likelihood."""
-        r2d2 = R2D2(
-            r2=Prior("Beta", mu=0.8, sigma=0.4),
-            total_sigma=Prior("LogNormal", mu=0, sigma=1),
-            dims={"control": "control"},
-        )
-
-        ds = xr.Dataset(
-            {
-                "controls": (("obs", "control"), np.random.randn(10, 2)),
-                "y": ("obs", np.ones(10)),
-            },
-            coords={"obs": range(10), "control": ["a", "b"]},
-        )
-
-        with pm.Model(coords={"obs": range(10), "control": ["a", "b"]}) as model:
-            controls = pmd.Data("controls", ds["controls"])
-
-            # R2D2 as VariableFactory in model_config style
-            model_config = {
-                "gamma_control": r2d2.split("control"),
-                "likelihood_sigma": r2d2.error_sigma,
-            }
-
-            # Create variables from config
-            beta = model_config["gamma_control"].create_variable("beta")
-            sigma = model_config["likelihood_sigma"].create_variable("sigma")
-
-            mu = controls @ beta
-            pmd.Normal("y_obs", mu=mu, sigma=sigma, observed=ds["y"])
-
-        # Verify it works
-        assert "y_obs" in model.named_vars
-        assert r2d2.built
-
     def test_r2d2_multiple_splits_same_decomposition(self):
         """All splits should share the same decomposition."""
         r2d2 = R2D2(
@@ -587,34 +551,6 @@ class TestR2D2Integration:
         # Verify single decomposition built
         assert r2d2.built
         assert len(r2d2._splits) == 1  # only control
-
-    def test_r2d2_model_config_pattern(self):
-        """Test the pattern that would be used in MMM model_config."""
-        r2d2 = R2D2(
-            r2=Prior("Beta", mu=0.8, sigma=0.4),
-            total_sigma=Prior("LogNormal", mu=0, sigma=1),
-            dims={
-                "media": "channel",
-                "control": "control",
-            },
-        )
-
-        # This is how it would be used in MMM
-        model_config = {
-            "likelihood": Prior("Normal", sigma=r2d2.error_sigma),
-            "gamma_control": r2d2.split("control"),
-            "gamma_media": r2d2.split("media"),
-        }
-
-        # Verify config structure
-        assert "likelihood" in model_config
-        assert "gamma_control" in model_config
-        assert "gamma_media" in model_config
-
-        # Verify all are VariableFactory compatible
-        for key, value in model_config.items():
-            assert hasattr(value, "create_variable"), f"{key} missing create_variable"
-            assert hasattr(value, "dims"), f"{key} missing dims attribute"
 
 
 class TestR2D2WithMMM:

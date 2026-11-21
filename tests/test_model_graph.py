@@ -34,7 +34,7 @@ def toy_model_given_x_mean(toy_model):
     return deterministics_to_flat(toy_model, ["x_mean"])
 
 
-def test_original_model_is_not_modified(toy_model):
+def test_original_model_is_not_modified(toy_model, toy_model_given_x_mean):
     assert toy_model.deterministics == [
         toy_model["x_mean"],
         toy_model["centered"],

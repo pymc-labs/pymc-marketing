@@ -1,0 +1,1386 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2026, PyMC Labs
+# This file is distributed under the same license as the PyMC-Marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyMC-Marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:10004
+#: 81be8d47b70a4b41ba06bc331b3b87ee
+msgid "MMM Calibration with Geo-Level Lift Tests"
+msgstr "Calibración de MMM con pruebas de elevación a nivel de geo"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:10006
+#: b5eda25e16624dec9a78d2bee70de360
+msgid "Introduction"
+msgstr "Introducción"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:10008
+#: d826aaaa6c744fba904da85c6ce38233
+msgid ""
+"This notebook shows how four geo-level lift estimates constrain a "
+"hierarchical MMM and how that evidence changes marginal ROAS (mROAS). We "
+"simulate weekly spend and sales in **\\$ millions per geo per week**, "
+"including an eight-week Channel 1 intervention in four treated geos. A "
+"paired untreated geo supplies a simple counterfactual for each treated "
+"market. Because the simulation has known response parameters, we can "
+"compare the estimated lift and the fitted response with truth."
+msgstr ""
+"Este cuaderno muestra cómo cuatro estimaciones de elevación a nivel de geo "
+"restringen un MMM jerárquico y cómo esa evidencia modifica el ROAS marginal "
+"(mROAS). Simulamos el gasto y las ventas semanales en **\\$ millones por geo"
+" por semana**, incluida una intervención de ocho semanas en el Canal 1 en "
+"cuatro geos tratadas. Una geo pareada no tratada aporta un contrafactual "
+"simple para cada mercado tratado. Como la simulación tiene parámetros de "
+"respuesta conocidos, podemos comparar la elevación estimada y la respuesta "
+"ajustada con la verdad."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:10010
+#: 9746175063c4484490f14f593884def6
+msgid ""
+"The geo experiment and its outcomes are simulated. We estimate four lifts"
+" from those outcomes with a compact paired-control regression; we do not "
+"run CausalPy here. In practice, estimate lift and its uncertainty with a "
+"suitable causal analysis, such as [CausalPy’s multi-cell GeoLift "
+"workflow](https://causalpy.readthedocs.io/en/latest/notebooks/multi-cell-"
+"geolift.html), before passing the results to the MMM."
+msgstr ""
+"El experimento geográfico y sus resultados son simulados. Estimamos cuatro "
+"elevaciones a partir de esos resultados con una regresión compacta de "
+"control pareado; aquí no ejecutamos CausalPy. En la práctica, estime la "
+"elevación y su incertidumbre con un análisis causal adecuado, como [el flujo"
+" de trabajo GeoLift multicelda de "
+"CausalPy](https://causalpy.readthedocs.io/en/latest/notebooks/multi-cell-"
+"geolift.html), antes de pasar los resultados al MMM."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:10012
+#: 331d31b83e81432da922f865ecc99e97
+msgid ""
+"The experiment weeks are reserved for lift estimation. Both MMM fits use "
+"the **same pre-test observations**; only the calibrated fit receives the "
+"four lift rows. Reported spend, sales, lift, curves, and mROAS use the "
+"original business units. Fixed unit scaling keeps the model in those same"
+" units across data generation, fitting, and later refreshes."
+msgstr ""
+"Las semanas del experimento se reservan para la estimación de la elevación. "
+"Ambos ajustes del MMM usan las **mismas observaciones previas a la prueba**;"
+" solo el ajuste calibrado recibe las cuatro filas de elevación. El gasto, "
+"las ventas, la elevación, las curvas y el mROAS reportados usan las unidades"
+" de negocio originales. El escalado fijo de unidades mantiene el modelo en "
+"esas mismas unidades durante la generación de datos, el ajuste y las "
+"actualizaciones posteriores."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:10014
+#: 8c1b1ddbe3dc47fca14844ae30df5c5b
+msgid "Prerequisites"
+msgstr "Requisitos previos"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:10017
+#: b04092aed29642b08da2792a98d6b5b9
+#, python-brace-format
+msgid ""
+"{ref}`mmm_lift_test` introduces the calibration likelihood in a simpler "
+"setting."
+msgstr ""
+"{ref}`mmm_lift_test` introduce la verosimilitud de calibración en un "
+"contexto más simple."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:10018
+#: 849894615d9c4942b34ef74456c3abe0
+#, python-brace-format
+msgid ""
+"{ref}`mmm_multidimensional_example` introduces geo-level MMMs and "
+"hierarchical priors."
+msgstr ""
+"{ref}`mmm_multidimensional_example` introduce los MMM a nivel de geo y los "
+"priors jerárquicos."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:10019
+#: fa1e18c7225c41e9b9e3d302520c2e7b
+msgid ""
+"[CausalPy Multi-Cell "
+"GeoLift](https://causalpy.readthedocs.io/en/latest/notebooks/multi-cell-"
+"geolift.html) demonstrates a fuller synthetic-control analysis. This "
+"notebook uses a compact paired-control regression to focus on the MMM "
+"handoff."
+msgstr ""
+"[CausalPy Multi-Cell "
+"GeoLift](https://causalpy.readthedocs.io/en/latest/notebooks/multi-cell-"
+"geolift.html) demuestra un análisis de control sintético más completo. Este "
+"cuaderno usa una regresión compacta de control pareado para centrarse en el "
+"traspaso al MMM."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:10022
+#: 1a6d6c8cd3f841a38bb883bc5e351c55
+msgid "Workflow"
+msgstr "Flujo de trabajo"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:10024
+#: 8d8a0d41daeb445d9a53bbbd0f9d2ec4
+msgid ""
+"Generate correlated Channel 1 and Channel 2 spend, then increase only "
+"Channel 1 in four treated geos."
+msgstr ""
+"Genere un gasto correlacionado en el Canal 1 y el Canal 2, y luego aumente "
+"solo el Canal 1 en cuatro geos tratadas."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:10025
+#: 6d246815097f4ea18a488e4d2a43825f
+msgid ""
+"Fit an untreated control to each treated geo using pre-test sales. "
+"Estimate mean weekly sales lift and an approximate standard error from "
+"the final four campaign weeks."
+msgstr ""
+"Ajuste un control no tratado a cada geo tratada usando las ventas previas a "
+"la prueba. Estime la elevación media semanal de las ventas y un error "
+"estándar aproximado a partir de las últimas cuatro semanas de campaña."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:10026
+#: 68af72aadca3428da95459caf0dd2b38
+msgid ""
+"Match that lift window to mean business-as-usual **effective spend** and "
+"the effective spend increment. The earlier campaign weeks let adstock "
+"build up."
+msgstr ""
+"Haga coincidir esa ventana de elevación con el **gasto efectivo** medio "
+"habitual (business-as-usual) y con el incremento del gasto efectivo. Las "
+"primeras semanas de campaña permiten que el adstock se acumule."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:10027
+#: 4449cb6fb97c4b96bbbcfd80c4611ce1
+msgid ""
+"Fit M0 on pre-test observations. Fit M1 on the same observations plus the"
+" four lift rows."
+msgstr ""
+"Ajuste M0 con las observaciones previas a la prueba. Ajuste M1 con las "
+"mismas observaciones más las cuatro filas de elevación."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:10028
+#: 3afa16e7d2764de4878ce4e38ae0e047
+msgid ""
+"Check model-implied finite lift against each measurement, then compare "
+"point mROAS at matched effective spend in treated and untested geos."
+msgstr ""
+"Compruebe la elevación finita implícita en el modelo frente a cada medición "
+"y luego compare el mROAS puntual con el mismo gasto efectivo en las geos "
+"tratadas y no probadas."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:10030
+#: 41cec6cc9ccd436d9aa0c027568cda66
+msgid ""
+"The paired-control standard error is a teaching approximation based on "
+"pre-test residuals; it does not include uncertainty in the fitted "
+"counterfactual relationship. A production analysis needs design "
+"diagnostics and a suitable causal estimator."
+msgstr ""
+"El error estándar del control pareado es una aproximación didáctica basada "
+"en los residuos previos a la prueba; no incluye la incertidumbre de la "
+"relación contrafactual ajustada. Un análisis de producción requiere "
+"diagnósticos de diseño y un estimador causal adecuado."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:10032
+#: a8fe3e177ce644fe9b056d53a4872fd8
+msgid "Why finite lift informs mROAS"
+msgstr "Por qué la elevación finita informa el mROAS"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:10034
+#: 0f60382be6fe480790fcb97f29102e72
+msgid ""
+"A lift row estimates the sales change across a spend interval. For a "
+"response curve $f$, the calibration likelihood compares its estimate with"
+msgstr ""
+"Una fila de elevación estima el cambio en las ventas a lo largo de un "
+"intervalo de gasto. Para una curva de respuesta $f$, la verosimilitud de "
+"calibración compara su estimación con"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:10036
+#: f24e07fb9b11498a9017b392be91f923
+msgid ""
+"\n"
+"\\Delta y_{\\mathrm{model}} = f(x+\\Delta x)-f(x).\n"
+msgstr ""
+"\n"
+"\\Delta y_{\\mathrm{model}} = f(x+\\Delta x)-f(x).\n"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:10040
+#: d026b52704564572b0f8094286aa9228
+msgid ""
+"The experiment directly informs the **finite return** $\\Delta y/\\Delta "
+"x$. Point mROAS is $f'(x)$, inferred from the fitted curve at a stated "
+"operating spend. One finite contrast does not determine the whole curve "
+"or guarantee a more accurate point slope. Measurement noise and competing"
+" explanations for historical sales still matter."
+msgstr ""
+"El experimento informa directamente el **retorno finito** $\\Delta y/\\Delta"
+" x$. El mROAS puntual es $f'(x)$, inferido de la curva ajustada con un gasto"
+" de operación indicado. Un solo contraste finito no determina toda la curva "
+"ni garantiza una pendiente puntual más exacta. El ruido de medición y las "
+"explicaciones rivales de las ventas históricas siguen importando."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:10042
+#: 4899cd2d48bb44bcb15ba36dd2d9944e
+msgid ""
+"Each treated geo receives a direct likelihood row. Channel-level "
+"hyperpriors can transmit some information to untested geos through "
+"partial pooling. Movement in an untested geo is therefore model-based "
+"borrowing, not a separate experiment there."
+msgstr ""
+"Cada geo tratada recibe una fila de verosimilitud directa. Los hiperpriors a"
+" nivel de canal pueden transmitir parte de la información a las geos no "
+"probadas mediante partial pooling. Por lo tanto, el cambio en una geo no "
+"probada es un préstamo basado en el modelo, no un experimento separado allí."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:10044
+#: 97bfe89fdd524daf85eafc91e4a0bbf7
+msgid "Prepare Notebook"
+msgstr "Preparar el cuaderno"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:40002
+#: 13978c538d4a40b6aa855e9f0c3bf78a
+msgid "Generate a geo experiment"
+msgstr "Generar un experimento geográfico"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:40004
+#: b939665ced6e4f92b1db789755871df4
+msgid ""
+"Weekly Channel 1 and Channel 2 spend and sales are measured in **\\$ "
+"millions per geo per week**. The numerical range is kept near one for a "
+"compact simulation, but the quantities are original business units: a "
+"\\$0.15 million increase is an extra \\$150,000 per week. The model uses "
+"fixed unit scaling for these business-unit inputs."
+msgstr ""
+"El gasto y las ventas semanales del Canal 1 y el Canal 2 se miden en **\\$ "
+"millones por geo por semana**. El rango numérico se mantiene cercano a uno "
+"para una simulación compacta, pero las cantidades están en unidades de "
+"negocio originales: un aumento de \\$0.15 millones equivale a \\$150,000 "
+"adicionales por semana. El modelo usa un escalado fijo de unidades para "
+"estas entradas en unidades de negocio."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:40006
+#: 5b14547a3a544499abd20e76da5e47b6
+msgid ""
+"The channels follow a shared weekly spend pattern, making their "
+"observational effects hard to separate. Each geo responds to that common "
+"pattern with a slightly different positive slope and has its own weekly "
+"spend variation. This keeps paired geos comparable without making their "
+"histories identical. Four treated geos receive additional Channel 1 spend"
+" for the last eight weeks; four paired controls do not. We generate sales"
+" with known geo-specific response parameters using `pm.do`, so we can "
+"check both the experiment estimate and the calibrated MMM against truth. "
+"The experiment weeks will be used to estimate lift, **not** in either "
+"MMM's observational likelihood."
+msgstr ""
+"Los canales siguen un patrón semanal de gasto compartido, lo que dificulta "
+"separar sus efectos observacionales. Cada geo responde a ese patrón común "
+"con una pendiente positiva ligeramente distinta y tiene su propia variación "
+"semanal de gasto. Esto mantiene comparables a las geos pareadas sin hacer "
+"idénticos sus historiales. Cuatro geos tratadas reciben gasto adicional en "
+"el Canal 1 durante las últimas ocho semanas; cuatro controles pareados no lo"
+" reciben. Generamos las ventas con parámetros de respuesta conocidos y "
+"específicos de cada geo usando `pm.do`, de modo que podamos comprobar frente"
+" a la verdad tanto la estimación del experimento como el MMM calibrado. Las "
+"semanas del experimento se usarán para estimar la elevación, **no** en la "
+"verosimilitud observacional de ninguno de los MMM."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:40009
+#: 729b7a4446a54acaa00c534e39d8612f
+msgid ""
+"Use the **same scaling constants for every model refresh and lift test**."
+" Under data-derived max scaling, a later high spend or sales value "
+"changes the model's internal channel or target scale. That changes the "
+"numerical saturation parameters and the business-unit meaning of their "
+"priors. Here `FixedScaling` uses one \\$ million per week for both spend "
+"and sales in the generation model, M0, and M1. With larger raw values, "
+"choose appropriate positive constants once and reuse them as history "
+"grows."
+msgstr ""
+"Utilice las **mismas constantes de escalado en cada actualización del modelo"
+" y en cada prueba de elevación**. Con el escalado por máximo derivado de los"
+" datos, un valor alto de gasto o de ventas posterior cambia la escala "
+"interna del canal o del objetivo del modelo. Eso cambia los parámetros "
+"numéricos de saturación y el significado en unidades de negocio de sus "
+"priors. Aquí `FixedScaling` usa un millón de \\$ por semana tanto para el "
+"gasto como para las ventas en el modelo de generación, M0 y M1. Con valores "
+"brutos más grandes, elija una sola vez constantes positivas apropiadas y "
+"reutilícelas a medida que crezca el historial."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:90002
+#: 17009589b3f843c09dcfe7a7c33e7b0d
+msgid "**Reading the plots above:**"
+msgstr "**Cómo leer los gráficos anteriores:**"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:90004
+#: 6672cabf0adf4f5dba3dd69379a4441b
+msgid ""
+"The **left** panel shows the experiment's effect on Channel 1 spend. The "
+"solid lines show actual mean spend (averaged over geos) for treated and "
+"control groups. During the experiment period, the treated group's actual "
+"spend diverges upward from the dashed counterfactual line (what those "
+"geos would have spent without the intervention). The shaded area between "
+"them is the spend increase (`delta_x`). The control group continues its "
+"baseline pattern, unaffected by the experiment."
+msgstr ""
+"El panel **izquierdo** muestra el efecto del experimento en el gasto del "
+"Canal 1. Las líneas sólidas muestran el gasto medio real (promediado entre "
+"geos) de los grupos tratado y de control. Durante el período del "
+"experimento, el gasto real del grupo tratado se separa hacia arriba de la "
+"línea discontinua contrafactual (lo que esas geos habrían gastado sin la "
+"intervención). El área sombreada entre ambas es el aumento del gasto "
+"(`delta_x`). El grupo de control continúa con su patrón base, sin verse "
+"afectado por el experimento."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:90006
+#: 4aea7cbcb8c545cda39ee3e9b94cc4b4
+msgid ""
+"The **right** panel shows the same view for **Channel 2**, which was "
+"*not* manipulated during the experiment. Both treated and control geos "
+"follow similar spend patterns throughout, with no divergence during the "
+"experiment period. This confirms that the assigned intervention changed "
+"only Channel 1. We still adjust for each pair's pre-test outcome "
+"relationship when estimating lift."
+msgstr ""
+"El panel **derecho** muestra la misma vista para el **Canal 2**, que *no* se"
+" manipuló durante el experimento. Tanto las geos tratadas como las de "
+"control siguen patrones de gasto similares durante todo el período, sin "
+"separación durante el período del experimento. Esto confirma que la "
+"intervención asignada cambió solo el Canal 1. Aun así, ajustamos por la "
+"relación con el resultado previo a la prueba de cada par al estimar la "
+"elevación."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:110002
+#: 999d6040886a4c96bab5445a1fa28a49
+msgid ""
+"The figure above reveals the key challenge that motivates lift test "
+"calibration: **Channel 1 and Channel 2 spend are nearly perfectly "
+"correlated** in the observational data."
+msgstr ""
+"La figura anterior revela el desafío clave que motiva la calibración con "
+"pruebas de elevación: **el gasto del Canal 1 y el del Canal 2 están casi "
+"perfectamente correlacionados** en los datos observacionales."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:110004
+#: aaa163fbda5f4e3b86a8f4a64f2dca57
+msgid ""
+"The **top row** shows treated geos, with pre-experiment points (blue) and"
+" during-experiment points (red) plotted separately. Before the "
+"experiment, each geo's spend follows a tight linear relationship between "
+"channels. During the experiment, the red points break away from this "
+"pattern--Channel 1 spend increases while Channel 2 stays the same, "
+"pulling the points rightward off the correlation line. This is precisely "
+"the experimental variation that enables causal identification."
+msgstr ""
+"La **fila superior** muestra las geos tratadas, con los puntos previos al "
+"experimento (azul) y los puntos durante el experimento (rojo) trazados por "
+"separado. Antes del experimento, el gasto de cada geo sigue una relación "
+"lineal estrecha entre canales. Durante el experimento, los puntos rojos se "
+"alejan de este patrón--el gasto del Canal 1 aumenta mientras que el del "
+"Canal 2 se mantiene igual, desplazando los puntos hacia la derecha fuera de "
+"la línea de correlación. Esta es precisamente la variación experimental que "
+"permite la identificación causal."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:110006
+#: 4298ae0d7762496f8340378f7ff8d708
+msgid ""
+"The **bottom row** shows control geos, where all time points are plotted "
+"in a single color since nothing changed for these geos. The tight "
+"correlation holds throughout, confirming that the experiment did not "
+"affect control geos."
+msgstr ""
+"La **fila inferior** muestra las geos de control, donde todos los puntos "
+"temporales se trazan con un único color, ya que nada cambió para estas geos."
+" La correlación estrecha se mantiene en todo momento, lo que confirma que el"
+" experimento no afectó a las geos de control."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:110008
+#: d2aef379552c47609bd376bec16a9495
+msgid ""
+"Without the experimental variation visible in the treated geos, the MMM "
+"cannot distinguish which channel is actually driving sales--many "
+"different parameter combinations fit the correlated data equally well. "
+"The MMM fits only the pre-test period. The controlled spend change "
+"supplies separate causal evidence through a lift measurement. That "
+"evidence constrains the response curve, but it does not guarantee that "
+"every posterior mean moves toward truth."
+msgstr ""
+"Sin la variación experimental visible en las geos tratadas, el MMM no puede "
+"distinguir qué canal impulsa realmente las ventas--muchas combinaciones "
+"distintas de parámetros ajustan igual de bien los datos correlacionados. El "
+"MMM ajusta solo el período previo a la prueba. El cambio controlado del "
+"gasto aporta evidencia causal independiente mediante una medición de "
+"elevación. Esa evidencia restringe la curva de respuesta, pero no garantiza "
+"que cada media posterior se acerque a la verdad."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:120002
+#: 39d698fbffb0464e986398211f6312a0
+msgid "Define True Parameters with Geo-Level Heterogeneity"
+msgstr "Definir los parámetros verdaderos con heterogeneidad a nivel de geo"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:120004
+#: 4989eadcc70944c08be1b4ceedefeccc
+msgid ""
+"A key advantage of geo-level modeling is capturing **regional "
+"heterogeneity** in media response. Different markets may have different "
+"saturation characteristics due to:"
+msgstr ""
+"Una ventaja clave del modelado a nivel de geo es capturar la "
+"**heterogeneidad regional** en la respuesta a los medios. Distintos mercados"
+" pueden tener diferentes características de saturación debido a:"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:120005
+#: 1bc72dc7bc204fc39e2825b3848e183c
+msgid ""
+"**Market maturity**: Established markets may saturate faster than "
+"emerging ones"
+msgstr ""
+"**Madurez del mercado**: Los mercados consolidados pueden saturarse más "
+"rápido que los emergentes"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:120006
+#: b6d0a8442c044608bc6970be9f283919
+msgid ""
+"**Competition**: Competitive markets may require more spend to achieve "
+"the same effect"
+msgstr ""
+"**Competencia**: Los mercados competitivos pueden requerir más gasto para "
+"lograr el mismo efecto"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:120007
+#: 30f423d127d34f3c9022815270fa16d3
+msgid ""
+"**Demographics**: Different audience compositions respond differently to "
+"media"
+msgstr ""
+"**Demografía**: Las diferentes composiciones de audiencia responden de "
+"manera distinta a los medios"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:120009
+#: 095d8ce82de248e6be5cd8d4086302ac
+msgid "We model this heterogeneity using a **hierarchical structure**:"
+msgstr "Modelamos esta heterogeneidad mediante una **estructura jerárquica**:"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:120010
+#: f0e18866553f4cb485d36c90a23fb21b
+msgid "Each geo has its own saturation parameters (lam, beta)"
+msgstr "Cada geo tiene sus propios parámetros de saturación (lam, beta)"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:120011
+#: b22271831abe431c802809452ff9d19a
+msgid "These geo-level parameters are drawn from a common population distribution"
+msgstr ""
+"Estos parámetros a nivel de geo se extraen de una distribución poblacional "
+"común"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:120012
+#: 086b398c9d214fb9aa6abf99edd9e3c1
+msgid ""
+"This allows **partial pooling**: information is shared across geos while "
+"allowing for regional differences"
+msgstr ""
+"Esto permite el **partial pooling**: la información se comparte entre geos y"
+" a la vez se admiten diferencias regionales"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:120014
+#: e6a0f8c8d64449ac8057ee91c5db2ac8
+msgid ""
+"**True parameter structure** (in the same fixed business-unit scale as "
+"the fitted models):"
+msgstr ""
+"**Estructura verdadera de los parámetros** (en la misma escala fija de "
+"unidades de negocio que los modelos ajustados):"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:120015
+#: 5ae421fe7cca4c8f9e2b0058ef43c752
+msgid ""
+"**Saturation lam**: Population mean 4 for channel 1, 3 for channel 2, "
+"with geo-level variation (σ = 0.5)"
+msgstr ""
+"**Saturación lam**: Media poblacional de 4 para el canal 1 y de 3 para el "
+"canal 2, con variación a nivel de geo (σ = 0.5)"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:120016
+#: 7a0fb62bb3974c14a48e5c9470b3c355
+msgid ""
+"**Saturation beta**: Population mean ~0.6 for channel 1, ~0.5 for channel"
+" 2, with geo-level variation (σ ≈ 0.08)"
+msgstr ""
+"**Saturación beta**: Media poblacional de ~0.6 para el canal 1 y de ~0.5 "
+"para el canal 2, con variación a nivel de geo (σ ≈ 0.08)"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:120017
+#: 461c281682784efcbc7bb529a106beef
+msgid "**Adstock alpha**: Shared across geos (0.5 for both channels)"
+msgstr "**Adstock alpha**: Compartido entre geos (0.5 para ambos canales)"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:120019
+#: 9c146ffee1bc4c139fe9376ad472d87b
+msgid ""
+"This hierarchical structure is crucial for understanding how lift tests "
+"help: **calibrating a subset of geos (treated geos) provides information "
+"that propagates to all geos through the shared population-level "
+"parameters.**"
+msgstr ""
+"Esta estructura jerárquica es crucial para entender cómo ayudan las pruebas "
+"de elevación: **calibrar un subconjunto de geos (las geos tratadas) aporta "
+"información que se propaga a todas las geos a través de los parámetros "
+"poblacionales compartidos.**"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:150002
+#: 8b0bbc9a4b1e4f0a8e98937d9ef94cf5
+msgid "Generate Target Variable Using the Model"
+msgstr "Generar la variable objetivo usando el modelo"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:150004
+#: 676f7376991e4584a78cbb9f7d9c801f
+msgid ""
+"Following the national example, we generate sales with `pm.do` and known "
+"response parameters. The generation model includes the full intervention "
+"only to produce synthetic data. All three model instances use the same "
+"fixed unit scaling, so the planted parameters, fitted curves, and lift "
+"rows share one business-unit coordinate system."
+msgstr ""
+"Siguiendo el ejemplo nacional, generamos las ventas con `pm.do` y parámetros"
+" de respuesta conocidos. El modelo de generación incluye la intervención "
+"completa solo para producir datos sintéticos. Las tres instancias del modelo"
+" usan el mismo escalado fijo de unidades, de modo que los parámetros "
+"plantados, las curvas ajustadas y las filas de elevación comparten un único "
+"sistema de coordenadas en unidades de negocio."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:220002
+#: e81fb09b8b414ff9bc6e2e2b082b897c
+msgid ""
+"**Left:** Sales during the experiment vary substantially by geo, so raw "
+"group levels do not reveal the effect. **Right:** Dividing each geo by "
+"its mean outcome in the final four pre-test weeks gives a visual index. "
+"This baseline excludes the intervention and is only for display; the lift"
+" estimator below uses original \\$ million outcomes and pre-test control "
+"fits rather than this indexed chart."
+msgstr ""
+"**Izquierda:** Las ventas durante el experimento varían sustancialmente "
+"según la geo, por lo que los niveles brutos de los grupos no revelan el "
+"efecto. **Derecha:** Dividir cada geo por su resultado medio en las últimas "
+"cuatro semanas previas a la prueba da un índice visual. Esta línea base "
+"excluye la intervención y es solo para visualización; el estimador de "
+"elevación de más abajo usa los resultados originales en \\$ millones y los "
+"ajustes de control previos a la prueba, y no este gráfico indexado."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:230002
+#: 2e31a08b86ea426f87ee4b0d95f60568
+msgid "Fit MMM Without Calibration"
+msgstr "Ajustar el MMM sin calibración"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:230004
+#: 6b2c6b7d4f3d49c5af826ed331fbe914
+msgid ""
+"First, let's fit a standard MMM without lift test calibration to "
+"establish a baseline."
+msgstr ""
+"Primero, ajustemos un MMM estándar sin calibración con pruebas de elevación "
+"para establecer una línea base."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:260002
+#: 666aefc920d04c85a18dd3e0db14b8a9
+msgid ""
+"The saturation priors have `dims=(\"geo\", \"channel\")`, while their "
+"hyperpriors have `dims=\"channel\"`. Each geo receives its own response "
+"parameters, and the channel-level population parameters let treated-geo "
+"evidence inform the controls. Adstock has a similar hierarchy; its time "
+"path is handled in the experiment-to-lift bridge below. All plots and "
+"tables report spend and sales in \\$ million units; fixed scaling of one "
+"leaves these values unchanged."
+msgstr ""
+"Los priors de saturación tienen `dims=(\"geo\", \"channel\")`, mientras que "
+"sus hiperpriors tienen `dims=\"channel\"`. Cada geo recibe sus propios "
+"parámetros de respuesta, y los parámetros poblacionales a nivel de canal "
+"permiten que la evidencia de las geos tratadas informe a los controles. El "
+"adstock tiene una jerarquía similar; su trayectoria temporal se maneja en el"
+" puente entre el experimento y la elevación que se presenta más abajo. Todos"
+" los gráficos y tablas reportan el gasto y las ventas en unidades de \\$ "
+"millones; un escalado fijo de uno deja estos valores sin cambios."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:290002
+#: 50448ce207dc4553a96392d65778ff7c
+#, python-format
+msgid ""
+"Each subplot shows one geo's posterior distribution in the (λ, β) "
+"parameter space, with **treated geos on the left** and **control geos on "
+"the right**. Channels are distinguished by color. The shaded KDE contours"
+" enclose the 50% highest-density region, circles mark the posterior mean,"
+" and stars mark the true parameter values."
+msgstr ""
+"Cada subgráfico muestra la distribución posterior de una geo en el espacio "
+"de parámetros (λ, β), con las **geos tratadas a la izquierda** y las **geos "
+"de control a la derecha**. Los canales se distinguen por color. Los "
+"contornos KDE sombreados encierran la región de mayor densidad del 50%, los "
+"círculos marcan la media posterior y las estrellas marcan los valores "
+"verdaderos de los parámetros."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:290004
+#: 217bc44f277b414c8de873130f0c4685
+msgid ""
+"**Key takeaway:** The uncalibrated model struggles to recover the true "
+"parameters. The posterior distributions are broad and often do not "
+"overlap with the true values (stars). This is a direct consequence of the"
+" high correlation between channels--without causal information, the model"
+" cannot confidently separate Channel 1's contribution from Channel 2's. "
+"The uncertainty is large. All stars and posterior summaries here use the "
+"same original business units. This motivates the lift test calibration we"
+" add next."
+msgstr ""
+"**Idea clave:** El modelo sin calibrar tiene dificultades para recuperar los"
+" parámetros verdaderos. Las distribuciones posteriores son amplias y a "
+"menudo no se superponen con los valores verdaderos (estrellas). Esto es una "
+"consecuencia directa de la alta correlación entre canales--sin información "
+"causal, el modelo no puede separar con confianza la contribución del Canal 1"
+" de la del Canal 2. La incertidumbre es grande. Todas las estrellas y los "
+"resúmenes posteriores aquí usan las mismas unidades de negocio originales. "
+"Esto motiva la calibración con pruebas de elevación que añadimos a "
+"continuación."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:300002
+#: 963e804753a146a48ac056e3719530ea
+msgid "Estimate geo lift and prepare calibration rows"
+msgstr "Estimar la elevación por geo y preparar las filas de calibración"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:300004
+#: 128c8dd6ffb34a31ae7855bf23e35a6b
+msgid ""
+"The test-week outcomes stay out of the observational MMM. For each "
+"treated geo, a paired untreated geo predicts its counterfactual sales "
+"using a linear regression fitted on the 96 pre-test weeks. We take the "
+"mean treated-minus-predicted outcome over the final four test weeks. The "
+"pre-test residual spread gives an approximate standard error for that "
+"mean; this simple estimator does not propagate uncertainty in the fitted "
+"control relationship. This compact controlled estimator illustrates the "
+"handoff; a production geo test needs design checks and a suitable causal "
+"analysis such as CausalPy synthetic control."
+msgstr ""
+"Los resultados de las semanas de prueba se mantienen fuera del MMM "
+"observacional. Para cada geo tratada, una geo pareada no tratada predice sus"
+" ventas contrafactuales mediante una regresión lineal ajustada con las 96 "
+"semanas previas a la prueba. Tomamos la media de la diferencia entre el "
+"resultado tratado y el predicho a lo largo de las últimas cuatro semanas de "
+"prueba. La dispersión de los residuos previos a la prueba da un error "
+"estándar aproximado para esa media; este estimador simple no propaga la "
+"incertidumbre de la relación ajustada con el control. Este estimador "
+"controlado compacto ilustra el traspaso; una prueba geográfica de producción"
+" necesita verificaciones de diseño y un análisis causal adecuado, como el "
+"control sintético de CausalPy."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:300006
+#: 43e2a6dc46344bd084163fa60c28894f
+msgid ""
+"For this simulation, the conversion from raw to effective spend uses the "
+"**known planted adstock decay** (`true_alpha_c1`). An applied analysis "
+"cannot know this value: estimate decay from the pre-test MMM posterior, "
+"propagate its uncertainty where material, or run the test long enough "
+"that effective spend is close to steady state."
+msgstr ""
+"Para esta simulación, la conversión del gasto bruto al gasto efectivo usa la"
+" **tasa de decaimiento de adstock plantada y conocida** (`true_alpha_c1`). "
+"Un análisis aplicado no puede conocer este valor: estime el decaimiento a "
+"partir de la distribución posterior del MMM previo a la prueba, propague su "
+"incertidumbre cuando sea relevante, o ejecute la prueba durante el tiempo "
+"suficiente para que el gasto efectivo esté cerca del estado estacionario."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:300008
+#: b83c12c7da744860a39c77f34b9cc403
+msgid ""
+"The MMM lift helper constrains a **static saturation contrast**. Because "
+"this example has geometric adstock, `x` is the mean *effective* BAU "
+"Channel 1 spend in the same final four weeks, and `delta_x` is the mean "
+"effective factual-minus-BAU change. The first four treatment weeks build "
+"carryover; the last four are near steady state. We compare the true time-"
+"path effect with the implied static contrast to check the approximation. "
+"All five lift columns are in original \\$ million weekly units."
+msgstr ""
+"La función auxiliar de elevación del MMM restringe un **contraste estático "
+"de saturación**. Como este ejemplo tiene adstock geométrico, `x` es el gasto"
+" efectivo BAU medio del Canal 1 en las mismas últimas cuatro semanas, y "
+"`delta_x` es el cambio efectivo medio entre el gasto factual y el BAU. Las "
+"primeras cuatro semanas del tratamiento acumulan el efecto de arrastre; las "
+"últimas cuatro están cerca del estado estacionario. Comparamos el efecto "
+"verdadero de la trayectoria temporal con el contraste estático implícito "
+"para comprobar la aproximación. Las cinco columnas de elevación están todas "
+"en unidades semanales originales de \\$ millones."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:350002
+#: 6a101f9dd4db4deea8ebaae34fd8a88d
+msgid ""
+"Each triangle starts at the programmed baseline effective spend and its "
+"vertical side ends at the **known simulated curve** value after the spend"
+" change (black cross). The red circle adds the paired-control lift "
+"estimate to the same baseline. Its error bar is ±1 estimated standard "
+"error (`sigma`), so a visible gap from the known endpoint represents "
+"estimation error rather than a plotting or scaling mismatch. The paired-"
+"control pre-test R² values range from about 0.78 to 0.91; `geo_00` has "
+"the weakest fit, so its lift estimate warrants particular caution."
+msgstr ""
+"Cada triángulo comienza en el gasto efectivo de línea base programado y su "
+"lado vertical termina en el valor de la **curva simulada conocida** tras el "
+"cambio de gasto (cruz negra). El círculo rojo suma la estimación de "
+"elevación del control pareado a la misma línea base. Su barra de error es ±1"
+" error estándar estimado (`sigma`), por lo que una brecha visible respecto "
+"del extremo conocido representa un error de estimación y no una discrepancia"
+" de trazado o de escala. Los valores de R² previos a la prueba del control "
+"pareado van de aproximadamente 0.78 a 0.91; `geo_00` tiene el ajuste más "
+"débil, por lo que su estimación de elevación requiere especial precaución."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:360003
+#: 94a991a59ade46f5b514c8dca735dfae
+msgid ""
+"The standard error comes from each treated geo's pre-test prediction "
+"residuals. The table above compares the controlled estimate, the known "
+"time-path effect, and the static contrast passed to the MMM. The default "
+"signed Normal likelihood compares each measured effect with the "
+"corresponding signed model-implied lift. A noisy estimate may have either"
+" sign. A small standard error makes incompatible lift rows especially "
+"consequential, so inspect the agreement before calibration."
+msgstr ""
+"El error estándar proviene de los residuos de predicción previos a la prueba"
+" de cada geo tratada. La tabla anterior compara la estimación controlada, el"
+" efecto verdadero de la trayectoria temporal y el contraste estático que se "
+"pasa al MMM. La verosimilitud Normal con signo, predeterminada, compara cada"
+" efecto medido con la elevación con signo correspondiente implícita en el "
+"modelo. Una estimación ruidosa puede tener cualquiera de los dos signos. Un "
+"error estándar pequeño hace que las filas de elevación incompatibles sean "
+"especialmente consecuentes, así que inspeccione la concordancia antes de "
+"calibrar."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:370002
+#: 9bfd89f05c4e4c1bb0546bc59aca3afe
+msgid "Fit MMM With Lift Test Calibration"
+msgstr "Ajustar el MMM con calibración mediante pruebas de elevación"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:370004
+#: 27ca77047c8e4b2ab41f957e98f1fa47
+msgid "Now we fit a new MMM and add the lift test measurements to calibrate it."
+msgstr ""
+"Ahora ajustamos un nuevo MMM y agregamos las mediciones de la prueba de "
+"elevación para calibrarlo."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:410002
+#: ee6a3e7ea8964e1e9ac57d71f78818fb
+msgid "Compare calibrated and uncalibrated MMMs"
+msgstr "Comparar los MMM calibrado y sin calibrar"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:410004
+#: c8253a8588704880ac0f1e9ee6e4413a
+msgid ""
+"Both models use exactly the same pre-test observations. The calibrated "
+"model alone receives the separate four-row geo experiment summary. We "
+"compare the finite return measured by each row first, then local mROAS at"
+" matched effective BAU spend. Precision, posterior movement, and "
+"closeness to simulated truth are distinct questions."
+msgstr ""
+"Ambos modelos usan exactamente las mismas observaciones previas a la prueba."
+" Solo el modelo calibrado recibe el resumen separado del experimento "
+"geográfico de cuatro filas. Comparamos primero el retorno finito medido por "
+"cada fila y luego el mROAS local con el mismo gasto efectivo BAU. La "
+"precisión, el desplazamiento de la posterior y la cercanía a la verdad "
+"simulada son preguntas distintas."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:420002
+#: 92cfddb2d6e247d88a077f97be22a5f6
+msgid "Setting Expectations: What a Single Lift Test Can and Cannot Do"
+msgstr ""
+"Establecer expectativas: qué puede y qué no puede hacer una sola prueba de "
+"elevación"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:420005
+#: ddb1fb94d1214d5695ca0f3c20dd4558
+msgid ""
+"Before examining the results, it helps to understand the structural "
+"limits of what a single-channel lift test can achieve in this setting:"
+msgstr ""
+"Antes de examinar los resultados, conviene entender los límites "
+"estructurales de lo que puede lograr una prueba de elevación de un solo "
+"canal en este contexto:"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:420007
+#: 1beb48857dc94ce3be4ed74ef2f50afa
+msgid ""
+"**What a lift test constrains.** Each lift test measurement provides one "
+"equation relating two unknowns: $\\beta \\cdot [h(\\lambda,\\, x + "
+"\\Delta x) - h(\\lambda,\\, x)] \\approx \\Delta y$. This constrains a "
+"*curve* in $(\\lambda, \\beta)$ space, not a single point. The posterior "
+"can concentrate around this curve, but the amount of precision gain "
+"depends on the experiment uncertainty and its compatibility with the "
+"observational model. Residual ambiguity between $\\lambda$ and $\\beta$ "
+"remains."
+msgstr ""
+"**Lo que una prueba de elevación restringe.** Cada medición de una prueba de"
+" elevación aporta una ecuación que relaciona dos incógnitas: $\\beta \\cdot "
+"[h(\\lambda,\\, x + \\Delta x) - h(\\lambda,\\, x)] \\approx \\Delta y$. "
+"Esto restringe una *curva* en el espacio $(\\lambda, \\beta)$, no un único "
+"punto. La posterior puede concentrarse alrededor de esta curva, pero la "
+"ganancia de precisión depende de la incertidumbre del experimento y de su "
+"compatibilidad con el modelo observacional. Sigue habiendo ambigüedad "
+"residual entre $\\lambda$ y $\\beta$."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:420009
+#: 095c2ba85dda4954921e7029c653e55e
+msgid ""
+"**What it cannot break.** The lift test constrains a *difference* "
+"$\\Delta y = f(x + \\Delta x) - f(x)$, which is structurally independent "
+"of the intercept. So if the model overestimates the intercept and "
+"underestimates channel contributions (or vice versa), the lift test "
+"cannot detect or correct this. This **intercept--channel degeneracy** is "
+"the main reason saturation curves can remain biased even after "
+"calibration."
+msgstr ""
+"**Lo que no puede romper.** La prueba de elevación restringe una "
+"*diferencia* $\\Delta y = f(x + \\Delta x) - f(x)$, que es estructuralmente "
+"independiente del intercepto. Por eso, si el modelo sobrestima el intercepto"
+" y subestima las contribuciones de los canales (o viceversa), la prueba de "
+"elevación no puede detectarlo ni corregirlo. Esta **degeneración intercepto"
+"--canal** es la razón principal por la que las curvas de saturación pueden "
+"seguir sesgadas incluso después de la calibración."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:420011
+#: 9fb7d69cf9074f98a465bd1828ee4f9e
+msgid ""
+"**What to expect.** In this example, compare posterior locations and "
+"interval widths separately, especially for the tested channel. A lift-"
+"test likelihood can shift an estimate and may tighten or widen its "
+"uncertainty; prediction quality (R², RMSE) is not its target and is "
+"expected to remain similar. For further improvement, consider testing at "
+"**multiple spend levels** (which pins down both $\\lambda$ and $\\beta$) "
+"or **testing additional channels**."
+msgstr ""
+"**Qué esperar.** En este ejemplo, compare por separado las ubicaciones "
+"posteriores y los anchos de los intervalos, especialmente para el canal "
+"probado. Una verosimilitud de prueba de elevación puede desplazar una "
+"estimación y puede estrechar o ensanchar su incertidumbre; la calidad de la "
+"predicción (R², RMSE) no es su objetivo y se espera que se mantenga similar."
+" Para mejorar aún más, considere probar con **múltiples niveles de gasto** "
+"(lo que fija tanto $\\lambda$ como $\\beta$) o **probar canales "
+"adicionales**."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:430002
+#: 03e79b2f946743bcb1cf1552dbf024da
+msgid "Marginal ROAS at matched business-unit spend"
+msgstr "ROAS marginal con gasto equiparado en unidades de negocio"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:430004
+#: b8464767109d462fa695fd3c592e218f
+msgid ""
+"For each geo, we evaluate the Channel 1 response slope at its mean "
+"**effective BAU spend in the late-test window**. Both fits use the same "
+"spend point. The treated geos have direct lift rows; controls can change "
+"through the hierarchical priors. The helper reads the model's fixed scale"
+" before taking the derivative, so both posterior and simulated values are"
+" \\$ of sales per \\$ of spend. This is the static saturation slope, not "
+"cumulative campaign ROAS."
+msgstr ""
+"Para cada geo, evaluamos la pendiente de respuesta del Canal 1 en su **gasto"
+" efectivo BAU medio de la ventana final de la prueba**. Ambos ajustes usan "
+"el mismo punto de gasto. Las geos tratadas tienen filas de elevación "
+"directas; los controles pueden cambiar a través de los priors jerárquicos. "
+"La función auxiliar lee la escala fija del modelo antes de calcular la "
+"derivada, por lo que tanto los valores posteriores como los simulados son "
+"\\$ de ventas por \\$ de gasto. Esta es la pendiente estática de saturación,"
+" no el ROAS acumulado de la campaña."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:460002
+#: 47cf4029285d413d81fd3ec3edd4503f
+msgid ""
+"The finite-lift table shows the measured contrast, model-implied mean, "
+"simulated truth, and standardized discrepancy. The posterior pools "
+"evidence across geos, so a noisy estimate need not equal its fitted mean."
+" In this run, the calibrated mROAS mean moves closer to truth in three of"
+" four treated geos, while the `geo_00` mean moves away: its measured lift"
+" is only \\$0.033M/week versus about \\$0.085M/week of simulated lift. "
+"All four treated 94% mROAS intervals narrow. Treat precision and "
+"closeness to truth as separate outcomes."
+msgstr ""
+"La tabla de elevación finita muestra el contraste medido, la media implícita"
+" en el modelo, la verdad simulada y la discrepancia estandarizada. La "
+"posterior agrupa la evidencia entre geos, por lo que una estimación ruidosa "
+"no tiene por qué igualar su media ajustada. En esta ejecución, la media del "
+"mROAS calibrado se acerca más a la verdad en tres de las cuatro geos "
+"tratadas, mientras que la media de `geo_00` se aleja: su elevación medida es"
+" solo de \\$0.033M/semana frente a unos \\$0.085M/semana de elevación "
+"simulada. Los cuatro intervalos de mROAS al 94% de las geos tratadas se "
+"estrechan. Trate la precisión y la cercanía a la verdad como resultados "
+"separados."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:480002
+#: 0a8ebc0b66f04478b5530856cfe61615
+msgid ""
+"The contours compare uncalibrated and calibrated parameters in original "
+"business units. Their widths show precision, while the distance from the "
+"planted star shows accuracy; inspect both rather than treating a tighter "
+"contour as recovery."
+msgstr ""
+"Los contornos comparan los parámetros sin calibrar y calibrados en unidades "
+"de negocio originales. Sus anchos muestran la precisión, mientras que la "
+"distancia a la estrella plantada muestra la exactitud; inspeccione ambos en "
+"lugar de considerar que un contorno más estrecho equivale a una "
+"recuperación."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:490002
+#: 513489ae44c34a88a7387e167dac7922
+msgid "Precision Improvement"
+msgstr "Mejora de la precisión"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:490004
+#: f1077e919aec4cd0aef0792b0df65f04
+msgid ""
+"We quantify precision improvement as the percentage reduction in the 94% "
+"Highest Density Interval (HDI) width:"
+msgstr ""
+"Cuantificamos la mejora de la precisión como la reducción porcentual del "
+"ancho del Intervalo de Densidad Más Alta (HDI) del 94%:"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:490006
+#: 80ebfa18c7b5494c9c579d906eeacb11
+msgid ""
+"\\text{Precision Improvement (%)} = \\frac{\\text{HDI}_\\text{uncal} - "
+"\\text{HDI}_\\text{cal}}{\\text{HDI}_\\text{uncal}} \\times 100"
+msgstr ""
+"\\text{Precision Improvement (%)} = \\frac{\\text{HDI}_\\text{uncal} - "
+"\\text{HDI}_\\text{cal}}{\\text{HDI}_\\text{uncal}} \\times 100"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:490008
+#: 65ff9507cd3a4d96a221d8f34401ee50
+msgid ""
+"Positive values indicate the calibrated model has a narrower posterior "
+"(higher precision). The metric is naturally bounded: 100% would mean the "
+"posterior collapsed to a point, while negative values would indicate the "
+"calibrated posterior is wider."
+msgstr ""
+"Los valores positivos indican que el modelo calibrado tiene una posterior "
+"más estrecha (mayor precisión). La métrica está acotada de forma natural: "
+"100% significaría que la posterior colapsó a un punto, mientras que los "
+"valores negativos indicarían que la posterior calibrada es más ancha."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:510002
+#: 5a673fdeab174fb78dda555d1efd1806
+msgid ""
+"The bars show relative changes in 94% HDI width. Because the two MMM fits"
+" use the same pre-test data and scale factors, the percentages are "
+"unchanged by converting the plotted parameters to business units. A "
+"narrower interval means more precision; it does not establish less bias."
+msgstr ""
+"Las barras muestran los cambios relativos en el ancho del HDI del 94%. Como "
+"los dos ajustes del MMM usan los mismos datos previos a la prueba y los "
+"mismos factores de escala, los porcentajes no cambian al convertir los "
+"parámetros trazados a unidades de negocio. Un intervalo más estrecho implica"
+" más precisión; no establece un menor sesgo."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:520002
+#: dbd052b3177642098ba162038fead5d3
+msgid "Bias Improvement"
+msgstr "Mejora del sesgo"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:520004
+#: a94576efc9454c5d9d030bcc2a74d896
+msgid ""
+"We quantify bias improvement by measuring how much the posterior mean "
+"moved toward (or away from) the true value, normalized by the "
+"uncalibrated posterior width:"
+msgstr ""
+"Cuantificamos la mejora del sesgo midiendo cuánto se movió la media "
+"posterior hacia el valor verdadero (o se alejó de él), normalizada por el "
+"ancho de la posterior sin calibrar:"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:520006
+#: df80cf40a51543aaab5d8b256b213929
+msgid ""
+"\\text{Bias Improvement (%)} = \\frac{|\\bar{\\theta}_\\text{uncal} - "
+"\\theta_\\text{true}| - |\\bar{\\theta}_\\text{cal} - "
+"\\theta_\\text{true}|}{\\text{HDI}_\\text{uncal}} \\times 100"
+msgstr ""
+"\\text{Bias Improvement (%)} = \\frac{|\\bar{\\theta}_\\text{uncal} - "
+"\\theta_\\text{true}| - |\\bar{\\theta}_\\text{cal} - "
+"\\theta_\\text{true}|}{\\text{HDI}_\\text{uncal}} \\times 100"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:520008
+#: c58dda5e575a421fa5163f2c74da5c31
+msgid ""
+"Positive values indicate the calibrated model's posterior mean is closer "
+"to the true value. By normalizing with the same denominator as the "
+"precision metric (the uncalibrated HDI width), the two plots are directly"
+" comparable: both measure changes as a fraction of the original posterior"
+" uncertainty."
+msgstr ""
+"Los valores positivos indican que la media posterior del modelo calibrado "
+"está más cerca del valor verdadero. Al normalizar con el mismo denominador "
+"que la métrica de precisión (el ancho del HDI sin calibrar), los dos "
+"gráficos son directamente comparables: ambos miden los cambios como una "
+"fracción de la incertidumbre posterior original."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:540002
+#: cf99bd1543f44150ae5b0e9a3333268f
+msgid ""
+"The bias bars compare posterior means with planted parameters after "
+"converting both to original business units. A positive bar means the "
+"posterior mean moved closer to truth, expressed as a fraction of M0's HDI"
+" width. In this run, seven of 16 geo × channel λ means and 15 of 16 β "
+"means move closer to their planted values, while the remaining means move"
+" farther away. These mixed parameter shifts are consistent with a lift "
+"row constraining one finite contrast rather than separately identifying "
+"both curve parameters. This is separate from the interval-width "
+"comparison and from the finite-lift check."
+msgstr ""
+"Las barras de sesgo comparan las medias posteriores con los parámetros "
+"plantados tras convertir ambos a unidades de negocio originales. Una barra "
+"positiva significa que la media posterior se acercó a la verdad, expresada "
+"como fracción del ancho del HDI de M0. En esta ejecución, siete de las 16 "
+"medias de λ por geo × canal y 15 de las 16 medias de β se acercan a sus "
+"valores plantados, mientras que las medias restantes se alejan. Estos "
+"cambios mixtos en los parámetros son coherentes con que una fila de "
+"elevación restrinja un contraste finito en lugar de identificar por separado"
+" ambos parámetros de la curva. Esto es independiente de la comparación del "
+"ancho de los intervalos y de la comprobación de la elevación finita."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:550002
+#: d8227b0922fa42baa4c7bff1cdc9f802
+msgid "Saturation curve comparison"
+msgstr "Comparación de las curvas de saturación"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:550004
+#: 27fe6611a6a24a9bb80011c7cc3ba5b4
+msgid ""
+"The lift rows constrain the curves near their tested spend intervals, but"
+" the parameter results above do not support a blanket claim of better "
+"curve recovery. Compare the inferred curves and their uncertainty with "
+"the simulated truth across the full spend range."
+msgstr ""
+"Las filas de elevación restringen las curvas cerca de sus intervalos de "
+"gasto probados, pero los resultados de los parámetros anteriores no "
+"respaldan una afirmación generalizada de una mejor recuperación de las "
+"curvas. Compare las curvas inferidas y su incertidumbre con la verdad "
+"simulada a lo largo de todo el rango de gasto."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:570002
+#: 4b8797837ea3488091f4636c1ba44791
+msgid ""
+"The response curves now place posterior and planted truth in the same "
+"original \\$ million units. A geo lift row constrains a difference over "
+"one operating interval, leaving uncertainty elsewhere on the curve and a "
+"trade-off with the intercept and the correlated second channel. The "
+"treated geos receive the measurements directly; changes among controls "
+"arise through partial pooling."
+msgstr ""
+"Las curvas de respuesta ahora colocan la distribución posterior y la verdad "
+"plantada en las mismas unidades originales de \\$ millones. Una fila de "
+"elevación de una geo restringe una diferencia en un único intervalo de "
+"operación, dejando incertidumbre en el resto de la curva y una compensación "
+"con el intercepto y con el segundo canal correlacionado. Las geos tratadas "
+"reciben las mediciones directamente; los cambios entre los controles surgen "
+"mediante partial pooling."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:600002
+#: b8d4687a87b24889b2a64bd80566bcc8
+msgid ""
+"These panels show posterior predictive checks on the **same pre-test "
+"weeks used by both MMMs**. They assess historical fit, not the geo "
+"experiment's causal lift. The experiment outcomes were reserved for the "
+"controlled lift estimate and do not appear twice in the model likelihood."
+msgstr ""
+"Estos paneles muestran chequeos predictivos posteriores sobre las **mismas "
+"semanas previas a la prueba que usan ambos MMM**. Evalúan el ajuste "
+"histórico, no la elevación causal del experimento geográfico. Los resultados"
+" del experimento se reservaron para la estimación controlada de la elevación"
+" y no aparecen dos veces en la verosimilitud del modelo."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:610002
+#: 682a2a11781b4a25869cf85e6aed458e
+msgid "Model Fit Comparison"
+msgstr "Comparación del ajuste del modelo"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:610004
+#: cede081eceb644b7be5e08e39c5d5bd9
+msgid ""
+"An important consideration is whether the added lift measurements change "
+"fit to the historical observations. Let's compare the in-sample fit "
+"metrics (R² and RMSE) for both models."
+msgstr ""
+"Una consideración importante es si las mediciones de elevación añadidas "
+"cambian el ajuste a las observaciones históricas. Comparemos las métricas de"
+" ajuste dentro de la muestra (R² y RMSE) de ambos modelos."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:610006
+#: f3ccc72e7ca3461a88809fdc2285de2a
+msgid "Interpreting R² in this context"
+msgstr "Interpretar el R² en este contexto"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:610009
+#: 301a21ffbd2f4c55bb541f4c03db875f
+msgid ""
+"The per-geo R² measures how much within-geo variance in outcomes is "
+"explained by channel spend variation over time. Since both models use the"
+" same data and differ only in whether lift test constraints are applied, "
+"similar R² values are unsurprising. These in-sample scores assess "
+"historical prediction, not recovery of either saturation parameter; the "
+"bias table above shows mixed recovery. The R² is bounded above by the "
+"noise-to-signal ratio: higher `y_sigma` or channels operating deep in "
+"saturation (where the curve is flat) reduce the explainable variance."
+msgstr ""
+"El R² por geo mide cuánta varianza del resultado dentro de cada geo se "
+"explica por la variación del gasto de los canales a lo largo del tiempo. "
+"Como ambos modelos usan los mismos datos y difieren solo en si se aplican "
+"las restricciones de la prueba de elevación, no sorprende que los valores de"
+" R² sean similares. Estas puntuaciones dentro de la muestra evalúan la "
+"predicción histórica, no la recuperación de ninguno de los parámetros de "
+"saturación; la tabla de sesgo anterior muestra una recuperación mixta. El R²"
+" está acotado superiormente por la razón ruido-señal: un `y_sigma` mayor o "
+"canales que operan muy adentro de la saturación (donde la curva es plana) "
+"reducen la varianza explicable."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:630004
+#: d9ae0aba9cd2494d93f972c3ab5896f7
+msgid "Conclusion"
+msgstr "Conclusión"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:630006
+#: d027d4b7685b4798b40bf96b073be5f5
+msgid ""
+"The four treated geos supply separate controlled lift estimates; both "
+"MMMs see identical pre-test observational data. The calibration "
+"likelihood uses the final-four-week effective-spend contrast in original "
+"\\$ million units. The directly constrained quantity is weekly finite "
+"lift over that spend interval. The response curve then implies local "
+"mROAS at the same operating point, and hierarchical priors may transmit "
+"information to untested geos."
+msgstr ""
+"Las cuatro geos tratadas aportan estimaciones de elevación controladas "
+"independientes; ambos MMM ven datos observacionales previos a la prueba "
+"idénticos. La verosimilitud de calibración usa el contraste de gasto "
+"efectivo de las últimas cuatro semanas en unidades originales de \\$ "
+"millones. La cantidad restringida directamente es la elevación finita "
+"semanal sobre ese intervalo de gasto. La curva de respuesta implica entonces"
+" el mROAS local en el mismo punto de operación, y los priors jerárquicos "
+"pueden transmitir información a las geos no probadas."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:640002
+#: d0659d3992354241adf80e464667eca9
+msgid "Key Takeaways"
+msgstr "Puntos clave"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:640004
+#: e2237a8ede3d4cf9a372c5ebc7b02053
+msgid ""
+"Keep the experiment weeks out of the observational likelihood when using "
+"their outcomes to estimate lift."
+msgstr ""
+"Mantenga las semanas del experimento fuera de la verosimilitud observacional"
+" cuando use sus resultados para estimar la elevación."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:640005
+#: 78737d481adc47ada12442e0b1ff68b1
+msgid ""
+"Match `x`, `delta_x`, and `delta_y` to the same time window and adstock "
+"convention."
+msgstr ""
+"Haga coincidir `x`, `delta_x` y `delta_y` con la misma ventana de tiempo y "
+"la misma convención de adstock."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:640006
+#: f63776eb2cef472fa15556e5d07153e3
+msgid ""
+"Keep the model and lift rows on a fixed \\$ million scale so later data "
+"cannot change their coordinates."
+msgstr ""
+"Mantenga el modelo y las filas de elevación en una escala fija de \\$ "
+"millones para que los datos posteriores no puedan cambiar sus coordenadas."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:640007
+#: 1c596844792840eaa9586024da331d14
+msgid ""
+"Check estimated lift against simulation truth and model-implied finite "
+"lift before interpreting mROAS."
+msgstr ""
+"Compruebe la elevación estimada frente a la verdad de la simulación y la "
+"elevación finita implícita en el modelo antes de interpretar el mROAS."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:640008
+#: ec9edcc832904b218dc33a1005ab5402
+msgid ""
+"Precision and closeness to truth are separate outcomes. In this run, "
+"three of four treated-geo mROAS means move closer to truth; one does not."
+msgstr ""
+"La precisión y la cercanía a la verdad son resultados separados. En esta "
+"ejecución, tres de las cuatro medias de mROAS de las geos tratadas se "
+"acercan a la verdad; una no."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:650002
+#: a407d0a43e2b4214b0a9ebb1e7db29c0
+msgid "What the test identifies"
+msgstr "Lo que identifica la prueba"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:650004
+#: 78b60eecb05640b191dde817bf8afee9
+msgid ""
+"A row constrains $\\beta[h(\\lambda,x+\\Delta x)-h(\\lambda,x)]$ near the"
+" tested spend interval. It does not independently determine both "
+"saturation parameters or the absolute baseline contribution. Correlated "
+"channels and the intercept can still trade off in the observational fit. "
+"The paired-control estimate also has uncertainty, represented by `sigma`;"
+" it should not be treated as known truth. The finite-lift diagnostic and "
+"matched-spend mROAS comparison above show the evidence and the model "
+"response separately."
+msgstr ""
+"Una fila restringe $\\beta[h(\\lambda,x+\\Delta x)-h(\\lambda,x)]$ cerca del"
+" intervalo de gasto probado. No determina de forma independiente ambos "
+"parámetros de saturación ni la contribución base absoluta. Los canales "
+"correlacionados y el intercepto aún pueden compensarse mutuamente en el "
+"ajuste observacional. La estimación del control pareado también tiene "
+"incertidumbre, representada por `sigma`; no debe tratarse como la verdad "
+"conocida. El diagnóstico de elevación finita y la comparación del mROAS con "
+"gasto equiparado anteriores muestran por separado la evidencia y la "
+"respuesta del modelo."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:660002
+#: 9b7288c36ad348f5b3f1e9b3e5f63590
+msgid "Attribution and budget decisions"
+msgstr "Atribución y decisiones de presupuesto"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:660004
+#: d7e6436ee2d04ff8bc38d05c070ddc92
+msgid ""
+"Absolute attribution depends on how the intercept and correlated channels"
+" share historical sales. The experiment measures a finite return, "
+"$\\Delta y/\\Delta x$, over a specific Channel 1 spend interval. Point "
+"mROAS at the late-test BAU spend is inferred from the fitted response "
+"curve and can remain uncertain. Use the executed comparison, in \\$ sales"
+" per \\$ spend, to judge whether this particular calibration improved "
+"that budget quantity."
+msgstr ""
+"La atribución absoluta depende de cómo el intercepto y los canales "
+"correlacionados se reparten las ventas históricas. El experimento mide un "
+"retorno finito, $\\Delta y/\\Delta x$, sobre un intervalo específico de "
+"gasto del Canal 1. El mROAS puntual con el gasto BAU de final de prueba se "
+"infiere de la curva de respuesta ajustada y puede seguir siendo incierto. "
+"Use la comparación ejecutada, en \\$ de ventas por \\$ de gasto, para juzgar"
+" si esta calibración en particular mejoró esa cantidad presupuestaria."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:670002
+#: 1f90f9d124554a7290220b0b63af78aa
+msgid "What this means for practitioners"
+msgstr "Qué significa esto para los profesionales"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:670004
+#: b519f8c704f14dc3b6de5f70bb12cbc4
+msgid ""
+"Choose treated and control geos with credible pre-test relationships, "
+"inspect their pre-test residuals, and specify the lift window before "
+"analysis. Test several spend levels when the full saturation shape "
+"matters. Hierarchical pooling can share evidence with untested geos, but "
+"it is a modeling assumption rather than experimental evidence in those "
+"geos."
+msgstr ""
+"Elija geos tratadas y de control con relaciones previas a la prueba "
+"creíbles, inspeccione sus residuos previos a la prueba y especifique la "
+"ventana de elevación antes del análisis. Pruebe varios niveles de gasto "
+"cuando importe la forma completa de la saturación. El pooling jerárquico "
+"puede compartir evidencia con las geos no probadas, pero es un supuesto de "
+"modelado y no evidencia experimental en esas geos."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:680002
+#: b0702fb96a2042c7bb5a1655a2646567
+msgid "Practical application"
+msgstr "Aplicación práctica"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:680004
+#: 4e88055b57304b4a810f907ab501d705
+msgid "Design and run a geo experiment with untreated controls."
+msgstr "Diseñe y ejecute un experimento geográfico con controles no tratados."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:680005
+#: a1fa5cbf33c84216a43e27a41ff06323
+msgid ""
+"Estimate geo-level weekly lift and uncertainty from the observed outcomes"
+" using a credible counterfactual method. The simple paired-control "
+"regression here illustrates the interface; [CausalPy's multi-cell "
+"GeoLift](https://causalpy.readthedocs.io/en/latest/notebooks/multi-cell-"
+"geolift.html) provides a richer analysis."
+msgstr ""
+"Estime la elevación semanal y su incertidumbre a nivel de geo a partir de "
+"los resultados observados usando un método contrafactual creíble. La "
+"regresión simple de control pareado de aquí ilustra la interfaz; [el GeoLift"
+" multicelda de "
+"CausalPy](https://causalpy.readthedocs.io/en/latest/notebooks/multi-cell-"
+"geolift.html) ofrece un análisis más completo."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:680006
+#: eee7b637a7ca41db88fdf11db056b68e
+msgid ""
+"Compute BAU effective spend and the factual-minus-BAU effective-spend "
+"change for the **same** lift window. Estimate decay from the pre-test MMM"
+" posterior and account for its uncertainty, or use a test long enough to "
+"reach approximate steady state. Use raw spend directly when the MMM has "
+"no adstock."
+msgstr ""
+"Calcule el gasto efectivo BAU y el cambio de gasto efectivo entre el gasto "
+"factual y el BAU para la **misma** ventana de elevación. Estime el "
+"decaimiento a partir de la distribución posterior del MMM previo a la prueba"
+" y tenga en cuenta su incertidumbre, o use una prueba lo bastante larga para"
+" alcanzar un estado estacionario aproximado. Use el gasto bruto directamente"
+" cuando el MMM no tenga adstock."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:680007
+#: dcbe1615c31147b390c01439b1dae440
+msgid ""
+"Fit the observational MMM on pre-test data, add the original-unit lift "
+"rows, then fit the calibrated MMM on those same data."
+msgstr ""
+"Ajuste el MMM observacional con los datos previos a la prueba, agregue las "
+"filas de elevación en unidades originales y luego ajuste el MMM calibrado "
+"con esos mismos datos."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:680008
+#: 394acb711bd34b5da0e42fac773e456c
+msgid ""
+"Compare model-implied finite lift with the experiment estimate; report "
+"mROAS in \\$ sales per \\$ spend at a stated business-unit operating "
+"point."
+msgstr ""
+"Compare la elevación finita implícita en el modelo con la estimación del "
+"experimento; reporte el mROAS en \\$ de ventas por \\$ de gasto en un punto "
+"de operación indicado en unidades de negocio."
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:680010
+#: 59c0dfe0bbc1491b835063427aa33287
+msgid "References"
+msgstr "Referencias"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:680012
+#: 848b22537f1645dea261651ed0d27b14
+msgid ""
+"[CausalPy Multi-Cell "
+"GeoLift](https://causalpy.readthedocs.io/en/latest/notebooks/multi-cell-"
+"geolift.html)"
+msgstr ""
+"[CausalPy Multi-Cell "
+"GeoLift](https://causalpy.readthedocs.io/en/latest/notebooks/multi-cell-"
+"geolift.html)"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:680013
+#: 35077c2f3f1f47549ef12c050cfa6f07
+msgid "[PyMC-Marketing National-Level Lift Tests](mmm_lift_test.ipynb)"
+msgstr ""
+"[Pruebas de elevación a nivel nacional de PyMC-"
+"Marketing](mmm_lift_test.ipynb)"
+
+#: ../source/notebooks/mmm/mmm_geolift_calibration.ipynb:680014
+#: b41ad05f6ad94e778184cf940333e0d6
+msgid "[PyMC-Marketing Multidimensional MMM](mmm_multidimensional_example.ipynb)"
+msgstr ""
+"[MMM multidimensional de PyMC-Marketing](mmm_multidimensional_example.ipynb)"

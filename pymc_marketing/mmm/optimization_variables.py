@@ -34,7 +34,8 @@ variable each segment substitutes, how a segment maps to model-space tensors
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from contextlib import ExitStack, contextmanager
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -297,6 +298,75 @@ class OptimizationVariable(ABC):
         """
         return None
 
+    def delivery_report(
+        self, x: np.ndarray, date_coords: Sequence | None = None
+    ) -> Dataset | None:
+        """Delivery and clearing prices at a solution slice, for a variable whose money buys units.
+
+        Returns None by default, for a variable with no price response: a lever is
+        not bought, and a monetary variable optimized without a ``price_response``
+        reports nothing. :class:`OptimizationVariables` keys the reports it gets
+        back by variable name, so a variable joins the result by overriding this.
+
+        Parameters
+        ----------
+        x : np.ndarray
+            This variable's slice of the flat decision vector.
+        date_coords : Sequence or None
+            Labels for the date dim of the report.
+
+        Returns
+        -------
+        xarray.Dataset or None
+            The report, or None when the variable has none.
+        """
+        return None
+
+    @contextmanager
+    def conditioned_on(self, low: np.ndarray, high: np.ndarray) -> Iterator[None]:
+        """Condition this variable's price map for one solve over its slice of the box ``[low, high]``.
+
+        The default, for a variable with no price map, changes nothing.
+
+        Parameters
+        ----------
+        low : np.ndarray
+            Lower bound of each of this variable's flat entries, ``-inf`` where unbounded.
+        high : np.ndarray
+            Upper bound of each of this variable's flat entries, ``inf`` where unbounded.
+        """
+        yield
+
+    def linear_piece_bounds(
+        self,
+        budgets: np.ndarray,
+        low: np.ndarray,
+        high: np.ndarray,
+        from_below: np.ndarray | None = None,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Return, per flat entry, the largest interval around ``budgets`` inside ``[low, high]`` the map is affine on.
+
+        The default, for a variable with no breakpoints, is the box itself; see
+        :meth:`~pymc_marketing.mmm.price_response.ResolvedPriceResponse.linear_piece_bounds`.
+
+        Parameters
+        ----------
+        budgets : np.ndarray
+            The budget of each flat entry.
+        low : np.ndarray
+            Lower bound of each flat entry.
+        high : np.ndarray
+            Upper bound of each flat entry.
+        from_below : np.ndarray of bool, optional
+            Where set, an entry on a breakpoint gets the piece below it instead of the piece above.
+
+        Returns
+        -------
+        piece_low, piece_high : tuple of np.ndarray
+            The ends of each entry's linear piece, within ``[low, high]``.
+        """
+        return np.asarray(low, dtype="float64"), np.asarray(high, dtype="float64")
+
 
 class MediaVariable(OptimizationVariable):
     """The media-budget decision variable.
@@ -437,6 +507,8 @@ class MediaVariable(OptimizationVariable):
                 num_periods=num_periods,
             )
         )
+        if self.price_response is not None:
+            self.price_response.bind_period_weights(self._period_weights())
         self.compile_kwargs = compile_kwargs
         self._delivery_report_fn: Callable[..., list[np.ndarray]] | None = None
 
@@ -550,6 +622,92 @@ class MediaVariable(OptimizationVariable):
             date_dim=date_dim,
             **kwargs,
         )
+
+    def _period_weights(self) -> XTensorVariable | None:
+        """Money each period gets per unit of budget, over ``(date_dim, *dims)``; ``None`` under the uniform spread.
+
+        The variable's own spread applied to a budget of ones: ``num_periods`` times each period's factor, and
+        zero on a cell outside the mask. Symbolic, so no numeric copy of the distribution is passed around.
+        """
+        if self.budget_distribution_over_period_tensor is None:
+            return None
+        ones = as_xtensor(pt.ones(self.size), dims=(self.flat_dim,))
+        return self._apply_budget_distribution_over_period(ones)
+
+    def _scatter_to_cells(self, values: np.ndarray, fill: float) -> np.ndarray:
+        """Scatter a flat slice into the cell layout, ``fill`` outside the mask."""
+        full = np.full(self.shape, fill, dtype="float64")
+        full[self._bool_mask] = values
+        return full
+
+    @contextmanager
+    def conditioned_on(self, low: np.ndarray, high: np.ndarray) -> Iterator[None]:
+        """Condition the price map for one solve over this variable's slice of the box ``[low, high]``.
+
+        The map sees the box on the cell layout, with ``nan`` bounds on the cells outside the mask. Without a
+        price map nothing changes.
+
+        Parameters
+        ----------
+        low : np.ndarray
+            Lower bound of each of this variable's flat entries.
+        high : np.ndarray
+            Upper bound of each of this variable's flat entries.
+
+        Raises
+        ------
+        ValueError
+            From the price map, if it refuses the box (a schedule whose rate falls across a breakpoint inside it).
+        """
+        if self.price_response is None:
+            yield
+            return
+        with self.price_response.conditioned_on(
+            self._scatter_to_cells(low, np.nan), self._scatter_to_cells(high, np.nan)
+        ):
+            yield
+
+    def linear_piece_bounds(
+        self,
+        budgets: np.ndarray,
+        low: np.ndarray,
+        high: np.ndarray,
+        from_below: np.ndarray | None = None,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Return the price map's linear piece around each optimized cell's budget, in flat-vector order.
+
+        Parameters
+        ----------
+        budgets : np.ndarray
+            The budget of each of this variable's flat entries.
+        low : np.ndarray
+            Lower bound of each flat entry.
+        high : np.ndarray
+            Upper bound of each flat entry.
+        from_below : np.ndarray of bool, optional
+            Where set, an entry on a breakpoint gets the piece below it instead of the piece above.
+
+        Returns
+        -------
+        piece_low, piece_high : tuple of np.ndarray
+            The ends of each entry's linear piece, within ``[low, high]``; the box itself without a price map.
+        """
+        if self.price_response is None:
+            return super().linear_piece_bounds(budgets, low, high, from_below)
+        side = (
+            None
+            if from_below is None
+            else self._scatter_to_cells(
+                np.asarray(from_below, dtype="float64"), 0.0
+            ).astype(bool)
+        )
+        piece_low, piece_high = self.price_response.linear_piece_bounds(
+            self._scatter_to_cells(budgets, 0.0),
+            self._scatter_to_cells(low, 0.0),
+            self._scatter_to_cells(high, 0.0),
+            side,
+        )
+        return piece_low[self._bool_mask], piece_high[self._bool_mask]
 
     def scattered(self, z: XTensorVariable) -> XTensorVariable:
         """Scatter the flat slice into the full budget-dims tensor.
@@ -665,7 +823,7 @@ class MediaVariable(OptimizationVariable):
 
     def delivery_report(
         self, x: np.ndarray, date_coords: Sequence | None = None
-    ) -> dict[str, DataArray]:
+    ) -> Dataset | None:
         """Implied delivery and clearing prices at a flat solution slice.
 
         Evaluated from the same symbolic maps :meth:`to_model` used, on the same
@@ -681,17 +839,18 @@ class MediaVariable(OptimizationVariable):
 
         Returns
         -------
-        dict[str, DataArray]
-            Empty when the variable has no price response. Otherwise three arrays
-            over ``(date_dim, *dims)``: ``implied_delivery``, the units bought
-            (before ``channel_scales``; ``0.0`` at zero money), and
+        xarray.Dataset or None
+            None when the variable has no price response. Otherwise four arrays
+            over ``(date_dim, *dims)``: ``spend``, the money spent per period and
+            cell (``0.0`` outside the mask); ``implied_delivery``, the units it
+            buys (before ``channel_scales``; ``0.0`` at zero money); and
             ``implied_price`` / ``implied_marginal_price`` in money per unit,
             ``nan`` wherever no money was spent. On spent cells
             ``(implied_delivery * implied_price).sum(date_dim)`` equals
-            ``budgets * num_periods``.
+            ``spend.sum(date_dim)``, which is ``unpack(x) * num_periods``.
         """
         if self.price_response is None:
-            return {}
+            return None
         x = np.asarray(x, dtype="float64")
         if x.shape != (self.size,):
             raise ValueError(
@@ -713,11 +872,15 @@ class MediaVariable(OptimizationVariable):
         coords: dict = dict(self.coords)
         if date_coords is not None:
             coords[self.date_dim] = list(date_coords)
-        return {
-            "implied_delivery": DataArray(delivery, dims=dims, coords=coords),
-            "implied_price": DataArray(price, dims=dims, coords=coords),
-            "implied_marginal_price": DataArray(marginal, dims=dims, coords=coords),
-        }
+        return Dataset(
+            {
+                "spend": (dims, money),
+                "implied_delivery": (dims, delivery),
+                "implied_price": (dims, price),
+                "implied_marginal_price": (dims, marginal),
+            },
+            coords=coords,
+        )
 
     def _compile_delivery_report(
         self, response: ResolvedPriceResponse
@@ -747,6 +910,21 @@ class MediaVariable(OptimizationVariable):
         full = np.zeros(self.shape, dtype=float)
         full[self._bool_mask] = x
         return DataArray(full, dims=self.dims, coords=self.coords)
+
+    def flat_labels(self) -> list[tuple]:
+        """Return the coordinate labels of the flat entries, in flat-vector order.
+
+        Returns
+        -------
+        list of tuple
+            One tuple per optimized cell, with its label on each of the variable's dims in dim order; an empty
+            tuple for a variable decided over date alone.
+        """
+        labels = {dim: np.asarray(self.coords[dim]).tolist() for dim in self.dims}
+        return [
+            tuple(labels[dim][int(i)] for dim, i in zip(self.dims, index, strict=True))
+            for index in np.argwhere(self._bool_mask)
+        ]
 
     def pack(self, da: DataArray) -> np.ndarray:
         """Flatten a labelled allocation into this variable's flat-vector order."""
@@ -1113,6 +1291,148 @@ class OptimizationVariables:
             variable.name: variable.unpack(x[self.slices[variable.name]])
             for variable in self.variables
         }
+
+    def delivery_reports(
+        self, x: np.ndarray, date_coords: Sequence | None = None
+    ) -> dict[str, Dataset]:
+        """Split a flat solution into one delivery report per priced variable.
+
+        Parameters
+        ----------
+        x : np.ndarray
+            The flat decision vector, of length :attr:`size`.
+        date_coords : Sequence or None
+            Labels for the date dim of every report; the variables share the
+            window, so one set of labels serves them all.
+
+        Returns
+        -------
+        dict[str, xarray.Dataset]
+            Keyed by variable name, in flat-vector order, for every variable whose
+            :meth:`OptimizationVariable.delivery_report` is not None. Each report
+            keeps its own variable's dims: they are not stacked, because
+            variables differ in dims and a stack would broadcast or pad them.
+        """
+        x = np.asarray(x)
+        if x.shape != (self.size,):
+            raise ValueError(f"expected shape ({self.size},), got {x.shape}")
+        reports = {}
+        for variable in self.variables:
+            report = variable.delivery_report(
+                x[self.slices[variable.name]], date_coords=date_coords
+            )
+            if report is not None:
+                reports[variable.name] = report
+        return reports
+
+    @contextmanager
+    def conditioned_on(self, low: np.ndarray, high: np.ndarray) -> Iterator[None]:
+        """Condition every variable's price map for one solve over the box ``[low, high]``, and restore it on exit.
+
+        Parameters
+        ----------
+        low : np.ndarray
+            Lower bound of every flat entry, ``-inf`` where unbounded.
+        high : np.ndarray
+            Upper bound of every flat entry, ``inf`` where unbounded.
+
+        Raises
+        ------
+        ValueError
+            From a price map that refuses the box (a schedule whose rate falls across a breakpoint inside it).
+        """
+        low = np.asarray(low, dtype="float64")
+        high = np.asarray(high, dtype="float64")
+        with ExitStack() as stack:
+            for variable in self.variables:
+                where = self.slices[variable.name]
+                stack.enter_context(variable.conditioned_on(low[where], high[where]))
+            yield
+
+    def linear_piece_bounds(
+        self,
+        x: np.ndarray,
+        low: np.ndarray,
+        high: np.ndarray,
+        from_below: np.ndarray | None = None,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Return, per flat entry, the largest interval around ``x`` inside ``[low, high]`` its map is affine on.
+
+        Parameters
+        ----------
+        x : np.ndarray
+            The flat decision vector.
+        low : np.ndarray
+            Lower bound of every flat entry.
+        high : np.ndarray
+            Upper bound of every flat entry.
+        from_below : np.ndarray of bool, optional
+            Where set, an entry on a breakpoint gets the piece below it instead of the piece above.
+
+        Returns
+        -------
+        piece_low, piece_high : tuple of np.ndarray
+            The ends of each entry's linear piece; an entry of a variable with no breakpoints keeps its bounds.
+        """
+        x = np.asarray(x, dtype="float64")
+        piece_low = np.array(low, dtype="float64")
+        piece_high = np.array(high, dtype="float64")
+        for variable in self.variables:
+            where = self.slices[variable.name]
+            piece_low[where], piece_high[where] = variable.linear_piece_bounds(
+                x[where],
+                piece_low[where],
+                piece_high[where],
+                None if from_below is None else np.asarray(from_below)[where],
+            )
+        return piece_low, piece_high
+
+    def is_breakpoint(self, values: np.ndarray) -> np.ndarray:
+        """Return whether each flat entry equals one of its variable's breakpoints, bitwise.
+
+        A breakpoint is positive, a zero first breakpoint being folded into the first slope; the piece of a
+        value on a breakpoint, inside ``[0, inf)``, starts at that breakpoint.
+
+        Parameters
+        ----------
+        values : np.ndarray
+            A value per flat entry.
+
+        Returns
+        -------
+        np.ndarray of bool
+            True where the value is a breakpoint of its entry's price map.
+        """
+        values = np.asarray(values, dtype="float64")
+        positive = np.isfinite(values) & (values > 0.0)
+        safe = np.where(positive, values, 1.0)
+        start, _ = self.linear_piece_bounds(
+            safe, np.zeros(self.size), np.full(self.size, np.inf)
+        )
+        return positive & (start == safe)
+
+    def breakpoints_in_reach(self, low: np.ndarray, high: np.ndarray) -> bool:
+        """Return whether a solve over the box ``[low, high]`` has a breakpoint to settle, from the bounds alone.
+
+        Parameters
+        ----------
+        low : np.ndarray
+            Lower bound of every flat entry.
+        high : np.ndarray
+            Upper bound of every flat entry.
+
+        Returns
+        -------
+        bool
+            True when some entry has a breakpoint strictly inside its bounds, or one of its finite bounds is a
+            breakpoint; False for a vector whose maps have no breakpoints.
+        """
+        low = np.asarray(low, dtype="float64")
+        high = np.asarray(high, dtype="float64")
+        _, piece_high = self.linear_piece_bounds(low, low, high)
+        if np.any(piece_high < high):
+            return True
+        return bool(np.any(self.is_breakpoint(low) | self.is_breakpoint(high)))
 
     def spending_variables(self) -> list[OptimizationVariable]:
         """Return the variables that draw from the shared budget.

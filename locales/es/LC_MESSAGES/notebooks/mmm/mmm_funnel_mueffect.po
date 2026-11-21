@@ -1,0 +1,1422 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2026, PyMC Labs
+# This file is distributed under the same license as the PyMC-Marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyMC-Marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:10003
+#: 191d22992d4d47c5bf22844c80617b1d
+msgid "Funnel-Aware MMM: Upper to Lower-Funnel Mediation via a custom `MuEffect`"
+msgstr ""
+"MMM consciente del embudo: mediación de la parte superior a la parte "
+"inferior del embudo mediante un `MuEffect` personalizado"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:10005
+#: 52768a2ce4b64a94af9c15b78c0ce31f
+msgid ""
+"Standard Media Mix Models (MMMs) treat every channel as an independent "
+"driver of the target: spend goes in, a response curve comes out, and the "
+"channels never talk to each other. Real marketing funnels rarely work "
+"that way. **Upper-funnel** activity (brand, video, demand generation) "
+"creates awareness and intent that shows up *later* as demand in **lower-"
+"funnel** channels (branded / non-branded paid search, retargeting). If we"
+" ignore that structure, the upper funnel gets starved of credit for the "
+"demand it actually created."
+msgstr ""
+"Los modelos de mezcla de medios (MMM) estándar tratan cada canal como un "
+"impulsor independiente de la variable objetivo: entra el gasto, sale una "
+"curva de respuesta, y los canales nunca interactúan entre sí. Los embudos de"
+" marketing reales rara vez funcionan así. La actividad de la **parte "
+"superior del embudo** (marca, video, generación de demanda) crea notoriedad "
+"e intención que se manifiestan *más tarde* como demanda en los canales de la"
+" **parte inferior del embudo** (búsqueda de pago de marca / no de marca, "
+"retargeting). Si ignoramos esa estructura, la parte superior del embudo se "
+"queda sin el crédito por la demanda que realmente creó."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:10007
+#: f6bcf404ab674cb095b3ee024cb93b6d
+msgid ""
+"This notebook shows how to encode that funnel structure directly in "
+"`pymc-marketing` and why it matters:"
+msgstr ""
+"Este cuaderno muestra cómo codificar esa estructura de embudo directamente "
+"en `pymc-marketing` y por qué es importante:"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:10009
+#: 3942112d93574d4f8ed31034803d340f
+msgid ""
+"We **generate synthetic data** from a known funnel data generating "
+"process, so the true direct, indirect, and total effects of upper-funnel "
+"spend are known exactly."
+msgstr ""
+"**Generamos datos sintéticos** a partir de un proceso generador de datos de "
+"embudo conocido, de modo que los efectos directo, indirecto y total "
+"verdaderos del gasto de la parte superior del embudo se conocen exactamente."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:10010
+#: 3a6de6ea605e43379c7439c42c34241b
+#, python-brace-format
+msgid ""
+"We express the upper $\\to$ lower mediation as a custom "
+"{class}`~pymc_marketing.mmm.additive_effect.MuEffect` that carries **its "
+"own second likelihood** for lower-funnel spend, fit jointly with the "
+"target in a single model."
+msgstr ""
+"Expresamos la mediación superior $\\to$ inferior como un "
+"{class}`~pymc_marketing.mmm.additive_effect.MuEffect` personalizado que "
+"lleva **su propia segunda verosimilitud** para el gasto de la parte inferior"
+" del embudo, ajustada conjuntamente con la variable objetivo en un único "
+"modelo."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:10011
+#: c722ddd008234003a2f0178edbd803ad
+msgid ""
+"We fit **two naive models that ignore the funnel** and quantify the bias "
+"in their estimates against the ground truth."
+msgstr ""
+"Ajustamos **dos modelos ingenuos que ignoran el embudo** y cuantificamos el "
+"sesgo de sus estimaciones frente a la verdad de referencia."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:10012
+#: d4ef769ef0374130aec371280d0cfc15
+msgid ""
+"We compare **in-sample and holdout predictive fit** to causal estimates. "
+"**Naive A** can match the funnel model's $R^2$ while carrying large bias."
+" **Naive B** is also biased and shows worse fit. So causal error does not"
+" always surface as worse prediction."
+msgstr ""
+"Comparamos el **ajuste predictivo dentro de muestra y en el conjunto de "
+"reserva** con las estimaciones causales. El **Naive A** puede igualar el "
+"$R^2$ del modelo de embudo y aun así presentar un sesgo grande. El **Naive "
+"B** también está sesgado y muestra un peor ajuste. Por lo tanto, el error "
+"causal no siempre se manifiesta como una peor predicción."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:10014
+#: 4de9180e5af747979dbecfc7342ca85f
+msgid "Prerequisites"
+msgstr "Requisitos previos"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:10016
+#: c7bc87124b354830a68ec17f07995653
+#, python-brace-format
+msgid ""
+"Familiarity with basic `pymc-marketing` MMM usage (adstock, saturation, "
+"`MMM.fit`). For funnel motivation without joint estimation, see "
+"{ref}`mmm_intro_upper_funnel` and {ref}`mmm_upper_funnel_causal_approach`"
+" (a **two-stage** outcome + mediation workflow). This notebook's "
+"contribution is **joint estimation** in one model via a custom "
+"`MuEffect`."
+msgstr ""
+"Familiaridad con el uso básico de MMM en `pymc-marketing` (adstock, "
+"saturación, `MMM.fit`). Para ver la motivación del embudo sin estimación "
+"conjunta, consulte {ref}`mmm_intro_upper_funnel` y "
+"{ref}`mmm_upper_funnel_causal_approach` (un flujo de trabajo de **dos "
+"etapas** de resultado + mediación). La contribución de este cuaderno es la "
+"**estimación conjunta** en un solo modelo mediante un `MuEffect` "
+"personalizado."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:10018
+#: edd13535d9ec4672aa1c7c76dc3b7227
+msgid "How this example is scoped"
+msgstr "Alcance de este ejemplo"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:10021
+#: ff3ab9383d894baaa383b0d6147bcda4
+msgid ""
+"The data are forward-sampled from the same `MMM + MeasuredMediatorEffect`"
+" classes used to fit the model. That demonstrates **self-consistency** "
+"under zero structural misspecification, not robustness to a wrong DAG. "
+"Predictive fit does not validate causal structure, and that applies to "
+"the funnel model too."
+msgstr ""
+"Los datos se muestrean hacia adelante con las mismas clases `MMM + "
+"MeasuredMediatorEffect` que se usan para ajustar el modelo. Eso demuestra la"
+" **autoconsistencia** bajo una mala especificación estructural nula, no la "
+"robustez frente a un DAG incorrecto. El ajuste predictivo no valida la "
+"estructura causal, y eso también se aplica al modelo de embudo."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:20002
+#: 22a5c5faaac14a60b833cb3f0b011799
+msgid "The funnel structure"
+msgstr "La estructura del embudo"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:20004
+#: 403e8c811eca4d24af52b865576894c3
+msgid ""
+"We work with a minimal but non-trivial funnel. The causal DAG below shows"
+" the variables and paths; refer back to it as you read the node "
+"definitions and equations."
+msgstr ""
+"Trabajamos con un embudo mínimo pero no trivial. El DAG causal de abajo "
+"muestra las variables y los caminos; consúltelo de nuevo a medida que lee "
+"las definiciones de los nodos y las ecuaciones."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:40002
+#: a3cc35e9107f4815b65d5663fd87631b
+msgid ""
+"**Caption:** Causal DAG for the minimal funnel. Filled nodes are observed"
+" in the data ($U$, $C$, $M$, $Y$); the dashed node $D$ is latent lower-"
+"funnel demand. Solid arrows are structural; the $D \\to M$ edge is a "
+"measurement link."
+msgstr ""
+"**Pie de figura:** DAG causal del embudo mínimo. Los nodos rellenos se "
+"observan en los datos ($U$, $C$, $M$, $Y$); el nodo discontinuo $D$ es la "
+"demanda latente de la parte inferior del embudo. Las flechas sólidas son "
+"estructurales; la arista $D \\to M$ es un vínculo de medición."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:50002
+#: c77057c1c6e4433895df1f5898025d2b
+msgid "Each node in the DAG maps to a variable in the data generating process:"
+msgstr ""
+"Cada nodo del DAG se corresponde con una variable del proceso generador de "
+"datos:"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:50004
+#: 949f30d4d240436694eb10da847f64a4
+msgid "`upper_spend` ($U_t$): an exogenous upper-funnel channel."
+msgstr ""
+"`upper_spend` ($U_t$): un canal exógeno de la parte superior del embudo."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:50005
+#: 2fbfc2014f244e99bd4bb6bc6ae80db4
+msgid ""
+"`lower_control` ($C_t$): an exogenous driver of lower-funnel demand that "
+"is *independent* of `upper_spend` (think auction / category-demand "
+"pressure). It enters the **mediator** equation but is **excluded from the"
+" outcome equation**. That absence from $Y$'s parents, together with "
+"exogeneity of $C$, supports separating the **direct** path from the "
+"**indirect** path mediated by lower-funnel demand."
+msgstr ""
+"`lower_control` ($C_t$): un impulsor exógeno de la demanda de la parte "
+"inferior del embudo que es *independiente* de `upper_spend` (piense en la "
+"presión de las subastas o de la demanda de la categoría). Entra en la "
+"ecuación del **mediador** pero está **excluido de la ecuación del "
+"resultado**. Esa ausencia entre los padres de $Y$, junto con la exogeneidad "
+"de $C$, permite separar el camino **directo** del camino **indirecto** "
+"mediado por la demanda de la parte inferior del embudo."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:50006
+#: 5bc4ceef00944d86b925cdb803c766ef
+msgid ""
+"`lower_spend` ($M_t$): the **observed** lower-funnel channel. It is an "
+"**outcome** of latent demand (driven partly by upper-funnel activity) and"
+" a **proxy** for that demand in the data; the target responds to $D_t$, "
+"not to $M_t$ directly."
+msgstr ""
+"`lower_spend` ($M_t$): el canal **observado** de la parte inferior del "
+"embudo. Es un **resultado** de la demanda latente (impulsada en parte por la"
+" actividad de la parte superior del embudo) y un **proxy** de esa demanda en"
+" los datos; la variable objetivo responde a $D_t$, no directamente a $M_t$."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:50007
+#: 4fa70239aa194cec9f75d5b24808c741
+msgid "`y` ($Y_t$): the target (e.g. leads or sales)."
+msgstr ""
+"`y` ($Y_t$): la variable objetivo (por ejemplo, clientes potenciales o "
+"ventas)."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:50009
+#: 9aeed8e077834536bf10b223fee79659
+msgid "Structural equations use $=$; observed variables use $\\sim$."
+msgstr ""
+"Las ecuaciones estructurales usan $=$; las variables observadas usan "
+"$\\sim$."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:50011
+#: 5577a3503bb84c279a26f75485bb14b8
+msgid "The data generating process has three pieces:"
+msgstr "El proceso generador de datos tiene tres partes:"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:50013
+#: f909413697c64c90a5e29fb314ca9a43
+msgid ""
+"\n"
+"\\begin{aligned}\n"
+"D_t &= \\beta_0 + \\gamma\\, C_t + f_{u\\to l}(U_t), \\\\\n"
+"M_t &\\sim \\text{TruncatedNormal}(D_t,\\, \\sigma_M,\\, "
+"\\text{lower}=0), \\\\\n"
+"\\mu_t &= \\alpha + f_{\\text{direct}}(U_t) + f_{l\\to y}(D_t), \\\\\n"
+"Y_t &\\sim \\text{Normal}(\\mu_t,\\, \\sigma_Y).\n"
+"\\end{aligned}\n"
+msgstr ""
+"\n"
+"\\begin{aligned}\n"
+"D_t &= \\beta_0 + \\gamma\\, C_t + f_{u\\to l}(U_t), \\\\\n"
+"M_t &\\sim \\text{TruncatedNormal}(D_t,\\, \\sigma_M,\\, \\text{lower}=0), \\\\\n"
+"\\mu_t &= \\alpha + f_{\\text{direct}}(U_t) + f_{l\\to y}(D_t), \\\\\n"
+"Y_t &\\sim \\text{Normal}(\\mu_t,\\, \\sigma_Y).\n"
+"\\end{aligned}\n"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:50022
+#: ad2636c2496847a3b63791efc4932677
+msgid ""
+"In the code, $\\beta_0$ is `mediator_baseline` and $\\gamma$ is "
+"`mediator_parent_coef`."
+msgstr ""
+"En el código, $\\beta_0$ es `mediator_baseline` y $\\gamma$ es "
+"`mediator_parent_coef`."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:50024
+#: b2f7affdd85c46e0bfc9517272a7d9f9
+msgid ""
+"First, $f_{u\\to l} = \\text{saturation}_{uf}(\\text{adstock}_{uf}(U))$ "
+"transforms upper spend into induced lower-funnel demand. Second, observed"
+" lower-funnel spend is a noisy proxy for that demand (the model's *second"
+" likelihood*). Third, the target responds to latent demand $D_t$, not "
+"observed spend $M_t$, with $f_{\\text{direct}} = "
+"\\text{saturation}(\\text{adstock}(U))$ the **direct** effect of upper "
+"spend and $f_{l\\to y} = "
+"\\text{saturation}_{lf}(\\text{adstock}_{lf}(D))$ the lower-funnel "
+"response."
+msgstr ""
+"Primero, $f_{u\\to l} = \\text{saturation}_{uf}(\\text{adstock}_{uf}(U))$ "
+"transforma el gasto superior en demanda inducida de la parte inferior del "
+"embudo. Segundo, el gasto observado de la parte inferior del embudo es un "
+"proxy ruidoso de esa demanda (la *segunda verosimilitud* del modelo). "
+"Tercero, la variable objetivo responde a la demanda latente $D_t$, no al "
+"gasto observado $M_t$, siendo $f_{\\text{direct}} = "
+"\\text{saturation}(\\text{adstock}(U))$ el efecto **directo** del gasto "
+"superior y $f_{l\\to y} = \\text{saturation}_{lf}(\\text{adstock}_{lf}(D))$ "
+"la respuesta de la parte inferior del embudo."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:50026
+#: af01a14b9af74d258758ae0f279e98c9
+msgid ""
+"Because $Y$ enters through $D_t$, shocks that move $M_t$ without moving "
+"$D_t$ (auction noise, pacing, bid shocks) do not affect $Y_t$. Only the "
+"systematic demand $D_t$ mediates the indirect path. That is what makes "
+"the mediation *structural*: an intervention on $U$ propagates through "
+"$D_t$ into both the observed spend and the target."
+msgstr ""
+"Dado que $Y$ entra a través de $D_t$, las perturbaciones que mueven $M_t$ "
+"sin mover $D_t$ (ruido de subastas, ritmo de entrega, perturbaciones de "
+"pujas) no afectan a $Y_t$. Solo la demanda sistemática $D_t$ media el camino"
+" indirecto. Eso es lo que hace que la mediación sea *estructural*: una "
+"intervención sobre $U$ se propaga a través de $D_t$ tanto al gasto observado"
+" como a la variable objetivo."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:50028
+#: 5fe0a9d4e9d74993ad12b17fbc0bbc4d
+msgid ""
+"Reading the DAG above, there are **two paths** from `upper_spend` to the "
+"target:"
+msgstr ""
+"Al leer el DAG de arriba, hay **dos caminos** desde `upper_spend` hasta la "
+"variable objetivo:"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:50030
+#: 698a81e2a7544e9a8286bdb326d339b1
+msgid "the **direct** path $U \\to Y$, and"
+msgstr "el camino **directo** $U \\to Y$, y"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:50031
+#: 4aa9113128464d4c8be48b31edc80ac5
+msgid ""
+"the **indirect** path $U \\to D \\to Y$, mediated by latent lower-funnel "
+"demand $D$ (with exogenous control $C \\to D$ and measurement $D \\to M$ "
+"for observed `lower_spend`)."
+msgstr ""
+"el camino **indirecto** $U \\to D \\to Y$, mediado por la demanda latente de"
+" la parte inferior del embudo $D$ (con el control exógeno $C \\to D$ y la "
+"medición $D \\to M$ para el `lower_spend` observado)."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:50033
+#: 32bd1ed15a8b4bef86d024aca04f5d28
+msgid ""
+"Note the **four independently estimated media transforms**. Upper-funnel "
+"spend has its own adstock and saturation on the way to lower-funnel "
+"demand. Lower-funnel demand has its own adstock and saturation on the way"
+" to the target. Both come in addition to the direct upper $\\to$ target "
+"transform."
+msgstr ""
+"Observe las **cuatro transformaciones de medios estimadas de forma "
+"independiente**. El gasto de la parte superior del embudo tiene su propio "
+"adstock y saturación en su camino hacia la demanda de la parte inferior del "
+"embudo. La demanda de la parte inferior del embudo tiene su propio adstock y"
+" saturación en su camino hacia la variable objetivo. Ambas se suman a la "
+"transformación directa superior $\\to$ variable objetivo."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:50035
+#: 9e49da5fc9324712b5a8b1b897b05f63
+msgid "Measurement, not a budget lever"
+msgstr "Medición, no una palanca de presupuesto"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:50037
+#: b610fd6fae924a66a91ac766363c0646
+msgid ""
+"In this DAG, observed `lower_spend` enters only through the measurement "
+"edge $D \\to M$. Nothing points **out of** $M$ into $Y$; the target "
+"responds to latent demand $D$, not to noisy execution in spend. An "
+"intervention `do(lower_spend)` has **zero** effect on $Y$ by "
+"construction. This notebook answers how much credit upper-funnel spend "
+"deserves (direct, indirect, total), not whether to reallocate budget to "
+"lower-funnel media. That allocation question requires a graph where "
+"lower-funnel spend is a **cause** of the target, not merely a proxy for "
+"demand."
+msgstr ""
+"En este DAG, el `lower_spend` observado entra solo a través de la arista de "
+"medición $D \\to M$. Nada apunta **desde** $M$ hacia $Y$; la variable "
+"objetivo responde a la demanda latente $D$, no a la ejecución ruidosa en el "
+"gasto. Una intervención `do(lower_spend)` tiene un efecto **nulo** sobre $Y$"
+" por construcción. Este cuaderno responde cuánto crédito merece el gasto de "
+"la parte superior del embudo (directo, indirecto, total), no si conviene "
+"reasignar presupuesto a los medios de la parte inferior del embudo. Esa "
+"pregunta de asignación requiere un grafo en el que el gasto de la parte "
+"inferior del embudo sea una **causa** de la variable objetivo, y no "
+"meramente un proxy de la demanda."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:50040
+#: 104a2dce421f4a9f838eacf0c80bbc57
+#, python-brace-format
+msgid ""
+"**Teaching simplifications.** Real funnels usually let lower-funnel spend"
+" feed back into the target directly (an $M \\to Y$ edge) and let organic "
+"demand leak into $M$ without moving $U$ or $C$. This notebook omits both "
+"on purpose, to keep the focus on the upper $\\to$ lower mediation and the"
+" bias from treating the mediator as an ordinary channel (Naive A). See "
+"{ref}`mmm_funnel_mueffect_advanced` and {ref}`mmm_case_study2` for models"
+" that relax these simplifications."
+msgstr ""
+"**Simplificaciones didácticas.** Los embudos reales suelen permitir que el "
+"gasto de la parte inferior del embudo retroalimente directamente a la "
+"variable objetivo (una arista $M \\to Y$) y que la demanda orgánica se "
+"filtre hacia $M$ sin mover $U$ ni $C$. Este cuaderno omite ambas cosas a "
+"propósito, para centrarse en la mediación superior $\\to$ inferior y en el "
+"sesgo de tratar al mediador como un canal ordinario (Naive A). Consulte "
+"{ref}`mmm_funnel_mueffect_advanced` y {ref}`mmm_case_study2` para ver "
+"modelos que relajan estas simplificaciones."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:60002
+#: 4e2fbd6c5b2648f59fe4ccdda2b0a677
+msgid "Prepare Notebook"
+msgstr "Preparar el cuaderno"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:90002
+#: c9772847df7643a186618fd294a5f27e
+msgid "The `MeasuredMediatorEffect` component"
+msgstr "El componente `MeasuredMediatorEffect`"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:90004
+#: e30915683c724a11bbee21c6edf0584b
+msgid ""
+"The class name describes this **subgraph topology**; \"funnel\" names the"
+" **use case**. Other topologies need their own effect implementation or "
+"composable building blocks. This class is a notebook example, not a "
+"public library API."
+msgstr ""
+"El nombre de la clase describe esta **topología de subgrafo**; \"embudo\" "
+"nombra el **caso de uso**. Otras topologías necesitan su propia "
+"implementación de efecto o bloques de construcción componibles. Esta clase "
+"es un ejemplo del cuaderno, no una API pública de la biblioteca."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:90006
+#: 4e0544ea9c1d41aab9428b6d48bf1ca0
+#, python-brace-format
+msgid ""
+"`pymc-marketing`'s `MMM` builds the target mean as $\\mu = "
+"\\text{baseline} + \\sum \\text{contributions}$ with a single likelihood."
+" A {class}`~pymc_marketing.mmm.additive_effect.MuEffect` is the "
+"sanctioned way to add an arbitrary term to that mean. It follows a three-"
+"method protocol:"
+msgstr ""
+"El `MMM` de `pymc-marketing` construye la media de la variable objetivo como"
+" $\\mu = \\text{baseline} + \\sum \\text{contributions}$ con una única "
+"verosimilitud. Un {class}`~pymc_marketing.mmm.additive_effect.MuEffect` es "
+"la forma establecida de añadir un término arbitrario a esa media. Sigue un "
+"protocolo de tres métodos:"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:90008
+#: b186411dfec74d8f8e6262a9ebb6a931
+msgid "`create_data(mmm)`: register any `pymc.dims.Data` the effect needs."
+msgstr ""
+"`create_data(mmm)`: registra cualquier `pymc.dims.Data` que el efecto "
+"necesite."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:90009
+#: 559fa4f18c6f4f1a9c92133a1e0eec12
+msgid ""
+"`create_effect(mmm)`: return a tensor with dims `(\"date\", *mmm.dims)` "
+"that is **added** to the target mean."
+msgstr ""
+"`create_effect(mmm)`: devuelve un tensor con dimensiones `(\"date\", "
+"*mmm.dims)` que se **suma** a la media de la variable objetivo."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:90010
+#: c3a58292f33c4b888da81a5bc9890942
+msgid "`set_data(mmm, model, X)`: refresh the data at prediction time."
+msgstr ""
+"`set_data(mmm, model, X)`: actualiza los datos en el momento de la "
+"predicción."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:90012
+#: 803648c72ffb436ca15e5c8007259d1d
+#, python-brace-format
+msgid ""
+"We subclass {class}`~pymc_marketing.mmm.additive_effect.DataVarMuEffect`,"
+" which implements `create_data` and `set_data` for us. Each variable "
+"listed in `data_vars` is read from the `xr.Dataset` passed as `X` at fit "
+"time and refreshed from the new `X` at prediction time. That means the "
+"effect supports **out-of-sample prediction**. Pass future `lower_control`"
+" values (the control is exogenous, so it must be supplied like any other "
+"regressor) and placeholder `lower_spend` values. The second likelihood is"
+" resampled, so the model *forecasts* lower-funnel spend rather than "
+"consuming it. Only `create_effect` is left for us to implement."
+msgstr ""
+"Creamos una subclase de "
+"{class}`~pymc_marketing.mmm.additive_effect.DataVarMuEffect`, que implementa"
+" `create_data` y `set_data` por nosotros. Cada variable listada en "
+"`data_vars` se lee del `xr.Dataset` pasado como `X` en el momento del ajuste"
+" y se actualiza a partir del nuevo `X` en el momento de la predicción. Eso "
+"significa que el efecto admite **predicción fuera de muestra**. Pase valores"
+" futuros de `lower_control` (el control es exógeno, por lo que debe "
+"suministrarse como cualquier otro regresor) y valores de marcador de "
+"posición para `lower_spend`. La segunda verosimilitud se vuelve a muestrear,"
+" de modo que el modelo *pronostica* el gasto de la parte inferior del embudo"
+" en lugar de consumirlo. Solo nos queda por implementar `create_effect`."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:90015
+#: 9c91a9acefb047dd801605a22ea7c5db
+msgid ""
+"`make_mmm_dataset` below is notebook-local: the DataFrame API carries "
+"only channel and control columns, so mediator series (`lower_spend`, "
+"`lower_control`) must travel in an `xr.Dataset`. There is no library "
+"helper for this yet."
+msgstr ""
+"`make_mmm_dataset` a continuación es local del cuaderno: la API de DataFrame"
+" solo transporta columnas de canales y de control, por lo que las series del"
+" mediador (`lower_spend`, `lower_control`) deben viajar en un `xr.Dataset`. "
+"Todavía no existe una función auxiliar de la biblioteca para esto."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:90018
+#: b694853eaed543ac8daf68c6b78b3800
+msgid ""
+"The key move for funnel modeling is that `create_effect` runs *inside* "
+"the model context, so nothing stops it from declaring **its own observed "
+"likelihood**. That turns \"add a term to `mu`\" into \"fit a second "
+"structural equation jointly with the target\". Our "
+"`MeasuredMediatorEffect` does exactly that:"
+msgstr ""
+"La clave del modelado del embudo es que `create_effect` se ejecuta *dentro* "
+"del contexto del modelo, por lo que nada impide que declare **su propia "
+"verosimilitud observada**. Eso convierte \"añadir un término a `mu`\" en "
+"\"ajustar una segunda ecuación estructural conjuntamente con la variable "
+"objetivo\". Nuestro `MeasuredMediatorEffect` hace exactamente eso:"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:90020
+#: 46200ca5e9c941ccb274251491f92550
+msgid ""
+"It reads the (scaled) upper-funnel spend already registered by the base "
+"`MMM`."
+msgstr ""
+"Lee el gasto (escalado) de la parte superior del embudo ya registrado por el"
+" `MMM` base."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:90021
+#: bb52d16da7914307a91b372441912c57
+msgid ""
+"It builds the latent lower-funnel **demand** from upper spend (with its "
+"own adstock + saturation) plus a baseline and the exogenous control."
+msgstr ""
+"Construye la **demanda** latente de la parte inferior del embudo a partir "
+"del gasto superior (con su propio adstock + saturación) más una línea base y"
+" el control exógeno."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:90022
+#: 25ea4996d3234edabc008d28346910f7
+msgid ""
+"It attaches a **second likelihood** for the observed lower-funnel spend "
+"to that demand."
+msgstr ""
+"Adjunta una **segunda verosimilitud** para el gasto observado de la parte "
+"inferior del embudo a esa demanda."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:90023
+#: 5116199c9ad9412a8a7180c644273502
+#, python-brace-format
+msgid ""
+"It returns the lower-funnel $\\to$ target contribution (with a *second* "
+"adstock + saturation) to be added to the target mean. One more method is "
+"worth implementing here, though it is optional in general. Because this "
+"effect reads upper-funnel spend, a spend counterfactual reaches the "
+"target *through it* as well as through `channel_contribution`. When "
+"`incrementality_spec` returns an "
+"{class}`~pymc_marketing.mmm.additive_effect.IncrementalitySpec`, the "
+"incrementality module includes the mediated path in its ROAS numbers "
+"rather than reporting the direct path alone. The empty spec is enough: "
+"how far the mediator carries a change in spend is measured from the "
+"fitted graph rather than declared."
+msgstr ""
+"Devuelve la contribución de la parte inferior del embudo $\\to$ variable "
+"objetivo (con un *segundo* adstock + saturación) para sumarla a la media de "
+"la variable objetivo. Vale la pena implementar aquí un método más, aunque en"
+" general es opcional. Dado que este efecto lee el gasto de la parte superior"
+" del embudo, un contrafactual de gasto llega a la variable objetivo *a "
+"través de él*, además de a través de `channel_contribution`. Cuando "
+"`incrementality_spec` devuelve un "
+"{class}`~pymc_marketing.mmm.additive_effect.IncrementalitySpec`, el módulo "
+"de incrementalidad incluye el camino mediado en sus cifras de ROAS en lugar "
+"de informar solo del camino directo. La especificación vacía es suficiente: "
+"hasta qué punto el mediador transmite un cambio en el gasto se mide a partir"
+" del grafo ajustado en lugar de declararse."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:90027
+#: c0ed78d5c03c403f83bd9a4c6ce45048
+#, python-brace-format
+msgid ""
+"**Library helper.** Use "
+"{meth}`~pymc_marketing.mmm.mmm.MMM.scaled_channel` to select upper-funnel"
+" spend by channel name instead of a positional index. ``DataVarMuEffect``"
+" registers each dataset column once as ``pm.Data`` under its dataset "
+"name, so multiple effects can share a column without duplicating graph "
+"nodes."
+msgstr ""
+"**Función auxiliar de la biblioteca.** Use "
+"{meth}`~pymc_marketing.mmm.mmm.MMM.scaled_channel` para seleccionar el gasto"
+" de la parte superior del embudo por nombre de canal en lugar de por un "
+"índice posicional. ``DataVarMuEffect`` registra cada columna del conjunto de"
+" datos una sola vez como ``pm.Data`` con el nombre que tiene en el conjunto "
+"de datos, de modo que varios efectos pueden compartir una columna sin "
+"duplicar nodos del grafo."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:120002
+#: e152deea031e4afaae50d464c8c816d0
+msgid "Data generating process"
+msgstr "Proceso generador de datos"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:120004
+#: 4eece27498c449c88a2ed419cf8ad82f
+#, python-brace-format
+msgid ""
+"We follow the same recipe as the {ref}`mmm_data_generator` notebook: "
+"build a PyMC model, clamp the parameters to known ground-truth values "
+"with the {func}`~pymc.model.transform.do` operator, and forward-sample. "
+"The twist here is that the generative model **is** the funnel MMM (base "
+"`MMM` + `MeasuredMediatorEffect`), so a single forward pass produces "
+"**both** the observed lower-funnel spend and the target."
+msgstr ""
+"Seguimos la misma receta que el cuaderno {ref}`mmm_data_generator`: "
+"construimos un modelo de PyMC, fijamos los parámetros a valores verdaderos "
+"conocidos con el operador {func}`~pymc.model.transform.do` y muestreamos "
+"hacia adelante. La particularidad aquí es que el modelo generativo **es** el"
+" MMM de embudo (`MMM` base + `MeasuredMediatorEffect`), por lo que una sola "
+"pasada hacia adelante produce **tanto** el gasto observado de la parte "
+"inferior del embudo **como** la variable objetivo."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:130002
+#: 15cb4daaeb15475bbb63d2daed38dfc0
+msgid "Configuration"
+msgstr "Configuración"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:150002
+#: 87a4d5f22e5e43bf884095c2b2be5db6
+msgid "Exogenous covariates"
+msgstr "Covariables exógenas"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:150004
+#: 178a1cd92cbe4a0db751f32bb5038609
+msgid ""
+"We draw `upper_spend` and `lower_control` from a small PyMC model with an"
+" LKJ prior on the (near-diagonal) correlation structure and a `softplus` "
+"transform to keep spend non-negative. We deliberately make the two "
+"drivers close to independent: the control is an *exogenous* source of "
+"lower-funnel variation, which is what identifies the mediator equation "
+"separately from the direct path."
+msgstr ""
+"Generamos `upper_spend` y `lower_control` a partir de un pequeño modelo de "
+"PyMC con un prior LKJ sobre la estructura de correlación (casi diagonal) y "
+"una transformación `softplus` para mantener el gasto no negativo. Hacemos "
+"deliberadamente que los dos impulsores sean casi independientes: el control "
+"es una fuente *exógena* de variación de la parte inferior del embudo, que es"
+" lo que identifica la ecuación del mediador por separado del camino directo."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:180002
+#: 9690fa24547441c6bc7d3011d9076aa9
+msgid "Ground-truth parameters"
+msgstr "Parámetros verdaderos"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:180004
+#: f4ff8e5eb9694a0da32b23c32397aae1
+msgid ""
+"We fix explicit true values for every structural parameter. Splitting the"
+" effect of upper spend across a direct and an indirect path is the whole "
+"point, so we pick values where **both paths carry meaningful weight**."
+msgstr ""
+"Fijamos valores verdaderos explícitos para cada parámetro estructural. "
+"Dividir el efecto del gasto superior entre un camino directo y uno indirecto"
+" es justamente el objetivo, así que elegimos valores en los que **ambos "
+"caminos tienen un peso significativo**."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:210002
+#: 1da1e8ed281c419190a1db9f5c2b92bd
+msgid "Forward simulation"
+msgstr "Simulación hacia adelante"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:210004
+#: 551bf1d9a12547f9bc2e28859b2d53a0
+msgid ""
+"We build the funnel MMM on the dummy target, register original-scale "
+"contribution variables (so we can read off the true decomposition), clamp"
+" the parameters to their true values, and forward-sample. The base `MMM` "
+"supplies the intercept and the **direct** upper $\\to$ target "
+"contribution; the `MeasuredMediatorEffect` supplies the mediator "
+"likelihood and the **indirect** contribution."
+msgstr ""
+"Construimos el MMM de embudo sobre la variable objetivo ficticia, "
+"registramos variables de contribución en la escala original (para poder leer"
+" la descomposición verdadera), fijamos los parámetros a sus valores "
+"verdaderos y muestreamos hacia adelante. El `MMM` base aporta el intercepto "
+"y la contribución **directa** superior $\\to$ variable objetivo; el "
+"`MeasuredMediatorEffect` aporta la verosimilitud del mediador y la "
+"contribución **indirecta**."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:230002
+#: e709b5017cf440e7bcbc502d601dcba6
+msgid ""
+"The graph above makes the two likelihoods explicit: "
+"`mediator_measurement` (observed lower-funnel spend) and `y` (the target)"
+" are both children of the same set of latent parameters. Now we clamp the"
+" parameters and forward-sample. Note that the two channel-dimensioned "
+"direct-path parameters need a length-1 array."
+msgstr ""
+"El grafo de arriba hace explícitas las dos verosimilitudes: "
+"`mediator_measurement` (gasto observado de la parte inferior del embudo) e "
+"`y` (la variable objetivo) son ambos hijos del mismo conjunto de parámetros "
+"latentes. Ahora fijamos los parámetros y muestreamos hacia adelante. Observe"
+" que los dos parámetros del camino directo con dimensión de canal necesitan "
+"un array de longitud 1."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:260002
+#: 5d06fcc6235940b997eb56aa4f93f430
+msgid ""
+"The raw `mediator_effect_contribution` includes the part of lower-funnel "
+"demand that comes from the baseline and the control, not from upper "
+"spend. To isolate the **causal** contribution of upper spend through the "
+"mediator, we re-run the clamped generative model with `upper_spend` set "
+"to zero and subtract."
+msgstr ""
+"La `mediator_effect_contribution` bruta incluye la parte de la demanda de la"
+" parte inferior del embudo que proviene de la línea base y del control, no "
+"del gasto superior. Para aislar la contribución **causal** del gasto "
+"superior a través del mediador, volvemos a ejecutar el modelo generativo "
+"fijado con `upper_spend` igual a cero y restamos."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:290002
+#: f9d627baf6034225a5d75d7930ae23fa
+msgid ""
+"**Caption:** Weekly time series of the synthetic target, upper-funnel "
+"spend, observed lower-funnel spend (mediator), and exogenous lower-funnel"
+" control."
+msgstr ""
+"**Pie de figura:** Series de tiempo semanales de la variable objetivo "
+"sintética, el gasto de la parte superior del embudo, el gasto observado de "
+"la parte inferior del embudo (mediador) y el control exógeno de la parte "
+"inferior del embudo."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:300002
+#: ee735ac041954df89c721269d1596b5a
+msgid "Exploratory visualization"
+msgstr "Visualización exploratoria"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:320002
+#: ca7e8f650f4c4b11a8d1cda67def5279
+msgid ""
+"The true decomposition of upper-funnel spend into its direct and indirect"
+" (mediated) contributions. This is the ground truth the models will try "
+"to recover."
+msgstr ""
+"La verdadera descomposición del gasto de la parte superior del embudo en sus"
+" contribuciones directa e indirecta (mediada). Esta es la verdad de "
+"referencia que los modelos intentarán recuperar."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:330002
+#: a904b98b92544d568aca836804856fb2
+msgid ""
+"**Caption:** Ground-truth decomposition of upper-funnel spend into direct"
+" ($U \\to Y$), indirect ($U \\to D \\to Y$), and total paths (weekly, "
+"original target scale)."
+msgstr ""
+"**Pie de figura:** Descomposición de la verdad de referencia del gasto de la"
+" parte superior del embudo en los caminos directo ($U \\to Y$), indirecto "
+"($U \\to D \\to Y$) y total (semanal, en la escala original de la variable "
+"objetivo)."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:350002
+#: 8faabf71feba4deebe95dd54e8039e62
+msgid "Fitting the models"
+msgstr "Ajuste de los modelos"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:350004
+#: 763d85b8d8394abdaf2324a783c5e83f
+msgid "We now fit three models on the synthetic data:"
+msgstr "Ahora ajustamos tres modelos sobre los datos sintéticos:"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:350006
+#: d15ad08192ca46c09638cee55af8b0c7
+msgid ""
+"**Naive A**: a standard MMM with the mediator included as an **ordinary "
+"channel** (`upper_spend` and `lower_spend` side by side)."
+msgstr ""
+"**Naive A**: un MMM estándar con el mediador incluido como un **canal "
+"ordinario** (`upper_spend` y `lower_spend` lado a lado)."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:350007
+#: 5188488c537c42f8af07e535a6677d74
+msgid ""
+"**Naive B**: a standard MMM with the mediator **omitted** (`upper_spend` "
+"only)."
+msgstr ""
+"**Naive B**: un MMM estándar con el mediador **omitido** (solo "
+"`upper_spend`)."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:350008
+#: 1bec0fe73c514f38bdf0443736d002bc
+msgid "**Funnel**: the joint model with the `MeasuredMediatorEffect`."
+msgstr "**Funnel**: el modelo conjunto con el `MeasuredMediatorEffect`."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:350010
+#: 82b5e073478a4eedbb5ac17aef7d45f7
+msgid ""
+"All three use the same adstock/saturation families and the same sampler "
+"settings."
+msgstr ""
+"Los tres usan las mismas familias de adstock/saturación y la misma "
+"configuración del muestreador."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:370002
+#: ea771b4b75cc4dcbac19da10bac4e660
+msgid "Naive A: mediator as an ordinary channel"
+msgstr "Naive A: el mediador como canal ordinario"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:370004
+#: f00cc28dcced412485dedba3e30790dc
+msgid ""
+"This is what most production MMMs do when they have both upper- and "
+"lower-funnel spend: drop them side by side as independent channels. "
+"Conditioning on the mediator **blocks the indirect path**, so "
+"`upper_spend` is credited with (at most) its direct effect, and the "
+"lower-funnel channel is over-credited with demand that upper-funnel "
+"activity created."
+msgstr ""
+"Esto es lo que hacen la mayoría de los MMM en producción cuando tienen gasto"
+" tanto de la parte superior como de la parte inferior del embudo: ponerlos "
+"lado a lado como canales independientes. Condicionar sobre el mediador "
+"**bloquea el camino indirecto**, de modo que a `upper_spend` se le acredita "
+"(como máximo) su efecto directo, y al canal de la parte inferior del embudo "
+"se le atribuye en exceso la demanda que creó la actividad de la parte "
+"superior del embudo."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:370007
+#: f5107e26c6684c6f87eaf0c33d5cf39f
+msgid ""
+"Treating funnel layers as independent channels is a **common error**, not"
+" an exotic edge case; it is the default configuration of most production "
+"MMMs. Modeling the funnel explicitly is not just more descriptive: as the"
+" head-to-head comparison below shows, it is the only one of the three "
+"models that recovers **unbiased** upper-funnel estimates."
+msgstr ""
+"Tratar las capas del embudo como canales independientes es un **error "
+"común**, no un caso límite exótico; es la configuración predeterminada de la"
+" mayoría de los MMM en producción. Modelar el embudo de forma explícita no "
+"es solo más descriptivo: como muestra la comparación cara a cara de abajo, "
+"es el único de los tres modelos que recupera estimaciones **insesgadas** de "
+"la parte superior del embudo."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:390002
+#: 4fa358d6b61248df85ed2213dd88e31e
+msgid "Naive B: mediator omitted"
+msgstr "Naive B: mediador omitido"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:390004
+#: 4a5ee8bf584d41f887f21cc4a43fb714
+msgid ""
+"Here `upper_spend` is the only channel. Its response curve is forced to "
+"absorb *both* the direct effect and the demand it creates downstream, "
+"with no separate lower-funnel lever. Because the mediator is gone, that "
+"single curve also has to soak up the exogenous, control-driven "
+"fluctuations in lower-funnel demand. Those fluctuations move the target "
+"but are unrelated to upper spend, and there is nowhere else to attribute "
+"them. Fitting one saturation curve to this composite relationship "
+"generally biases the upper-funnel estimate; here, upward."
+msgstr ""
+"Aquí `upper_spend` es el único canal. Su curva de respuesta se ve obligada a"
+" absorber *tanto* el efecto directo como la demanda que crea aguas abajo, "
+"sin una palanca separada para la parte inferior del embudo. Como el mediador"
+" no está, esa única curva también tiene que absorber las fluctuaciones "
+"exógenas, impulsadas por el control, de la demanda de la parte inferior del "
+"embudo. Esas fluctuaciones mueven la variable objetivo pero no están "
+"relacionadas con el gasto superior, y no hay otro lugar al que atribuirlas. "
+"Ajustar una sola curva de saturación a esta relación compuesta generalmente "
+"sesga la estimación de la parte superior del embudo; aquí, al alza."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:410002
+#: a6275565d3654de3bc48b7e1bd87665c
+msgid "The funnel model"
+msgstr "El modelo de embudo"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:410004
+#: 43c033ed6a424f918fecc7361ccd55f5
+msgid ""
+"The funnel model has `upper_spend` as its only channel (its direct "
+"effect) plus the `MeasuredMediatorEffect`, which reads the **real** "
+"generated lower-funnel spend and control from the `X` dataset. It fits "
+"the lower-funnel spend and the target jointly."
+msgstr ""
+"El modelo de embudo tiene `upper_spend` como único canal (su efecto directo)"
+" más el `MeasuredMediatorEffect`, que lee del conjunto de datos `X` el gasto"
+" y el control **reales** generados de la parte inferior del embudo. Ajusta "
+"conjuntamente el gasto de la parte inferior del embudo y la variable "
+"objetivo."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:430002
+#: 9de18ab7a8384a8eb261f806ac6acd15
+msgid "Diagnostics"
+msgstr "Diagnósticos"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:450002
+#: 9f4b7de6c362458398146d32b44786df
+msgid "Posterior predictive checks"
+msgstr "Chequeos predictivos posteriores"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:450004
+#: 43ab91801a1c465684094eb35ae032c4
+msgid ""
+"The funnel model has **two** observed quantities. Both should be well "
+"recovered: the target and the lower-funnel spend."
+msgstr ""
+"El modelo de embudo tiene **dos** cantidades observadas. Ambas deberían "
+"recuperarse bien: la variable objetivo y el gasto de la parte inferior del "
+"embudo."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:460002
+#: 062515c5195a42c8958de0689d9429ab
+msgid ""
+"**Caption:** Funnel model posterior predictive check for the target $Y$: "
+"posterior mean and 94% HDI bands vs. observed `y_obs` (original scale)."
+msgstr ""
+"**Pie de figura:** Chequeo predictivo posterior del modelo de embudo para la"
+" variable objetivo $Y$: media posterior y bandas de HDI del 94% frente a "
+"`y_obs` observado (escala original)."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:480002
+#: cd399b401d7b4288a443774f0c1e009b
+msgid ""
+"**Caption:** Funnel model posterior predictive for observed lower-funnel "
+"spend $M$: posterior mean and 94% HDI vs. observed `lower_spend` (second "
+"likelihood)."
+msgstr ""
+"**Pie de figura:** Predictiva posterior del modelo de embudo para el gasto "
+"observado de la parte inferior del embudo $M$: media posterior y HDI del 94%"
+" frente a `lower_spend` observado (segunda verosimilitud)."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:500002
+#: 5b5e2469ee1e45abbc6338e96508ff49
+msgid "Parameter recovery"
+msgstr "Recuperación de parámetros"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:500004
+#: efd38a0b89d04d2b9b119f35027594d6
+msgid ""
+"Because we generated the data, we can check whether the funnel model "
+"recovers the true parameters. We overlay the true value (dashed line) on "
+"each posterior."
+msgstr ""
+"Como generamos los datos, podemos comprobar si el modelo de embudo recupera "
+"los parámetros verdaderos. Superponemos el valor verdadero (línea "
+"discontinua) sobre cada posterior."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:510002
+#: 8bc8d280fb584e78be51debd3fd46831
+msgid ""
+"**Caption:** Posterior marginals for nine funnel-model parameters vs. "
+"planted ground truth (dashed black). Amplitude parameters on the scaled "
+"target are rescaled by `target_scale` before comparison."
+msgstr ""
+"**Pie de figura:** Marginales posteriores de nueve parámetros del modelo de "
+"embudo frente a la verdad de referencia plantada (negro discontinuo). Los "
+"parámetros de amplitud sobre la variable objetivo escalada se reescalan por "
+"`target_scale` antes de la comparación."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:530002
+#: 8ba34d7a194346188b7a558f31b84633
+msgid ""
+"The parameters are recovered well. One scaling convention to keep in mind"
+" when reading the plot: the MMM standardizes its target internally, "
+"dividing by `max(y)`. Amplitude coefficients (`intercept_contribution`, "
+"`saturation_beta`, `sat_contribution_beta`) are therefore estimated on "
+"the scaled target, while the ground-truth values were defined on the "
+"unscaled one. The plot therefore multiplies those posteriors by "
+"`target_scale` before comparing. Parameters that act on the *inputs* "
+"(adstock decays) or on the *raw mediator* (`mediator_baseline`, "
+"`mediator_parent_coef`, `sat_hub_beta`, fit through the second likelihood"
+" on lower-funnel spend) are scale-free and are compared directly."
+msgstr ""
+"Los parámetros se recuperan bien. Una convención de escalado que conviene "
+"tener presente al leer el gráfico: el MMM escala internamente su variable "
+"objetivo, dividiéndola por `max(y)`. Por lo tanto, los coeficientes de "
+"amplitud (`intercept_contribution`, `saturation_beta`, "
+"`sat_contribution_beta`) se estiman sobre la variable objetivo escalada, "
+"mientras que los valores verdaderos se definieron sobre la no escalada. Por "
+"eso el gráfico multiplica esos posteriores por `target_scale` antes de "
+"compararlos. Los parámetros que actúan sobre las *entradas* (decaimientos de"
+" adstock) o sobre el *mediador sin procesar* (`mediator_baseline`, "
+"`mediator_parent_coef`, `sat_hub_beta`, ajustados mediante la segunda "
+"verosimilitud sobre el gasto de la parte inferior del embudo) no dependen de"
+" la escala y se comparan directamente."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:530004
+#: a3f0851b0c8b4290b9dcac4f75210f09
+msgid ""
+"A separate, genuine effect remains. The **direct** upper $\\to$ target "
+"saturation and the **lower-funnel** saturation are only weakly identified"
+" *individually*. Both paths ultimately trace back to upper spend, so "
+"their split is not sharply pinned down, and those two posteriors stay "
+"comparatively wide even after rescaling. As we will see next, the "
+"**total** upper-funnel effect is nonetheless recovered accurately."
+msgstr ""
+"Queda un efecto aparte, genuino. La saturación **directa** superior $\\to$ "
+"variable objetivo y la saturación de la **parte inferior del embudo** están "
+"identificadas solo débilmente *de forma individual*. Ambos caminos se "
+"remontan en última instancia al gasto superior, por lo que su reparto no "
+"queda fijado con precisión, y esos dos posteriores siguen siendo "
+"comparativamente amplios incluso después del reescalado. Como veremos a "
+"continuación, el efecto **total** de la parte superior del embudo se "
+"recupera, sin embargo, con precisión."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:540002
+#: 8191f09600ad42e0b871551ed9782595
+msgid "Direct, indirect, and total effect"
+msgstr "Efecto directo, indirecto y total"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:540004
+#: 6f5a41840a3c404881f6d660a269155e
+msgid ""
+"We reconstruct the funnel model's estimate of each path in original "
+"scale. The direct path is the base channel contribution (which is already"
+" the counterfactual versus zero spend, since saturation of zero is zero)."
+" The indirect path is the mediated contribution **minus** what it would "
+"be with `upper_spend` set to zero."
+msgstr ""
+"Reconstruimos la estimación del modelo de embudo de cada camino en la escala"
+" original. El camino directo es la contribución del canal base (que ya es el"
+" contrafactual frente a gasto cero, dado que la saturación de cero es cero)."
+" El camino indirecto es la contribución mediada **menos** lo que sería con "
+"`upper_spend` fijado en cero."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:560002
+#: a3f099cf8c9f4c3a8d9c42faf24ef94d
+msgid ""
+"**Caption:** Funnel model recovery of direct, indirect, and total upper-"
+"funnel contributions (posterior mean and 94% HDI) vs. ground truth (black"
+" dashed), weekly original scale."
+msgstr ""
+"**Pie de figura:** Recuperación por el modelo de embudo de las "
+"contribuciones directa, indirecta y total de la parte superior del embudo "
+"(media posterior y HDI del 94%) frente a la verdad de referencia (negro "
+"discontinuo), semanal en escala original."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:580002
+#: 53b8205a4e854370886e4f363a130899
+msgid "Head-to-head: the bias from ignoring the funnel"
+msgstr "Cara a cara: el sesgo de ignorar el embudo"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:580004
+#: 71515e4bf6c74657b92ec34213971f05
+msgid ""
+"Finally we compare the three models on the quantity a budget decision "
+"actually depends on: the **total contribution of upper-funnel spend**. "
+"For the naive models the upper channel contribution is already the "
+"counterfactual versus zero spend. For the funnel model we use the direct "
+"plus (counterfactual) indirect contribution computed above."
+msgstr ""
+"Por último, comparamos los tres modelos sobre la cantidad de la que "
+"realmente depende una decisión de presupuesto: la **contribución total del "
+"gasto de la parte superior del embudo**. Para los modelos ingenuos, la "
+"contribución del canal superior ya es el contrafactual frente a gasto cero. "
+"Para el modelo de embudo usamos la contribución directa más la indirecta "
+"(contrafactual) calculada arriba."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:600002
+#: baf34f917df7437d9a81f00871ee1f53
+msgid ""
+"**Caption:** Posterior distribution of mean-over-time total upper-funnel "
+"contribution by model vs. ground-truth total (black dashed). Bias "
+"percentage in panel titles."
+msgstr ""
+"**Pie de figura:** Distribución posterior de la contribución total media en "
+"el tiempo de la parte superior del embudo por modelo frente al total de la "
+"verdad de referencia (negro discontinuo). El porcentaje de sesgo aparece en "
+"los títulos de los paneles."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:620002
+#: e1c3d155e54d4439abc4e52e8e307871
+msgid ""
+"**Both naive models are biased.** Including the mediator as a channel "
+"(Naive A) blocks the indirect path and understates the upper-funnel "
+"effect. Omitting it (Naive B) forces a single response curve to absorb "
+"the whole funnel: the direct effect, the mediated effect, and the "
+"control-driven lower-funnel demand that upper spend never caused. Here "
+"that overstates it. That the two biases happen to point in opposite "
+"directions is incidental; the point is that neither naive specification "
+"recovers the truth. Only the funnel model does."
+msgstr ""
+"**Ambos modelos ingenuos están sesgados.** Incluir el mediador como canal "
+"(Naive A) bloquea el camino indirecto y subestima el efecto de la parte "
+"superior del embudo. Omitirlo (Naive B) obliga a una única curva de "
+"respuesta a absorber todo el embudo: el efecto directo, el efecto mediado y "
+"la demanda de la parte inferior del embudo impulsada por el control que el "
+"gasto superior nunca causó. Aquí eso lo sobrestima. Que los dos sesgos "
+"apunten en direcciones opuestas es incidental; lo importante es que ninguna "
+"de las dos especificaciones ingenuas recupera la verdad. Solo lo hace el "
+"modelo de embudo."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:620004
+#: 4e1134b224034543a009ae7829293f16
+msgid ""
+"We can also express this as a return-on-ad-spend (ROAS) style ratio "
+"(total contribution per unit of upper-funnel spend), since that is the "
+"number a budget allocation keys off. We use the built-in `incrementality`"
+" module (`contribution_over_spend`), which runs an on/off counterfactual "
+"on spend and reads the resulting change in the linear predictor."
+msgstr ""
+"También podemos expresar esto como una razón al estilo del retorno del gasto"
+" publicitario (ROAS) (contribución total por unidad de gasto de la parte "
+"superior del embudo), ya que ese es el número en el que se basa una "
+"asignación de presupuesto. Usamos el módulo `incrementality` integrado "
+"(`contribution_over_spend`), que ejecuta un contrafactual de "
+"encendido/apagado sobre el gasto y lee el cambio resultante en el predictor "
+"lineal."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:620006
+#: 09123447cbd644af8859dbb7f4eee758
+msgid ""
+"Because `MeasuredMediatorEffect` opted in through `incrementality_spec`, "
+"that counterfactual is followed down **both** paths, so the module "
+"returns the **total** upper-funnel ROAS rather than the direct part of "
+"it. Had the effect not opted in, the module would raise instead of "
+"quietly reporting the direct path as if it were the whole thing. The "
+"naive models have no mediator subgraph, so their ROAS is simply what each"
+" model attributes to `upper_spend`."
+msgstr ""
+"Como `MeasuredMediatorEffect` optó por participar a través de "
+"`incrementality_spec`, ese contrafactual se sigue por **ambos** caminos, de "
+"modo que el módulo devuelve el ROAS **total** de la parte superior del "
+"embudo en lugar de solo su parte directa. Si el efecto no hubiera optado por"
+" participar, el módulo habría lanzado un error en lugar de informar "
+"discretamente del camino directo como si fuera la totalidad. Los modelos "
+"ingenuos no tienen subgrafo de mediador, así que su ROAS es simplemente lo "
+"que cada modelo atribuye a `upper_spend`."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:620008
+#: ac48b20a1dbd46f8b4005d6b53558372
+msgid ""
+"The check below is the point of the whole notebook in one number. The "
+"module's mediated ROAS should land on the direct-plus-indirect ROAS we "
+"assembled by hand with an explicit posterior-predictive counterfactual, "
+"and both should sit near the truth. They are not identical, and should "
+"not be. The incrementality module intervenes on **spend** and attributes "
+"each period's response within a carryover window, while the hand-rolled "
+"version compares two full-series predictions."
+msgstr ""
+"La comprobación de abajo es el punto central de todo el cuaderno en un solo "
+"número. El ROAS mediado del módulo debería coincidir con el ROAS directo más"
+" indirecto que armamos a mano con un contrafactual predictivo posterior "
+"explícito, y ambos deberían estar cerca de la verdad. No son idénticos, y no"
+" deberían serlo. El módulo de incrementalidad interviene sobre el **gasto** "
+"y atribuye la respuesta de cada período dentro de una ventana de efecto de "
+"arrastre, mientras que la versión artesanal compara dos predicciones de "
+"serie completa."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:640002
+#: e2cca51f61394e62800b0aea513c77e0
+msgid ""
+"**Caption:** Posterior distributions of upper-funnel ROAS by model "
+"(contribution per unit of `upper_spend`, all-time). Black dashed: true "
+"total ROAS; gray dotted: true direct ROAS only."
+msgstr ""
+"**Pie de figura:** Distribuciones posteriores del ROAS de la parte superior "
+"del embudo por modelo (contribución por unidad de `upper_spend`, todo el "
+"período). Negro discontinuo: ROAS total verdadero; gris punteado: solo el "
+"ROAS directo verdadero."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:670002
+#: cafa20ab4e0d4adb96547023e484841c
+msgid "Predictive fit vs. causal bias"
+msgstr "Ajuste predictivo frente a sesgo causal"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:670004
+#: df5a185d636744c19b6a0c94f0585a38
+msgid ""
+"In-sample $R^2$ tells a **split story**. **Naive A** (mediator as "
+"channel) can match the funnel model's $R^2$ while carrying the largest "
+"causal bias; fit alone does not flag that misspecification. **Naive B** "
+"(mediator omitted) is also biased but shows materially worse in-sample "
+"fit (~80% more residual variance in the issue review), so fit partially "
+"signals that error. We therefore do **not** claim that \"held-out error "
+"alone cannot catch funnel misspecification\" without distinguishing the "
+"two naive models."
+msgstr ""
+"El $R^2$ dentro de muestra cuenta una **historia dividida**. El **Naive A** "
+"(mediador como canal) puede igualar el $R^2$ del modelo de embudo y aun así "
+"presentar el mayor sesgo causal; el ajuste por sí solo no señala esa mala "
+"especificación. El **Naive B** (mediador omitido) también está sesgado pero "
+"muestra un ajuste dentro de muestra materialmente peor (~80% más de varianza"
+" residual en la revisión del issue), de modo que el ajuste señala "
+"parcialmente ese error. Por lo tanto, **no** afirmamos que \"el error en el "
+"conjunto de reserva por sí solo no puede detectar la mala especificación del"
+" embudo\" sin distinguir entre los dos modelos ingenuos."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:670006
+#: 6cc968add4474e7abe5dd1b29d857d61
+#, python-format
+msgid ""
+"Below we report in-sample metrics on the full series, then refit each "
+"model on the first 80% of weeks and score the held-out last 20% (simple "
+"time split; assuming no structural break)."
+msgstr ""
+"A continuación informamos las métricas dentro de muestra sobre la serie "
+"completa, y luego volvemos a ajustar cada modelo con el primer 80% de las "
+"semanas y evaluamos el último 20% reservado (división temporal simple; "
+"suponiendo que no hay ruptura estructural)."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:680002
+#: 168a77cec2f041b3a277f246d8c83ba8
+msgid ""
+"**Caption:** In-sample RMSE, $R^2$, and CRPS on the full weekly series "
+"(original target scale; CRPS scores the full posterior predictive, lower "
+"is better)."
+msgstr ""
+"**Pie de figura:** RMSE, $R^2$ y CRPS dentro de muestra sobre la serie "
+"semanal completa (escala original de la variable objetivo; el CRPS evalúa la"
+" predictiva posterior completa, menor es mejor)."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:700002
+#: 8a0affac41e0477c91f816b843e2bcaf
+msgid "Holdout evaluation"
+msgstr "Evaluación en el conjunto de reserva"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:700004
+#: bb863427ba5b44f38611f5d8e06430c3
+#, python-format
+msgid ""
+"We hold out the last 20% of weeks, refit each model on the training "
+"window, and score posterior-predictive $Y$ on the test dates. This "
+"assumes no structural break between train and test."
+msgstr ""
+"Reservamos el último 20% de las semanas, volvemos a ajustar cada modelo "
+"sobre la ventana de entrenamiento y evaluamos la $Y$ predictiva posterior en"
+" las fechas de prueba. Esto supone que no hay ruptura estructural entre el "
+"entrenamiento y la prueba."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:720002
+#: 4839e22a52d64a2990485eeff10aba1f
+#, python-format
+msgid ""
+"**Caption:** Holdout RMSE, $R^2$, and CRPS on the last 20% of weeks after"
+" refitting on the training window (original target scale)."
+msgstr ""
+"**Pie de figura:** RMSE, $R^2$ y CRPS en el conjunto de reserva (último 20% "
+"de las semanas) tras volver a ajustar sobre la ventana de entrenamiento "
+"(escala original de la variable objetivo)."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:740002
+#: 0b1390b8f12946d6a109b644903fdcc3
+msgid ""
+"**Naive A** remains close to the funnel model on holdout $R^2$ while its "
+"causal estimates are badly biased. The dangerous misspecification "
+"survives out of sample. **Naive B** is worse on both causal recovery and "
+"predictive fit. Neither pattern replaces asking the causal question "
+"directly; they show that fit is an incomplete diagnostic for funnel "
+"structure."
+msgstr ""
+"El **Naive A** se mantiene cerca del modelo de embudo en el $R^2$ del "
+"conjunto de reserva mientras que sus estimaciones causales están muy "
+"sesgadas. La mala especificación peligrosa sobrevive fuera de muestra. El "
+"**Naive B** es peor tanto en la recuperación causal como en el ajuste "
+"predictivo. Ninguno de los dos patrones reemplaza el hacer la pregunta "
+"causal directamente; muestran que el ajuste es un diagnóstico incompleto de "
+"la estructura del embudo."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:750002
+#: 3b24051ef94243fd9bede6f94aa38804
+msgid "Library decomposition check"
+msgstr "Comprobación de la descomposición de la biblioteca"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:750004
+#: d3b98c3ee39342d2b31451a4ea317816
+msgid ""
+"Quick sanity check: the counterfactual decomposition API sees the funnel "
+"effect; the conserving `get_contributions()` path used by waterfall plots"
+" does not."
+msgstr ""
+"Comprobación rápida de coherencia: la API de descomposición contrafactual ve"
+" el efecto del embudo; la ruta `get_contributions()` que conserva el total, "
+"usada por los gráficos de cascada, no lo ve."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:770002
+#: 399369728d5a41f3a1c5bedcaecf796a
+msgid "Caveats and extensions"
+msgstr "Salvedades y extensiones"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:770004
+#: 0c1a2b8bed024c1a9683d4ec519bb5d3
+msgid ""
+"This example keeps the funnel deliberately small. A few things to keep in"
+" mind before taking the pattern further:"
+msgstr ""
+"Este ejemplo mantiene el embudo deliberadamente pequeño. Hay algunas cosas "
+"que conviene tener en cuenta antes de llevar el patrón más lejos:"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:770006
+#: ad28920b7b0d45aab8e1a140388fe3fb
+msgid "**Causal structure and estimands**"
+msgstr "**Estructura causal y estimandos**"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:770008
+#: 1613544ce6cb4ed095c5a09a249bd4f2
+msgid ""
+"**The framework does not \"see\" the DAG.** The funnel structure lives "
+"entirely in the `MeasuredMediatorEffect` code. To the `MMM` object, "
+"`mediator_effect_contribution` is just one more additive term. "
+"Incrementality is the exception: opting in through `incrementality_spec` "
+"is enough for a spend counterfactual to be propagated through the "
+"mediator. Splitting the result back into a *direct* and an *indirect* "
+"share is still yours to do, as we did above."
+msgstr ""
+"**El marco de trabajo no \"ve\" el DAG.** La estructura del embudo vive por "
+"completo en el código de `MeasuredMediatorEffect`. Para el objeto `MMM`, "
+"`mediator_effect_contribution` es simplemente un término aditivo más. La "
+"incrementalidad es la excepción: optar por participar mediante "
+"`incrementality_spec` basta para que un contrafactual de gasto se propague a"
+" través del mediador. Dividir el resultado de nuevo en una parte *directa* y"
+" otra *indirecta* sigue siendo tarea suya, como hicimos arriba."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:770009
+#: d5ac78ea446543a0ab0a1e4e934e5533
+msgid ""
+"**No lower-funnel budget lever in this DAG.** As noted above, "
+"`lower_spend` is a measurement of latent demand, not a cause of the "
+"target. Even a perfect optimizer would find nothing to allocate to lower "
+"funnel here; the limitation is the estimand, not only tooling."
+msgstr ""
+"**No hay una palanca de presupuesto de la parte inferior del embudo en este "
+"DAG.** Como se señaló arriba, `lower_spend` es una medición de la demanda "
+"latente, no una causa de la variable objetivo. Incluso un optimizador "
+"perfecto no encontraría nada que asignar a la parte inferior del embudo "
+"aquí; la limitación es el estimando, no solo las herramientas."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:770010
+#: fbf767ead8e44261bd57f4acdc6e1cc6
+msgid ""
+"**Self-consistency, not robustness.** Recovery here holds because the "
+"fitted model matches the generative model. If observed lower spend "
+"genuinely drives the target, or if $U$ and $C$ are correlated, this "
+"specification can be wrong while still fitting well."
+msgstr ""
+"**Autoconsistencia, no robustez.** La recuperación aquí se sostiene porque "
+"el modelo ajustado coincide con el modelo generativo. Si el gasto inferior "
+"observado realmente impulsa la variable objetivo, o si $U$ y $C$ están "
+"correlacionados, esta especificación puede ser incorrecta aun ajustando "
+"bien."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:770012
+#: 0e7f85e46e1649aa87ca92b443cd8f4d
+msgid "**Implementation notes**"
+msgstr "**Notas de implementación**"
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:770014
+#: 285e6f9050d34e34b6d6a1c35453b549
+#, python-brace-format
+msgid ""
+"**Budget optimization.** `BudgetOptimizer` does move an effect that reads"
+" `mmm.channel_data_scaled`, as `MeasuredMediatorEffect` does, and the "
+"objective that counts the mediated response is "
+"`total_response_original_scale` (the default `response_variable` scores "
+"the direct path only). With a single upper-funnel channel there is "
+"nothing to reallocate here anyway; the geo version with two upper "
+"channels does it end to end, in-sample: see "
+"{ref}`mmm_funnel_mueffect_advanced_budget_optimization`."
+msgstr ""
+"**Optimización del presupuesto.** `BudgetOptimizer` sí mueve un efecto que "
+"lee `mmm.channel_data_scaled`, como hace `MeasuredMediatorEffect`, y el "
+"objetivo que cuenta la respuesta mediada es `total_response_original_scale` "
+"(el `response_variable` predeterminado evalúa solo el camino directo). Con "
+"un único canal de la parte superior del embudo no hay nada que reasignar de "
+"todos modos; la versión geo con dos canales superiores lo hace de principio "
+"a fin, dentro de muestra: consulte "
+"{ref}`mmm_funnel_mueffect_advanced_budget_optimization`."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:770015
+#: 84f59ba9d15e4b1eb7ba3f2dc37cde4e
+msgid ""
+"**Out-of-sample prediction.** Future `lower_control` values must be "
+"supplied (exogenous); future `lower_spend` values are placeholders; the "
+"second likelihood is resampled, so the model *forecasts* lower-funnel "
+"spend from the upper-funnel plan."
+msgstr ""
+"**Predicción fuera de muestra.** Deben suministrarse los valores futuros de "
+"`lower_control` (exógeno); los valores futuros de `lower_spend` son "
+"marcadores de posición; la segunda verosimilitud se vuelve a muestrear, de "
+"modo que el modelo *pronostica* el gasto de la parte inferior del embudo a "
+"partir del plan de la parte superior del embudo."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:770016
+#: 4a9e821d979f42ed903cfdc4dcd45b79
+msgid ""
+"**Ordering matters.** An effect that reads another effect's output must "
+"be appended after it, since `create_effect` runs in list order."
+msgstr ""
+"**El orden importa.** Un efecto que lee la salida de otro efecto debe "
+"añadirse después de este, ya que `create_effect` se ejecuta en el orden de "
+"la lista."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:770018
+#: 4d19dc8793cc44668c977b9d95e1c4e1
+msgid ""
+"Natural extensions include **censored** lower-funnel spend, **multiple "
+"mediators**, and **time-varying** mediator baselines."
+msgstr ""
+"Las extensiones naturales incluyen el gasto de la parte inferior del embudo "
+"**censurado**, **múltiples mediadores** y líneas base del mediador "
+"**variables en el tiempo**."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:770020
+#: 15cea4a5c3f5489dbf6852bbafc08e8a
+#, python-brace-format
+msgid ""
+"For a substantially more advanced treatment (several upper-funnel "
+"channels, a geo panel, a mediator that is itself media plus a demand "
+"*indicator*, and formal d-separation of every naive alternative), "
+"continue with {ref}`mmm_funnel_mueffect_advanced`."
+msgstr ""
+"Para un tratamiento sustancialmente más avanzado (varios canales de la parte"
+" superior del embudo, un panel geo, un mediador que es en sí mismo medios "
+"más un *indicador* de demanda, y la d-separación formal de cada alternativa "
+"ingenua), continúe con {ref}`mmm_funnel_mueffect_advanced`."
+
+#: ../source/notebooks/mmm/mmm_funnel_mueffect.ipynb:770022
+#: ac22d53bb8604229b77804c68a4425d2
+msgid ""
+"**Reflection.** In your own domain, which variables are treatments, "
+"mediators, measurements, and excluded controls? Would conditioning on a "
+"lower-funnel channel block the very path you are trying to measure?"
+msgstr ""
+"**Reflexión.** En su propio dominio, ¿qué variables son tratamientos, "
+"mediadores, mediciones y controles excluidos? ¿Condicionar sobre un canal de"
+" la parte inferior del embudo bloquearía precisamente el camino que intenta "
+"medir?"

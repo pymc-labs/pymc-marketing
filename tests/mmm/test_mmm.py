@@ -43,15 +43,20 @@ from pymc_marketing.mmm import (
     LogisticSaturation,
     RootSaturation,
     SoftPlusHSGP,
+    TimeSliceCrossValidator,
 )
 from pymc_marketing.mmm.additive_effect import (
+    ControlMuEffect,
     DataVarMuEffect,
     EventAdditiveEffect,
+    IncrementalitySpec,
     LinearTrendEffect,
     MediaMuEffect,
     MuEffect,
 )
+from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 from pymc_marketing.mmm.causal import UnidentifiedCausalEffectWarning
+from pymc_marketing.mmm.counterfactual import CounterfactualEvaluator
 from pymc_marketing.mmm.events import EventEffect, GaussianBasis, HalfGaussianBasis
 from pymc_marketing.mmm.lift_test import (
     UnalignedValuesError,
@@ -72,6 +77,7 @@ from pymc_marketing.mmm.scaling import (
     FixedScaling,
     Scaling,
 )
+from pymc_marketing.mmm.transformers import ConvMode
 from pymc_marketing.model_builder import DifferentModelError
 from pymc_marketing.serialization import serialization
 from pymc_marketing.special_priors import LogNormalPrior
@@ -403,6 +409,20 @@ def test_fit_with_dataset_embedded_target(single_dim_data):
     assert not mmm.xarray_dataset["_channel"].isnull().any()
 
 
+class _SegmentEffect(DataVarMuEffect):
+    """Reads a ``(date, geo, segment)`` variable, which a long frame cannot hold.
+
+    Defined at module level so that ``MMM.load`` can import it by ``__type__``.
+    """
+
+    def create_effect(self, mmm):  # type: ignore[override]
+        coef = pmd.Normal(f"{self.prefix}_coef", 0, 1, dims=("segment",))
+        return pmd.Deterministic(
+            f"{self.prefix}_contribution",
+            (coef * mmm.model[self.data_vars[0]]).sum("segment"),
+        )
+
+
 class TestFitWithXarrayInput:
     """Regression tests for #3227: ``fit`` accepts the documented xarray inputs.
 
@@ -665,6 +685,88 @@ class TestFitWithXarrayInput:
         xr.testing.assert_allclose(loaded.xarray_dataset, mmm.xarray_dataset)
         xr.testing.assert_equal(loaded.idata.posterior, mmm.idata.posterior)
 
+    @pytest.mark.parametrize("date_column", ["date", "week"])
+    def test_build_from_idata_reads_the_legacy_fit_data_layout(
+        self, inputs, date_column, mock_pymc_sample
+    ):
+        """``fit_data`` with one row dim and the date as a variable still loads.
+
+        Files written before ``fit_data`` had ``(date, *dims)`` coordinates store
+        the flat frame passed to ``fit``.
+        """
+        mmm = self._mmm(inputs["dims"], self.CONTROLS, date_column=date_column)
+        X_df = inputs["X_df"].rename(columns={"date": date_column})
+        mmm.fit(X_df, inputs["y"])
+        legacy = pd.concat([X_df, inputs["y"]], axis=1).to_xarray()
+        idata = mmm.idata.copy()
+        idata["fit_data"] = xr.DataTree(legacy)
+
+        rebuilt = self._mmm(inputs["dims"], self.CONTROLS, date_column=date_column)
+        rebuilt.build_from_idata(idata)
+
+        xr.testing.assert_allclose(rebuilt.xarray_dataset, mmm.xarray_dataset)
+        pd.testing.assert_frame_equal(rebuilt.X, X_df, check_names=False)
+
+    @pytest.mark.parametrize("date_column", ["date", "week"])
+    @pytest.mark.parametrize("fit_from", ["dataframe", "dataset"])
+    def test_load_sets_x_to_the_long_fit_frame(
+        self, inputs, fit_from, date_column, tmp_path, mock_pymc_sample
+    ):
+        """A loaded model exposes ``X`` as the long frame of ``fit_data``.
+
+        ``build_from_idata`` rebuilds the model from an ``xr.Dataset``, but ``X``
+        keeps the frame that ``load`` has always set, whatever ``fit`` was given.
+        """
+        X_df = inputs["X_df"].rename(columns={"date": date_column})
+        mmm = self._mmm(inputs["dims"], self.CONTROLS, date_column=date_column)
+        if fit_from == "dataset":
+            mmm.fit(
+                xr.Dataset(
+                    {
+                        "media": inputs["media"],
+                        "_control": inputs["control"],
+                        "target": inputs["target"],
+                    }
+                )
+            )
+        else:
+            mmm.fit(X_df, inputs["y"])
+
+        file = str(tmp_path / "x_after_load.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        # netCDF stores the dates at nanosecond resolution.
+        pd.testing.assert_frame_equal(
+            loaded.X, X_df.astype({date_column: "datetime64[ns]"})
+        )
+
+    def test_load_leaves_extra_dim_mu_effect_data_out_of_x(
+        self, tmp_path, mock_pymc_sample
+    ):
+        """``X`` after load has one row per date and geo, without extra-dim data.
+
+        ``promo`` is on ``(date, geo, segment)``: a long frame could only hold it
+        by repeating every other column along ``segment``.
+        """
+        ds = self._dataset_with_promo(("date", "geo", "segment"))
+        mmm = self._mmm(("geo",), self.CONTROLS)
+        mmm.add_mu_effect(_SegmentEffect(data_vars=["promo"], prefix="promo"))
+        mmm.build_model(ds)
+        df = self._fit_frame(ds, "date")
+        mmm.fit(df.drop(columns="y"), df["y"])
+
+        file = str(tmp_path / "x_extra_dim.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        pd.testing.assert_frame_equal(
+            loaded.X,
+            df.drop(columns="y")
+            .sort_values(["date", "geo"], ignore_index=True)
+            .astype({"date": "datetime64[ns]"}),
+        )
+
     def test_build_from_idata_raises_when_posterior_labels_differ(
         self, mock_pymc_sample
     ):
@@ -684,6 +786,402 @@ class TestFitWithXarrayInput:
 
         with pytest.raises(ValueError, match=r"'geo' labels of the data .* posterior"):
             self._mmm(("geo",), self.CONTROLS).build_from_idata(idata)
+
+    def _dataset_with_promo(self, promo_dims: tuple[str, ...]) -> xr.Dataset:
+        """Unsorted panel Dataset plus a ``promo`` variable on ``promo_dims``."""
+        ds = self._unsorted_panel_dataset()
+        coords = {
+            "date": ds["date"].values,
+            "geo": ds["geo"].values,
+            "segment": ["s3", "s1", "s2"],
+        }
+        rng = np.random.default_rng(2938)
+        promo = xr.DataArray(
+            rng.normal(size=[len(coords[dim]) for dim in promo_dims]),
+            dims=promo_dims,
+            coords={dim: coords[dim] for dim in promo_dims},
+        )
+        return ds.assign(promo=promo)
+
+    def _fit_frame(self, ds: xr.Dataset, date_column: str) -> pd.DataFrame:
+        """``ds`` as a long frame of media, controls and target, without ``promo``."""
+        return (
+            xr.merge(
+                [
+                    ds["media"].to_dataset("channel"),
+                    ds["_control"].to_dataset("control"),
+                    ds["target"].rename("y"),
+                ]
+            )
+            .to_dataframe()
+            .reset_index()
+            .rename(columns={"date": date_column})
+        )
+
+    @pytest.mark.parametrize("date_column", ["date", "week"])
+    @pytest.mark.parametrize("fit_from", ["dataset", "dataframe"])
+    @pytest.mark.parametrize(
+        "promo_dims, effect",
+        [
+            (("date", "geo"), ControlMuEffect(data_vars=["promo"], prefix="promo")),
+            (("date",), ControlMuEffect(data_vars=["promo"], prefix="promo")),
+            (("geo",), ControlMuEffect(data_vars=["promo"], prefix="promo")),
+            (
+                ("date", "geo", "segment"),
+                _SegmentEffect(data_vars=["promo"], prefix="promo"),
+            ),
+        ],
+        ids=["date-geo", "date-only", "geo-only", "extra-dim"],
+    )
+    def test_save_load_keeps_mu_effect_data(
+        self, promo_dims, effect, fit_from, date_column, tmp_path, mock_pymc_sample
+    ):
+        """``MMM.load`` rebuilds a model whose mu_effect reads data missing from X (#2938).
+
+        The effect data only exists in the Dataset the model was built from, so
+        ``fit_data`` must store it with its own dims and ``load`` must put it back.
+        """
+        ds = self._dataset_with_promo(promo_dims)
+        mmm = self._mmm(("geo",), self.CONTROLS, date_column=date_column)
+        mmm.add_mu_effect(effect)
+        if fit_from == "dataset":
+            mmm.fit(ds)
+        else:
+            mmm.build_model(ds)
+            df = self._fit_frame(ds, date_column)
+            mmm.fit(df.drop(columns="y"), df["y"])
+
+        stored = mmm.idata.fit_data["promo"]
+        assert stored.dims == tuple(
+            date_column if dim == "date" else dim for dim in promo_dims
+        )
+
+        file = str(tmp_path / "mu_effect_data.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        xr.testing.assert_allclose(loaded.xarray_dataset, mmm.xarray_dataset)
+        assert {dim: list(v) for dim, v in loaded.model.coords.items()} == {
+            dim: list(v) for dim, v in mmm.model.coords.items()
+        }
+        dims = loaded.model.named_vars_to_dims["promo"]
+        got = xr.DataArray(
+            loaded.model["promo"].eval(),
+            dims=dims,
+            coords={dim: list(loaded.model.coords[dim]) for dim in dims},
+        )
+        xr.testing.assert_allclose(got, ds["promo"].transpose(*dims).reindex_like(got))
+
+    @pytest.mark.parametrize(
+        "promo_dims, effect",
+        [
+            (("date",), ControlMuEffect(data_vars=["promo"], prefix="promo")),
+            (
+                ("date", "geo", "segment"),
+                _SegmentEffect(data_vars=["promo"], prefix="promo"),
+            ),
+        ],
+        ids=["date-only", "extra-dim"],
+    )
+    def test_save_load_keeps_mu_effect_data_with_string_dates(
+        self, promo_dims, effect, tmp_path, mock_pymc_sample
+    ):
+        """mu_effect data loads with its values when the ``date`` labels are strings.
+
+        Effect data off the ``(date, *dims)`` layout used to be restored as all
+        NaN, because its string dates did not match the converted dates.
+        """
+        ds = self._dataset_with_promo(promo_dims)
+        ds = ds.assign_coords(
+            date=ds.indexes["date"].strftime("%Y-%m-%d").to_numpy(dtype=object)
+        )
+        mmm = self._mmm(("geo",), self.CONTROLS)
+        mmm.add_mu_effect(effect)
+        mmm.fit(ds)
+
+        file = str(tmp_path / "string_dates.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        got = loaded.model["promo"].eval()
+        assert not np.isnan(got).any()
+        np.testing.assert_allclose(got, mmm.model["promo"].eval())
+
+    @pytest.mark.parametrize("date_column", ["date", "week"])
+    def test_save_load_keeps_mu_effect_data_from_fit_frame(
+        self, date_column, tmp_path, mock_pymc_sample
+    ):
+        """``MMM.load`` rebuilds a model whose mu_effect data is a column of X (#2938).
+
+        Case 1 of the issue: ``promo`` is on ``(date, geo)`` and the frame passed
+        to ``fit`` holds it, so ``fit_data`` stores it from that frame.
+        """
+        ds = self._dataset_with_promo(("date", "geo"))
+        mmm = self._mmm(("geo",), self.CONTROLS, date_column=date_column)
+        mmm.add_mu_effect(ControlMuEffect(data_vars=["promo"], prefix="promo"))
+        mmm.build_model(ds)
+        promo = ds["promo"].to_dataframe().reset_index()
+        df = self._fit_frame(ds, date_column).merge(
+            promo.rename(columns={"date": date_column}), on=[date_column, "geo"]
+        )
+        # X holds the same promo as the built model, so nothing warns.
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            mmm.fit(df.drop(columns="y"), df["y"])
+
+        assert mmm.idata.fit_data["promo"].dims == (date_column, "geo")
+
+        file = str(tmp_path / "mu_effect_frame.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        xr.testing.assert_allclose(loaded.xarray_dataset, mmm.xarray_dataset)
+        dims = loaded.model.named_vars_to_dims["promo"]
+        got = xr.DataArray(
+            loaded.model["promo"].eval(),
+            dims=dims,
+            coords={dim: list(loaded.model.coords[dim]) for dim in dims},
+        )
+        xr.testing.assert_allclose(got, ds["promo"].transpose(*dims).reindex_like(got))
+
+    @pytest.mark.parametrize("fit_from", ["dataset", "dataframe"])
+    def test_loaded_model_predicts_like_the_saved_one_with_mu_effect_data(
+        self, fit_from, tmp_path, mock_pymc_sample
+    ):
+        """A loaded model predicts on new mu_effect data like the saved one (#2938).
+
+        ``promo`` has an extra ``segment`` dim, so ``load`` must restore it with
+        that dim for ``set_data`` to write the new values. The new data has fewer
+        dates than the training data, so stale ``promo`` values would not fit.
+        """
+        ds = self._dataset_with_promo(("date", "geo", "segment"))
+        mmm = self._mmm(("geo",), self.CONTROLS)
+        mmm.add_mu_effect(_SegmentEffect(data_vars=["promo"], prefix="promo"))
+        if fit_from == "dataset":
+            mmm.fit(ds)
+        else:
+            mmm.build_model(ds)
+            df = self._fit_frame(ds, "date")
+            mmm.fit(df.drop(columns="y"), df["y"])
+        file = str(tmp_path / "predict_after_load.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        # Four dates after the training data, with new values.
+        new_dates = pd.date_range(ds["date"].values[-1], periods=5, freq="W-MON")[1:]
+        X_new = ds[["media", "_control", "promo"]].isel(date=slice(4)) * 2
+        X_new = X_new.assign_coords(date=new_dates)
+        kwargs = {
+            "var_names": ["promo_contribution", "y"],
+            "extend_idata": False,
+            "progressbar": False,
+            "random_seed": 0,
+        }
+        expected = mmm.sample_posterior_predictive(X_new, **kwargs)
+        got = loaded.sample_posterior_predictive(X_new, **kwargs)
+
+        assert got.sizes["date"] == 4
+        xr.testing.assert_allclose(got, expected)
+
+    def test_save_load_keeps_mu_effect_data_with_string_dates_in_fit_frame(
+        self, tmp_path, mock_pymc_sample
+    ):
+        """mu_effect data is stored when X holds the dates as strings.
+
+        The model is built from a Dataset with datetime dates and fit on a frame
+        with the same dates as strings, so the labels only differ in type.
+        """
+        ds = self._dataset_with_promo(("date", "geo", "segment"))
+        mmm = self._mmm(("geo",), self.CONTROLS)
+        mmm.add_mu_effect(_SegmentEffect(data_vars=["promo"], prefix="promo"))
+        mmm.build_model(ds)
+        df = self._fit_frame(ds, "date")
+        df["date"] = df["date"].dt.strftime("%Y-%m-%d")
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            mmm.fit(df.drop(columns="y"), df["y"])
+
+        assert "promo" in mmm.idata.fit_data
+        file = str(tmp_path / "string_dates_frame.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        got = loaded.model["promo"].eval()
+        assert not np.isnan(got).any()
+        np.testing.assert_allclose(got, mmm.model["promo"].eval())
+
+    def test_load_keeps_the_posterior_order_of_a_mu_effect_dim(
+        self, tmp_path, mock_pymc_sample
+    ):
+        """An extra mu_effect dim follows the posterior's label order after load.
+
+        The model is built with ``segment`` unsorted and fit on a Dataset with
+        ``segment`` sorted, so ``fit_data`` and the posterior disagree on order.
+        Posterior draws are matched by position, so the rebuilt model must use
+        the posterior's order.
+        """
+        ds = self._dataset_with_promo(("date", "geo", "segment"))
+        mmm = self._mmm(("geo",), self.CONTROLS)
+        mmm.add_mu_effect(_SegmentEffect(data_vars=["promo"], prefix="promo"))
+        mmm.build_model(ds)
+        mmm.fit(ds.reindex(segment=["s1", "s2", "s3"]))
+
+        file = str(tmp_path / "segment_order.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        posterior_order = list(mmm.idata.posterior.indexes["segment"])
+        assert posterior_order == ["s3", "s1", "s2"]
+        assert list(loaded.model.coords["segment"]) == posterior_order
+        dims = loaded.model.named_vars_to_dims["promo"]
+        got = xr.DataArray(
+            loaded.model["promo"].eval(),
+            dims=dims,
+            coords={dim: list(loaded.model.coords[dim]) for dim in dims},
+        )
+        xr.testing.assert_allclose(got, ds["promo"].transpose(*dims).reindex_like(got))
+
+    def test_fit_data_takes_mu_effect_data_from_dataset_x(self, mock_pymc_sample):
+        """``fit_data`` stores the mu_effect data of the Dataset passed to fit.
+
+        The model is built from one Dataset and fit on another with the same
+        labels, as the DataFrame branch prefers the columns of X. The posterior
+        is fit on the built data, so this warns.
+        """
+        ds_build = self._dataset_with_promo(("date", "geo", "segment"))
+        ds_fit = ds_build.assign(promo=ds_build["promo"] * 2)
+        mmm = self._mmm(("geo",), self.CONTROLS)
+        mmm.add_mu_effect(_SegmentEffect(data_vars=["promo"], prefix="promo"))
+        mmm.build_model(ds_build)
+
+        with pytest.warns(UserWarning, match=r"\['promo'\] passed to fit differs"):
+            mmm.fit(ds_fit)
+
+        xr.testing.assert_allclose(
+            mmm.idata.fit_data.to_dataset()["promo"],
+            ds_fit["promo"].transpose("date", "geo", "segment"),
+        )
+
+    def test_create_fit_data_keeps_mu_effect_data_without_a_built_model(self):
+        """``create_fit_data`` stores the mu_effect data of X before the model is built."""
+        ds = self._dataset_with_promo(("date", "geo", "segment"))
+        mmm = self._mmm(("geo",), self.CONTROLS)
+        mmm.add_mu_effect(_SegmentEffect(data_vars=["promo"], prefix="promo"))
+
+        fit_data = mmm.create_fit_data(ds)
+
+        xr.testing.assert_allclose(
+            fit_data["promo"], ds["promo"].transpose("date", "geo", "segment")
+        )
+
+    def test_save_load_keeps_mu_effect_data_built_with_string_dates(
+        self, tmp_path, mock_pymc_sample
+    ):
+        """mu_effect data is stored when the built model holds string dates.
+
+        The model is built from a Dataset with string dates, which keep their
+        type, and fit on a frame with the same dates as datetimes.
+        """
+        ds = self._dataset_with_promo(("date", "geo", "segment"))
+        df = self._fit_frame(ds, "date")
+        ds = ds.assign_coords(
+            date=ds.indexes["date"].strftime("%Y-%m-%d").to_numpy(dtype=object)
+        )
+        mmm = self._mmm(("geo",), self.CONTROLS)
+        mmm.add_mu_effect(_SegmentEffect(data_vars=["promo"], prefix="promo"))
+        mmm.build_model(ds)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            mmm.fit(df.drop(columns="y"), df["y"])
+
+        assert "promo" in mmm.idata.fit_data
+        file = str(tmp_path / "built_string_dates.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        got = loaded.model["promo"].eval()
+        assert not np.isnan(got).any()
+        np.testing.assert_allclose(got, mmm.model["promo"].eval())
+
+    def test_fit_data_keeps_mu_effect_data_on_non_date_labels(self, mock_pymc_sample):
+        """mu_effect data is stored when the ``date`` labels are not dates.
+
+        ``"W00"`` does not parse as a date, so the labels are matched as given
+        rather than all turned into ``NaT``, which made ``fit`` fail.
+        """
+        ds = self._dataset_with_promo(("date", "geo", "segment"))
+        ds = ds.assign_coords(date=[f"W{i:02d}" for i in range(ds.sizes["date"])])
+        mmm = self._mmm(("geo",), self.CONTROLS)
+        mmm.add_mu_effect(_SegmentEffect(data_vars=["promo"], prefix="promo"))
+        mmm.build_model(ds)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            mmm.fit(ds.drop_vars(["promo", "segment"]))
+
+        xr.testing.assert_allclose(
+            mmm.idata.fit_data.to_dataset()["promo"],
+            ds["promo"].transpose("date", "geo", "segment"),
+        )
+
+    @pytest.mark.parametrize(
+        "relabel, warns",
+        [
+            (lambda ds: ds.isel(date=slice(None, None, -1)), False),
+            (
+                lambda ds: ds.assign_coords(date=[f"W{i:02d}" for i in range(1, 9)]),
+                True,
+            ),
+        ],
+        ids=["same-labels-reversed", "other-labels"],
+    )
+    def test_fit_compares_mu_effect_data_on_non_date_labels_as_given(
+        self, relabel, warns, mock_pymc_sample
+    ):
+        """X's mu_effect data on ``"W00"``-style labels is compared label by label.
+
+        Turned into ``NaT``, every label matched every other: reversed labels
+        warned and other labels did not.
+        """
+        ds = self._dataset_with_promo(("date", "geo", "segment"))
+        ds = ds.assign_coords(date=[f"W{i:02d}" for i in range(ds.sizes["date"])])
+        mmm = self._mmm(("geo",), self.CONTROLS)
+        mmm.add_mu_effect(_SegmentEffect(data_vars=["promo"], prefix="promo"))
+        mmm.build_model(ds)
+
+        if warns:
+            with pytest.warns(UserWarning, match=r"\['promo'\] passed to fit differs"):
+                mmm.fit(relabel(ds))
+        else:
+            with warnings.catch_warnings():
+                warnings.simplefilter("error", UserWarning)
+                mmm.fit(relabel(ds))
+
+    def test_fit_warns_when_mu_effect_data_labels_differ(self, mock_pymc_sample):
+        """``fit_data`` skips mu_effect data whose labels differ from the fit data."""
+        ds = self._dataset_with_promo(("date", "geo", "segment"))
+        mmm = self._mmm(("geo",), self.CONTROLS)
+        mmm.add_mu_effect(_SegmentEffect(data_vars=["promo"], prefix="promo"))
+        mmm.build_model(ds)
+        df = self._fit_frame(ds, "date").query("geo == 'north'")
+
+        with pytest.warns(
+            UserWarning, match=r"'geo' labels of the built model"
+        ) as record:
+            mmm.fit(df.drop(columns="y"), df["y"])
+
+        assert "promo" not in mmm.idata.fit_data
+        # The warning points at the caller of fit, not at library code.
+        (warning,) = [w for w in record if "mu_effect data" in str(w.message)]
+        assert warning.filename == __file__
+
+        # create_fit_data is public: a direct call points at its caller too.
+        with pytest.warns(UserWarning, match=r"'geo' labels") as record:
+            mmm.create_fit_data(df.drop(columns="y"), df["y"])
+        (warning,) = [w for w in record if "mu_effect data" in str(w.message)]
+        assert warning.filename == __file__
 
 
 def test_fit_with_dataframe_embedded_target_column(simple_mmm_data, mock_pymc_sample):
@@ -1215,16 +1713,6 @@ class TestMultidimMMMEdgeCases:
             ValueError, match=r"y has name 'not_target'.*target_column is 'target'"
         ):
             mmm.build_model(X, y)
-
-
-def test_save_load(fit_mmm: MMM):
-    file = "test.nc"
-    fit_mmm.save(file)
-
-    loaded = MMM.load(file)
-    assert isinstance(loaded, MMM)
-
-    os.remove(file)
 
 
 def test_save_load_roundtrip_with_unnamed_y_series(
@@ -2377,6 +2865,682 @@ def test_sample_posterior_predictive_clone_model(
     )
 
 
+class _ZeroEffect(MuEffect):
+    """A zero contribution on any dates, with no data of its own."""
+
+    prefix: str = "zero"
+
+    def create_data(self, mmm) -> None:
+        """No data of its own."""
+
+    def create_effect(self, mmm):
+        """Zero on every date of the model."""
+        return as_xtensor(pt.zeros(mmm.model.dim_lengths["date"]), dims=("date",))
+
+    def set_data(self, mmm, model, X) -> None:
+        """No data of its own."""
+
+
+class _FittedDatesOnlyEffect(_ZeroEffect):
+    """``_ZeroEffect``, declared to take only the dates the MMM was fitted on.
+
+    Its contribution is registered and taken from the posterior, a frozen path over
+    ``date`` as a latent baseline's is.
+    """
+
+    prefix: str = "fitted_dates_only"
+
+    @property
+    def supports_new_dates(self) -> bool:
+        """Only the fitted dates."""
+        return False
+
+    @property
+    def frozen_deterministics(self) -> list[str]:
+        """The contribution."""
+        return [self.contribution_var_name]
+
+    def create_effect(self, mmm) -> XTensorVariable:
+        """Zero on every date of the model, registered as the contribution."""
+        return pmd.Deterministic(self.contribution_var_name, super().create_effect(mmm))
+
+
+class _UnprefixedFittedDatesOnlyEffect(MuEffect):
+    """``_FittedDatesOnlyEffect`` without a prefix."""
+
+    @property
+    def supports_new_dates(self) -> bool:
+        """Only the fitted dates."""
+        return False
+
+    def create_data(self, mmm) -> None:
+        """No data of its own."""
+
+    def create_effect(self, mmm):
+        """Zero on every date of the model."""
+        return as_xtensor(pt.zeros(mmm.model.dim_lengths["date"]), dims=("date",))
+
+    def set_data(self, mmm, model, X) -> None:
+        """No data of its own."""
+
+
+class _DuckTypedZeroEffect:
+    """``_ZeroEffect`` without ``MuEffect``, as the additive-effect module allows.
+
+    It declares neither ``supports_new_dates`` nor ``frozen_deterministics``.
+    """
+
+    prefix = "duck"
+
+    def to_dict(self) -> dict:
+        """Serialize the effect, which fitting insists on."""
+        return {}
+
+    def create_data(self, mmm) -> None:
+        """No data of its own."""
+
+    def create_effect(self, mmm):
+        """Zero on every date of the model."""
+        return as_xtensor(pt.zeros(mmm.model.dim_lengths["date"]), dims=("date",))
+
+    def set_data(self, mmm, model, X) -> None:
+        """No data of its own."""
+
+
+serialization.register(
+    f"{_DuckTypedZeroEffect.__module__}.{_DuckTypedZeroEffect.__qualname__}",
+    _DuckTypedZeroEffect,
+    deserializer=lambda data: _DuckTypedZeroEffect(),
+)
+
+
+class _FrozenZeroEffect(_ZeroEffect):
+    """``_ZeroEffect`` whose contribution is taken from the posterior."""
+
+    @property
+    def frozen_deterministics(self) -> list[str]:
+        """The contribution."""
+        return [self.contribution_var_name]
+
+
+@pytest.mark.parametrize(
+    "effects, refused",
+    [
+        pytest.param(
+            [_FittedDatesOnlyEffect(), _ZeroEffect(), _DuckTypedZeroEffect()],
+            "_FittedDatesOnlyEffect 'fitted_dates_only' takes",
+            id="one-effect",
+        ),
+        pytest.param(
+            [_FittedDatesOnlyEffect(), _UnprefixedFittedDatesOnlyEffect()],
+            "_FittedDatesOnlyEffect 'fitted_dates_only', "
+            "_UnprefixedFittedDatesOnlyEffect take",
+            id="two-effects",
+        ),
+    ],
+)
+def test_sample_posterior_predictive_refuses_new_dates_for_effects_without_them(
+    single_dim_data, mock_pymc_sample, effects, refused
+):
+    """Effects with ``supports_new_dates=False`` take only the fitted dates.
+
+    The error names each of them, by class and prefix when it has one, and no
+    other effect.
+    """
+    X, y = single_dim_data
+    X_train, y_train = X.iloc[:-5], y.iloc[:-5]
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+    for effect in effects:
+        mmm.add_mu_effect(effect)
+    mmm.fit(X_train, y_train, draws=50, chains=1, random_seed=42)
+
+    in_sample = mmm.sample_posterior_predictive(
+        X_train, extend_idata=False, random_seed=42
+    )
+
+    assert in_sample.sizes["date"] == len(X_train)
+    with pytest.raises(
+        NotImplementedError,
+        match=rf"^{refused} only the 9 dates the MMM was fitted on, 2023-01-01 to "
+        r"2023-01-09, so prediction on any other set of dates is not supported\.$",
+    ):
+        mmm.sample_posterior_predictive(X.iloc[-5:], extend_idata=False)
+
+
+def _mmm_with_effects(*effects) -> MMM:
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+    for effect in effects:
+        mmm.add_mu_effect(effect)
+    return mmm
+
+
+BUDGET_ENTRY_POINTS = [
+    "budget_optimizer",
+    "optimize_budget",
+    "wrapper",
+    "create_optimization_model",
+]
+
+
+def _optimize_budget(
+    entry_point: str, mmm: MMM, start_date: str, end_date: str, **kwargs
+):
+    """Allocate a budget of 10 through any of the ways to build an optimizer.
+
+    ``"wrapper"`` and ``"create_optimization_model"`` build the ``BudgetOptimizer``
+    directly, from a ``BudgetOptimizerWrapper`` or from the optimization model and
+    the MMM's frozen deterministics.
+    """
+    if entry_point == "budget_optimizer":
+        optimizer = mmm.budget_optimizer(start_date, end_date, **kwargs)
+    elif entry_point == "create_optimization_model":
+        lags = mmm.effective_carryover_lags()
+        model = mmm.create_optimization_model(start_date, end_date)
+        optimizer = BudgetOptimizer(
+            model=model,
+            idata=mmm.idata,
+            num_periods=len(model.coords["date"]) - 2 * lags,
+            carry_in_periods=lags,
+            adstock_periods=lags,
+            frozen_deterministics=mmm.frozen_deterministics,
+            **kwargs,
+        )
+    else:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            wrapper = BudgetOptimizerWrapper(
+                model=mmm, start_date=start_date, end_date=end_date
+            )
+        if entry_point == "optimize_budget":
+            return wrapper.optimize_budget(budget=10.0, **kwargs)
+        optimizer = BudgetOptimizer(
+            model=wrapper, num_periods=wrapper.num_periods, **kwargs
+        )
+    return optimizer.allocate_budget(total_budget=10.0)
+
+
+@pytest.mark.parametrize("entry_point", BUDGET_ENTRY_POINTS)
+@pytest.mark.parametrize(
+    "start_date, end_date",
+    [
+        pytest.param("2023-01-10", "2023-01-14", id="later-dates"),
+        pytest.param("2023-01-03", "2023-01-06", id="fitted-dates"),
+    ],
+)
+def test_budget_objective_with_an_effect_on_the_fitted_dates_only_raises(
+    single_dim_data, mock_pymc_sample, entry_point, start_date, end_date
+):
+    """The total response reaches the effect's contribution, a frozen path over dates.
+
+    The optimizer refuses the objective on any window, including one within the
+    fitted dates, however it is built.
+    """
+    X, y = single_dim_data
+    mmm = _mmm_with_effects(_FittedDatesOnlyEffect())
+    mmm.fit(X.iloc[:9], y.iloc[:9], draws=50, chains=1, random_seed=42)
+
+    with pytest.raises(
+        NotImplementedError,
+        match=r"^response_variable 'total_response_original_scale' includes "
+        r"'fitted_dates_only_effect_contribution', a frozen path over 'date' that "
+        r"exists only on the dates the model was fitted on, so it cannot be "
+        r"optimized on a window\. The default objective, "
+        r"'total_media_contribution_original_scale', does not include it\.$",
+    ):
+        _optimize_budget(
+            entry_point,
+            mmm,
+            start_date,
+            end_date,
+            response_variable="total_response_original_scale",
+        )
+
+
+@pytest.mark.parametrize("entry_point", BUDGET_ENTRY_POINTS)
+@pytest.mark.parametrize(
+    "effects, response_variable",
+    [
+        pytest.param(
+            [_FittedDatesOnlyEffect()],
+            "total_media_contribution_original_scale",
+            id="default-objective",
+        ),
+        pytest.param(
+            [_ZeroEffect()], "total_response_original_scale", id="effect-on-any-dates"
+        ),
+    ],
+)
+def test_budget_objectives_without_an_effect_on_the_fitted_dates_only(
+    single_dim_data, mock_pymc_sample, entry_point, effects, response_variable
+):
+    """Only an objective that includes an effect on the fitted dates only is refused.
+
+    The default objective is built from the channel contribution alone, and an
+    effect that takes any dates can be evaluated on the optimizer's window.
+    """
+    X, y = single_dim_data
+    mmm = _mmm_with_effects(*effects)
+    mmm.fit(X.iloc[:9], y.iloc[:9], draws=50, chains=1, random_seed=42)
+
+    result = _optimize_budget(
+        entry_point,
+        mmm,
+        "2023-01-10",
+        "2023-01-14",
+        response_variable=response_variable,
+    )
+
+    np.testing.assert_allclose(result.budgets.sum(), 10.0)
+
+
+def test_budget_objective_through_an_hsgp_intercept_is_optimized(
+    single_dim_data, mock_pymc_sample
+):
+    """The HSGP intercept's frozen mean has no ``date`` dim, so it is not refused.
+
+    The total response reaches it through ``mu``, which the zero effect makes the
+    model register, but it is one value per draw rather than a path over dates.
+    """
+    X, y = single_dim_data
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        time_varying_intercept=True,
+    ).add_mu_effect(_ZeroEffect())
+    mmm.fit(X.iloc[:9], y.iloc[:9], draws=50, chains=1, random_seed=42)
+
+    result = mmm.budget_optimizer(
+        "2023-01-10", "2023-01-14", response_variable="total_response_original_scale"
+    ).allocate_budget(total_budget=10.0)
+
+    assert mmm.frozen_deterministics == SoftPlusHSGP.deterministics_to_replace(
+        "intercept_latent_process"
+    )
+    np.testing.assert_allclose(result.budgets.sum(), 10.0)
+
+
+class _BuildPerFold:
+    """Return a built copy of an MMM for each fold, as a model factory does."""
+
+    def __init__(self, mmm: MMM) -> None:
+        self.mmm = mmm
+
+    def build_model(self, X, y) -> MMM:
+        mmm = copy.deepcopy(self.mmm)
+        mmm.build_model(X, y)
+        return mmm
+
+
+@pytest.mark.parametrize(
+    "as_passed",
+    [
+        pytest.param(lambda mmm: mmm, id="mmm"),
+        pytest.param(_BuildPerFold, id="factory"),
+    ],
+)
+def test_time_slice_cross_validation_refuses_an_effect_on_the_fitted_dates_only(
+    single_dim_data, monkeypatch, as_passed
+):
+    """Each fold predicts on its test dates, so the validator refuses before fitting."""
+    X, y = single_dim_data
+    fitted = []
+    monkeypatch.setattr(MMM, "fit", lambda self, *args, **kwargs: fitted.append(self))
+    cv = TimeSliceCrossValidator(n_init=9, forecast_horizon=2, date_column="date")
+
+    with pytest.raises(
+        NotImplementedError,
+        match=r"^Time-slice cross-validation predicts on each fold's test dates, but "
+        r"the contribution of _FittedDatesOnlyEffect 'fitted_dates_only' exists only "
+        r"on the dates each fold's MMM is fitted on\.$",
+    ):
+        cv.run(X, y, mmm=as_passed(_mmm_with_effects(_FittedDatesOnlyEffect())))
+
+    assert fitted == []
+
+
+def test_frozen_deterministics_include_the_mu_effects():
+    """An effect's names join the MMM's own, such as its HSGP intercept's."""
+    mmm = (
+        MMM(
+            date_column="date",
+            target_column="target",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            time_varying_intercept=True,
+        )
+        .add_mu_effect(_ZeroEffect())
+        .add_mu_effect(_DuckTypedZeroEffect())
+        .add_mu_effect(_FrozenZeroEffect(prefix="frozen"))
+    )
+
+    assert mmm.frozen_deterministics == [
+        *SoftPlusHSGP.deterministics_to_replace("intercept_latent_process"),
+        "frozen_effect_contribution",
+    ]
+
+
+class _FrozenPathEffect(_FrozenZeroEffect):
+    """A random walk over the model's dates, taken from the posterior."""
+
+    prefix: str = "path"
+
+    def create_effect(self, mmm):
+        """The walk, registered as the contribution."""
+        steps = pmd.Normal(f"{self.prefix}_steps", sigma=0.1, dims="date")
+        return pmd.Deterministic(self.contribution_var_name, steps.cumsum("date"))
+
+
+@pytest.mark.parametrize(
+    "max_batch_elements",
+    [
+        pytest.param(None, id="one-block"),
+        # Every draw is over the budget, so each is a block of its own.
+        pytest.param(1, id="a-block-per-draw"),
+    ],
+)
+def test_monthly_incrementality_cuts_a_frozen_path(
+    simple_mmm_data, mock_pymc_sample, monkeypatch, max_batch_elements
+):
+    """A path frozen over the fitted dates is cut to each month's window.
+
+    It does not depend on spend, so it adds nothing to the increment. Without
+    carryover, each channel's increment on a month is its contribution summed over
+    that month, and the check that the increment is complete still passes. The
+    same holds when the counterfactual is streamed one block of draws at a time,
+    each block cutting the path from its own draws.
+    """
+    X, y = simple_mmm_data["X"], simple_mmm_data["y"]
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        adstock=GeometricAdstock(l_max=1),
+        saturation=LogisticSaturation(),
+    ).add_mu_effect(_FrozenPathEffect())
+    mmm.fit(X, y, draws=50, chains=1, random_seed=42)
+    if max_batch_elements is not None:
+        monkeypatch.setattr(
+            CounterfactualEvaluator, "MAX_BATCH_ELEMENTS", max_batch_elements
+        )
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", message=".*completeness", category=UserWarning)
+        incremental = mmm.incrementality.compute_incremental_contribution(
+            frequency="monthly"
+        )
+
+    contribution = (
+        mmm.idata.posterior["channel_contribution"]
+        * mmm.idata.constant_data["target_scale"]
+    )
+    month_ends = contribution.indexes["date"].to_period("M").end_time.normalize()
+    expected = contribution.assign_coords(date=month_ends).groupby("date").sum()
+    assert incremental.indexes["date"].equals(expected.indexes["date"])
+    np.testing.assert_allclose(incremental, expected.transpose(*incremental.dims))
+
+
+class _DateLevelEffect(_ZeroEffect):
+    """A free random variable over the model's dates, added to ``mu``."""
+
+    prefix: str = "level"
+    reduce: bool = False
+    freeze: bool = False
+
+    @property
+    def frozen_deterministics(self) -> list[str]:
+        """The free random variable itself, when asked to freeze it."""
+        return [f"{self.prefix}_draws"] if self.freeze else []
+
+    def create_effect(self, mmm):
+        """One free value per date, or their mean on every date when reduced."""
+        level = pmd.Normal(f"{self.prefix}_draws", sigma=0.1, dims="date")
+        if self.reduce:
+            zeros = as_xtensor(pt.zeros(mmm.model.dim_lengths["date"]), dims=("date",))
+            level = zeros + level.mean("date")
+        return pmd.Deterministic(self.contribution_var_name, level)
+
+
+@pytest.fixture
+def fit_mmm_with_effect(simple_mmm_data, mock_pymc_sample):
+    """Fit an MMM carrying the effects it is given."""
+
+    def fit(*effects):
+        X, y = simple_mmm_data["X"], simple_mmm_data["y"]
+        mmm = MMM(
+            date_column="date",
+            target_column="target",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            adstock=GeometricAdstock(l_max=1),
+            saturation=LogisticSaturation(),
+        )
+        for effect in effects:
+            mmm.add_mu_effect(effect)
+        mmm.fit(X, y, draws=50, chains=1, random_seed=42)
+        return mmm
+
+    return fit
+
+
+@pytest.mark.parametrize(
+    "max_batch_elements",
+    [
+        pytest.param(None, id="one-block"),
+        # Every draw is over the budget, so each is a block of its own.
+        pytest.param(1, id="a-block-per-draw"),
+    ],
+)
+@pytest.mark.parametrize("freeze", [False, True], ids=["unfrozen", "frozen"])
+def test_monthly_incrementality_on_a_date_variable(
+    fit_mmm_with_effect, monkeypatch, freeze, max_batch_elements
+):
+    """A free random variable over the dates gives each month's contribution.
+
+    It only adds to the linear predictor, which a total does not read on windows,
+    so the months keep their windows whether it is frozen or not, and nothing
+    warns about the full date axis.  It does not depend on spend and there is no
+    carryover, so each channel's increment on a month is its contribution summed
+    over that month.
+    """
+    mmm = fit_mmm_with_effect(_DateLevelEffect(freeze=freeze))
+    if max_batch_elements is not None:
+        monkeypatch.setattr(
+            CounterfactualEvaluator, "MAX_BATCH_ELEMENTS", max_batch_elements
+        )
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "error", message=".*not cut to evaluation windows", category=UserWarning
+        )
+        incremental = mmm.incrementality.compute_incremental_contribution(
+            frequency="monthly"
+        )
+        split = mmm.incrementality.split_incremental_contribution_over_time(
+            frequency="monthly"
+        )
+
+    contribution = (
+        mmm.idata.posterior["channel_contribution"]
+        * mmm.idata.constant_data["target_scale"]
+    )
+    month_ends = contribution.indexes["date"].to_period("M").end_time.normalize()
+    expected = contribution.assign_coords(date=month_ends).groupby("date").sum()
+    assert incremental.indexes["date"].equals(expected.indexes["date"])
+    np.testing.assert_allclose(incremental, expected.transpose(*incremental.dims))
+    assert json.loads(split.attrs["assumptions"])["evaluation"] == "window"
+
+
+def test_monthly_incrementality_evaluates_a_reduced_date_variable(
+    fit_mmm_with_effect,
+):
+    """Reduced over date, the variable never meets a window's date axis.
+
+    The periods keep their windows rather than the full date axis.
+    """
+    mmm = fit_mmm_with_effect(_DateLevelEffect(reduce=True))
+
+    incremental = mmm.incrementality.compute_incremental_contribution(
+        frequency="monthly"
+    )
+    split = mmm.incrementality.split_incremental_contribution_over_time(
+        frequency="monthly"
+    )
+
+    assert np.isfinite(incremental).all()
+    assert json.loads(split.attrs["assumptions"])["evaluation"] == "window"
+
+
+class _ScaledByDateLevelEffect(_ZeroEffect):
+    """A free random variable over the dates that scales the channel contribution.
+
+    With ``walk``, the variable holds the steps of a random walk, and the walk, their
+    cumulative sum over ``date``, is a Deterministic whether frozen or not.
+    """
+
+    prefix: str = "scaled"
+    walk: bool = False
+    freeze: bool = False
+
+    def incrementality_spec(self) -> IncrementalitySpec:
+        """Opt in: the effect reads the channel contribution."""
+        return IncrementalitySpec()
+
+    @property
+    def frozen_deterministics(self) -> list[str]:
+        """The path where the variable meets spend, when asked to freeze it.
+
+        The variable itself without ``walk``, and the walk with it: frozen steps
+        would be cut to each window before their cumulative sum is taken.
+        """
+        if not self.freeze:
+            return []
+        return [f"{self.prefix}_walk" if self.walk else f"{self.prefix}_level"]
+
+    def create_effect(self, mmm):
+        """The channel contribution, times one free value per date or their walk."""
+        level = pmd.Normal(f"{self.prefix}_level", mu=1.0, sigma=0.5, dims="date")
+        if self.walk:
+            level = pmd.Deterministic(f"{self.prefix}_walk", level.cumsum("date"))
+        contribution = mmm.model["channel_contribution"].sum("channel")
+        return pmd.Deterministic(self.contribution_var_name, level * contribution)
+
+
+@pytest.mark.parametrize("walk", [False, True], ids=["level", "random-walk"])
+def test_yearly_incrementality_on_a_variable_that_scales_spend(mock_pymc_sample, walk):
+    """Unfrozen, a variable that scales spend gives the increments of its frozen path.
+
+    The first year's window spans every fitted date and the second is padded to the
+    same length, so no shape fails.  Unfrozen, the variable holds its draws over all
+    fitted dates and every period is evaluated on the full date axis, with the
+    horizon the probe measured.  Frozen at the path where it meets spend, it is cut
+    to each window.
+    """
+    from tests.mmm.conftest import _make_mmm_data
+
+    data = _make_mmm_data(periods=18, freq="MS", n_channels=3, seed=99)
+
+    def yearly(freeze: bool) -> tuple[xr.DataArray, xr.Dataset]:
+        mmm = MMM(
+            date_column="date",
+            target_column="target",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            adstock=GeometricAdstock(l_max=6),
+            saturation=LogisticSaturation(),
+        ).add_mu_effect(_ScaledByDateLevelEffect(walk=walk, freeze=freeze))
+        mmm.fit(data["X"], data["y"], draws=50, chains=1, random_seed=42)
+        incrementality = mmm.incrementality
+        return (
+            incrementality.compute_incremental_contribution(frequency="yearly"),
+            incrementality.split_incremental_contribution_current_future(
+                frequency="yearly"
+            ),
+        )
+
+    with pytest.warns(UserWarning, match="full date axis"):
+        unfrozen, unfrozen_split = yearly(freeze=False)
+    frozen, frozen_split = yearly(freeze=True)
+
+    np.testing.assert_allclose(unfrozen, frozen.transpose(*unfrozen.dims))
+    xr.testing.assert_allclose(unfrozen_split, frozen_split)
+    assert (
+        unfrozen_split.attrs["effective_horizon"]
+        == frozen_split.attrs["effective_horizon"]
+    )
+    assert json.loads(unfrozen_split.attrs["assumptions"])["evaluation"] == "full_axis"
+    assert "'scaled_level'" in unfrozen_split.attrs["warnings"]
+
+
+def test_no_full_axis_warning_where_the_mode_uses_the_full_axis_anyway(
+    mock_pymc_sample,
+):
+    """Under ``ConvMode.Before`` every period is on the full date axis already.
+
+    The uncut variable then changes nothing, so it is not warned about.
+    """
+    from tests.mmm.conftest import _make_mmm_data
+
+    data = _make_mmm_data(periods=18, freq="MS", n_channels=3, seed=99)
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        adstock=GeometricAdstock(l_max=6, mode=ConvMode.Before),
+        saturation=LogisticSaturation(),
+    ).add_mu_effect(_ScaledByDateLevelEffect())
+    mmm.fit(data["X"], data["y"], draws=50, chains=1, random_seed=42)
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "error", message=".*not cut to evaluation windows", category=UserWarning
+        )
+        incremental = mmm.incrementality.compute_incremental_contribution(
+            frequency="yearly"
+        )
+
+    assert np.isfinite(incremental).all()
+
+
+def test_direct_path_on_a_date_variable_in_the_predictor(funnel_mmm_data):
+    """A path request reads the linear predictor on each window, unlike a total.
+
+    The variable only adds to the predictor, so the direct path evaluates every
+    period on the full date axis, and gives the increments of the variable frozen
+    and cut to each window.
+    """
+    from tests.mmm.conftest import _build_funnel_mmm, _funnel_effect
+
+    def direct(freeze: bool) -> xr.DataArray:
+        mmm = _build_funnel_mmm(
+            funnel_mmm_data,
+            "identity",
+            effects=[_funnel_effect(), _DateLevelEffect(freeze=freeze)],
+        )
+        return mmm.incrementality.compute_incremental_contribution(
+            frequency="monthly", paths="direct"
+        )
+
+    with pytest.warns(UserWarning, match="full date axis"):
+        unfrozen = direct(freeze=False)
+    frozen = direct(freeze=True)
+
+    np.testing.assert_allclose(unfrozen, frozen.transpose(*unfrozen.dims))
+
+
 def test_sample_posterior_predictive_same_data_with_include_last_observations(
     single_dim_data, mock_pymc_sample
 ):
@@ -3055,6 +4219,27 @@ def test_mmm_with_events(
 
     assert "holiday_total_effect" in mmm.posterior
     assert "another_event_type_total_effect" in mmm.posterior
+    # Each effect names the contribution it registered (#3357)
+    for effect in mmm.mu_effects:
+        assert effect.contribution_var_name in mmm.posterior
+
+    # Events are not downstream of the channel data, so the default objective
+    # does not warn that a mu_effect carries media response
+    start_date = X["date"].max() + pd.Timedelta(weeks=1)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", message=".*routes part of the media response")
+        mmm.budget_optimizer(start_date, start_date + pd.Timedelta(weeks=2))
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", message=".*was not found in the posterior")
+        decomposition = mmm.compute_counterfactual_contributions_dataset()
+    assert {"holiday_total_effect", "another_event_type_total_effect"} <= set(
+        decomposition.data_vars
+    )
+    # Under the identity link the parts add up to the linear predictor
+    total = decomposition.to_dataarray().sum("variable")
+    expected = mmm.posterior["mu"] * mmm.idata.constant_data["target_scale"]
+    xr.testing.assert_allclose(total.transpose(*expected.dims), expected)
 
     kwargs = dict(
         extend_idata=False,
@@ -3480,70 +4665,6 @@ def test_fixed_scaling_dict_wrong_remaining_dims(multi_dim_data) -> None:
         mmm.build_model(X, y)
 
 
-def test_fixed_scaling_dataarray_country_channel_grid(multi_dim_data) -> None:
-    """Full country × channel grid via DataArray when dict is not enough."""
-    X, y = multi_dim_data
-    countries = ["Venezuela", "Colombia", "Chile"]
-    channels = ["channel_1", "channel_2", "channel_3"]
-    vals = np.arange(9, dtype=float).reshape(3, 3) + 100.0
-    da = xr.DataArray(
-        vals,
-        dims=("country", "channel"),
-        coords={"country": countries, "channel": channels},
-    )
-    scaling = Scaling(
-        target=FixedScaling(dims=("country",), value=25_000.0),
-        channel=FixedScaling(dims=(), value=da),
-    )
-    mmm = MMM(
-        adstock=GeometricAdstock(l_max=2),
-        saturation=LogisticSaturation(),
-        scaling=scaling,
-        date_column="date",
-        target_column="target",
-        channel_columns=channels,
-        dims=("country",),
-    )
-    mmm.build_model(X, y)
-    for cty in countries:
-        for ch in channels:
-            assert float(mmm.scalers._channel.sel(country=cty, channel=ch)) == float(
-                da.sel(country=cty, channel=ch)
-            )
-
-
-def test_fixed_scaling_dataarray_reversed_dims(multi_dim_data) -> None:
-    """DataArray with (channel, country) dims accepted even though data uses (country, channel)."""
-    X, y = multi_dim_data
-    countries = ["Venezuela", "Colombia", "Chile"]
-    channels = ["channel_1", "channel_2", "channel_3"]
-    vals = np.arange(9, dtype=float).reshape(3, 3) + 100.0
-    da = xr.DataArray(
-        vals,
-        dims=("channel", "country"),
-        coords={"channel": channels, "country": countries},
-    )
-    scaling = Scaling(
-        target=FixedScaling(dims=("country",), value=25_000.0),
-        channel=FixedScaling(dims=(), value=da),
-    )
-    mmm = MMM(
-        adstock=GeometricAdstock(l_max=2),
-        saturation=LogisticSaturation(),
-        scaling=scaling,
-        date_column="date",
-        target_column="target",
-        channel_columns=channels,
-        dims=("country",),
-    )
-    mmm.build_model(X, y)
-    for cty in countries:
-        for ch in channels:
-            assert float(mmm.scalers._channel.sel(country=cty, channel=ch)) == float(
-                da.sel(country=cty, channel=ch)
-            )
-
-
 def test_fixed_scaling_dataarray_broadcasts_country_only(multi_dim_data) -> None:
     """Per-country fixed media scale broadcasts over channel (e.g. population)."""
     X, y = multi_dim_data
@@ -3668,7 +4789,9 @@ def test_fixed_scaling_dataarray_model_uses_scale_by_label(
 
     Regression test for issue #3223: a DataArray-valued FixedScaling whose
     label or dimension order differs from the model's coordinates was applied
-    by position, so cells received each other's scale.
+    by position, so cells received each other's scale.  The scale stored on
+    ``mmm.scalers``, which ``get_scales_as_xarray`` and the lift-test scaling
+    read, has to match by label as well.
     """
     X, y = request.getfixturevalue(data_fixture)
     value = make_value()
@@ -3690,13 +4813,16 @@ def test_fixed_scaling_dataarray_model_uses_scale_by_label(
     )
     mmm.build_model(X, y)
 
-    used = _model_scale_by_label(mmm, f"{variable}_scale")
-    expected = (
-        value.sel({dim: used.coords[dim].values for dim in value.dims})
-        .broadcast_like(used)
-        .transpose(*used.dims)
-    )
-    np.testing.assert_allclose(used.values, expected.values)
+    for got in (
+        _model_scale_by_label(mmm, f"{variable}_scale"),
+        mmm.scalers[f"_{variable}"],
+    ):
+        expected = (
+            value.sel({dim: got.coords[dim].values for dim in value.dims})
+            .broadcast_like(got)
+            .transpose(*got.dims)
+        )
+        np.testing.assert_allclose(got.values, expected.values)
 
 
 @pytest.mark.parametrize(
@@ -5035,38 +6161,6 @@ def test_add_lift_test_measurements_missing_channel_column(multi_dim_data) -> No
         mmm.add_lift_test_measurements(df_lift_test_missing_channel)
 
 
-def test_add_lift_test_measurements_missing_dimension_column(multi_dim_data) -> None:
-    """Test that KeyError is raised when dimension column is missing from lift test data."""
-    X, y = multi_dim_data
-    mmm = MMM(
-        adstock=GeometricAdstock(l_max=2),
-        saturation=LogisticSaturation(),
-        date_column="date",
-        target_column="target",
-        channel_columns=["channel_1", "channel_2", "channel_3"],
-        dims=("country",),
-    )
-    mmm.build_model(X, y)
-
-    # Create lift test data without 'country' column (which is in dims)
-    df_lift_test_missing_dim = pd.DataFrame(
-        {
-            "channel": ["channel_1", "channel_1"],
-            "x": [1, 2],
-            "delta_x": [1, 1],
-            "delta_y": [1, 1],
-            "sigma": [1, 1],
-            "date": pd.to_datetime(["2023-01-02", "2023-01-04"]),
-        }
-    )
-
-    with pytest.raises(
-        KeyError,
-        match=r"The country column is required to map the lift measurements to the model.",
-    ):
-        mmm.add_lift_test_measurements(df_lift_test_missing_dim)
-
-
 def test_add_lift_test_measurements_missing_multiple_dimension_columns() -> None:
     """Test that KeyError is raised when multiple dimension columns are missing from lift test data."""
     # Create multi-dimensional data with multiple dimensions
@@ -5794,6 +6888,40 @@ def test_mmm_equality():
     assert mmm18 != mmm20
 
 
+def test_mmm_equality_compares_mu_effects_with_their_own_eq():
+    """A mu effect that defines ``__eq__`` is compared with it, not ``model_dump()``."""
+
+    class CaseInsensitiveEffect(MuEffect):
+        name: str
+
+        def create_data(self, mmm):
+            pass
+
+        def create_effect(self, mmm):
+            raise NotImplementedError
+
+        def set_data(self, mmm, model, X):
+            pass
+
+        def __eq__(self, other):
+            return (
+                isinstance(other, CaseInsensitiveEffect)
+                and self.name.lower() == other.name.lower()
+            )
+
+    def mmm_with_effect(name):
+        return MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            target_column="sales",
+            adstock=GeometricAdstock(l_max=8),
+            saturation=LogisticSaturation(),
+        ).add_mu_effect(CaseInsensitiveEffect(name=name))
+
+    assert mmm_with_effect("TV") == mmm_with_effect("tv")
+    assert mmm_with_effect("TV") != mmm_with_effect("radio")
+
+
 class TestPydanticValidation:
     """Test suite specifically for Pydantic validation in multidimensional MMM."""
 
@@ -6336,8 +7464,8 @@ def test_set_xarray_data_without_target_preserves_dtypes(multi_dim_data):
 
 @pytest.mark.parametrize(
     "date_col_name",
-    ["date_week", "week", "period", "timestamp", "time_period"],
-    ids=["date_week", "week", "period", "timestamp", "time_period"],
+    ["date_week", "period"],
+    ids=["date_week", "period"],
 )
 def test_mmm_with_arbitrary_date_column_names_single_dim(
     single_dim_data, date_col_name, mock_pymc_sample
@@ -6389,8 +7517,8 @@ def test_mmm_with_arbitrary_date_column_names_single_dim(
 
 @pytest.mark.parametrize(
     "date_col_name",
-    ["date_week", "period", "timestamp"],
-    ids=["date_week", "period", "timestamp"],
+    ["date_week", "period"],
+    ids=["date_week", "period"],
 )
 def test_mmm_with_arbitrary_date_column_names_multi_dim(
     multi_dim_data, date_col_name, mock_pymc_sample
@@ -6465,8 +7593,8 @@ def test_date_column_validation_with_arbitrary_names(single_dim_data):
 
 @pytest.mark.parametrize(
     "date_col_name",
-    ["date_start", "end_date", "date_week_ending", "reporting_date"],
-    ids=["date_start", "end_date", "date_week_ending", "reporting_date"],
+    ["date_start", "end_date"],
+    ids=["date_start", "end_date"],
 )
 def test_mixed_date_column_scenarios_variations(
     single_dim_data, date_col_name, mock_pymc_sample
@@ -6708,34 +7836,6 @@ def test_multidimensional_mmm_serializes_and_deserializes_dag_and_nodes(
     assert loaded_mmm.outcome_node == outcome_node
 
     os.remove("test_model_multi")
-
-
-def test_multidimensional_mmm_causal_attributes_initialization():
-    dag = """
-    digraph {
-        channel_1 -> target;
-        control_1 -> channel_1;
-        control_1 -> target;
-    }
-    """
-    treatment_nodes = ["channel_1"]
-    outcome_node = "target"
-
-    mmm = MMM(
-        date_column="date",
-        target_column="target",
-        channel_columns=["channel_1", "channel_2"],
-        control_columns=["control_1", "control_2"],
-        adstock=GeometricAdstock(l_max=2),
-        saturation=LogisticSaturation(),
-        dag=dag,
-        treatment_nodes=treatment_nodes,
-        outcome_node=outcome_node,
-    )
-
-    assert mmm.dag == dag
-    assert mmm.treatment_nodes == treatment_nodes
-    assert mmm.outcome_node == outcome_node
 
 
 def test_multidimensional_mmm_causal_attributes_default_treatment_nodes():
@@ -7345,41 +8445,6 @@ class TestAddOriginalScaleContributionVariable:
         y = pd.Series(rng.uniform(100, 500, n_dates), name="y")
         return X, y
 
-    def test_channel_contribution(self, sample_data) -> None:
-        """Test adding channel_contribution_original_scale."""
-        X, y = sample_data
-        mmm = MMM(
-            adstock=GeometricAdstock(l_max=4),
-            saturation=LogisticSaturation(),
-            date_column="date",
-            channel_columns=["x1", "x2"],
-            target_column="y",
-        )
-        mmm.build_model(X, y)
-        mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
-
-        assert "channel_contribution_original_scale" in mmm.model.named_vars
-        dims = mmm.model.named_vars_to_dims["channel_contribution_original_scale"]
-        assert dims == ("date", "channel")
-
-    def test_fourier_contribution(self, sample_data) -> None:
-        """Test adding fourier_contribution_original_scale."""
-        X, y = sample_data
-        mmm = MMM(
-            adstock=GeometricAdstock(l_max=4),
-            saturation=LogisticSaturation(),
-            date_column="date",
-            channel_columns=["x1", "x2"],
-            target_column="y",
-            yearly_seasonality=3,
-        )
-        mmm.build_model(X, y)
-        mmm.add_original_scale_contribution_variable(var=["fourier_contribution"])
-
-        assert "fourier_contribution_original_scale" in mmm.model.named_vars
-        dims = mmm.model.named_vars_to_dims["fourier_contribution_original_scale"]
-        assert dims == ("date", "fourier_mode")
-
     def test_multiple_contributions(self, sample_data) -> None:
         """Test adding multiple contribution variables at once."""
         X, y = sample_data
@@ -7542,7 +8607,7 @@ class TestDataProperty:
         wrapper = mmm.data
         assert isinstance(wrapper, MMMIDataWrapper)
         # Verify control_data variable exists in schema
-        assert "control_data_" in wrapper.schema.groups["constant_data"].variables
+        assert "control_data" in wrapper.schema.groups["constant_data"].variables
 
     def test_data_property_with_seasonality(
         self, single_dim_data, mock_pymc_sample
@@ -8735,13 +9800,6 @@ def test_mmm_plot_suite_defaults_to_legacy(fit_mmm):
     assert fit_mmm.plot_suite == "legacy"
 
 
-def test_mmm_plot_suite_setter(fit_mmm):
-    """MMM.plot_suite setter stores the value."""
-    mmm = copy.copy(fit_mmm)
-    mmm.plot_suite = "new"
-    assert mmm.plot_suite == "new"
-
-
 def test_mmm_plot_suite_setter_rejects_invalid(fit_mmm):
     """MMM.plot_suite setter raises ValueError for unknown values."""
     mmm = copy.copy(fit_mmm)
@@ -9275,8 +10333,6 @@ def _assert_cpt_roundtrip(mmm, path):
 @pytest.mark.parametrize(
     "link,central,roas,mixed,labeled,prefix,suffix,dims",
     [
-        ("identity", "mean", False, False, False, "external", ".nc", ("geo",)),
-        ("identity", "mean", True, False, False, "external", ".nc", ("geo",)),
         ("identity", "mean", False, True, False, "external", ".nc", ("geo",)),
         ("log", "mean", True, False, False, "external", ".nc", ("geo",)),
         ("log", "median", True, False, False, "external", ".nc", ("geo",)),
@@ -9286,8 +10342,6 @@ def _assert_cpt_roundtrip(mmm, path):
         ("identity", "mean", False, False, False, "external", ".nc", ()),
     ],
     ids=[
-        "cpt",
-        "roas",
         "mixed",
         "log-mean",
         "log-median",

@@ -27,6 +27,7 @@ from pytensor.graph.basic import Variable
 from pytensor.graph.replace import graph_replace
 
 from pymc_marketing.mmm.optimization_variables import align_to_model_coords
+from pymc_marketing.names.mmm import ORIGINAL_SCALE_SUFFIX, DatasetVar, Dim
 
 logger = logging.getLogger(__name__)
 
@@ -393,7 +394,7 @@ def create_zero_dataset(
     dim_cols = list(model.dims)
 
     # ---- 1. Infer date frequency from training data ---------------------------
-    training_dates = pd.DatetimeIndex(xa.coords["date"].values)
+    training_dates = pd.DatetimeIndex(xa.coords[Dim.DATE].values)
     inferred_freq = infer_frequency(training_dates)
     if inferred_freq is None:
         warnings.warn(
@@ -476,12 +477,12 @@ def create_zero_dataset(
 
     # ---- 4. Build _channel variable -------------------------------------------
     chan_shape = [n_dates]
-    chan_coords: dict = {"date": new_dates}
+    chan_coords: dict = {Dim.DATE: new_dates}
     for dim in dim_cols:
         chan_shape.append(len(dim_coords[dim]))
         chan_coords[dim] = dim_coords[dim]
     chan_shape.append(len(channel_cols))
-    chan_coords["channel"] = channel_cols
+    chan_coords[Dim.CHANNEL] = channel_cols
 
     channel_data = np.zeros(chan_shape, dtype=float)
 
@@ -490,7 +491,7 @@ def create_zero_dataset(
     # at zero for the optimizer to fill.
     if len(carry_in_dates):
         channel_data[: len(carry_in_dates)] = (
-            xa["_channel"].sel(date=carry_in_dates).to_numpy()
+            xa[DatasetVar.CHANNEL].sel(date=carry_in_dates).to_numpy()
         )
 
     # ---- 4a. Inject channel_xr values -----------------------------------------
@@ -528,7 +529,7 @@ def create_zero_dataset(
                 f"{sorted(invalid_dims)}"
             )
 
-        if "date" in channel_xr.dims:
+        if Dim.DATE in channel_xr.dims:
             raise ValueError("`channel_xr` must NOT include the date dimension.")
 
         coords = {dim: list(dim_coords[dim]) for dim in dim_cols}
@@ -544,26 +545,28 @@ def create_zero_dataset(
 
     # ---- 5. Build _control variable -------------------------------------------
     data_vars: dict = {
-        "_channel": xr.DataArray(
-            channel_data, dims=("date", *dim_cols, "channel"), coords=chan_coords
+        DatasetVar.CHANNEL: xr.DataArray(
+            channel_data, dims=(Dim.DATE, *dim_cols, Dim.CHANNEL), coords=chan_coords
         ),
     }
 
     if control_cols:
         ctrl_shape = [n_dates]
-        ctrl_coords: dict = {"date": new_dates}
+        ctrl_coords: dict = {Dim.DATE: new_dates}
         for dim in dim_cols:
             ctrl_shape.append(len(dim_coords[dim]))
             ctrl_coords[dim] = dim_coords[dim]
         ctrl_shape.append(len(control_cols))
-        ctrl_coords["control"] = control_cols
+        ctrl_coords[Dim.CONTROL] = control_cols
 
-        if preserve_observed and "_control" in xa:
-            data_vars["_control"] = xa["_control"].reindex(date=new_dates, fill_value=0)
+        if preserve_observed and DatasetVar.CONTROL in xa:
+            data_vars[DatasetVar.CONTROL] = xa[DatasetVar.CONTROL].reindex(
+                date=new_dates, fill_value=0
+            )
         else:
-            data_vars["_control"] = xr.DataArray(
+            data_vars[DatasetVar.CONTROL] = xr.DataArray(
                 np.zeros(ctrl_shape, dtype=float),
-                dims=("date", *dim_cols, "control"),
+                dims=(Dim.DATE, *dim_cols, Dim.CONTROL),
                 coords=ctrl_coords,
             )
 
@@ -600,7 +603,7 @@ def create_zero_dataset(
         # -- a population, a per-channel rate -- already has the right shape, so
         # `set_data` has nothing to correct and zero-filling would overwrite a
         # constant with zeros.
-        if "date" in template.dims:
+        if Dim.DATE in template.dims:
             # `reindex` alone keeps the observed value on every date the
             # training data covers and fills 0 on the rest, which is exactly
             # the carry-in rule. Zeroing first drops the observed part.
@@ -669,10 +672,10 @@ def _planned_controls_from_frame(
     planned = (
         frame.set_index(index_cols)[control_columns]
         .to_xarray()
-        .to_dataarray(dim="control")
+        .to_dataarray(dim=Dim.CONTROL)
     )
-    if date_column != "date":
-        planned = planned.rename({date_column: "date"})
+    if date_column != Dim.DATE:
+        planned = planned.rename({date_column: Dim.DATE})
     return planned
 
 
@@ -681,7 +684,7 @@ def _planned_controls_from_array(
     dims: list[str],
     control_columns: list[str],
 ) -> xr.DataArray:
-    all_dims = ["date", *dims, "control"]
+    all_dims = [Dim.DATE, *dims, Dim.CONTROL]
     if set(control_data.dims) != set(all_dims):
         raise ValueError(
             f"control_data must have dims {sorted(all_dims)}, "
@@ -696,7 +699,7 @@ def _planned_controls_from_array(
     if duplicated:
         raise ValueError(f"control_data has duplicate labels along {duplicated}.")
 
-    labels = list(control_data.indexes["control"])
+    labels = list(control_data.indexes[Dim.CONTROL])
     unknown = [str(c) for c in labels if c not in control_columns]
     if unknown:
         raise ValueError(
@@ -706,7 +709,9 @@ def _planned_controls_from_array(
     if missing:
         raise ValueError(_MISSING_CONTROLS.format(missing))
 
-    return control_data.assign_coords(date=pd.to_datetime(control_data.indexes["date"]))
+    return control_data.assign_coords(
+        date=pd.to_datetime(control_data.indexes[Dim.DATE])
+    )
 
 
 def planned_controls_to_dataarray(
@@ -828,7 +833,7 @@ def align_planned_controls(
         If *planned* has dim labels the window does not, or no value (or NaN)
         on one of *future_dates*.
     """
-    label_dims = [d for d in window_controls.dims if d != "date"]
+    label_dims = [d for d in window_controls.dims if d != Dim.DATE]
     for dim in label_dims:
         extra = set(planned.coords[dim].values) - set(
             window_controls.coords[dim].values
@@ -871,8 +876,8 @@ def add_noise_to_channel_allocation(
     rng = np.random.default_rng(seed)
 
     if isinstance(df, xr.Dataset):
-        da = df["_channel"]
-        non_channel_dims = tuple(d for d in da.dims if d != "channel")
+        da = df[DatasetVar.CHANNEL]
+        non_channel_dims = tuple(d for d in da.dims if d != Dim.CHANNEL)
         ch_scale = rel_std * da.mean(dim=non_channel_dims)
         # Align by dimension name before NumPy applies positional broadcasting.
         noise = rng.normal(
@@ -880,7 +885,7 @@ def add_noise_to_channel_allocation(
         )
         noisy = xr.where(da == 0, 0.0, da + noise).clip(min=0.0)
         result = df.copy()
-        result["_channel"] = noisy
+        result[DatasetVar.CHANNEL] = noisy
         return result
 
     scale: np.ndarray = (rel_std * df[channels].mean()).to_numpy()
@@ -983,9 +988,9 @@ def build_contributions(
     if agg_dims is None:
         agg_dims = ("chain", "draw")
     if index_dims is None:
-        index_dims = ("date",)
+        index_dims = (Dim.DATE,)
     if expand_dims is None:
-        expand_dims = ("channel", "control")
+        expand_dims = (Dim.CHANNEL, Dim.CONTROL)
 
     # Select and validate variables
     present = [v for v in var if v in idata.posterior]
@@ -1044,7 +1049,7 @@ def build_contributions(
             ds = ds.rename({v: f"{exp_dim}__{v}" for v in ds.data_vars})
             datasets.append(ds)
         else:
-            short_name = name.removesuffix("_original_scale").removesuffix(
+            short_name = name.removesuffix(ORIGINAL_SCALE_SUFFIX).removesuffix(
                 "_contribution"
             )
             datasets.append(da_b.to_dataset(name=short_name))

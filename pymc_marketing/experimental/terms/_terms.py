@@ -34,6 +34,7 @@ from pymc_marketing.mmm.components.adstock import AdstockTransformation, NoAdsto
 from pymc_marketing.mmm.components.base import Transformation
 from pymc_marketing.mmm.fourier import FourierBase
 from pymc_marketing.mmm.transformers import ConvMode
+from pymc_marketing.names.mmm import Dim
 
 
 class MediaTransform(GraphTerm):
@@ -113,14 +114,14 @@ class MediaTransform(GraphTerm):
     def _build(self, context: BuildContext) -> XTensorVariable:
         value = context.build(self.media)
         dims = tuple(getattr(value, "dims", ()))
-        if "date" not in dims:
+        if Dim.DATE not in dims:
             raise ValueError(
                 "MediaTransform requires a media expression with a date dimension."
             )
         parameters = self._parameters(
-            context, tuple(dim for dim in dims if dim != "date")
+            context, tuple(dim for dim in dims if dim != Dim.DATE)
         )
-        result = self.transformation.function(value, dim="date", **parameters)
+        result = self.transformation.function(value, dim=Dim.DATE, **parameters)
         return result.transpose(*dims, ...)
 
     def _parameters(
@@ -176,11 +177,11 @@ class FourierTerm(GraphTerm):
         return self.fourier
 
     def _build(self, context: BuildContext) -> XTensorVariable:
-        if "date" not in context.ds.dims:
+        if Dim.DATE not in context.ds.dims:
             raise ValueError(
                 "Fourier seasonality requires a date dimension in the dataset."
             )
-        context._ensure_dims(("date",))
+        context._ensure_dims((Dim.DATE,))
         fourier = self.fourier.model_copy(
             update={"prior": context._recipe(self.fourier.prior)}
         )
@@ -190,8 +191,8 @@ class FourierTerm(GraphTerm):
         )
         data_name = f"_{fourier.prefix}_dayofperiod"
         context._claim_name(data_name, self)
-        dates = _dates(context.ds.coords["date"].values)
+        dates = _dates(context.ds.coords[Dim.DATE].values)
         days = pmd.Data(
-            data_name, fourier._get_days_in_period(dates).to_numpy(), dims="date"
+            data_name, fourier._get_days_in_period(dates).to_numpy(), dims=Dim.DATE
         )
         return fourier.apply(days)

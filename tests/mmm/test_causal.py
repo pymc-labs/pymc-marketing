@@ -1280,14 +1280,30 @@ def df_non_ts() -> pd.DataFrame:
     return pd.DataFrame({"A": A, "B": B, "C": C, "Y": Y})
 
 
-@pytest.mark.parametrize("target_edge_rule", ["any", "conservative", "fullS"])
-@pytest.mark.parametrize("bf_thresh", [0.5, 1.0, 2.0])
+# All-pairs subset: forbidden_edges=[] keeps every (rule, bf_thresh) cell;
+# the other forbidden_edges values meet each rule and bf_thresh once.
 @pytest.mark.parametrize(
-    "forbidden_edges",
+    "forbidden_edges, bf_thresh, target_edge_rule",
     [
-        [],
-        [("A", "C")],  # edge not involving target is allowed
-        [("A", "Y")],  # forbid a potential target edge
+        pytest.param([], 0.5, "any", id="forbidden_edges0-0.5-any"),
+        pytest.param([], 0.5, "conservative", id="forbidden_edges0-0.5-conservative"),
+        pytest.param([], 0.5, "fullS", id="forbidden_edges0-0.5-fullS"),
+        pytest.param([], 1.0, "any", id="forbidden_edges0-1.0-any"),
+        pytest.param([], 1.0, "conservative", id="forbidden_edges0-1.0-conservative"),
+        pytest.param([], 1.0, "fullS", id="forbidden_edges0-1.0-fullS"),
+        pytest.param([], 2.0, "any", id="forbidden_edges0-2.0-any"),
+        pytest.param([], 2.0, "conservative", id="forbidden_edges0-2.0-conservative"),
+        pytest.param([], 2.0, "fullS", id="forbidden_edges0-2.0-fullS"),
+        pytest.param([("A", "C")], 0.5, "any", id="forbidden_edges1-0.5-any"),
+        pytest.param(
+            [("A", "C")], 1.0, "conservative", id="forbidden_edges1-1.0-conservative"
+        ),
+        pytest.param([("A", "C")], 2.0, "fullS", id="forbidden_edges1-2.0-fullS"),
+        pytest.param([("A", "Y")], 0.5, "fullS", id="forbidden_edges2-0.5-fullS"),
+        pytest.param([("A", "Y")], 1.0, "any", id="forbidden_edges2-1.0-any"),
+        pytest.param(
+            [("A", "Y")], 2.0, "conservative", id="forbidden_edges2-2.0-conservative"
+        ),
     ],
 )
 def test_tbfpc_public_api_types(

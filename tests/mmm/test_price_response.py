@@ -13,6 +13,7 @@
 #   limitations under the License.
 """The spend-dependent price map: its shape, its floor, and its declaration."""
 
+import importlib.util
 import warnings
 
 import numpy as np
@@ -30,10 +31,12 @@ from pymc_marketing.mmm.price_response import (
     PowerPriceResponse,
     PriceResponse,
     ResolvedPowerPriceResponse,
+    TieredPriceResponse,
 )
 
 LOWER = ("lower_xtensor", "canonicalize", "stabilize")
 DIMS = ("channel",)
+DIMS_COORDS = {"channel": ["tv", "radio", "digital"]}
 GAMMA = np.array([0.0, 0.25, 0.5])
 S_REF = np.array([100.0, 100.0, 100.0])
 P0 = np.array([3.0, 3.0, 3.0])
@@ -750,3 +753,699 @@ class TestPriceResponseContract:
         ).resolve(**layout(), derived_reference=None)
         np.testing.assert_array_equal(resolved.money_scale, resolved.reference_spend)
         np.testing.assert_array_equal(resolved.curved, resolved.gamma > 0.0)
+
+    def test_a_family_without_breakpoints_gets_neutral_solve_hooks(self, spend):
+        """The optimizer conditions every map for a solve and asks it for linear pieces.
+        A map with no breakpoints is affine on its whole box, so its piece is the box,
+        conditioning changes nothing, and period weights do not reach its graph."""
+        resolved = PowerPriceResponse(
+            elasticity=0.2, reference_spend=derived([10.0, 20.0, 30.0])
+        ).resolve(**layout(), derived_reference=None)
+        before = compile_lowered(resolved.to_delivery(spend), spend)(
+            np.array([5.0, 15.0, 40.0])
+        )
+        low, high = np.array([0.0, 1.0, 2.0]), np.array([10.0, np.inf, 30.0])
+        piece_low, piece_high = resolved.linear_piece_bounds(
+            np.array([3.0, 4.0, 5.0]), low, high
+        )
+        np.testing.assert_array_equal(piece_low, low)
+        np.testing.assert_array_equal(piece_high, high)
+        with resolved.conditioned_on(low, high):
+            during = compile_lowered(resolved.to_delivery(spend), spend)(
+                np.array([5.0, 15.0, 40.0])
+            )
+        np.testing.assert_array_equal(during, before)
+        weights = as_xtensor(pt.constant(np.ones((4, 3))), dims=("date", "channel"))
+        assert resolved.bind_period_weights(weights) is None
+        after = compile_lowered(resolved.to_delivery(spend), spend)(
+            np.array([5.0, 15.0, 40.0])
+        )
+        np.testing.assert_array_equal(after, before)
+
+
+def tiered_closed_form(z, breakpoints, multipliers):
+    """The issue's formula in budget units: sum_i (min(z, B_{i+1}) - min(z, B_i)) / r_i."""
+    edges = np.concatenate([[0.0], np.asarray(breakpoints, float), [np.inf]])
+    z = np.asarray(z, float)[..., None]
+    return (
+        (np.minimum(z, edges[1:]) - np.minimum(z, edges[:-1]))
+        / np.asarray(multipliers, float)
+    ).sum(-1)
+
+
+def cells(n):
+    """A one-dim layout of ``n`` cells, so one compiled call evaluates a whole grid."""
+    return layout(dims=("cell",), coords={"cell": list(range(n))})
+
+
+def tiered_maps(declaration, n, *, base_price=None, mode=None):
+    """Resolve on ``n`` cells and compile u, p, m the way the optimizer lowers them."""
+    resolved = declaration.resolve(**cells(n), derived_reference=None)
+    spend = ptx.xtensor("spend", shape=(n,), dims=("cell",))
+    p0 = (
+        None
+        if base_price is None
+        else as_xtensor(pt.constant(np.full(n, base_price)), dims=("cell",))
+    )
+
+    def compiled(output):
+        return function([spend], rewrite_graph(output.values, include=LOWER), mode=mode)
+
+    return (
+        resolved,
+        spend,
+        compiled(resolved.to_delivery(spend, p0)),
+        compiled(resolved.implied_price(spend, p0)),
+        compiled(resolved.implied_marginal_price(spend, p0)),
+    )
+
+
+SCHEDULES = [
+    pytest.param([100.0, 400.0], [1.1, 1.6, 2.5], id="three-brackets"),
+    pytest.param([1e6], [1.0, 0.8], id="falling"),
+    pytest.param([100.0, 400.0], [1.0, 0.7, 1.4], id="mixed"),
+]
+
+
+def bracket_grid(breakpoints):
+    """Points well inside every bracket, and the bracket index of each."""
+    edges = np.concatenate([[0.0], breakpoints, [3.0 * breakpoints[-1]]])
+    fractions = np.array([0.01, 0.3, 0.5, 0.7, 0.99])
+    z = (edges[:-1, None] + fractions * np.diff(edges)[:, None]).ravel()
+    return z, np.repeat(np.arange(len(edges) - 1), fractions.size)
+
+
+class TestResolvedTieredPriceResponse:
+    @pytest.mark.parametrize("breakpoints, multipliers", SCHEDULES)
+    def test_closed_form_on_every_bracket(self, breakpoints, multipliers):
+        """Delivery is the issue's formula inside every bracket and with no jump at a
+        breakpoint approached from either side, and the marginal price is the bracket's
+        rate, for rising, falling and mixed multipliers."""
+        b = np.asarray(breakpoints)
+        inside, bracket = bracket_grid(b)
+        z = np.concatenate([inside, b * (1.0 - 1e-12), b, b * (1.0 + 1e-12)])
+        _, _, u, _, m = tiered_maps(
+            TieredPriceResponse(breakpoints=breakpoints, rate_multipliers=multipliers),
+            z.size,
+            base_price=5.0,
+        )
+        delivery = u(z)
+        expected = tiered_closed_form(z, breakpoints, multipliers) / 5.0
+        np.testing.assert_allclose(delivery, expected, rtol=1e-10)
+        np.testing.assert_allclose(
+            m(z)[: inside.size], 5.0 * np.asarray(multipliers)[bracket], rtol=1e-12
+        )
+        assert np.all(np.diff(delivery[: inside.size]) > 0.0)
+
+    def test_the_issue_table(self):
+        """Reproduces the two-bracket truth of #3067 that PowerPriceResponse misses by 16% to
+        51% in marginal price: a baseline rate of 5, an incremental rate of 8 above 1e6. The
+        committed tranche keeps its rate, so at +100% the average price is 6.15, not 6.48."""
+        spends = 1e6 * np.array([1.0, 1.1, 1.25, 1.5, 2.0, 3.0])
+        _, _, u, p, m = tiered_maps(
+            TieredPriceResponse(breakpoints=[1e6], rate_multipliers=[1.0, 1.6]),
+            spends.size,
+            base_price=5.0,
+        )
+        np.testing.assert_allclose(
+            u(spends),
+            [200_000, 212_500, 231_250, 262_500, 325_000, 450_000],
+            rtol=1e-10,
+        )
+        np.testing.assert_allclose(m(spends), 8.0, rtol=1e-12)
+        np.testing.assert_allclose(p(spends)[4], 2e6 / 325_000, rtol=1e-10)
+
+    def test_zero_and_negative_money(self):
+        _, _, u, p, m = tiered_maps(
+            TieredPriceResponse(breakpoints=[100.0], rate_multipliers=[1.2, 1.6]),
+            2,
+            base_price=5.0,
+        )
+        s = np.array([0.0, -5.0])
+        assert np.all(u(s) == 0.0)
+        assert np.all(np.isnan(p(s)))
+        np.testing.assert_allclose(m(s), 5.0 * 1.2, rtol=1e-12)
+
+    @pytest.mark.parametrize("mode", [None, "JAX"], ids=["default", "jax"])
+    def test_marginal_price_is_right_continuous_at_the_breakpoint(self, mode):
+        """A plan on its breakpoint must report the next bracket's rate as the price of its
+        next unit, and the solver's gradient there must be the slope above."""
+        if mode == "JAX":
+            pytest.importorskip("jax")
+        resolved, spend, _, _, m = tiered_maps(
+            TieredPriceResponse(breakpoints=[1e6], rate_multipliers=[1.0, 1.6]),
+            1,
+            base_price=5.0,
+            mode=mode,
+        )
+        at = np.array([1e6])
+        assert m(at)[0] == pytest.approx(8.0, rel=1e-12)
+        p0 = as_xtensor(pt.constant(np.array([5.0])), dims=("cell",))
+        objective = rewrite_graph(
+            resolved.to_delivery(spend, p0).sum().values, include=LOWER
+        )
+        gradient = function([spend], pt.grad(objective, spend), mode=mode)
+        assert gradient(at)[0] * 5.0 == pytest.approx(1.0 / 1.6, rel=1e-12)
+
+    def test_unscheduled_and_unit_cells_are_bitwise_the_constant_price_graph(
+        self, spend, base_price
+    ):
+        """A cell the schedule leaves out, and one at [1.0], must cost exactly what the
+        constant-price path costs, so adding a schedule elsewhere moves nothing there."""
+        resolved = TieredPriceResponse(
+            breakpoints={"tv": [100.0], "digital": []},
+            rate_multipliers={"tv": [1.0, 1.6], "digital": [1.0]},
+        ).resolve(**layout(), derived_reference=None)
+        with_base = compile_lowered(resolved.to_delivery(spend, base_price), spend)
+        without = compile_lowered(resolved.to_delivery(spend), spend)
+        constant = compile_lowered(spend / base_price, spend)
+        draws = np.random.default_rng(3067).uniform(0.0, 500.0, size=(2000, 3))
+        for s in draws:
+            assert np.array_equal(with_base(s)[1:], constant(s)[1:])
+            assert np.array_equal(without(s)[1:], s[1:])
+        assert (
+            TieredPriceResponse(rate_multipliers=[1.0])
+            .resolve(**layout(), derived_reference=None)
+            .is_identity
+        )
+
+    def test_padded_zero_first_and_equal_adjacent_cells_resolve_cleanly(self):
+        """A committed plan gives a channel with no commitment a zero first breakpoint, and
+        equal multipliers are a breakpoint with no kink: neither may warn or carry a knot."""
+        names = {"channel": ["tv", "radio", "digital"]}
+        breakpoints = xr.DataArray(
+            [[100.0, np.nan], [0.0, 100.0], [100.0, 200.0]],
+            dims=("channel", "bracket"),
+            coords=names,
+        )
+        multipliers = xr.DataArray(
+            [[1.0, 1.6, np.nan], [1.0, 1.5, 2.0], [1.0, 1.0, 2.0]],
+            dims=("channel", "bracket"),
+            coords=names,
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            resolved = TieredPriceResponse(
+                breakpoints=breakpoints, rate_multipliers=multipliers
+            ).resolve(**layout(), derived_reference=None)
+        np.testing.assert_array_equal(
+            np.isnan(resolved.edges), [[False, True, True], [True, False, False]]
+        )
+        np.testing.assert_allclose(resolved.first_slope, [1.0, 1 / 1.5, 1.0])
+        assert resolved.edges[1, 1] == 100.0 and resolved.edges[1, 2] == 200.0
+        spend = ptx.xtensor("s", shape=(3,), dims=DIMS)
+        m = compile_lowered(resolved.implied_marginal_price(spend), spend)
+        np.testing.assert_allclose(m(np.full(3, 150.0)), [1.6, 2.0, 1.0])
+
+    def test_the_blend(self):
+        """Inside a solve's box the knot is a C2 quartic: exact outside the window, short by
+        3/16 of drop * w at the knot, concave and increasing; after the solve the knot is
+        hard again. C2 means the curvature is zero at both edges of the window (grid points
+        100 and 300), where a C1 blend would jump by about half the peak curvature. A JAX
+        function compiled before the solve, as the optimizer's is, reads the blend inside it,
+        with a finite gradient, and the hard knot after it."""
+        b, w, p0 = 1e6, 1e3, 5.0
+        drop = 1.0 - 1.0 / 1.6
+        grid = np.linspace(b - 2 * w, b + 2 * w, 401)
+        resolved, spend, u, _, _ = tiered_maps(
+            TieredPriceResponse(
+                breakpoints=[b], rate_multipliers=[1.0, 1.6], knot_width=w / b
+            ),
+            grid.size,
+            base_price=p0,
+        )
+        exact = tiered_closed_form(grid, [b], [1.0, 1.6]) / p0
+        low, high = np.zeros(grid.size), np.full(grid.size, 3 * b)
+        on_jax = importlib.util.find_spec("jax") is not None
+        if on_jax:
+            objective = rewrite_graph(
+                resolved.to_delivery(spend).sum().values, include=LOWER
+            )
+            jax_u = function([spend], objective, mode="JAX")
+            jax_grad = function([spend], pt.grad(objective, spend), mode="JAX")
+        with resolved.conditioned_on(low, high):
+            blended = u(grid)
+            edges = u(np.array([b - w, b + w] + [b] * (grid.size - 2)))
+            if on_jax:
+                np.testing.assert_allclose(jax_u(grid) / p0, blended.sum(), rtol=1e-12)
+                assert np.all(np.isfinite(jax_grad(grid)))
+        if on_jax:
+            np.testing.assert_allclose(jax_u(grid) / p0, exact.sum(), rtol=1e-12)
+        outside = np.abs(grid - b) >= w
+        np.testing.assert_allclose(blended[outside], exact[outside], rtol=1e-12)
+        np.testing.assert_allclose(
+            edges[:2],
+            tiered_closed_form([b - w, b + w], [b], [1.0, 1.6]) / p0,
+            rtol=1e-12,
+        )
+        np.testing.assert_allclose(
+            exact[200] - blended[200], 3 / 16 * drop * w / p0, rtol=1e-6
+        )
+        first, second = np.diff(blended), np.diff(blended, 2)
+        assert np.all(first > 0.0)
+        assert np.all(second <= 1e-6 * np.abs(second).max())
+        peak = np.abs(second).max()
+        assert abs(second[99]) < 1e-2 * peak
+        assert abs(second[299]) < 1e-2 * peak
+        np.testing.assert_allclose(u(grid), exact, rtol=1e-12)
+
+
+class TestTieredPriceResponseDeclaration:
+    @pytest.mark.parametrize(
+        "kwargs, match",
+        [
+            pytest.param(
+                dict(breakpoints=[100.0], rate_multipliers=[1.0, -1.6]),
+                "must be positive and finite",
+                id="negative-multiplier",
+            ),
+            pytest.param(
+                dict(breakpoints=[100.0], rate_multipliers=[1.0, np.nan]),
+                "must be positive and finite",
+                id="nan-multiplier",
+            ),
+            pytest.param(
+                dict(breakpoints=[-1.0], rate_multipliers=[1.0, 1.6]),
+                "non-negative, finite and strictly ascending",
+                id="negative-breakpoint",
+            ),
+            pytest.param(
+                dict(breakpoints=[200.0, 100.0], rate_multipliers=[1.0, 1.2, 1.6]),
+                "non-negative, finite and strictly ascending",
+                id="descending",
+            ),
+            pytest.param(
+                dict(
+                    breakpoints=xr.DataArray([np.nan, 100.0], dims="bracket"),
+                    rate_multipliers=xr.DataArray([1.0, 1.2, 1.6], dims="bracket"),
+                ),
+                "nan may only trail",
+                id="leading-nan",
+            ),
+            pytest.param(
+                dict(breakpoints=[100.0], rate_multipliers=[1.0, 1.2, 1.6]),
+                "one multiplier per bracket",
+                id="count",
+            ),
+            pytest.param(
+                dict(breakpoints=(), rate_multipliers=()),
+                "one multiplier per bracket",
+                id="empty",
+            ),
+            pytest.param(
+                dict(breakpoints=[100.0], rate_multipliers={"tv": [1.0, 1.6]}),
+                "describe one schedule",
+                id="forms",
+            ),
+            pytest.param(
+                dict(
+                    breakpoints={"tv": [100.0]},
+                    rate_multipliers={"radio": [1.0, 1.6]},
+                ),
+                "describe one schedule",
+                id="labels",
+            ),
+            pytest.param(
+                dict(rate_multipliers={1: [1.0], "1": [1.1]}),
+                "name the same label more than once",
+                id="duplicate-keys",
+            ),
+            pytest.param(
+                dict(rate_multipliers=[1.0], reference_rate=-5.0),
+                "greater than 0",
+                id="reference-negative",
+            ),
+            pytest.param(
+                dict(rate_multipliers=[1.0], reference_rate=float("inf")),
+                "finite number",
+                id="reference-infinite",
+            ),
+            pytest.param(
+                dict(
+                    breakpoints=xr.DataArray(
+                        [100.0, 200.0, 300.0], dims="channel", coords=DIMS_COORDS
+                    ),
+                    rate_multipliers=xr.DataArray(
+                        [[1.0, 1.6, 2.0]] * 3,
+                        dims=("channel", "bracket"),
+                        coords=DIMS_COORDS,
+                    ),
+                ),
+                "one multiplier per bracket",
+                id="array-count",
+            ),
+            pytest.param(
+                dict(
+                    breakpoints=(),
+                    rate_multipliers=xr.DataArray([1.0, 1.6], dims="bracket"),
+                ),
+                "one multiplier per bracket",
+                id="array-count-no-breakpoints",
+            ),
+            pytest.param(
+                dict(
+                    breakpoints=xr.DataArray(
+                        [10.0, 20.0],
+                        dims="channel",
+                        coords={"channel": ["tv", "radio"]},
+                    ),
+                    rate_multipliers=xr.DataArray(
+                        [[1.0, 1.6]],
+                        dims=("channel", "bracket"),
+                        coords={"channel": ["tv"]},
+                    ),
+                ),
+                r"breakpoints names \['radio'\] along 'channel'.*describe one schedule",
+                id="array-labels",
+            ),
+        ],
+    )
+    def test_refusals_when_declared(self, kwargs, match):
+        with pytest.raises(ValueError, match=match):
+            TieredPriceResponse(**kwargs)
+
+    @pytest.mark.parametrize(
+        "kwargs, match",
+        [
+            pytest.param(
+                dict(rate_multipliers={"podcast": [1.0]}),
+                "must all be labels of exactly one budget dim",
+                id="unknown-dict-label",
+            ),
+            pytest.param(
+                dict(
+                    rate_multipliers=xr.DataArray(
+                        [1.0], dims="channel", coords={"channel": ["podcast"]}
+                    )
+                ),
+                "coordinates the model does not have",
+                id="unknown-array-label",
+            ),
+            pytest.param(
+                dict(rate_multipliers=xr.DataArray([1.0, 1.0, 1.0], dims="channel")),
+                "carry no coordinates",
+                id="unlabelled",
+            ),
+            pytest.param(
+                dict(
+                    rate_multipliers=xr.DataArray(
+                        [1.0, 1.1], dims="date", coords={"date": [0, 1]}
+                    )
+                ),
+                "the schedule has no date axis",
+                id="date-dim",
+            ),
+        ],
+    )
+    def test_refusals_at_resolve(self, kwargs, match):
+        declaration = TieredPriceResponse(**kwargs)
+        with pytest.raises(ValueError, match=match):
+            declaration.resolve(**layout(), derived_reference=None)
+
+    @pytest.mark.parametrize(
+        "breakpoints, multipliers, tolerance, refused",
+        [
+            pytest.param([1e6], [1.0, 160.0], 3.0, True, id="percentage"),
+            pytest.param([1e6], [5.5, 8.0], 3.0, True, id="both-absolute"),
+            pytest.param([1e6], [1.0, 2.5], 3.0, False, id="absolute-2.5"),
+            pytest.param([1e6], [1.0, 4.0], 5.0, False, id="four-times-raised"),
+        ],
+    )
+    def test_rate_tolerance_table(self, breakpoints, multipliers, tolerance, refused):
+        """Every multiplier is checked, so a percentage or an absolute rate is caught in
+        whichever bracket it is; one within the tolerance passes, which is the check's limit."""
+        kwargs = dict(
+            breakpoints=breakpoints,
+            rate_multipliers=multipliers,
+            rate_tolerance=tolerance,
+        )
+        if refused:
+            with pytest.raises(ValueError, match="too far from 1 to be a ratio"):
+                TieredPriceResponse(**kwargs)
+        else:
+            TieredPriceResponse(**kwargs)
+
+    def test_tolerance_refusal_shows_the_division(self):
+        with pytest.raises(ValueError, match=r"8 / 5 = 1\.6"):
+            TieredPriceResponse(
+                breakpoints=[1e6], rate_multipliers=[1.0, 8.0], reference_rate=5.0
+            )
+        multipliers = xr.DataArray(
+            [[1.0, 1.1], [1.0, 8.0]],
+            dims=("channel", "bracket"),
+            coords={"channel": ["tv", "radio"]},
+        )
+        with pytest.raises(ValueError, match=r"8 / 5 = 1\.6"):
+            TieredPriceResponse(
+                breakpoints=xr.DataArray([1e6], dims="bracket"),
+                rate_multipliers=multipliers,
+                reference_rate=5.0,
+            )
+
+    def test_many_brackets_warn(self):
+        with pytest.warns(
+            UserWarning, match="looks like a discretized price curve"
+        ) as record:
+            TieredPriceResponse(
+                breakpoints=[1.0, 2.0, 3.0, 4.0],
+                rate_multipliers=[1.0, 1.1, 1.2, 1.3, 1.4],
+            )
+        assert record[0].filename == __file__
+        with pytest.warns(
+            UserWarning, match="looks like a discretized price curve"
+        ) as record:
+            TieredPriceResponse.model_validate(
+                {
+                    "breakpoints": [1.0, 2.0, 3.0, 4.0],
+                    "rate_multipliers": [1.0, 1.1, 1.2, 1.3, 1.4],
+                }
+            )
+        assert record[0].filename == __file__
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            TieredPriceResponse(
+                breakpoints=[1.0, 2.0, 3.0], rate_multipliers=[1.0, 1.1, 1.2, 1.3]
+            )
+
+    def test_the_three_forms_resolve_to_the_same_arrays(self):
+        """A sequence, a dict naming every channel, and a DataArray typed with the literal
+        bracket dim name are one schedule; a reference_rate is a record and changes none
+        of it."""
+        sequence = TieredPriceResponse(
+            breakpoints=[100.0], rate_multipliers=[1.0, 1.6], reference_rate=5.0
+        )
+        by_label = TieredPriceResponse(
+            breakpoints={c: [100.0] for c in DIMS_COORDS["channel"]},
+            rate_multipliers={c: [1.0, 1.6] for c in DIMS_COORDS["channel"]},
+        )
+        array = TieredPriceResponse(
+            breakpoints=xr.DataArray([100.0], dims="bracket"),
+            rate_multipliers=xr.DataArray([1.0, 1.6], dims="bracket"),
+        )
+        resolved = [
+            d.resolve(**layout(), derived_reference=None)
+            for d in (sequence, by_label, array)
+        ]
+        for other in resolved[1:]:
+            np.testing.assert_array_equal(other.edges, resolved[0].edges)
+            np.testing.assert_array_equal(other.slope_drops, resolved[0].slope_drops)
+            np.testing.assert_array_equal(other.first_slope, resolved[0].first_slope)
+
+    def test_a_bare_number_is_a_one_element_schedule(self):
+        resolved = TieredPriceResponse(rate_multipliers=1.1).resolve(
+            **layout(), derived_reference=None
+        )
+        np.testing.assert_allclose(resolved.first_slope, 1 / 1.1)
+        assert resolved.edges.shape[0] == 0
+        by_label = TieredPriceResponse(
+            breakpoints={"tv": 100.0}, rate_multipliers={"tv": [1.0, 1.6]}
+        )
+        np.testing.assert_array_equal(
+            by_label.resolve(**layout(), derived_reference=None).edges[0],
+            [100.0, np.nan, np.nan],
+        )
+
+    def test_breakpoints_without_a_bracket_dim_is_one_per_cell(self):
+        """A committed plan passes as it is."""
+        committed = xr.DataArray([40.0, 25.0, 0.0], dims="channel", coords=DIMS_COORDS)
+        resolved = TieredPriceResponse(
+            breakpoints=committed,
+            rate_multipliers=xr.DataArray([1.0, 1.6], dims="bracket"),
+        ).resolve(**layout(), derived_reference=None)
+        np.testing.assert_array_equal(resolved.edges[0, :2], [40.0, 25.0])
+        assert np.isnan(resolved.edges[0, 2])
+        np.testing.assert_allclose(resolved.first_slope, [1.0, 1.0, 1 / 1.6])
+
+    def test_a_schedule_mutated_in_place_is_refused_at_resolve(self):
+        """The declaration holds the caller's dict or DataArray, so resolve checks it again,
+        with the same messages."""
+        by_label = TieredPriceResponse(
+            breakpoints={"tv": [100.0]},
+            rate_multipliers={"tv": [1.0, 1.6]},
+            reference_rate=5.0,
+        )
+        by_label.rate_multipliers["tv"] = (1.0, 8.0)
+        with pytest.raises(ValueError, match=r"8 / 5 = 1\.6"):
+            by_label.resolve(**layout(), derived_reference=None)
+        multipliers = xr.DataArray([1.0, 1.6], dims="bracket")
+        array = TieredPriceResponse(
+            breakpoints=xr.DataArray([100.0], dims="bracket"),
+            rate_multipliers=multipliers,
+            reference_rate=5.0,
+        )
+        multipliers.values[1] = -1.0
+        with pytest.raises(ValueError, match="must be positive and finite"):
+            array.resolve(**layout(), derived_reference=None)
+
+    def test_a_budget_dim_named_bracket_is_refused(self):
+        coords = {"bracket": ["a", "b"]}
+        with pytest.raises(ValueError, match="taken by the schedule's own dim"):
+            TieredPriceResponse(rate_multipliers=[1.1]).resolve(
+                **layout(dims=("bracket",), coords=coords), derived_reference=None
+            )
+
+    def test_integer_labels_are_matched_by_string_form(self):
+        coords = {"channel": [1, 2]}
+        declaration = TieredPriceResponse(
+            breakpoints={1: [100.0]}, rate_multipliers={1: [1.0, 1.6]}
+        )
+        resolved = declaration.resolve(**layout(coords=coords), derived_reference=None)
+        np.testing.assert_array_equal(resolved.edges[0], [100.0, np.nan])
+
+
+def two_bracket(b=1e6, multipliers=(1.0, 1.6), **kwargs):
+    return TieredPriceResponse(
+        breakpoints=[b], rate_multipliers=list(multipliers), **kwargs
+    ).resolve(**layout(dims=("cell",), coords={"cell": [0]}), derived_reference=None)
+
+
+class TestTieredSolveHooks:
+    def test_conditioned_on_moves_blends_and_restores(self):
+        """A knot strictly inside the box is blended; one on or beyond a bound is moved off
+        the box, or kept where it already is; on exit, and on an exception, the declared
+        map comes back."""
+        b = 1e6
+        resolved = two_bracket(b)
+        snap, width = resolved.snap, resolved.knot_width
+        default = b * (1.0 - snap)
+        ulp = np.spacing(b)
+        cases = [
+            ((0.0, 3 * b), default, width * b),
+            ((b, 3 * b), default, 0.0),
+            ((0.0, b), b * (1.0 + snap), 0.0),
+            ((b + ulp, 3 * b), default, 0.0),
+            ((b - ulp, 3 * b), (b - ulp) * (1.0 - snap), 0.0),
+            ((b * (1 - 1e-9), 3 * b), default, width * b),
+            ((b, b), default, 0.0),
+        ]
+        for (low, high), knot, half_width in cases:
+            with resolved.conditioned_on(np.array([low]), np.array([high])):
+                assert resolved._knots.get_value()[0, 0] == pytest.approx(
+                    knot, rel=1e-15
+                ), (low, high)
+                assert resolved._half_widths.get_value()[0, 0] == half_width
+            assert resolved._knots.get_value()[0, 0] == default
+            assert resolved._half_widths.get_value()[0, 0] == 0.0
+        with pytest.raises(RuntimeError, match="inside"):
+            with resolved.conditioned_on(np.array([0.0]), np.array([3 * b])):
+                raise RuntimeError("inside")
+        assert resolved._knots.get_value()[0, 0] == default
+        assert resolved._half_widths.get_value()[0, 0] == 0.0
+
+    def test_a_nested_conditioning_restores_the_outer_block(self):
+        """Leaving an inner conditioned_on gives back the outer block's knots, not the
+        declared map; leaving the outer one gives back the declared map."""
+        b = 1e6
+        resolved = two_bracket(b)
+        default = resolved._knots.get_value().copy()
+
+        def state():
+            return (
+                resolved._knots.get_value().copy(),
+                resolved._half_widths.get_value().copy(),
+            )
+
+        with resolved.conditioned_on(np.array([0.0]), np.array([3 * b])):
+            outer = state()
+            with resolved.conditioned_on(np.array([0.0]), np.array([b])):
+                inner = state()
+            assert not np.array_equal(inner[0], outer[0])
+            assert not np.array_equal(inner[1], outer[1])
+            after_inner = state()
+            np.testing.assert_array_equal(after_inner[0], outer[0])
+            np.testing.assert_array_equal(after_inner[1], outer[1])
+        np.testing.assert_array_equal(resolved._knots.get_value(), default)
+        np.testing.assert_array_equal(resolved._half_widths.get_value(), 0.0)
+
+    def test_a_tie_with_a_bound_is_within_the_snap(self):
+        """The table's "at a bound" is within the snap: a bound one ulp either side of the
+        breakpoint is a tie, so the box sees one bracket and nothing is blended."""
+        b = 1e6
+        resolved = two_bracket(b)
+        for bound in (b - np.spacing(b), b + np.spacing(b)):
+            with resolved.conditioned_on(np.array([0.0]), np.array([bound])):
+                assert resolved._half_widths.get_value()[0, 0] == 0.0
+                assert resolved._knots.get_value()[0, 0] > bound
+
+    def test_linear_piece_bounds(self):
+        resolved = TieredPriceResponse(
+            breakpoints=[100.0, 400.0], rate_multipliers=[1.0, 1.2, 1.6]
+        ).resolve(
+            **layout(dims=("cell",), coords={"cell": [0]}), derived_reference=None
+        )
+
+        def piece(budget, low=0.0, high=1000.0, from_below=None):
+            lo, hi = resolved.linear_piece_bounds(
+                np.array([budget]),
+                np.array([low]),
+                np.array([high]),
+                None if from_below is None else np.array([from_below]),
+            )
+            return float(lo[0]), float(hi[0])
+
+        assert piece(50.0) == (0.0, 100.0)
+        assert piece(250.0) == (100.0, 400.0)
+        assert piece(700.0) == (400.0, 1000.0)
+        assert piece(250.0, 150.0, 300.0) == (150.0, 300.0)
+        for budget in (100.0, np.nextafter(100.0, 0.0), np.nextafter(100.0, 200.0)):
+            assert piece(budget) == (100.0, 400.0)
+            assert piece(budget, from_below=True) == (0.0, 100.0)
+        assert piece(100.0, low=100.0 * (1 + 1e-15)) == (100.0 * (1 + 1e-15), 400.0)
+
+    def test_a_falling_breakpoint_inside_the_bounds_is_refused(self):
+        """Delivery is convex across a breakpoint where the rate falls: a solve that can
+        cross it is refused, and one whose box ends on it is not."""
+        b = 1e6
+        resolved = TieredPriceResponse(
+            breakpoints=[b], rate_multipliers=[1.0, 0.8]
+        ).resolve(**layout(mask_values=[True, False, False]), derived_reference=None)
+        boxes = {
+            "inside": ((0.0, 3 * b), True),
+            "just inside": ((b * (1 - 1e-9), 3 * b), True),
+            "lower bound on it": ((b, 3 * b), False),
+            "upper bound on it": ((0.0, b), False),
+            "lower bound one ulp off": ((b - np.spacing(b), 3 * b), False),
+        }
+        for name, ((low, high), refused) in boxes.items():
+            lows, highs = (
+                np.array([low, np.nan, np.nan]),
+                np.array([high, np.nan, np.nan]),
+            )
+            if refused:
+                with pytest.raises(
+                    ValueError, match="the rate falls across a breakpoint"
+                ) as info:
+                    with resolved.conditioned_on(lows, highs):
+                        pass
+                assert "['tv']" in str(info.value), name
+            else:
+                with resolved.conditioned_on(lows, highs):
+                    assert not resolved._half_widths.get_value().any(), name
+        rising_then_falling = TieredPriceResponse(
+            breakpoints=[100.0, 400.0], rate_multipliers=[1.0, 1.5, 1.2]
+        ).resolve(
+            **layout(dims=("cell",), coords={"cell": [0]}), derived_reference=None
+        )
+        with rising_then_falling.conditioned_on(np.array([0.0]), np.array([400.0])):
+            widths = rising_then_falling._half_widths.get_value()[:, 0]
+        assert widths[0] > 0.0 and widths[1] == 0.0

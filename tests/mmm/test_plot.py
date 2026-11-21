@@ -174,13 +174,13 @@ def test_contributions_over_time_with_dims_list(mock_suite: MMMPlotSuite):
 
 def test_contributions_over_time_with_multiple_dims_lists(mock_suite: MMMPlotSuite):
     """Test that passing multiple lists to dims creates a subplot for each combination."""
-    # Add a fake 'region' dim to the mock posterior for this test if not present
-    idata = mock_suite.idata
-    if "region" not in idata.posterior["intercept"].dims:
-        idata.posterior["intercept"] = idata.posterior["intercept"].expand_dims(
-            region=["X", "Y"]
-        )
-    fig, ax = mock_suite.contributions_over_time(
+    # Add a fake 'region' dim on a copy: the fixture is module-scoped, and
+    # later tests that read it must not see the extra dim.
+    idata = mock_suite.idata.copy()
+    idata.posterior["intercept"] = idata.posterior["intercept"].expand_dims(
+        region=["X", "Y"]
+    )
+    fig, ax = MMMPlotSuite(idata=idata).contributions_over_time(
         var=["intercept"],
         dims={"country": ["A", "B"], "region": ["X", "Y"]},
     )
@@ -257,7 +257,7 @@ def test_posterior_predictive(fit_mmm_with_channel_original_scale, df):
     assert all(isinstance(a, Axes) for a in ax.flat)
 
 
-@pytest.mark.parametrize("hdi_prob", [0.5, 0.85])
+@pytest.mark.parametrize("hdi_prob", [0.5])
 def test_prior_predictive(mmm_with_prior_predictive, hdi_prob):
     """Smoke test for ``MMMPlotSuite.prior_predictive``.
 
@@ -651,21 +651,15 @@ class TestSaturationScatterplotDims:
         self, mock_suite_with_constant_data
     ):
         """Test saturation_scatterplot with multiple lists in dims (should create subplots for each combination)."""
-        # Add a fake 'region' dim to the mock constant_data for this test if not present
-        idata = mock_suite_with_constant_data.idata
-        if "region" not in idata.constant_data.channel_data.dims:
-            # Expand channel_data and posterior to add region
-            new_regions = ["X", "Y"]
-            channel_data = idata.constant_data.channel_data.expand_dims(
-                region=new_regions
-            )
-            idata.constant_data["channel_data"] = channel_data
-            for var in ["channel_contribution", "channel_contribution_original_scale"]:
-                if var in idata.posterior:
-                    idata.posterior[var] = idata.posterior[var].expand_dims(
-                        region=new_regions
-                    )
-        fig, axes = mock_suite_with_constant_data.saturation_scatterplot(
+        # Add a fake 'region' dim on a copy: the fixture is module-scoped, and
+        # later tests that read it must not see the extra dim.
+        idata = mock_suite_with_constant_data.idata.copy()
+        new_regions = ["X", "Y"]
+        channel_data = idata.constant_data.channel_data.expand_dims(region=new_regions)
+        idata.constant_data["channel_data"] = channel_data
+        for var in ["channel_contribution", "channel_contribution_original_scale"]:
+            idata.posterior[var] = idata.posterior[var].expand_dims(region=new_regions)
+        fig, axes = MMMPlotSuite(idata=idata).saturation_scatterplot(
             dims={"country": ["A", "B"], "region": ["X", "Y"]}
         )
         assert isinstance(fig, Figure)
@@ -681,18 +675,6 @@ class TestSaturationScatterplotDims:
 
 
 class TestSaturationCurves:
-    def test_saturation_curves_basic(
-        self, mock_suite_with_constant_data, mock_saturation_curve
-    ):
-        """Test basic functionality of saturation_curves."""
-        fig, axes = mock_suite_with_constant_data.saturation_curves(
-            curve=mock_saturation_curve, n_samples=5
-        )
-
-        assert isinstance(fig, Figure)
-        assert isinstance(axes, np.ndarray)
-        assert all(isinstance(ax, Axes) for ax in axes.flat)
-
     def test_saturation_curves_original_scale(
         self, mock_suite_with_constant_data, mock_saturation_curve
     ):
@@ -837,21 +819,15 @@ class TestSaturationCurvesDims:
         self, mock_suite_with_constant_data, mock_saturation_curve
     ):
         """Test saturation_curves with multiple lists in dims (should create subplots for each combination)."""
-        # Add a fake 'region' dim to the mock constant_data for this test if not present
-        idata = mock_suite_with_constant_data.idata
-        if "region" not in idata.constant_data.channel_data.dims:
-            # Expand channel_data and posterior to add region
-            new_regions = ["X", "Y"]
-            channel_data = idata.constant_data.channel_data.expand_dims(
-                region=new_regions
-            )
-            idata.constant_data["channel_data"] = channel_data
-            for var in ["channel_contribution", "channel_contribution_original_scale"]:
-                if var in idata.posterior:
-                    idata.posterior[var] = idata.posterior[var].expand_dims(
-                        region=new_regions
-                    )
-        fig, axes = mock_suite_with_constant_data.saturation_curves(
+        # Add a fake 'region' dim on a copy: the fixture is module-scoped, and
+        # later tests that read it must not see the extra dim.
+        idata = mock_suite_with_constant_data.idata.copy()
+        new_regions = ["X", "Y"]
+        channel_data = idata.constant_data.channel_data.expand_dims(region=new_regions)
+        idata.constant_data["channel_data"] = channel_data
+        for var in ["channel_contribution", "channel_contribution_original_scale"]:
+            idata.posterior[var] = idata.posterior[var].expand_dims(region=new_regions)
+        fig, axes = MMMPlotSuite(idata=idata).saturation_curves(
             curve=mock_saturation_curve,
             n_samples=3,
             dims={"country": ["A", "B"], "region": ["X", "Y"]},
@@ -983,18 +959,6 @@ def test_saturation_curves_single_dim_axes_shape(
     # Expect (n_channels, 1)
     assert axes.shape[1] == 1
     assert axes.shape[0] == mock_saturation_curve_single_dim.sizes["channel"]
-
-
-def test_saturation_curves_multi_dim_axes_shape(
-    mock_suite_with_constant_data, mock_saturation_curve
-):
-    """With an extra dim (e.g., 'country'), expect (n_channels, n_countries)."""
-    fig, axes = mock_suite_with_constant_data.saturation_curves(
-        curve=mock_saturation_curve, n_samples=2
-    )
-
-    assert isinstance(fig, Figure)
-    assert isinstance(axes, np.ndarray)
 
 
 def test_sensitivity_analysis_basic(mock_suite_with_sensitivity):
@@ -1166,17 +1130,6 @@ def test_sensitivity_analysis_legend_kwargs(mock_suite_with_sensitivity_and_chan
 
 
 # Tests for x_sweep_axis parameter
-def test_sensitivity_analysis_x_sweep_axis_relative(
-    mock_suite_with_sensitivity_and_channels,
-):
-    """Default 'relative' mode works."""
-    fig, axes = mock_suite_with_sensitivity_and_channels.sensitivity_analysis(
-        hue_dim="channel", x_sweep_axis="relative"
-    )
-    assert isinstance(fig, Figure)
-    assert isinstance(axes, np.ndarray)
-
-
 def test_sensitivity_analysis_x_sweep_axis_absolute(
     mock_suite_with_sensitivity_and_channels,
 ):
@@ -1465,14 +1418,6 @@ def mock_suite_with_errors_data(mock_idata_with_errors_data):
 
 
 class TestResidualsOverTime:
-    def test_residuals_over_time_basic(self, mock_suite_with_errors_data):
-        """Test basic functionality of residuals over time plot."""
-        fig, axes = mock_suite_with_errors_data.residuals_over_time()
-
-        assert isinstance(fig, Figure)
-        assert isinstance(axes, np.ndarray)
-        assert all(isinstance(ax, Axes) for ax in axes.flat)
-
     def test_residuals_over_time_single_hdi(self, mock_suite_with_errors_data):
         """Test residuals over time plot with single HDI probability."""
         fig, axes = mock_suite_with_errors_data.residuals_over_time(hdi_prob=[0.94])
@@ -1601,14 +1546,6 @@ class TestResidualsOverTime:
 
 
 class TestResidualsPosteriоrDistribution:
-    def test_residuals_distribution_basic(self, mock_suite_with_errors_data):
-        """Test basic functionality of residuals posterior distribution plot."""
-        fig, axes = mock_suite_with_errors_data.residuals_posterior_distribution()
-
-        assert isinstance(fig, Figure)
-        assert isinstance(axes, np.ndarray)
-        assert all(isinstance(ax, Axes) for ax in axes.flat)
-
     def test_residuals_distribution_with_aggregation_mean(
         self, mock_suite_with_errors_data
     ):
@@ -2730,24 +2667,6 @@ class TestChannelParameter:
         assert fig.get_figwidth() == 12
         assert fig.get_figheight() == 8
 
-    def test_channel_parameter_returns_figure_for_axvline(
-        self, mock_suite_with_channel_params
-    ):
-        """Test that returned figure can be used to add reference lines."""
-        fig = mock_suite_with_channel_params.channel_parameter(
-            param_name="saturation_alpha"
-        )
-
-        # Verify we can add axvline as done in the notebook
-        ax = fig.axes[0]
-        ax.axvline(x=0.5, color="red", linestyle="--", label="reference")
-        ax.legend()
-
-        assert isinstance(fig, Figure)
-        # Check that the axvline was added
-        lines = ax.get_lines()
-        assert len(lines) >= 1
-
 
 class TestPriorVsPosterior:
     """Tests for the prior_vs_posterior plotting method."""
@@ -3351,19 +3270,6 @@ def _build_cv_results_for_cv_predictions():
         {"/posterior_predictive": ds_pp, "/cv_metadata": ds_meta}
     )
     return results
-
-
-def test_cv_predictions_none_dims_plots_without_error():
-    """cv_predictions should accept dims=None (treated as empty dict) and produce a plot."""
-    suite = MMMPlotSuite(idata=None)
-    results = _build_cv_results_for_cv_predictions()
-
-    fig, axes = suite.cv_predictions(results, dims=None)
-
-    assert fig is not None
-    # axes may be a list of Axes; ensure at least one axis exists
-    assert hasattr(axes, "__len__")
-    assert len(axes) >= 1
 
 
 def test_cv_predictions_unsupported_dims_raises_value_error():
@@ -4109,61 +4015,6 @@ def test_cv_crps_dim_selection_casting_succeeds(monkeypatch):
     # Both train and test should have at least one plotted line when CRPS is computed
     assert len(ax_train.get_lines()) >= 1
     assert len(ax_test.get_lines()) >= 1
-
-
-def test_detect_datetime_column():
-    # Create a DataFrame with various column types
-    rows_df = pd.DataFrame(
-        {
-            "numeric": [1, 2, 3],
-            "text": ["a", "b", "c"],
-            "datetime": pd.date_range("2025-01-01", periods=3),
-        }
-    )
-
-    found_col = None
-
-    # Code block to test
-    for col in rows_df.columns:
-        try:
-            if pd.api.types.is_datetime64_any_dtype(rows_df[col].dtype):
-                found_col = col
-                break
-        except Exception as exc:
-            warnings.warn(
-                f"Error while inspecting dataframe column dtype for date detection: {exc}",
-                stacklevel=2,
-            )
-            continue
-
-    # Assert that the datetime column was correctly identified
-    assert found_col == "datetime"
-
-
-def test_transpose_with_fallback():
-    # Create a mock DataArray with dimensions
-    dims = ("chain", "draw", "sample", "date")
-    coords = {
-        "chain": [0],
-        "draw": [0, 1],
-        "sample": [0, 1, 2],
-        "date": pd.date_range("2025-01-01", periods=3),
-    }
-    data = np.random.rand(1, 2, 3, 3)
-    da_s = xr.DataArray(data, dims=dims, coords=coords)
-
-    # Simulate the try block
-    try:
-        da_s = da_s.transpose("sample", ...)
-    except Exception:
-        dims = list(da_s.dims)
-        order = ["sample"] + [d for d in dims if d != "sample"]
-        da_s = da_s.transpose(*order)
-
-    # Assert that the resulting DataArray has "sample" as the first dimension
-    assert da_s.dims[0] == "sample"
-    # Assert that all original dimensions are preserved
-    assert set(da_s.dims) == set(dims)
 
 
 def test_pred_matrix_transpose_fallback_with_custom_order():

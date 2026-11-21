@@ -1,0 +1,848 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2026, PyMC Labs
+# This file is distributed under the same license as the PyMC-Marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyMC-Marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:10004
+#: 92c1c81262394a8b96eca7bc6048d344
+msgid "Interactive MMM Visualizations with `plot_interactive`"
+msgstr "Visualizaciones interactivas de MMM con `plot_interactive`"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:10006
+#: ef7ec119ed1e437587a02e68784ed197
+msgid ""
+"This notebook demonstrates the **interactive plotting capabilities** of "
+"the `plot_interactive` module in `pymc-marketing`. These Plotly-based "
+"visualizations are designed for exploring MMM results interactively — "
+"hovering over data points, zooming into time ranges, and faceting across "
+"custom dimensions like markets."
+msgstr ""
+"Este cuaderno demuestra las **capacidades de gráficos interactivos** del "
+"módulo `plot_interactive` de `pymc-marketing`. Estas visualizaciones basadas"
+" en Plotly están diseñadas para explorar los resultados de MMM de forma "
+"interactiva — pasando el cursor sobre los puntos de datos, haciendo zoom en "
+"rangos de tiempo y dividiendo en facetas según dimensiones personalizadas "
+"como los mercados."
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:10011
+#: 0c30d07a624e4d979a360883926183e8
+msgid ""
+"We use the **multidimensional MMM** example data (two geos: `geo_a` and "
+"`geo_b`, two channels: `x1` and `x2`) and fit the model using the same "
+"setup as the [MMM Multidimensional Example Notebook](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_multidimensional_example.html)."
+msgstr ""
+"Usamos los datos de ejemplo del **MMM multidimensional** (dos geografías: "
+"`geo_a` y `geo_b`, dos canales: `x1` y `x2`) y ajustamos el modelo con la "
+"misma configuración que en el [cuaderno de ejemplo de MMM "
+"multidimensional](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_multidimensional_example.html)."
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:10015
+#: c91e4dfcb8084b308fd547642c1ebd32
+msgid "**What this notebook covers:**"
+msgstr "**Qué cubre este cuaderno:**"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:10017
+#: 67c9193eb2844a6fb7e64eaaec05282a
+msgid "Posterior predictive checks (actual vs predicted)"
+msgstr "Chequeos predictivos posteriores (real vs predicho)"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:10018
+#: 52d76d2691874af081341d0c75ebcc16
+msgid "ROAS analysis at different time granularities"
+msgstr "Análisis de ROAS con diferentes granularidades de tiempo"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:10019
+#: fa408ef1b3684456ad38799413931c25
+msgid "Channel contributions over time"
+msgstr "Contribuciones de los canales a lo largo del tiempo"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:10020
+#: eb56ec05cf1f417cb77d48b4232bd6f0
+msgid "Saturation curves (diminishing returns)"
+msgstr "Curvas de saturación (rendimientos decrecientes)"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:10021
+#: 4bc4d72217e649faba595cc74f57ea81
+msgid "Adstock curves (carryover effects)"
+msgstr "Curvas de adstock (efectos de arrastre)"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:10022
+#: 5dd38b45535d4f32abea2bccb4a516e6
+msgid "Waterfall and channel share decomposition"
+msgstr "Descomposición en cascada y por participación de los canales"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:10023
+#: b505308b4d2d4140b9b3d68c971e9e79
+msgid "Exporting summary data for custom frontends"
+msgstr "Exportación de datos resumidos para frontends personalizados"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:10024
+#: be3549a8f0cc409581e015b34866243d
+msgid "Auto-faceting across custom dimensions"
+msgstr "Facetado automático a lo largo de dimensiones personalizadas"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:10025
+#: bc958d7ea1684c78a0be686e435cdf3a
+msgid ""
+"Advanced: Filtering and aggregating data with `MMMSummaryFactory` and "
+"`MMMPlotlyFactory`"
+msgstr ""
+"Avanzado: filtrado y agregación de datos con `MMMSummaryFactory` y "
+"`MMMPlotlyFactory`"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:10026
+#: 6acf329e74c943d39099177359ce5127
+msgid ""
+"See also: [Exporting MMM data for frontends](https://www.pymc-"
+"marketing.io/en/stable/guide/mmm/data_export.html)"
+msgstr ""
+"Véase también: [Exportación de datos de MMM para "
+"frontends](https://www.pymc-"
+"marketing.io/en/stable/guide/mmm/data_export.html)"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:30002
+#: ceb2db74b99f4f28a1e288bd2b106a34
+msgid "Load Data & Fit Model"
+msgstr "Cargar datos y ajustar el modelo"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:30004
+#: 9ae8e96d93c5427abc60ccccdfcc4f22
+msgid ""
+"We load the same simulated multidimensional dataset used in the [MMM "
+"Multidimensional Example](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_multidimensional_example.html). "
+"The data has two geographies (`geo_a`, `geo_b`) and two channels (`x1`, "
+"`x2`)."
+msgstr ""
+"Cargamos el mismo conjunto de datos multidimensional simulado que se usa en "
+"el [ejemplo de MMM multidimensional](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_multidimensional_example.html). Los"
+" datos tienen dos geografías (`geo_a`, `geo_b`) y dos canales (`x1`, `x2`)."
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:30008
+#: 68db5a1b6aea4371a99a34bce2fb259a
+msgid ""
+"For model fitting details (prior specification, adstock/saturation "
+"choices, pooling strategies), please refer to the original notebook. Here"
+" we set up and fit the model quickly so we can focus on **interactive "
+"visualizations**."
+msgstr ""
+"Para conocer los detalles del ajuste del modelo (especificación de los "
+"priors, elecciones de adstock y saturación, estrategias de agrupamiento), "
+"consulte el cuaderno original. Aquí configuramos y ajustamos el modelo "
+"rápidamente para poder centrarnos en las **visualizaciones interactivas**."
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:60004
+#: 5d951083df6846e29319131f3f44d071
+msgid "1. Posterior Predictive: How Well Does the Model Fit?"
+msgstr "1. Predictiva posterior: ¿qué tan bien se ajusta el modelo?"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:60006
+#: 4e000f904fbb45299a8f73cc37161b67
+msgid ""
+"The posterior predictive plot shows the model's predictions (with "
+"uncertainty) against the observed data. This is the first thing to check "
+"after fitting — do the predictions track the actual sales?"
+msgstr ""
+"El gráfico predictivo posterior muestra las predicciones del modelo (con su "
+"incertidumbre) frente a los datos observados. Es lo primero que se debe "
+"revisar después del ajuste — ¿las predicciones siguen a las ventas reales?"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:60010
+#: 92ff81f6829641068bf66918bf6d7d0b
+msgid ""
+"The interactive plot lets you **hover** over any point to see exact "
+"values, and **zoom** into specific time periods."
+msgstr ""
+"El gráfico interactivo le permite **pasar el cursor** sobre cualquier punto "
+"para ver los valores exactos y hacer **zoom** en períodos de tiempo "
+"específicos."
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:80004
+#: 42a91585f5744949a81fb6893ca50923
+msgid "2. ROAS Analysis: Which Channels Give the Best Return?"
+msgstr "2. Análisis de ROAS: ¿qué canales ofrecen el mejor retorno?"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:80006
+#: 6c89112809954bb8b87819b4ad554b1a
+msgid ""
+"ROAS (Return on Ad Spend) is one of the most important metrics for "
+"marketers. The `plot_interactive` module makes it easy to slice and dice "
+"ROAS across different time granularities and dimensions."
+msgstr ""
+"El ROAS (Return on Ad Spend, retorno de la inversión publicitaria) es una de"
+" las métricas más importantes para los profesionales de marketing. El módulo"
+" `plot_interactive` facilita desglosar el ROAS según diferentes "
+"granularidades de tiempo y dimensiones."
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:80010
+#: b70e4dc33bd24ca0a54ca7f973d4eac3
+msgid "Q: How did the ROAS of each channel change year after year?"
+msgstr "P: ¿Cómo cambió el ROAS de cada canal año tras año?"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:100002
+#: 0d6a4b061bf64eb6a8c87e36e2695754
+msgid "Q: Within each year, which channel performed better in each geo?"
+msgstr ""
+"P: Dentro de cada año, ¿qué canal tuvo mejor desempeño en cada geografía?"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:100004
+#: 639fc5442ee444749ad3298438ed0932
+msgid ""
+"By swapping `x` and `color`, we get a different perspective — now the "
+"x-axis shows time and the color differentiates channels."
+msgstr ""
+"Al intercambiar `x` y `color`, obtenemos una perspectiva distinta: ahora el "
+"eje x muestra el tiempo y el color diferencia los canales."
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:120002
+#: 61dd236b08054b6a9fe92af667a81200
+msgid "Q: Looking over all the data, which channel performed better in each geo?"
+msgstr ""
+"P: Considerando todos los datos, ¿qué canal tuvo mejor desempeño en cada "
+"geografía?"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:120004
+#: 186d65d2a5c0440885e776807a26b4a9
+msgid ""
+"Using `frequency=\"all_time\"` aggregates everything into a single time "
+"period, giving us the overall ROAS per channel per geo."
+msgstr ""
+"Usar `frequency=\"all_time\"` agrega todo en un único período de tiempo, lo "
+"que nos da el ROAS global por canal y por geografía."
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:140004
+#: 976852350bca46bd8e09b4f1b4f61252
+msgid "3. Channel Contributions: What Drives Sales?"
+msgstr "3. Contribuciones de los canales: ¿qué impulsa las ventas?"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:140006
+#: 587dc56a40074075b8f66c60ee8b5221
+msgid ""
+"The contributions plot shows how much each channel contributes to total "
+"sales over time. It supports the same `frequency`, `color`, and `x` "
+"parameters as `roas()` above, so you can slice contributions in exactly "
+"the same way — by time granularity, channel, or geography."
+msgstr ""
+"El gráfico de contribuciones muestra cuánto aporta cada canal a las ventas "
+"totales a lo largo del tiempo. Admite los mismos parámetros `frequency`, "
+"`color` y `x` que `roas()` más arriba, por lo que puede desglosar las "
+"contribuciones exactamente de la misma manera: por granularidad de tiempo, "
+"canal o geografía."
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:140011
+#: d138862cd85e4bcfa522690928506f72
+msgid "Q: What is the overall contribution of each channel across all geos?"
+msgstr ""
+"P: ¿Cuál es la contribución global de cada canal en todas las geografías?"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:140013
+#: c5dd4d8de39744ac9c152c3fb281386b
+msgid "Error bars show the 94% HDI (Highest Density Interval)."
+msgstr ""
+"Las barras de error muestran el HDI del 94% (intervalo de mayor densidad)."
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:160002
+#: 4ef3282518374d55bf619b3784ec6cb3
+msgid "Q: How did channel contributions change year by year?"
+msgstr "P: ¿Cómo cambiaron las contribuciones de los canales año tras año?"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:160004
+#: c920ad9fa1d4472bbbb98686e1addf28
+msgid ""
+"Just like the ROAS examples, setting `frequency=\"yearly\"`, "
+"`color=\"channel\"`, and `x=\"date\"` gives us a time-series view colored"
+" by channel."
+msgstr ""
+"Igual que en los ejemplos de ROAS, al establecer `frequency=\"yearly\"`, "
+"`color=\"channel\"` y `x=\"date\"` obtenemos una vista de serie temporal "
+"coloreada por canal."
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:180002
+#: a45a72a5a1ea4737aacfd88e65bcada3
+msgid "Q: How did the contributions of control variables change year by year?"
+msgstr ""
+"P: ¿Cómo cambiaron las contribuciones de las variables de control año tras "
+"año?"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:180004
+#: 388db720f0954d2282e0285bca0cdf41
+msgid ""
+"On top of channel contributions, we can also plot the contributions of "
+"control, seasonality, and baseline variables."
+msgstr ""
+"Además de las contribuciones de los canales, también podemos graficar las "
+"contribuciones de las variables de control, de estacionalidad y de la línea "
+"base."
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:200004
+#: 49cccafed86d41b38877923f951788ee
+msgid "4. Saturation Curves: Where Are Diminishing Returns?"
+msgstr "4. Curvas de saturación: ¿dónde hay rendimientos decrecientes?"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:200006
+#: 0b83bf60e9ac426a83c85040700a0ae5
+msgid ""
+"Saturation curves show how the response (contribution) changes as spend "
+"increases. These are essential for understanding where additional spend "
+"will have diminishing returns."
+msgstr ""
+"Las curvas de saturación muestran cómo cambia la respuesta (contribución) a "
+"medida que aumenta el gasto. Son esenciales para entender dónde un gasto "
+"adicional tendrá rendimientos decrecientes."
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:200010
+#: 1479fa9c58494cb089396f8c7d4a9695
+msgid "Q: Show me the saturation curves in original scale"
+msgstr "P: Muéstrame las curvas de saturación en la escala original"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:200012
+#: 92be2724bdf348fea7a4c27d73d534dd
+msgid ""
+"By default, the x-axis is in original scale (e.g., dollars of spend). "
+"Each channel gets its own line, faceted by geo."
+msgstr ""
+"De forma predeterminada, el eje x está en la escala original (por ejemplo, "
+"dólares de gasto). Cada canal tiene su propia línea, dividida en facetas por"
+" geografía."
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:220002
+#: 176fb0d70f694d388c5c301cf9fb1122
+msgid "Q: Now show me with uncertainty (HDI bands)"
+msgstr "P: Ahora muéstrame con incertidumbre (bandas HDI)"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:220004
+#: 2e83353fdb6f403f82141856c9e1644e
+msgid ""
+"Adding `hdi_prob=0.9` draws shaded bands showing the 90% HDI around each "
+"curve — capturing posterior uncertainty in the saturation parameters."
+msgstr ""
+"Al agregar `hdi_prob=0.9` se dibujan bandas sombreadas que muestran el HDI "
+"del 90% alrededor de cada curva, capturando la incertidumbre posterior en "
+"los parámetros de saturación."
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:240004
+#: b094948075e94dbf896cb480758fd1bf
+msgid "5. Adstock Curves: How Long Do Effects Last?"
+msgstr "5. Curvas de adstock: ¿cuánto duran los efectos?"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:240006
+#: 344e96380a6d451a9a9b4ac9cb72456f
+msgid ""
+"Adstock (carryover) curves show how the effect of a marketing impulse "
+"decays over time. A slow decay means the channel has long-lasting "
+"effects; a fast decay means the effect is short-lived."
+msgstr ""
+"Las curvas de adstock (arrastre) muestran cómo decae con el tiempo el efecto"
+" de un impulso de marketing. Un decaimiento lento significa que el canal "
+"tiene efectos duraderos; un decaimiento rápido significa que el efecto es de"
+" corta duración."
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:240010
+#: 7934fd7cf861455cbe66f2df324274ed
+msgid "Q: How do the decay curves look?"
+msgstr "P: ¿Cómo se ven las curvas de decaimiento?"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:260002
+#: d89feadde7dc4fd6a1ad1c06cc8a7087
+msgid "Q: Show me adstock curves with uncertainty"
+msgstr "P: Muéstrame las curvas de adstock con incertidumbre"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:260004
+#: dc6fa135e578451782c35a5f064a7b1a
+msgid ""
+"Adding HDI bands helps us understand how confident we are about the "
+"carryover duration for each channel."
+msgstr ""
+"Agregar bandas HDI nos ayuda a entender qué tan seguros estamos de la "
+"duración del efecto de arrastre de cada canal."
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:280004
+#: 94a06d7fed4a4a7e97d31277c423bf1f
+msgid "6. Auto-faceting Across Custom Dimensions"
+msgstr "6. Facetado automático a lo largo de dimensiones personalizadas"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:280006
+#: 9340e7a2e75e464082eab8d0b51f1e79
+msgid ""
+"When your model includes **custom dimensions** (like `geo` in our "
+"example), `plot_interactive` **automatically creates subplots** (facets) "
+"for each dimension value. You've already seen this in all the plots above"
+" — each subplot corresponds to a different geography (`geo_a` and "
+"`geo_b`)."
+msgstr ""
+"Cuando su modelo incluye **dimensiones personalizadas** (como `geo` en "
+"nuestro ejemplo), `plot_interactive` **crea automáticamente subgráficos** "
+"(facetas) para cada valor de la dimensión. Ya lo ha visto en todos los "
+"gráficos anteriores: cada subgráfico corresponde a una geografía distinta "
+"(`geo_a` y `geo_b`)."
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:280011
+#: 9fed3b0f480e46ecbeb08fc170a89e7a
+msgid ""
+"This behavior is controlled by the `auto_facet` parameter, which is "
+"**enabled by default**. You can also control the faceting layout with "
+"`facet_col` and `facet_row`:"
+msgstr ""
+"Este comportamiento se controla con el parámetro `auto_facet`, que está "
+"**habilitado de forma predeterminada**. También puede controlar la "
+"disposición de las facetas con `facet_col` y `facet_row`:"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:280015
+#: 362085a34ced49a99a85fbd43c41b0a8
+msgid "`facet_col` — creates side-by-side columns (one per dimension value)"
+msgstr ""
+"`facet_col` — crea columnas lado a lado (una por cada valor de la dimensión)"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:280016
+#: d4b4c3244d5341b39e02b91e199b43ae
+msgid "`facet_row` — stacks subplots vertically (one per dimension value)"
+msgstr ""
+"`facet_row` — apila los subgráficos verticalmente (uno por cada valor de la "
+"dimensión)"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:280017
+#: 79a28ef4ff7248bc9678edb2526e9f54
+msgid ""
+"`single_dim_facet` — controls the default direction (`\"col\"` or "
+"`\"row\"`)"
+msgstr ""
+"`single_dim_facet` — controla la dirección predeterminada (`\"col\"` o "
+"`\"row\"`)"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:280019
+#: 967b2469133a4bebbdb0434e6dd33696
+msgid "Q: Compare saturation curves across geos stacked vertically"
+msgstr ""
+"P: Compara las curvas de saturación entre geografías apiladas verticalmente"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:280021
+#: 8b15c951adf64c59a630ba317fdc30a8
+msgid ""
+"Using `facet_row=\"geo\"` overrides the default column layout and stacks "
+"the saturation curves vertically instead."
+msgstr ""
+"Usar `facet_row=\"geo\"` anula la disposición en columnas predeterminada y "
+"apila las curvas de saturación verticalmente."
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:300002
+#: 3212249b79904ce2a30e5e844b65f4ba
+msgid "Q: What if I want to have all lines in the same plot?"
+msgstr "P: ¿Y si quiero tener todas las líneas en el mismo gráfico?"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:300004
+#: e2c91b8b480e4ce3b65b4ef47cc4fb0f
+msgid ""
+"Setting `auto_facet=False` disables the automatic subplot creation. For "
+"line-based plots (like saturation and adstock curves), the custom "
+"dimension is then shown using **line dash styles** instead of separate "
+"subplots — all curves appear on a single plot, differentiated by dashing."
+msgstr ""
+"Establecer `auto_facet=False` desactiva la creación automática de "
+"subgráficos. En los gráficos basados en líneas (como las curvas de "
+"saturación y de adstock), la dimensión personalizada se muestra entonces "
+"mediante **estilos de guiones de línea** en lugar de subgráficos separados: "
+"todas las curvas aparecen en un único gráfico, diferenciadas por el trazo "
+"discontinuo."
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:320002
+#: daf719e905764cbfb91fb3056aa8ebc5
+msgid "Q: Show adstock curves with geos as columns instead of the default"
+msgstr ""
+"P: Muestra las curvas de adstock con las geografías como columnas en lugar "
+"de la disposición predeterminada"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:320004
+#: e1a57dbd24224197bebaa621081a3431
+msgid ""
+"By passing `single_dim_facet=\"col\"`, the single custom dimension "
+"(`geo`) is faceted as columns rather than the default rows for this plot "
+"type."
+msgstr ""
+"Al pasar `single_dim_facet=\"col\"`, la única dimensión personalizada "
+"(`geo`) se divide en facetas como columnas, en lugar de como filas, que es "
+"lo predeterminado para este tipo de gráfico."
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:340004
+#: f1c8c5c899a543e8a468a226b68b9db3
+msgid "7. Advanced: Filtering & Aggregating with the Data Layer"
+msgstr "7. Avanzado: filtrado y agregación con la capa de datos"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:340006
+#: bd6ebd4e01df49c0ae26410336ab0208
+msgid ""
+"**This is an advanced section.** The examples above cover the most common"
+" use cases through `mmm.plot_interactive`. This section shows how to work"
+" directly with the underlying components for custom data slicing."
+msgstr ""
+"**Esta es una sección avanzada.** Los ejemplos anteriores cubren los casos "
+"de uso más comunes a través de `mmm.plot_interactive`. Esta sección muestra "
+"cómo trabajar directamente con los componentes subyacentes para segmentar "
+"los datos de forma personalizada."
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:340010
+#: 67c72bd3e77749ff8d9dd2ae5ce0b9e4
+msgid "Under the hood, `mmm.plot_interactive` is powered by two key classes:"
+msgstr "Internamente, `mmm.plot_interactive` se basa en dos clases clave:"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:340012
+#: c26952cfd8bd4324a31130b1aeba96a9
+msgid ""
+"**`MMMSummaryFactory`** — Takes a data wrapper (from `mmm.data`) and the "
+"fitted model, and computes summary statistics like contributions, ROAS, "
+"and posterior predictive values. It handles HDI computation, time "
+"aggregation, and proper scaling. You can think of it as the \"data "
+"engine\" that turns raw xr.DataTree into plottable DataFrames."
+msgstr ""
+"**`MMMSummaryFactory`** — Toma un contenedor de datos (de `mmm.data`) y el "
+"modelo ajustado, y calcula estadísticas resumidas como las contribuciones, "
+"el ROAS y los valores predictivos posteriores. Se encarga del cálculo del "
+"HDI, la agregación en el tiempo y el escalado adecuado. Puede pensar en ella"
+" como el \"motor de datos\" que convierte el xr.DataTree sin procesar en "
+"DataFrames listos para graficar."
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:340018
+#: 712f5032e91d4c1384efcc121de2fb07
+msgid ""
+"**`MMMPlotlyFactory`** — Takes an `MMMSummaryFactory` and provides all "
+"the interactive plotting methods (`posterior_predictive()`, `roas()`, "
+"`contributions()`, `saturation_curves()`, `adstock_curves()`). It reads "
+"from the summary factory and creates Plotly figures."
+msgstr ""
+"**`MMMPlotlyFactory`** — Toma una `MMMSummaryFactory` y proporciona todos "
+"los métodos de graficación interactiva (`posterior_predictive()`, `roas()`, "
+"`contributions()`, `saturation_curves()`, `adstock_curves()`). Lee de la "
+"fábrica de resúmenes y crea figuras de Plotly."
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:340023
+#: fae4bdfa53474a7fb5cf6d3186990424
+msgid ""
+"When you call `mmm.plot_interactive`, it automatically creates both of "
+"these using your full dataset. But you can also create them **manually** "
+"with filtered or aggregated data — this is the key to custom views."
+msgstr ""
+"Cuando usa `mmm.plot_interactive`, este crea ambas clases automáticamente "
+"con su conjunto de datos completo. Pero también puede crearlas "
+"**manualmente** con datos filtrados o agregados: esta es la clave para "
+"obtener vistas personalizadas."
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:340027
+#: 33c843d335e942079b9a24a51e9d5a54
+msgid "The workflow is:"
+msgstr "El flujo de trabajo es el siguiente:"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:340029
+#: e15c999caa544985937855bae3a5b02a
+msgid ""
+"**Transform the data** using `mmm.data.filter_dims()`, "
+"`mmm.data.filter_dates()`, or `mmm.data.aggregate_dims()`"
+msgstr ""
+"**Transforme los datos** con `mmm.data.filter_dims()`, "
+"`mmm.data.filter_dates()` o `mmm.data.aggregate_dims()`"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:340031
+#: 317aef87f2104a4a9c7a9b79d96f4dfc
+msgid "**Create a new `MMMSummaryFactory`** with the transformed data"
+msgstr "**Cree una nueva `MMMSummaryFactory`** con los datos transformados"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:340032
+#: 165f6570c23f48c4a8d97c4e366943e3
+msgid "**Create a new `MMMPlotlyFactory`** with that summary"
+msgstr "**Cree una nueva `MMMPlotlyFactory`** con ese resumen"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:340033
+#: 7ca47fcd62ed4a528513eb264f66b739
+msgid "**Plot** using the factory's methods"
+msgstr "**Grafique** con los métodos de la fábrica"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:340035
+#: d123dc36788e4a459e99ddbeabf4df47
+msgid ""
+"Q: Aggregating over geos, how did the ROAS of each channel change year "
+"after year?"
+msgstr ""
+"P: Agregando las geografías, ¿cómo cambió el ROAS de cada canal año tras "
+"año?"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:340037
+#: f0d661c3d802495a9853b9a8cdfdae2f
+msgid ""
+"Here we aggregate both geos into a single \"all_geos\" label, then plot "
+"ROAS. This collapses the geo dimension so we get a single aggregated "
+"view."
+msgstr ""
+"Aquí agregamos ambas geografías en una única etiqueta \"all_geos\" y luego "
+"graficamos el ROAS. Esto colapsa la dimensión geo, de modo que obtenemos una"
+" única vista agregada."
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:360002
+#: 74f8db0fe9c0453b9362158198899055
+msgid "Q: Filtering to only one geo, what was the yearly ROAS?"
+msgstr "P: Filtrando solo una geografía, ¿cuál fue el ROAS anual?"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:360004
+#: 8f4ac24449bc4739bfc7501dd946c90f
+msgid ""
+"You can filter the data to a single geography and create a dedicated "
+"factory."
+msgstr ""
+"Puede filtrar los datos a una sola geografía y crear una fábrica dedicada."
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:380002
+#: e5a1a4d7c5ba41e29c693efe5c542218
+msgid "Q: How did the ROAS change quarter after quarter starting 2024?"
+msgstr "P: ¿Cómo cambió el ROAS trimestre a trimestre a partir de 2024?"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:380004
+#: ee4a860f58fe4832966f1bf38999fa40
+msgid "Filter by date range and then view quarterly ROAS."
+msgstr "Filtramos por rango de fechas y luego vemos el ROAS trimestral."
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:400004
+#: ded95e7649f848df85e543223ebde0ed
+msgid "8. Exporting Data for Custom Frontends"
+msgstr "8. Exportación de datos para frontends personalizados"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:400006
+#: 441ea0b44047462faee22f963493edae
+msgid ""
+"The same summary tables that power `plot_interactive` are available "
+"directly via `mmm.summary` for JSON export to React, Dash, or any other "
+"chart library."
+msgstr ""
+"Las mismas tablas de resumen que alimentan `plot_interactive` están "
+"disponibles directamente a través de `mmm.summary` para exportarlas a JSON "
+"hacia React, Dash o cualquier otra biblioteca de gráficos."
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:400009
+#: 46357ccf51254be2b687705e74b62ae0
+msgid ""
+"Issue [#2715](https://github.com/pymc-labs/pymc-marketing/issues/2715) "
+"proposed `return_data=True` on plot methods; the shipped API is "
+"`mmm.summary` instead."
+msgstr ""
+"El issue [#2715](https://github.com/pymc-labs/pymc-marketing/issues/2715) "
+"proponía `return_data=True` en los métodos de graficación; la API que se "
+"publicó es `mmm.summary` en su lugar."
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:400012
+#: e3a8d47f484944c28a4a4333e0c5b9ba
+msgid ""
+"See the [data export guide](https://www.pymc-"
+"marketing.io/en/stable/guide/mmm/data_export.html) for the full plot-to-"
+"summary mapping."
+msgstr ""
+"Consulte la [guía de exportación de datos](https://www.pymc-"
+"marketing.io/en/stable/guide/mmm/data_export.html) para ver la "
+"correspondencia completa entre gráficos y resúmenes."
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:430004
+#: bf7fc90331614f2a8c5913e1b19c540a
+msgid "Summary"
+msgstr "Resumen"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:430006
+#: 32dceff873c4456f938b66c81703c138
+msgid ""
+"The `plot_interactive` module provides a rich set of interactive "
+"visualizations for exploring MMM results:"
+msgstr ""
+"El módulo `plot_interactive` ofrece un amplio conjunto de visualizaciones "
+"interactivas para explorar los resultados de MMM:"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb
+#: 791fec2cf0874749817262b5c354e720
+msgid "Method"
+msgstr "Método"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb
+#: 4c26523bb29d456ebfe40e8e0fa574a3
+msgid "What It Shows"
+msgstr "Qué muestra"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb
+#: 43ab1da6a1854ecdb37fab2a32286fee
+msgid "Key Parameters"
+msgstr "Parámetros clave"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb
+#: e93b23488364427b90b3f54e8fef9e3a
+msgid "`posterior_predictive()`"
+msgstr "`posterior_predictive()`"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb
+#: 1cd28ff989a34aaa96e84f6d74a0be9a
+msgid "Actual vs predicted with HDI band"
+msgstr "Real vs predicho con banda HDI"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb
+#: 24668849c52c465e8cf8cf41a676693d
+msgid "`hdi_prob`, `frequency`"
+msgstr "`hdi_prob`, `frequency`"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb
+#: c49b7b5102c7405a9a310ec2da171835
+msgid "`contributions()`"
+msgstr "`contributions()`"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb
+#: 84459d9bc50b45bb932a590b9a5c8c2f
+msgid "Channel/control/seasonality contributions"
+msgstr "Contribuciones de canales, control y estacionalidad"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb
+#: 99cf4dc4bf0e4ba2a2411e80c9cab279
+msgid "`component`, `frequency`, `color`, `x`"
+msgstr "`component`, `frequency`, `color`, `x`"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb
+#: e68602eaaa4f464e97ab291b5f467fd0
+msgid "`roas()`"
+msgstr "`roas()`"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb
+#: 23a02469a52b43e79d562f5e7391d08b
+msgid "Return on Ad Spend"
+msgstr "Retorno de la inversión publicitaria"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb
+#: 49b48833d2c24fb89e8c0b201d188b8a
+msgid "`frequency`, `color`, `x`"
+msgstr "`frequency`, `color`, `x`"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb
+#: 81352354b7af467c878ee6d534e840f7
+msgid "`saturation_curves()`"
+msgstr "`saturation_curves()`"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb
+#: 36a9309d598a43c486177d03bc9d1de2
+msgid "Diminishing returns curves"
+msgstr "Curvas de rendimientos decrecientes"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb
+#: b96b03254d0147748b7247091aa7e264
+msgid "`hdi_prob`, `max_value`, `original_scale`"
+msgstr "`hdi_prob`, `max_value`, `original_scale`"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb
+#: 1f6d2ba98ca64295bdd00382f91b50a5
+msgid "`adstock_curves()`"
+msgstr "`adstock_curves()`"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb
+#: 0e971c418f7b41329e5b1aa5a47c513a
+msgid "Carryover effect curves"
+msgstr "Curvas de efecto de arrastre"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb
+#: 843366335dfc4be58fd7014728803eb9
+msgid "`hdi_prob`, `amount`"
+msgstr "`hdi_prob`, `amount`"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb
+#: 54671701c5ce4fad88f5568d39f84e62
+msgid "`waterfall()`"
+msgstr "`waterfall()`"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb
+#: 9ea3f0bb52b3469ab68594778d07a063
+msgid "Contribution waterfall"
+msgstr "Cascada de contribuciones"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb
+#: 6409125714b44c27b64236c28cce13b4 ac348d92f9e34be5ab5729a5f9ca062e
+msgid "`hdi_prob`"
+msgstr "`hdi_prob`"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb
+#: aad590b4d45844dd8d8c0836bef01399
+msgid "`channel_share()`"
+msgstr "`channel_share()`"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb
+#: f257df7279c141f381b91909f5613e66
+msgid "Channel share of contribution"
+msgstr "Participación de los canales en la contribución"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:430019
+#: 3db799a981f94ff29242748a0ef33393
+msgid "**Key features:**"
+msgstr "**Características clave:**"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:430020
+#: 030031d6e6d6497d8d0c41c02df5d6fe
+msgid ""
+"**Auto-faceting**: Custom dimensions (e.g., geo) automatically create "
+"subplots"
+msgstr ""
+"**Facetado automático**: las dimensiones personalizadas (p. ej., geo) crean "
+"subgráficos automáticamente"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:430021
+#: 4988597be35b4bcaad22e23a4f630aff
+msgid ""
+"**Facet control**: Use `facet_col`, `facet_row`, and `auto_facet` to "
+"customize layout"
+msgstr ""
+"**Control de facetas**: use `facet_col`, `facet_row` y `auto_facet` para "
+"personalizar la disposición"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:430022
+#: 509b4fc03186487dbdbdc44c0b07a641
+msgid ""
+"**Filtering**: Use `mmm.data.filter_dims()` or `filter_dates()` to focus "
+"on subsets"
+msgstr ""
+"**Filtrado**: use `mmm.data.filter_dims()` o `filter_dates()` para centrarse"
+" en subconjuntos"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:430023
+#: 6306a47314aa494abe0f207f2911df61
+msgid "**Aggregating**: Use `mmm.data.aggregate_dims()` to combine dimensions"
+msgstr ""
+"**Agregación**: use `mmm.data.aggregate_dims()` para combinar dimensiones"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:430024
+#: f52b5bbd2d48490086f624d93a15d1e0
+msgid "**Error bars**: Control with `hdi_prob` (set to `None` to remove)"
+msgstr ""
+"**Barras de error**: se controlan con `hdi_prob` (establézcalo en `None` "
+"para quitarlas)"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:430025
+#: bfcf740a552d4846b0ff20d0d67292bb
+msgid ""
+"**Frontend export**: Use `mmm.summary` directly for JSON-serializable "
+"tables (see section 8)"
+msgstr ""
+"**Exportación a frontends**: use `mmm.summary` directamente para obtener "
+"tablas serializables a JSON (véase la sección 8)"
+
+#: ../source/notebooks/mmm/plot_interactive.ipynb:430026
+#: 58fb1c21844646fc81f789283d33b164
+msgid ""
+"**Customizable**: All Plotly Express kwargs (title, height, width, "
+"colors, etc.) are supported"
+msgstr ""
+"**Personalizable**: se admiten todos los kwargs de Plotly Express (título, "
+"altura, ancho, colores, etc.)"

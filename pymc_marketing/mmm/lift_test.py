@@ -36,6 +36,7 @@ from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.mmm.components.saturation import SaturationTransformation
+from pymc_marketing.names.mmm import Dim, Var
 
 Index = Sequence[int] | npt.NDArray[np.integer]
 Indices = dict[str, Index]
@@ -1102,8 +1103,8 @@ def validate_cost_per_target_rows(
     if missing:
         raise KeyError(f"Missing required columns in calibration_df: {sorted(missing)}")
 
-    cpt_dims = tuple(model.named_vars_to_dims["channel_data"])
-    non_date_dims = [d for d in cpt_dims if d != "date"]
+    cpt_dims = tuple(model.named_vars_to_dims[Var.CHANNEL_DATA])
+    non_date_dims = [d for d in cpt_dims if d != Dim.DATE]
 
     missing_dims = [d for d in non_date_dims if d not in calibration_df.columns]
     if missing_dims:
@@ -1387,8 +1388,8 @@ def _gather_cost_per_target_means(
     """
     indices_xr = {k: as_xtensor(v, dims=(dim,)) for k, v in indices.items()}
     return (
-        cost_value.mean(dim="date").isel(indices_xr, missing_dims="raise"),
-        target_value.mean(dim="date").isel(indices_xr, missing_dims="raise"),
+        cost_value.mean(dim=Dim.DATE).isel(indices_xr, missing_dims="raise"),
+        target_value.mean(dim=Dim.DATE).isel(indices_xr, missing_dims="raise"),
     )
 
 
@@ -1416,8 +1417,8 @@ def _add_cost_per_target_likelihood(
     indices_xr = {k: as_xtensor(v, dims=(dim,)) for k, v in indices.items()}
     targets = as_xtensor(target_values, dims=(dim,))
     sigmas = as_xtensor(sigma_values, dims=(dim,))
-    cost_mean = cost_value.mean(dim="date")
-    target_mean = target_value.mean(dim="date")
+    cost_mean = cost_value.mean(dim=Dim.DATE)
+    target_mean = target_value.mean(dim=Dim.DATE)
     numerator, denominator = (
         (target_mean, cost_mean) if target_per_cost else (cost_mean, target_mean)
     )
