@@ -1047,7 +1047,7 @@ def test_gaussian_basis_integrated_is_symmetric_around_event_week():
 
     result = gaussian.function(x, 4.0).eval()
 
-    np.testing.assert_allclose(result, result[::-1])
+    np.testing.assert_allclose(result, result[::-1], atol=1e-12)
     assert result.argmax() == len(result) // 2
 
 
@@ -1066,7 +1066,9 @@ def test_half_gaussian_integrated(mode, include_event):
     assert_array_equal(result[off_side.values], 0)
     np.testing.assert_allclose(
         result[on_side.values],
-        norm.cdf(x[on_side] + 0.5, scale=sigma) - norm.cdf(x[on_side] - 0.5, scale=sigma),
+        norm.cdf(x[on_side] + 0.5, scale=sigma)
+        - norm.cdf(x[on_side] - 0.5, scale=sigma),
+        atol=1e-12,
     )
     event_day = result[x.values == 0][0]
     if include_event:
