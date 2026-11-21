@@ -1,0 +1,21 @@
+pymc_marketing/mmm/events.py
+  s_61e795dba38002::t_6bdce7120b54a6 124-150,152-184,188-225,353-355,398-399,418-426,488-489,514-532
+tests/mmm/test_events.py
+  s_61e795dba38002::t_0af6df028713ff 987-1172
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "3feab7ec2ff18fd983844abd0dc3544dbb285542",
+  "prompts": {},
+  "sessions": {
+    "s_61e795dba38002": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3a961d8c-3c06-418a-adbd-35a763312b65",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "daimon-pymclabs <daimon@pymc-labs.com>"
+    }
+  }
+}
