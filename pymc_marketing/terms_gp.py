@@ -67,7 +67,9 @@ Rules
   ``{name}_ls``, ``{name}_hsgp_coefs``) and the basis coordinate is
   ``{name}_m``. Each term in an expression tree needs a unique ``name``;
   two no-argument terms collide on every variable.
-- ``eta`` / ``ls`` priors must be scalar. Higher-dimensional coefficients
+- ``ls`` priors must be scalar. ``eta`` (:class:`HSGPTerm`) and ``scale``
+  (:class:`HSGPPeriodicTerm`) priors may vary over the extra ``dims``, giving
+  one amplitude per group. Higher-dimensional coefficients
   (e.g. one GP curve per group) are configured with ``dims``, whose
   coordinates are collected from the dataset like
   :class:`~pymc_marketing.terms.Parameter` does, and recorded on first
@@ -623,7 +625,7 @@ class HSGPTerm(GPDataTerm):
         ``"hsgp"``.
     eta : VariableFactory or float, optional
         Prior for the GP amplitude (standard deviation). It can vary over the
-        extra ``dims``. Defaults to the Exponential prior from
+        extra ``dims`` and must be positive. Defaults to the Exponential prior from
         :func:`pymc_marketing.mmm.hsgp.create_eta_prior`.
     ls : VariableFactory or float, optional
         Prior for the lengthscale. Defaults to the complexity-penalizing

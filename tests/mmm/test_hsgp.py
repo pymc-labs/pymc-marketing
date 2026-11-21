@@ -798,17 +798,17 @@ class TestVariableFactoryHSGPPeriodic:
 
 
 class FixedChannelFactory:
-    """A VariableFactory with fixed values along the channel dim."""
+    """A VariableFactory with fixed values, by default along the channel dim."""
 
-    dims = ("channel",)
-
-    def __init__(self, values) -> None:
+    def __init__(self, values, dims: str | tuple[str, ...] = ("channel",)) -> None:
         self.values = np.asarray(values, dtype=float)
+        self.dims = dims
 
     def create_variable(self, name: str, xdist: bool = False):
         """Create a deterministic variable with the fixed values."""
+        dims = (self.dims,) if isinstance(self.dims, str) else self.dims
         return pmd.Deterministic(
-            name, as_xtensor(pt.as_tensor(self.values), dims=self.dims), dims=self.dims
+            name, as_xtensor(pt.as_tensor(self.values), dims=dims), dims=dims
         )
 
 
@@ -851,7 +851,10 @@ class TestAmplitudePriorDims:
         assert prior[amplitude].dims == ("chain", "draw", "product", "channel")
 
     @pytest.mark.parametrize("cls, param, kwargs", AMPLITUDE_CASES)
-    def test_scales_each_slice(self, cls, param, kwargs) -> None:
+    @pytest.mark.parametrize(
+        "factory_dims", [("channel",), "channel"], ids=["tuple-dims", "str-dims"]
+    )
+    def test_scales_each_slice(self, cls, param, kwargs, factory_dims) -> None:
         values = [1.0, 3.0]
         coords = {"time": np.arange(10), "channel": ["A", "B"]}
 
@@ -866,9 +869,48 @@ class TestAmplitudePriorDims:
             return prior["f"].transpose("chain", "draw", "time", "channel").values
 
         np.testing.assert_allclose(
-            sample(FixedChannelFactory(values)),
+            sample(FixedChannelFactory(values, dims=factory_dims)),
             sample(1.0) * np.array(values),
         )
+
+    @pytest.mark.parametrize("cls, param, kwargs", AMPLITUDE_CASES)
+    def test_scales_each_cell_with_transposed_dims(self, cls, param, kwargs) -> None:
+        # Equal sizes, so a positional broadcasting bug would not raise but
+        # would scale the wrong cells.
+        values = np.arange(1.0, 10.0).reshape(3, 3)  # (product, channel)
+        coords = {
+            "time": np.arange(10),
+            "channel": ["A", "B", "C"],
+            "product": ["X", "Y", "Z"],
+        }
+
+        def sample(value):
+            hsgp = cls(
+                X=np.arange(10),
+                dims=("time", "channel", "product"),
+                **{param: value},
+                **kwargs,
+            )
+            prior = hsgp.sample_prior(draws=5, coords=coords, random_seed=1)
+            return (
+                prior["f"]
+                .transpose("chain", "draw", "time", "channel", "product")
+                .values
+            )
+
+        np.testing.assert_allclose(
+            sample(FixedChannelFactory(values, dims=("product", "channel"))),
+            sample(1.0) * values.T,
+        )
+
+    @pytest.mark.parametrize("cls", [HSGP, SoftPlusHSGP])
+    def test_negative_eta_raises(self, cls) -> None:
+        with pytest.raises(ValueError, match=r"eta must be positive, got -0\.5"):
+            cls(X=np.arange(10), dims="time", **{**HSGP_KWARGS, "eta": -0.5})
+
+    def test_zero_eta_is_allowed(self) -> None:
+        hsgp = HSGP(X=np.arange(10), dims="time", **{**HSGP_KWARGS, "eta": 0.0})
+        assert hsgp.eta == 0.0
 
     @pytest.mark.parametrize("cls, param, kwargs", AMPLITUDE_CASES)
     def test_prior_with_unknown_dim_raises(self, cls, param, kwargs) -> None:

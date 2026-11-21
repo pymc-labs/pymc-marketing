@@ -778,7 +778,9 @@ class HSGP(HSGPBase):
         plt.show()
 
     Amplitude that varies by channel. The ``eta`` prior can use any of the
-    dims after the first one, while the lengthscale stays shared:
+    dims after the first one, while the lengthscale stays shared. ``eta``
+    scales the standard deviation of the basis coefficients, so it must be
+    positive: use a prior with positive support.
 
     .. code-block:: python
 
@@ -808,7 +810,9 @@ class HSGP(HSGPBase):
         ...,
         description=(
             "Prior for the amplitude (standard deviation). It can vary over any of "
-            "the dims after the first one, e.g. one amplitude per channel."
+            "the dims after the first one, e.g. one amplitude per channel. It must "
+            "be positive: a non-negative float, or a prior with positive support "
+            "such as HalfNormal, Exponential or Gamma."
         ),
     )
     L: float = Field(..., gt=0, description="Extent of basis functions")
@@ -830,6 +834,11 @@ class HSGP(HSGPBase):
 
     @model_validator(mode="after")
     def _eta_dims_are_compatible(self) -> Self:
+        # eta scales the standard deviation of the basis coefficients, so a
+        # negative value would give a negative sigma.
+        if isinstance(self.eta, int | float) and self.eta < 0:
+            raise ValueError(f"eta must be positive, got {self.eta}.")
+
         self._check_prior_dims(self.eta, "eta")
 
         return self
