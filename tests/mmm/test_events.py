@@ -984,3 +984,189 @@ class TestBasisAndEventEffectRoundtrips:
 )
 def test_events_type_registered(type_key):
     assert type_key in serialization._registry, f"{type_key} not registered"
+
+
+def _weekly_labels(event_weekday: int, n_weeks: int = 12) -> DataArray:
+    """Distances from Monday-labelled weeks to an event on ``event_weekday``."""
+    return DataArray(
+        np.arange(-n_weeks, n_weeks + 1) * 7.0 - event_weekday, dims=("x",)
+    )
+
+
+@pytest.mark.parametrize("event_weekday", range(7))
+@pytest.mark.parametrize("sigma", [0.5, 1.0, 7.0])
+def test_gaussian_basis_integrated_weeks_partition_the_curve(event_weekday, sigma):
+    """Weekly integrals add up to the full area, whatever the event weekday."""
+    gaussian = GaussianBasis(period_days=7)
+    x = _weekly_labels(event_weekday)
+
+    result = gaussian.function(x, sigma).eval()
+
+    assert np.all(result >= 0)
+    np.testing.assert_allclose(result.sum(), 1.0, atol=1e-6)
+
+
+def test_gaussian_basis_pointwise_misses_most_of_the_area():
+    """The default pointwise basis on weekly labels only sees ~1/7 of the area."""
+    pointwise = GaussianBasis()
+    x = _weekly_labels(event_weekday=3)
+
+    result = pointwise.function(x, 7.0).eval()
+
+    np.testing.assert_allclose(result.sum(), 1 / 7, rtol=0.01)
+
+
+def test_gaussian_basis_integrated_daily_matches_density_for_wide_sigma():
+    pointwise = GaussianBasis()
+    daily = GaussianBasis(period_days=1)
+    x = DataArray(np.arange(-10.0, 11.0), dims=("x",))
+
+    np.testing.assert_allclose(
+        daily.function(x, 7.0).eval(),
+        pointwise.function(x, 7.0).eval(),
+        rtol=1e-3,
+    )
+
+
+def test_gaussian_basis_integrated_anchor_end_is_shifted_start():
+    start = GaussianBasis(period_days=7, period_anchor="start")
+    end = GaussianBasis(period_days=7, period_anchor="end")
+    x = DataArray(np.arange(-20.0, 21.0), dims=("x",))
+
+    np.testing.assert_allclose(
+        end.function(x, 3.0).eval(),
+        start.function(x - 6, 3.0).eval(),
+    )
+
+
+def test_gaussian_basis_integrated_is_symmetric_around_event_week():
+    """A Thursday event on Monday labels splits its weeks symmetrically."""
+    gaussian = GaussianBasis(period_days=7)
+    # Event on day 3 of the week: the week [-3, 3] is centred on it.
+    x = _weekly_labels(event_weekday=3)
+
+    result = gaussian.function(x, 4.0).eval()
+
+    np.testing.assert_allclose(result, result[::-1])
+    assert result.argmax() == len(result) // 2
+
+
+@pytest.mark.parametrize("mode", ["after", "before"])
+@pytest.mark.parametrize("include_event", [True, False])
+def test_half_gaussian_integrated(mode, include_event):
+    half = HalfGaussianBasis(mode=mode, include_event=include_event, period_days=1)
+    x = DataArray(np.arange(-30.0, 31.0), dims=("x",))
+    sigma = 2.0
+
+    result = half.function(x, sigma).eval()
+    from scipy.stats import norm
+
+    on_side = x > 0 if mode == "after" else x < 0
+    off_side = x < 0 if mode == "after" else x > 0
+    assert_array_equal(result[off_side.values], 0)
+    np.testing.assert_allclose(
+        result[on_side.values],
+        norm.cdf(x[on_side] + 0.5, scale=sigma) - norm.cdf(x[on_side] - 0.5, scale=sigma),
+    )
+    event_day = result[x.values == 0][0]
+    if include_event:
+        np.testing.assert_allclose(event_day, 2 * norm.cdf(0.5, scale=sigma) - 1)
+    else:
+        assert event_day == 0
+
+
+@pytest.mark.parametrize(
+    "event_in, before_edge, after_edge",
+    [("after", -0.5, -0.5), ("before", 0.5, 0.5), ("exclude", -0.5, 0.5)],
+)
+@pytest.mark.parametrize("event_weekday", [0, 1, 6])
+def test_asymmetric_gaussian_integrated_total(
+    event_in, before_edge, after_edge, event_weekday
+):
+    """Weekly integrals add up to the area of both sides, for any weekday."""
+    from scipy.stats import norm
+
+    basis = AsymmetricGaussianBasis(event_in=event_in, period_days=7)
+    x = _weekly_labels(event_weekday)
+    sigma_before, sigma_after, a_after = 2.0, 5.0, -0.75
+
+    result = basis.function(x, sigma_before, sigma_after, a_after).eval()
+
+    expected_total = norm.cdf(before_edge, scale=sigma_before) + a_after * (
+        1 - norm.cdf(after_edge, scale=sigma_after)
+    )
+    np.testing.assert_allclose(result.sum(), expected_total, atol=1e-6)
+
+
+def test_asymmetric_gaussian_integrated_sign_follows_the_days():
+    """Anticipation before a Tuesday event and a dip after it land in the right weeks.
+
+    With pointwise evaluation on Monday labels both the event week and the week
+    before read the "before" side of the curve, so the post-event dip never shows.
+    """
+    basis = AsymmetricGaussianBasis(event_in="after", period_days=7)
+    pointwise = AsymmetricGaussianBasis(event_in="after")
+    # Monday labels around a Tuesday event: week before, event week, week after.
+    x = DataArray([-8.0, -1.0, 6.0], dims=("x",))
+    params = dict(sigma_before=3.0, sigma_after=2.0, a_after=-1.0)
+
+    integrated = basis.function(x, **params).eval()
+    sampled = pointwise.function(x, **params).eval()
+
+    assert integrated[0] > 0
+    assert integrated[1] < 0
+    assert np.all(sampled[:2] > 0)
+
+
+@pytest.mark.parametrize(
+    "kwargs, match",
+    [
+        ({"period_days": 0}, "period_days"),
+        ({"period_days": 7, "period_anchor": "middle"}, "period_anchor"),
+    ],
+)
+def test_basis_period_validation(kwargs, match):
+    with pytest.raises(ValueError, match=match):
+        GaussianBasis(**kwargs)
+
+
+@pytest.mark.parametrize(
+    "basis_cls, kwargs",
+    [
+        (GaussianBasis, {}),
+        (HalfGaussianBasis, {"mode": "before", "include_event": False}),
+        (AsymmetricGaussianBasis, {"event_in": "exclude"}),
+    ],
+)
+def test_basis_period_roundtrip(basis_cls, kwargs):
+    original = basis_cls(period_days=7, period_anchor="end", **kwargs)
+    restored = serialization.deserialize(serialization.serialize(original))
+
+    assert restored.period_days == 7
+    assert restored.period_anchor == "end"
+    assert restored == original
+
+
+def test_basis_without_period_serializes_unchanged():
+    assert "period_days" not in GaussianBasis().to_dict()
+
+
+def test_integrated_basis_in_event_effect():
+    basis = GaussianBasis(
+        priors={"sigma": Prior("Gamma", mu=3, sigma=1, dims="event")},
+        period_days=7,
+    )
+    effect = EventEffect(
+        basis=basis,
+        effect_size=Prior("Normal", mu=1, sigma=0.1, dims="event"),
+        dims=("event",),
+    )
+    X = np.stack([_weekly_labels(d).values for d in (0, 4)], axis=1)
+    coords = {"week": np.arange(X.shape[0]), "event": ["a", "b"]}
+    with pm.Model(coords=coords) as model:
+        X_data = pmd.Data("X", X, dims=("week", "event"))
+        pmd.Deterministic("effect", effect.apply(X_data), dims=("week", "event"))
+        prior = pm.sample_prior_predictive(draws=10, random_seed=1).prior
+
+    totals = prior["effect"].sum("week") / prior["event_effect_size"]
+    np.testing.assert_allclose(totals, 1.0, atol=1e-5)
