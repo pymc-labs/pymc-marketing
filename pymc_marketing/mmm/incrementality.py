@@ -376,7 +376,9 @@ from pymc_marketing.mmm.transformers import ConvMode
 from pymc_marketing.mmm.utils import infer_frequency
 from pymc_marketing.names.mmm import Dim, IncrementalityResult, Var
 from pymc_marketing.pytensor_utils import (
+    frozen_renames_read_elsewhere,
     needed_posterior_names,
+    refuse_frozen_deterministic_renames,
     reorder_to_model_coords,
     transpose_to_model_dims,
 )
@@ -5693,14 +5695,42 @@ class Incrementality:
             every channel parameter being fixed in the model config -- the result
             holds no variable, only the ``chain`` and ``draw`` coordinates the
             evaluator still broadcasts over; an empty selection would drop them.
+
+        Raises
+        ------
+        ValueError
+            If a frozen name only renames another Deterministic, or is renamed by
+            one: the clone the evaluator reads keeps one of the two names.  Or if
+            a frozen name only renames a free random variable over ``date`` that
+            the responses also read another way: freezing the rename would cut
+            every read of the variable to the evaluation windows.
         """
         model = self.model.model
+        frozen = self.model.frozen_deterministics
+        refuse_frozen_deterministic_renames(model, frozen)
         resolved = [
             model[var] if isinstance(var, str) else var for var in response_vars
         ]
-        read = set(
-            needed_posterior_names(model, resolved, self.model.frozen_deterministics)
-        )
+        shared = {
+            name: var
+            for name, var in frozen_renames_read_elsewhere(
+                model, resolved, frozen
+            ).items()
+            if Dim.DATE in (model.named_vars_to_dims.get(var) or ())
+        }
+        if shared:
+            listing = ", ".join(
+                f"{name!r} (a view of {var!r})" for name, var in shared.items()
+            )
+            raise ValueError(
+                f"frozen_deterministics includes {listing}, but the responses also "
+                "read the variable without going through the rename.  Freezing a "
+                "Deterministic that only renames a variable freezes every read of "
+                "that variable, so each would be cut to the evaluation windows.  "
+                "Freeze a Deterministic computed from the variable on the path you "
+                "mean instead, or remove the rename from frozen_deterministics."
+            )
+        read = set(needed_posterior_names(model, resolved, frozen))
         names = [name for name in posterior.data_vars if name in read]
         if names:
             return posterior[names]

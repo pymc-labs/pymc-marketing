@@ -3405,25 +3405,6 @@ def test_monthly_incrementality_on_a_date_variable(
     assert json.loads(split.attrs["assumptions"])["evaluation"] == "window"
 
 
-def test_posterior_predictive_on_a_frozen_renaming_deterministic(
-    fit_mmm_with_effect, simple_mmm_data
-):
-    """A frozen renaming deterministic gives the posterior draws of its variable."""
-    mmm = fit_mmm_with_effect(_FrozenRenamedDateLevelEffect())
-
-    predictive = mmm.sample_posterior_predictive(
-        simple_mmm_data["X"],
-        var_names=["level_effect_contribution"],
-        random_seed=1,
-        progressbar=False,
-    )
-
-    expected = mmm.idata.posterior["level_draws"].stack(sample=("chain", "draw"))
-    np.testing.assert_allclose(
-        predictive["level_effect_contribution"].transpose(*expected.dims), expected
-    )
-
-
 def test_monthly_incrementality_evaluates_a_reduced_date_variable(
     fit_mmm_with_effect,
 ):
@@ -3450,13 +3431,16 @@ class _ScaledByDateLevelEffect(_ZeroEffect):
     With ``walk``, the variable holds the steps of a random walk, and the walk, their
     cumulative sum over ``date``, is a Deterministic whether frozen or not.  With
     ``renames``, the variable reaches spend through that many Deterministics that
-    only rename it, and the last of them is the one frozen.
+    only rename it, and the last of them is the one frozen.  With
+    ``second_reader``, the cumulative sum of the free variable reaches spend too,
+    without going through the renames.
     """
 
     prefix: str = "scaled"
     walk: bool = False
     freeze: bool = False
     renames: int = 0
+    second_reader: bool = False
 
     def incrementality_spec(self) -> IncrementalitySpec:
         """Opt in: the effect reads the channel contribution."""
@@ -3477,11 +3461,15 @@ class _ScaledByDateLevelEffect(_ZeroEffect):
 
     def create_effect(self, mmm):
         """The channel contribution, times one free value per date or their walk."""
-        level = pmd.Normal(f"{self.prefix}_level", mu=1.0, sigma=0.5, dims="date")
+        free = level = pmd.Normal(
+            f"{self.prefix}_level", mu=1.0, sigma=0.5, dims="date"
+        )
         if self.walk:
             level = pmd.Deterministic(f"{self.prefix}_walk", level.cumsum("date"))
         for index in range(1, self.renames + 1):
             level = pmd.Deterministic(f"{self.prefix}_rename_{index}", level)
+        if self.second_reader:
+            level = level + free.cumsum("date")
         contribution = mmm.model["channel_contribution"].sum("channel")
         return pmd.Deterministic(self.contribution_var_name, level * contribution)
 
@@ -3561,6 +3549,38 @@ def test_monthly_incrementality_on_a_frozen_renaming_deterministic_that_scales_s
 
     np.testing.assert_allclose(actual, expected.transpose(*actual.dims))
     assert json.loads(split.attrs["assumptions"])["evaluation"] == "window"
+
+
+def test_monthly_incrementality_refuses_a_frozen_rename_read_another_way(
+    fit_mmm_with_effect,
+):
+    """Freezing the rename would cut the cumulative sum's read of the variable too."""
+    mmm = fit_mmm_with_effect(
+        _ScaledByDateLevelEffect(freeze=True, renames=1, second_reader=True)
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"^frozen_deterministics includes 'scaled_rename_1' \(a view of "
+        r"'scaled_level'\), but the responses also read the variable",
+    ):
+        mmm.incrementality.compute_incremental_contribution(frequency="monthly")
+
+
+def test_monthly_incrementality_refuses_a_frozen_rename_of_a_deterministic(
+    fit_mmm_with_effect,
+):
+    """The rename only renames the walk, and a clone keeps one of the two names."""
+    mmm = fit_mmm_with_effect(
+        _ScaledByDateLevelEffect(freeze=True, walk=True, renames=1)
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"^frozen_deterministics includes 'scaled_rename_1' \(with "
+        r"'scaled_walk'\): one of each pair only renames the other Deterministic",
+    ):
+        mmm.incrementality.compute_incremental_contribution(frequency="monthly")
 
 
 def test_no_full_axis_warning_where_the_mode_uses_the_full_axis_anyway(

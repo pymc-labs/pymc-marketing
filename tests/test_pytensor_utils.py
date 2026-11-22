@@ -46,10 +46,12 @@ from pymc_marketing.pytensor_utils import (
     check_aligned_dims,
     check_aligned_shape,
     extract_response_distribution,
+    frozen_renames_read_elsewhere,
     frozen_variables,
     merge_models,
     needed_posterior_names,
     non_sample_dims,
+    refuse_frozen_deterministic_renames,
     reorder_to_model_coords,
     transpose_to_model_dims,
     validate_unique_value_vars,
@@ -1090,6 +1092,72 @@ def test_conditioned_model_lists_a_renaming_deterministic_as_its_variable():
     )
 
     assert conditioned.frozen_deterministics == ("level", "shifted")
+
+
+def _two_reader_model() -> pm.Model:
+    """``resp`` reads ``level`` through ``renamed`` and through its cumulative sum."""
+    with pm.Model(coords={"date": range(4)}) as model:
+        level = pmd.Normal("level", dims="date")
+        renamed = pmd.Deterministic("renamed", level)
+        pmd.Deterministic("one_reader", renamed * 2)
+        pmd.Deterministic("resp", renamed + level.cumsum("date"))
+    return model
+
+
+def test_frozen_renames_read_elsewhere_lists_a_variable_read_another_way():
+    """Freezing the rename would hold the cumulative sum's read too."""
+    model = _two_reader_model()
+
+    assert frozen_renames_read_elsewhere(model, [model["resp"]], ["renamed"]) == {
+        "renamed": "level"
+    }
+    # Read only through the rename, or listed by its own name: nothing to report.
+    assert (
+        frozen_renames_read_elsewhere(model, [model["one_reader"]], ["renamed"]) == {}
+    )
+    assert frozen_renames_read_elsewhere(model, [model["resp"]], ["level"]) == {}
+
+
+def _deterministic_rename_model() -> pm.Model:
+    """``path`` only renames the Deterministic ``walk``; ``expr`` renames it by an expression."""
+    with pm.Model(coords={"date": range(4)}) as model:
+        steps = pmd.Normal("steps", dims="date")
+        walk = pmd.Deterministic("walk", steps.cumsum("date"))
+        path = pmd.Deterministic("path", walk)
+        pmd.Deterministic("expr", walk + 0)
+        pmd.Deterministic("resp", path * 2)
+    return model
+
+
+@pytest.mark.parametrize("name", ["path", "walk"])
+def test_a_frozen_rename_of_a_deterministic_is_refused(name):
+    """Either name of the pair is refused: a clone keeps only one of them."""
+    model = _deterministic_rename_model()
+
+    with pytest.raises(
+        ValueError, match=rf"frozen_deterministics includes {name!r} \(with '"
+    ):
+        refuse_frozen_deterministic_renames(model, [name])
+
+
+def test_renames_that_end_at_a_free_variable_or_an_expression_are_not_refused():
+    """A rename of a free variable is mapped, and an expression is its own variable."""
+    refuse_frozen_deterministic_renames(_renaming_model(), ["renamed", "chained"])
+    refuse_frozen_deterministic_renames(_deterministic_rename_model(), ["expr"])
+
+
+def test_conditioned_model_keeps_a_name_that_was_not_mapped():
+    """A clone registers ``path`` and ``walk`` on one variable, so its name is not read."""
+    model = _deterministic_rename_model()
+    prior = pm.sample_prior_predictive(draws=3, model=model, random_seed=1).prior
+
+    conditioned = ConditionedModel(
+        model,
+        xr.DataTree.from_dict({"posterior": prior}),
+        frozen_deterministics=["path"],
+    )
+
+    assert conditioned.frozen_deterministics == ("path",)
 
 
 def _spend_path_model() -> pm.Model:

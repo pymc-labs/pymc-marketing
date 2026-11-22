@@ -263,7 +263,6 @@ from pymc.model.transform.optimization import freeze_dims_and_data
 from pytensor import function
 from pytensor.compile.sharedvalue import SharedVariable, shared
 from pytensor.graph import rewrite_graph
-from pytensor.graph.basic import Variable
 from pytensor.graph.traversal import ancestors
 from pytensor.xtensor.type import XTensorVariable
 from scipy.optimize import OptimizeResult, minimize
@@ -298,6 +297,7 @@ from pymc_marketing.pytensor_utils import (
     extract_response_distribution,
     frozen_variables,
     merge_models,
+    refuse_frozen_deterministic_renames,
     reorder_to_model_coords,
 )
 from pymc_marketing.version import __version__
@@ -2059,6 +2059,12 @@ class BudgetOptimizer(BaseModel):
             self._variables.variable_slice(self.channel_data_var)
         )
 
+        # A frozen rename of another Deterministic would fail when the model is
+        # cloned below, with a message that does not say why.
+        refuse_frozen_deterministic_renames(
+            self.model, self.frozen_deterministics or ()
+        )
+
         # The frozen model before the substitutions: every conditioned model
         # applies them to it itself, which keeps the decision vector an input
         # of its clone (cloning the intervened model would copy the vector).
@@ -2116,8 +2122,8 @@ class BudgetOptimizer(BaseModel):
                 else f"frozen paths over {self.date_dim!r} that exist"
             )
             listing = " and ".join(
-                repr(name) if var.name == name else f"{name!r} (a view of {var.name!r})"
-                for name, var in reached.items()
+                repr(name) if renamed is None else f"{name!r} (a view of {renamed!r})"
+                for name, renamed in reached.items()
             )
             message = (
                 f"response_variable {self.response_variable!r} includes "
@@ -2143,15 +2149,17 @@ class BudgetOptimizer(BaseModel):
         self._constraints = {}
         self.set_constraints(constraints=self.constraints)
 
-    def _frozen_date_paths(self, response_variable: str) -> dict[str, Variable]:
+    def _frozen_date_paths(self, response_variable: str) -> dict[str, str | None]:
         """Return the frozen deterministics over ``date_dim`` an objective reaches.
 
         The traversal stops at every frozen deterministic, as the evaluation does
         when it substitutes their posterior draws, so a path that enters the
-        objective only through another frozen deterministic is not reached.  A
-        deterministic that only renames a free random variable stands for that
-        variable, which is what the optimization model's graphs read, see
-        :func:`~pymc_marketing.pytensor_utils.frozen_variables`.
+        objective only through another frozen deterministic is not reached.  It
+        runs on the source model, where a deterministic that only renames a free
+        random variable is still apart from it: the optimization model is a clone,
+        whose graphs read the variable wherever they read the rename (see
+        :func:`~pymc_marketing.pytensor_utils.frozen_variables`).  An objective
+        that exists only on the optimization model is traversed there.
 
         Parameters
         ----------
@@ -2160,20 +2168,29 @@ class BudgetOptimizer(BaseModel):
 
         Returns
         -------
-        dict of str to Variable
-            The variable each name stands for, by name, in the order of
-            ``frozen_deterministics``.
+        dict of str to str or None
+            By name, in the order of ``frozen_deterministics``: the free random
+            variable a name only renames, or ``None``.
         """
-        model = self._pymc_model
-        frozen = frozen_variables(model, self.frozen_deterministics or ())
+        model = (
+            self.model
+            if response_variable in self.model.named_vars
+            else self._pymc_model
+        )
+        declared = {
+            name: model[name]
+            for name in self.frozen_deterministics or ()
+            if name in model.named_vars
+        }
+        held = frozen_variables(model, list(declared))
         upstream = set(
-            ancestors([model[response_variable]], blockers=list(frozen.values()))
+            ancestors([model[response_variable]], blockers=list(declared.values()))
         )
         return {
-            name: var
-            for name, var in frozen.items()
-            if self.date_dim in (model.named_vars_to_dims.get(var.name) or ())
-            and var in upstream
+            name: held[name].name if held[name] is not var else None
+            for name, var in declared.items()
+            if var in upstream
+            and self.date_dim in (model.named_vars_to_dims.get(name) or ())
         }
 
     def __copy__(self) -> "BudgetOptimizer":

@@ -2307,6 +2307,65 @@ def test_objective_reaching_a_frozen_path_over_date_raises():
         _frozen_path_optimizer("total_response_original_scale")
 
 
+def _renamed_path_optimizer(
+    *, objective_reads_path: bool, path_renames_walk: bool = False
+) -> BudgetOptimizer:
+    """An optimizer with ``path`` frozen, a Deterministic that only renames another variable.
+
+    ``path`` renames the free ``steps``, or with *path_renames_walk* the Deterministic
+    ``walk`` of their cumulative sum.  ``report`` reads ``path``; the objective reads it
+    too with *objective_reads_path*, or else ``steps`` directly.
+    """
+    channels, n_dates = ["a", "b"], 6
+    with pm.Model(coords={"channel": channels}) as model:
+        model.add_coord("date", length=n_dates)
+        channel_data = pmd.Data(
+            "channel_data", np.ones((n_dates, len(channels))), dims=("date", "channel")
+        )
+        beta = pmd.Normal("beta", 1.0, 0.1, dims="channel")
+        media = pmd.Deterministic(
+            "total_media_contribution_original_scale", (channel_data * beta).sum()
+        )
+        steps = pmd.Normal("steps", sigma=0.1, dims="date")
+        inner = (
+            pmd.Deterministic("walk", steps.cumsum("date"))
+            if path_renames_walk
+            else steps
+        )
+        path = pmd.Deterministic("path", inner)
+        pmd.Deterministic("report", path * 2)
+        read = path if objective_reads_path else steps
+        pmd.Deterministic("total_response_original_scale", media + read.sum("date"))
+    prior = pm.sample_prior_predictive(draws=4, model=model, random_seed=1).prior
+    return BudgetOptimizer(
+        model=model,
+        idata=xr.DataTree.from_dict({"posterior": prior}),
+        num_periods=4,
+        adstock_periods=2,
+        frozen_deterministics=["path"],
+        response_variable="total_response_original_scale",
+    )
+
+
+def test_objective_that_does_not_read_a_frozen_rename_is_optimized():
+    """Only ``report`` reads ``path``; the objective reads ``steps`` without it."""
+    optimizer = _renamed_path_optimizer(objective_reads_path=False)
+
+    result = optimizer.allocate_budget(total_budget=10.0)
+
+    np.testing.assert_allclose(result.budgets.sum(), 10.0)
+
+
+def test_a_frozen_rename_of_a_deterministic_is_refused_before_cloning():
+    """Cloning would register ``path`` and ``walk`` on one variable."""
+    with pytest.raises(
+        ValueError,
+        match=r"frozen_deterministics includes 'path' \(with 'walk'\): one of each "
+        r"pair only renames the other Deterministic",
+    ):
+        _renamed_path_optimizer(objective_reads_path=True, path_renames_walk=True)
+
+
 @pytest.mark.parametrize("renames", [1, 2], ids=["renamed", "chained"])
 def test_objective_reaching_a_frozen_renaming_deterministic_over_date_raises(renames):
     """A path that only renames the steps is frozen as the steps, over ``date`` too.
