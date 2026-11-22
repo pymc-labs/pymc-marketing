@@ -35,6 +35,7 @@ from pymc_marketing.mmm.spend_reach import (
     SpendProbe,
     SpendReach,
     TemporalReach,
+    completeness_tolerance,
     linear_predictor,
     refuse_blocked_spend_paths,
     resolve_channel_dependent_effects,
@@ -1636,7 +1637,7 @@ class TestProbeStatistics:
                 {name: values[samples] for name, values in baseline.items()},
                 non_date_dims=self.non_date_dims,
             )
-        monkeypatch.setattr(ProbeStatistics, "FOLD_ELEMENTS", 1)
+        monkeypatch.setattr("pymc_marketing.mmm.spend_reach.FOLD_ELEMENTS", 1)
         one_at_a_time = ProbeStatistics.fold(
             probed,
             baseline,
@@ -1685,7 +1686,7 @@ class TestProbeStatistics:
                 accounted=(CHANNEL_CONTRIBUTION,),
                 non_date_dims=non_date_dims,
             )
-            monkeypatch.setattr(ProbeStatistics, "FOLD_ELEMENTS", 1)
+            monkeypatch.setattr("pymc_marketing.mmm.spend_reach.FOLD_ELEMENTS", 1)
             one_at_a_time = ProbeStatistics.fold(
                 probed,
                 baseline,
@@ -1735,6 +1736,20 @@ class TestProbeStatistics:
             passes and atol < float(residual)
             for atol, passes in zip(candidates, reference, strict=True)
         )
+
+    @pytest.mark.parametrize("dtype", ["float32", "float64"])
+    @pytest.mark.parametrize(
+        ("scale", "magnitude"), [(1.0, 0.0), (0.0, 1.0)], ids=["scale", "eps"]
+    )
+    def test_the_tolerance_is_a_python_float(self, dtype, scale, magnitude):
+        """``numpy.allclose`` rounds a Python float ``atol``, not a ``np.float64`` one.
+
+        :meth:`ProbeStatistics.residual_within` always rounds it, so the two
+        agree only if the tolerance is a Python float, whichever term wins.
+        """
+        atol = completeness_tolerance(scale=scale, magnitude=magnitude, dtype=dtype)
+
+        assert type(atol) is float
 
     @pytest.mark.parametrize("with_predictor", [True, False])
     def test_one_probe_evaluation_alive_at_a_time(self, with_predictor):
