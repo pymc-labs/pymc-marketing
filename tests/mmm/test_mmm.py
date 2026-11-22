@@ -28,7 +28,7 @@ import pytest
 import xarray as xr
 from pydantic import ValidationError
 from pymc.model_graph import fast_eval
-from pymc_extras.prior import Censored, Prior
+from pymc_extras.prior import Censored, Prior, Scaled
 from pytensor.graph.traversal import ancestors
 from pytensor.xtensor.type import XTensorVariable, as_xtensor
 from scipy import stats
@@ -2335,6 +2335,51 @@ class TestSerializationIntegration:
         assert sorted(rv.name for rv in loaded.model.free_RVs) == sorted(
             rv.name for rv in mmm.model.free_RVs
         )
+
+    def test_roundtrip_writes_scaled_prior_in_pymc_extras_shape(
+        self, minimal_fit_data, tmp_path, mock_pymc_sample
+    ):
+        """A Scaled prior is saved as pymc-extras writes it and loads back (#2970)."""
+        X, y = minimal_fit_data
+        mmm = self._base_mmm(
+            model_config={"intercept": Scaled(Prior("Normal", sigma=1), factor=2.0)}
+        )
+        mmm.fit(X, y)
+
+        fname = tmp_path / "model.nc"
+        mmm.save(str(fname))
+        config = json.loads(xr.open_datatree(fname).attrs["model_config"])
+        loaded = MMM.load(str(fname))
+
+        assert config["intercept"] == mmm.model_config["intercept"].to_dict()
+        assert isinstance(loaded.model_config["intercept"], Scaled)
+        assert loaded == mmm
+
+    def test_load_scaled_prior_saved_by_1_1_0_needs_check_false(
+        self, minimal_fit_data, tmp_path, mock_pymc_sample, writing_scaled_as_in_1_1_0
+    ):
+        """An MMM saved by 1.1.0 with a Scaled prior fails the id check (#2970).
+
+        The id hashes the serialized config, and 1.1.0 wrote Scaled under
+        ``__type__``. The prior itself still loads with ``check=False``.
+        """
+        X, y = minimal_fit_data
+        mmm = self._base_mmm(
+            model_config={"intercept": Scaled(Prior("Normal", sigma=1), factor=2.0)}
+        )
+        fname = str(tmp_path / "model_1_1_0.nc")
+        # ``fit`` writes the idata attrs, so it must run in the 1.1.0 shape too.
+        with writing_scaled_as_in_1_1_0():
+            mmm.fit(X, y)
+            mmm.save(fname)
+
+        with pytest.raises(DifferentModelError) as excinfo:
+            MMM.load(fname)
+        assert "model id in the DataTree" in str(excinfo.value.__cause__)
+
+        loaded = MMM.load(fname, check=False)
+        assert isinstance(loaded.model_config["intercept"], Scaled)
+        assert loaded.model_config["intercept"].factor == 2.0
 
     def test_roundtrip_with_tvp(self, minimal_fit_data, tmp_path, mock_pymc_sample):
         """Save/load with time-varying parameters (HSGP) preserves HSGP config."""

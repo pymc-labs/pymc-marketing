@@ -11,8 +11,14 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import dataclasses
+from contextlib import contextmanager
+
 import pytest
 from pymc.testing import mock_sample_setup_and_teardown
+from pymc_extras.prior import Scaled
+
+from pymc_marketing.serialization import serialization
 
 
 def pytest_addoption(parser):
@@ -55,3 +61,29 @@ def pytest_collection_modifyitems(config, items):
 
 
 mock_pymc_sample = pytest.fixture(scope="module")(mock_sample_setup_and_teardown)
+
+
+@pytest.fixture
+def writing_scaled_as_in_1_1_0(monkeypatch):
+    """Return a context manager under which saves write ``Scaled`` as 1.1.0 did.
+
+    1.1.0 wrote ``{"__type__": "pymc_extras.prior.Scaled", "dist": ..., "factor": ...}``.
+    Saving under it gives a file with both that shape and the model id hashed from it.
+    """
+    key = serialization.key_for(Scaled)
+
+    def serialize_1_1_0(obj: Scaled) -> dict:
+        return {"__type__": key, "dist": obj.dist.to_dict(), "factor": obj.factor}
+
+    @contextmanager
+    def writing():
+        entry = serialization._registry[key]
+        with monkeypatch.context() as m:
+            m.setitem(
+                serialization._registry,
+                key,
+                dataclasses.replace(entry, serializer=serialize_1_1_0),
+            )
+            yield
+
+    return writing

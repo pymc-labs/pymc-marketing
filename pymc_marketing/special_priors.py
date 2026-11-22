@@ -74,21 +74,17 @@ register_deserialization(
 )
 
 
-def _serialize_scaled(obj: Scaled) -> dict:
-    return {
-        Key.TYPE: f"{Scaled.__module__}.{Scaled.__qualname__}",
-        "dist": obj.dist.to_dict(),
-        "factor": obj.factor,
-    }
-
-
 def _deserialize_scaled(data: dict, context: Any = None) -> Scaled:
     return Scaled(dist=deserialize(data["dist"]), factor=data["factor"])
 
 
+# New saves use pymc-extras' native ``{"class": "Scaled", "data": ...}`` shape.
+# The deserializer reads the ``__type__`` shape written by 1.1.0. A serializer
+# must be given: without one, ``register`` wraps ``Scaled.to_dict`` to add
+# ``__type__`` back.
 serialization.register(
     Scaled,
-    serializer=_serialize_scaled,
+    serializer=Scaled.to_dict,
     deserializer=_deserialize_scaled,
 )
 

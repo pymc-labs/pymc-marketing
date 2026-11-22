@@ -1157,6 +1157,31 @@ class TestBassModelClass:
         assert isinstance(loaded.model_config["m"].dist, Prior)
         xr.testing.assert_allclose(model.idata.posterior, loaded.idata.posterior)
 
+    def test_load_scaled_prior_saved_by_1_1_0(
+        self, mock_pymc_sample, y: np.ndarray, tmp_path, writing_scaled_as_in_1_1_0
+    ):
+        """A Scaled prior saved in the 1.1.0 ``__type__`` shape still loads (#2970).
+
+        The Bass id hashes ``to_dict()``, which the saved shape does not change.
+        """
+        model = BassModel(
+            model_config={"m": Scaled(Prior("Gamma", mu=1, sigma=0.1), factor=50_000)}
+        )
+        file = str(tmp_path / "bass_model_scaled_1_1_0.nc")
+        # ``fit`` writes the idata attrs, so it must run in the 1.1.0 shape too.
+        with writing_scaled_as_in_1_1_0():
+            model.fit(data=y, draws=5, tune=5, chains=1, random_seed=42)
+            model.save(file)
+        assert (
+            '"__type__": "pymc_extras.prior.Scaled"'
+            in (xr.open_datatree(file).attrs["model_config"])
+        )
+
+        loaded = BassModel.load(file)
+
+        assert isinstance(loaded.model_config["m"], Scaled)
+        assert loaded.model_config["m"].factor == 50_000
+
     def test_save_load_round_trip_censored_priors(
         self, mock_pymc_sample, y: np.ndarray, tmp_path
     ):
