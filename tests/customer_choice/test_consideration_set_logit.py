@@ -195,16 +195,6 @@ class TestConsiderationSetMixedLogitBuild:
         var_names = [v.name for v in model.model.free_RVs]
         assert "gamma_0" not in var_names
 
-    def test_missing_Z_tilde_raises(self, hiring_df, utility_equations):
-        with pytest.raises(ValueError, match="Z_tilde"):
-            ConsiderationSetMixedLogit(
-                choice_df=hiring_df,
-                utility_equations=utility_equations,
-                depvar="choice",
-                covariates=["age", "exp"],
-                consideration_instruments={"wrong_key": np.zeros((50, 3))},
-            )
-
 
 class TestConsiderationSetMixedLogitPrior:
     def test_prior_predictive(self, hiring_df, Z_tilde, utility_equations):

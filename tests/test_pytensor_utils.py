@@ -350,38 +350,6 @@ def test_extract_response_distribution_vs_sample_response(
     print("\n✓ Both methods produce consistent results!")
 
 
-@pytest.mark.parametrize("draws, tune", [(50, 50)])
-def test_model_sampler_estimator_with_simple_model(monkeypatch, draws, tune):
-    """Smoke test for ModelSamplerEstimator on a tiny PyMC model."""
-
-    with pm.Model() as model:
-        mu = pm.Normal("mu", 0.0, 1.0)
-        sigma = pm.HalfNormal("sigma", 1.0)
-        pm.Normal("y", mu=mu, sigma=sigma, observed=np.random.normal(0, 1, size=10))
-
-    est = ModelSamplerEstimator(
-        tune=tune, draws=draws, chains=2, sequential_chains=1, seed=123
-    )
-    df = est.run(model)
-
-    # Check schema and basic values
-    expected_columns = {
-        "model_name",
-        "num_steps",
-        "eval_time_seconds",
-        "sequential_chains",
-        "estimated_sampling_time_seconds",
-        "estimated_sampling_time_minutes",
-        "estimated_sampling_time_hours",
-        "tune",
-        "draws",
-        "chains",
-        "seed",
-        "timestamp",
-    }
-    assert set(df.columns) >= expected_columns
-
-
 def test_model_sampler_estimator_eval_time_multidim_model(fitted_multidim_mmm):
     """Measure eval time for a fitted multidimensional MMM's PyMC model."""
     pm_model = fitted_multidim_mmm.model

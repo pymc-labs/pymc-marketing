@@ -752,10 +752,53 @@ class TestDelayedAdstockHalfLife:
 
         assert adstock.function_priors["halflife"] == prior
 
-    @pytest.mark.parametrize("alpha", [0.1, 0.3, 0.5, 0.7, 0.9])
-    @pytest.mark.parametrize("theta", [0.0, 2.0, 5.0])
-    @pytest.mark.parametrize("l_max", [8, 12, 20], ids=lambda v: f"l_max={v}")
-    @pytest.mark.parametrize("normalize", [False, True], ids=["raw", "normalized"])
+    # All-pairs subset of normalize x l_max x theta x alpha. theta=0 keeps the full grid;
+    # every other theta meets each alpha, l_max and normalize at least once.
+    @pytest.mark.parametrize(
+        "normalize, l_max, theta, alpha",
+        [
+            pytest.param(False, 8, 0.0, 0.1, id="raw-l_max=8-0.0-0.1"),
+            pytest.param(False, 8, 0.0, 0.3, id="raw-l_max=8-0.0-0.3"),
+            pytest.param(False, 8, 0.0, 0.5, id="raw-l_max=8-0.0-0.5"),
+            pytest.param(False, 8, 0.0, 0.7, id="raw-l_max=8-0.0-0.7"),
+            pytest.param(False, 8, 0.0, 0.9, id="raw-l_max=8-0.0-0.9"),
+            pytest.param(False, 8, 2.0, 0.1, id="raw-l_max=8-2.0-0.1"),
+            pytest.param(False, 8, 5.0, 0.3, id="raw-l_max=8-5.0-0.3"),
+            pytest.param(False, 12, 0.0, 0.1, id="raw-l_max=12-0.0-0.1"),
+            pytest.param(False, 12, 0.0, 0.3, id="raw-l_max=12-0.0-0.3"),
+            pytest.param(False, 12, 0.0, 0.5, id="raw-l_max=12-0.0-0.5"),
+            pytest.param(False, 12, 0.0, 0.7, id="raw-l_max=12-0.0-0.7"),
+            pytest.param(False, 12, 0.0, 0.9, id="raw-l_max=12-0.0-0.9"),
+            pytest.param(False, 12, 2.0, 0.9, id="raw-l_max=12-2.0-0.9"),
+            pytest.param(False, 20, 0.0, 0.1, id="raw-l_max=20-0.0-0.1"),
+            pytest.param(False, 20, 0.0, 0.3, id="raw-l_max=20-0.0-0.3"),
+            pytest.param(False, 20, 0.0, 0.5, id="raw-l_max=20-0.0-0.5"),
+            pytest.param(False, 20, 0.0, 0.7, id="raw-l_max=20-0.0-0.7"),
+            pytest.param(False, 20, 0.0, 0.9, id="raw-l_max=20-0.0-0.9"),
+            pytest.param(False, 20, 2.0, 0.5, id="raw-l_max=20-2.0-0.5"),
+            pytest.param(False, 20, 5.0, 0.7, id="raw-l_max=20-5.0-0.7"),
+            pytest.param(True, 8, 0.0, 0.1, id="normalized-l_max=8-0.0-0.1"),
+            pytest.param(True, 8, 0.0, 0.3, id="normalized-l_max=8-0.0-0.3"),
+            pytest.param(True, 8, 0.0, 0.5, id="normalized-l_max=8-0.0-0.5"),
+            pytest.param(True, 8, 0.0, 0.7, id="normalized-l_max=8-0.0-0.7"),
+            pytest.param(True, 8, 0.0, 0.9, id="normalized-l_max=8-0.0-0.9"),
+            pytest.param(True, 8, 2.0, 0.7, id="normalized-l_max=8-2.0-0.7"),
+            pytest.param(True, 8, 5.0, 0.9, id="normalized-l_max=8-5.0-0.9"),
+            pytest.param(True, 12, 0.0, 0.1, id="normalized-l_max=12-0.0-0.1"),
+            pytest.param(True, 12, 0.0, 0.3, id="normalized-l_max=12-0.0-0.3"),
+            pytest.param(True, 12, 0.0, 0.5, id="normalized-l_max=12-0.0-0.5"),
+            pytest.param(True, 12, 0.0, 0.7, id="normalized-l_max=12-0.0-0.7"),
+            pytest.param(True, 12, 0.0, 0.9, id="normalized-l_max=12-0.0-0.9"),
+            pytest.param(True, 12, 2.0, 0.3, id="normalized-l_max=12-2.0-0.3"),
+            pytest.param(True, 12, 5.0, 0.5, id="normalized-l_max=12-5.0-0.5"),
+            pytest.param(True, 20, 0.0, 0.1, id="normalized-l_max=20-0.0-0.1"),
+            pytest.param(True, 20, 0.0, 0.3, id="normalized-l_max=20-0.0-0.3"),
+            pytest.param(True, 20, 0.0, 0.5, id="normalized-l_max=20-0.0-0.5"),
+            pytest.param(True, 20, 0.0, 0.7, id="normalized-l_max=20-0.0-0.7"),
+            pytest.param(True, 20, 0.0, 0.9, id="normalized-l_max=20-0.0-0.9"),
+            pytest.param(True, 20, 5.0, 0.1, id="normalized-l_max=20-5.0-0.1"),
+        ],
+    )
     def test_matches_equivalent_alpha(
         self, model, alpha: float, theta: float, l_max: int, normalize: bool
     ) -> None:

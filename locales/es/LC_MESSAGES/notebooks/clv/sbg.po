@@ -1,0 +1,876 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2026, PyMC Labs
+# This file is distributed under the same license as the PyMC-Marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyMC-Marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../source/notebooks/clv/sbg.ipynb:10002 7b576b77bff240f7915473afc60a5743
+msgid "Shifted Beta-Geometric Model with Cohorts and Covariates"
+msgstr "Modelo de Beta Geométrica Desplazada con cohortes y covariables"
+
+#: ../source/notebooks/clv/sbg.ipynb:20002 7431dddbbc814af2a8264a76b0adefcf
+msgid ""
+"The Shifted Beta-Geometric (sBG) model was first introduced in [\"How to "
+"Project Customer Retention\"](https://faculty.wharton.upenn.edu/wp-"
+"content/uploads/2012/04/Fader_hardie_jim_07.pdf) by Hardie & Fader in "
+"2007. It is ideal for predicting customer behavior in business cases "
+"involving contract renewals or recurring subscriptions, and the original "
+"model has been expanded in PyMC-Marketing to support multidimensional "
+"cohorts and covariates. In this notebook we will reproduce the research "
+"results, then proceed to a comprehensive example with EDA and additional "
+"predictive methods."
+msgstr ""
+"El modelo de Beta Geométrica Desplazada (sBG) fue introducido por primera "
+"vez en [\"How to Project Customer "
+"Retention\"](https://faculty.wharton.upenn.edu/wp-"
+"content/uploads/2012/04/Fader_hardie_jim_07.pdf) por Hardie y Fader en 2007."
+" Es ideal para predecir el comportamiento de los clientes en casos de "
+"negocio que implican renovaciones de contratos o suscripciones recurrentes, "
+"y el modelo original se ha ampliado en PyMC-Marketing para admitir cohortes "
+"multidimensionales y covariables. En este cuaderno reproduciremos los "
+"resultados de la investigación y luego pasaremos a un ejemplo completo con "
+"EDA y métodos predictivos adicionales."
+
+#: ../source/notebooks/clv/sbg.ipynb:30002 2e9d6f5a87a44599810da887c9a778fe
+msgid "Setup Notebook"
+msgstr "Configuración del cuaderno"
+
+#: ../source/notebooks/clv/sbg.ipynb:60002 35c20313cfc94ce1b4ff49895699fbd9
+msgid "Load Data"
+msgstr "Cargar datos"
+
+#: ../source/notebooks/clv/sbg.ipynb:70002 04ab796d1e984ab686ff4ba791fa9a8d
+msgid "Data must be aggregrated in the following format for model fitting:"
+msgstr ""
+"Los datos deben estar agregados en el siguiente formato para ajustar el "
+"modelo:"
+
+#: ../source/notebooks/clv/sbg.ipynb:70004 655e22f25e384b3a82bd039330955579
+msgid "`customer_id` is an index of unique identifiers for each customer"
+msgstr ""
+"`customer_id` es un índice de identificadores únicos para cada cliente"
+
+#: ../source/notebooks/clv/sbg.ipynb:70005 e396d9fdc1c3438db48578aa8c6c5210
+msgid ""
+"`recency` indicates the most recent time period a customer was still "
+"active"
+msgstr ""
+"`recency` indica el período de tiempo más reciente en el que un cliente aún "
+"estaba activo"
+
+#: ../source/notebooks/clv/sbg.ipynb:70006 3a7aec19b0f24a89a927d9f055a209ee
+msgid "`T` is the maximum observed time period for a given cohort"
+msgstr "`T` es el período de tiempo máximo observado para una cohorte dada"
+
+#: ../source/notebooks/clv/sbg.ipynb:70007 620462cf8afb456caaa0c00d4f090a7f
+msgid "`cohort` indicates the cohort assignment for each customer"
+msgstr "`cohort` indica la cohorte asignada a cada cliente"
+
+#: ../source/notebooks/clv/sbg.ipynb:70009 50647f7d0d4241faa57b0643fae94be8
+msgid ""
+"For active customers, `recency` is equal to `T`, and all customers in a "
+"given cohort share the same value for `T`. If a customer cancelled their "
+"contract and restarted at a later date, a new `customer_id` must be "
+"assigned for the restart."
+msgstr ""
+"Para los clientes activos, `recency` es igual a `T`, y todos los clientes de"
+" una cohorte dada comparten el mismo valor de `T`. Si un cliente canceló su "
+"contrato y lo reinició en una fecha posterior, se debe asignar un nuevo "
+"`customer_id` para el reinicio."
+
+#: ../source/notebooks/clv/sbg.ipynb:70011 29fa4025135a426e8f3f0fa433f75d39
+msgid ""
+"Sample data is available in the PyMC-Marketing repo. To see the code used"
+" to generate this data, refer to `generate_sbg_data()` in "
+"`scripts/clv_data_generation.py` in the repo."
+msgstr ""
+"Hay datos de ejemplo disponibles en el repositorio de PyMC-Marketing. Para "
+"ver el código utilizado para generar estos datos, consulte "
+"`generate_sbg_data()` en `scripts/clv_data_generation.py` en el repositorio."
+
+#: ../source/notebooks/clv/sbg.ipynb:90002 aca70e9672d549e59b32e862b1a16e73
+msgid ""
+"This dataset was generated from the first 8 time periods in Table 1 of "
+"the research paper, which provides survival rates for two types of "
+"customers (\"Regular\" and \"Highend\") over 13 time periods:"
+msgstr ""
+"Este conjunto de datos se generó a partir de los primeros 8 períodos de "
+"tiempo de la Tabla 1 del artículo de investigación, que ofrece las tasas de "
+"supervivencia de dos tipos de clientes (\"Regular\" y \"Highend\") a lo "
+"largo de 13 períodos de tiempo:"
+
+#: ../source/notebooks/clv/sbg.ipynb:110002 fb0cda9b289c4852a80000d33de2f840
+msgid ""
+"This is also a useful format for model evaluation. In survival analysis "
+"parlance, customers with `recency==T` are \"right-censored\". If we fit a"
+" model to the first $8$ time periods, we can test predictions on censored"
+" data over the remaining $5$."
+msgstr ""
+"Este también es un formato útil para la evaluación del modelo. En la jerga "
+"del análisis de supervivencia, los clientes con `recency==T` están "
+"\"censurados por la derecha\". Si ajustamos un modelo a los primeros $8$ "
+"períodos de tiempo, podemos probar las predicciones sobre los datos "
+"censurados en los $5$ restantes."
+
+#: ../source/notebooks/clv/sbg.ipynb:140002 bc6a3ca08ed4433990ccdc079aa7fa3c
+msgid ""
+"Because all customers began their contracts in the same time period, "
+"*segment* is a more appropriate term than *cohort*, but we can model both"
+" with the same functionality. Let's proceed to modeling."
+msgstr ""
+"Como todos los clientes comenzaron sus contratos en el mismo período de "
+"tiempo, *segmento* es un término más apropiado que *cohorte*, pero podemos "
+"modelar ambos con la misma funcionalidad. Pasemos al modelado."
+
+#: ../source/notebooks/clv/sbg.ipynb:150002 48a7b9d896024fadad4edae466085c0b
+msgid "Model Fitting"
+msgstr "Ajuste del modelo"
+
+#: ../source/notebooks/clv/sbg.ipynb:160002 8f1ce3f7a56f481e8ce03cd771792742
+msgid "The sBG model has the following assumptions:"
+msgstr "El modelo sBG tiene los siguientes supuestos:"
+
+#: ../source/notebooks/clv/sbg.ipynb:160004 94f8edf6d0ed46e3b07d14587c0a561c
+msgid ""
+"Individual customer lifetime durations are characterized by the (shifted)"
+" Geometric distribution, with cancellation probability $\\theta$."
+msgstr ""
+"Las duraciones de vida de cada cliente se caracterizan por la distribución "
+"Geométrica (desplazada), con probabilidad de cancelación $\\theta$."
+
+#: ../source/notebooks/clv/sbg.ipynb:160005 505f718c934c4a45a54290d5b60b492c
+msgid ""
+"Heterogeneity in $\\theta$ follows a Beta distribution with shape "
+"parameters $\\alpha$ and $\\beta$."
+msgstr ""
+"La heterogeneidad en $\\theta$ sigue una distribución Beta con parámetros de"
+" forma $\\alpha$ y $\\beta$."
+
+#: ../source/notebooks/clv/sbg.ipynb:160007 cf14d9bdf4f54f8da9c67044a619d0cf
+msgid ""
+"If we take the expectation across the distribution of $\\theta$, we can "
+"derive a likelihood function to estimate parameters $\\alpha$ and "
+"$\\beta$ for the customer population. For more details on the "
+"`ShiftedBetaGeometric` mixture distribution, please refer to the "
+"[documentation](https://www.pymc-"
+"marketing.io/en/stable/api/generated/pymc_marketing.clv.distributions.ShiftedBetaGeometric.html#pymc_marketing.clv.distributions.ShiftedBetaGeometric)."
+msgstr ""
+"Si tomamos la esperanza sobre la distribución de $\\theta$, podemos derivar "
+"una función de verosimilitud para estimar los parámetros $\\alpha$ y "
+"$\\beta$ de la población de clientes. Para más detalles sobre la "
+"distribución de mezcla `ShiftedBetaGeometric`, consulte la "
+"[documentación](https://www.pymc-"
+"marketing.io/en/stable/api/generated/pymc_marketing.clv.distributions.ShiftedBetaGeometric.html#pymc_marketing.clv.distributions.ShiftedBetaGeometric)."
+
+#: ../source/notebooks/clv/sbg.ipynb:160009 9e61e691a2f64acb83cf08a58c8edefc
+msgid ""
+"The original frequentist model assumes a single cohort of customers who "
+"all started their contracts in the same time period. This requires "
+"fitting a separate model for each cohort. However, in PyMC-Marketing we "
+"can fit all cohorts in a single hierarchical Bayesian model!"
+msgstr ""
+"El modelo frecuentista original supone una única cohorte de clientes que "
+"iniciaron sus contratos en el mismo período de tiempo. Esto obliga a ajustar"
+" un modelo distinto para cada cohorte. Sin embargo, en PyMC-Marketing, "
+"¡podemos ajustar todas las cohortes en un único modelo bayesiano jerárquico!"
+
+#: ../source/notebooks/clv/sbg.ipynb:160011 d0e409107688411ebc8a426b9a0c6699
+msgid ""
+"Here are the parameter estimates from the research paper for a sBG model "
+"fit with the provided data using Maximum Likelihood Estimation (MLE):"
+msgstr ""
+"Estas son las estimaciones de los parámetros del artículo de investigación "
+"para un modelo sBG ajustado con los datos proporcionados mediante estimación"
+" por máxima verosimilitud (MLE):"
+
+#: ../source/notebooks/clv/sbg.ipynb:180002 c7a234be06cc44c48c84f7076a20610c
+msgid "Reproduce Research Results with Cohorts"
+msgstr "Reproducir los resultados de la investigación con cohortes"
+
+#: ../source/notebooks/clv/sbg.ipynb:190002 14c231bdb6c642b2a0c425cf7bf45efb
+msgid "Model Fitting with MAP"
+msgstr "Ajuste del modelo con MAP"
+
+#: ../source/notebooks/clv/sbg.ipynb:200002 3bd8e0e12ac2478682b7ad43967280c6
+msgid ""
+"The Bayesian equivalent of a frequentist MLE fit is Maximum a Posteriori "
+"(MAP) with \"flat\" priors. A flat prior can be used when the user is "
+"agnostic about the observed data, holding no prior beliefs or "
+"assumptions. Since $\\alpha$ and $\\beta$ must be positive values, let's "
+"configure our Bayesian `ShiftedBetaGeoModel` with `HalfFlat` priors:"
+msgstr ""
+"El equivalente bayesiano de un ajuste frecuentista por MLE es el máximo a "
+"posteriori (MAP) con priors \"planos\". Se puede usar un prior plano cuando "
+"el usuario es agnóstico respecto a los datos observados y no tiene creencias"
+" ni supuestos previos. Como $\\alpha$ y $\\beta$ deben ser valores "
+"positivos, vamos a configurar nuestro `ShiftedBetaGeoModel` bayesiano con "
+"priors `HalfFlat`:"
+
+#: ../source/notebooks/clv/sbg.ipynb:220002 1c10beb9b8014c17bec20c2bfad7e39e
+msgid ""
+"MAP parameter estimates are identical to those in the research. We can "
+"also use these parameters recover the latent $\\theta$ dropout "
+"distributions and recreate Figure 6 in the research paper:"
+msgstr ""
+"Las estimaciones de los parámetros MAP son idénticas a las de la "
+"investigación. También podemos usar estos parámetros para recuperar las "
+"distribuciones latentes de abandono de $\\theta$ y recrear la Figura 6 del "
+"artículo de investigación:"
+
+#: ../source/notebooks/clv/sbg.ipynb:230002 eaf47bb464bc4b3eb5ac7a8ba513f5ef
+msgid "Visualize Latent Dropout Distributions"
+msgstr "Visualizar las distribuciones latentes de abandono"
+
+#: ../source/notebooks/clv/sbg.ipynb:250002 c63764f3d0074a52bc6a8df2bdddc07a
+#, python-format
+msgid ""
+"It is evident from the plots dropout probabilities skew lower for "
+"customers in the Highend segment, who have a median contract cancellation"
+" probability of about 10% for each renewal period. The Regular segment "
+"median exceeds 30% in comparison."
+msgstr ""
+"Los gráficos muestran claramente que las probabilidades de abandono son más "
+"bajas para los clientes del segmento Highend, cuya mediana de probabilidad "
+"de cancelación del contrato es de aproximadamente 10% en cada período de "
+"renovación. En comparación, la mediana del segmento Regular supera el 30%."
+
+#: ../source/notebooks/clv/sbg.ipynb:250004 3044d00f80ce4f4fb32e06d7e6c5e28a
+msgid ""
+"Models can be fit very quickly with MAP, but there are important caveats "
+"to consider when recreating the frequentist MLE approach:"
+msgstr ""
+"Los modelos se pueden ajustar muy rápido con MAP, pero hay advertencias "
+"importantes que considerar al recrear el enfoque frecuentista de MLE:"
+
+#: ../source/notebooks/clv/sbg.ipynb:250005 0c6dde26a2d1411da09e20a3539412ec
+msgid ""
+"Flat priors are slow to converge, and can be unstable in practice because"
+" no regularization is applied to model parameters during fitting."
+msgstr ""
+"Los priors planos convergen lentamente y pueden ser inestables en la "
+"práctica, porque no se aplica ninguna regularización a los parámetros del "
+"modelo durante el ajuste."
+
+#: ../source/notebooks/clv/sbg.ipynb:250006 aa7be494f49c4249803d4a42865bbe57
+msgid "MAP/MLE fits do not provide credibility intervals for predictions."
+msgstr ""
+"Los ajustes MAP/MLE no proporcionan intervalos creíbles para las "
+"predicciones."
+
+#: ../source/notebooks/clv/sbg.ipynb:250008 9f1f307aa5c74046b3dd4cb5201c349a
+msgid ""
+"In the Bayesian paradigm, prior distributions are derived from business "
+"domain knowledge and experimentation. With priors we can regularize "
+"parameter estimates, reduce model fit times, and with MCMC sampling infer"
+" the posterior distributions, illustrating uncertainty in our parameter "
+"estimates as well as enabling prediction intervals."
+msgstr ""
+"En el paradigma bayesiano, las distribuciones previas se derivan del "
+"conocimiento del dominio del negocio y de la experimentación. Con priors "
+"podemos regularizar las estimaciones de los parámetros, reducir los tiempos "
+"de ajuste del modelo y, con el muestreo MCMC, inferir las distribuciones "
+"posteriores, lo que ilustra la incertidumbre de las estimaciones de los "
+"parámetros y permite además obtener intervalos de predicción."
+
+#: ../source/notebooks/clv/sbg.ipynb:260002 66868554d7f14fc4a5ca942544975907
+msgid "Model Fitting with MCMC"
+msgstr "Ajuste del modelo con MCMC"
+
+#: ../source/notebooks/clv/sbg.ipynb:270002 77b7da5748cc404ea4d988ea10810481
+msgid ""
+"The default sampler in PyMC-Marketing is the No-U-Turn Sampler (NUTS), "
+"which samples from the posterior by exploring the gradients of the "
+"probability space. The default prior configuration for "
+"`ShiftedBetaGeoModel` works well for many use cases:"
+msgstr ""
+"El muestreador predeterminado en PyMC-Marketing es el No-U-Turn Sampler "
+"(NUTS), que muestrea de la distribución posterior explorando los gradientes "
+"del espacio de probabilidad. La configuración de priors predeterminada de "
+"`ShiftedBetaGeoModel` funciona bien en muchos casos de uso:"
+
+#: ../source/notebooks/clv/sbg.ipynb:290002 2f0b0ea3751844688dc30a6d1d9095f1
+msgid ""
+"The default `kappa` and `phi` priors are pooling distributions that "
+"improve the speed & reliability of model fits, but can be omitted by "
+"specifying custom `alpha` and `beta` priors in the `model_config`. Note "
+"the number of cohorts and customers are also listed, and the dropout "
+"$\\theta$ distribution is censored just like the dataset."
+msgstr ""
+"Los priors predeterminados de `kappa` y `phi` son distribuciones de "
+"agrupamiento que mejoran la velocidad y la fiabilidad del ajuste del modelo,"
+" pero se pueden omitir especificando priors personalizados de `alpha` y "
+"`beta` en `model_config`. Tenga en cuenta que también se indican el número "
+"de cohortes y de clientes, y que la distribución de abandono $\\theta$ está "
+"censurada, igual que el conjunto de datos."
+
+#: ../source/notebooks/clv/sbg.ipynb:290004 a09fbe2f30fc413b89e855ef9ae26808
+msgid "Let's fit a MCMC model and visualize the results:"
+msgstr "Vamos a ajustar un modelo MCMC y a visualizar los resultados:"
+
+#: ../source/notebooks/clv/sbg.ipynb:330002 73180e63f7ca47dd9413be1565bf10bf
+msgid ""
+"Fit summaries and trace plots look good. Let's compare the fitted "
+"posterior distributions to the scalar parameter estimates from the "
+"research:"
+msgstr ""
+"Los resúmenes del ajuste y los gráficos de traza se ven bien. Vamos a "
+"comparar las distribuciones posteriores ajustadas con las estimaciones de "
+"los parámetros escalares de la investigación:"
+
+#: ../source/notebooks/clv/sbg.ipynb:350002 6baf4bc73c284fcaad0786ce654d80aa
+msgid ""
+"Fitted posterior mean values align with the MLE values described in the "
+"research paper! MCMC sampling also gives us useful information about the "
+"uncertainty of the fits. Note how the mean values are within the 94% HDI "
+"intervals but not perfectly centered, indicating the posteriors are "
+"asymetrical."
+msgstr ""
+"¡Los valores medios de las posteriores ajustadas coinciden con los valores "
+"de MLE descritos en el artículo de investigación! El muestreo MCMC también "
+"nos da información útil sobre la incertidumbre de los ajustes. Observe cómo "
+"los valores medios están dentro de los intervalos HDI del 94%, pero no "
+"perfectamente centrados, lo que indica que las posteriores son asimétricas."
+
+#: ../source/notebooks/clv/sbg.ipynb:360002 8ae90ae8248b465b85182749932f4908
+msgid "Model Evaluation with Cohorts"
+msgstr "Evaluación del modelo con cohortes"
+
+#: ../source/notebooks/clv/sbg.ipynb:370002 a31aee1af4cf49509881944e52305bc4
+msgid ""
+"Recall the model was fit to the first $8$ time periods and the remaining "
+"$5$ were withheld for testing. The `survival_rate_aggregation()` function"
+" can be used to summarize the full dataset for model evaluation."
+msgstr ""
+"Recuerde que el modelo se ajustó a los primeros $8$ períodos de tiempo y que"
+" los $5$ restantes se reservaron para la prueba. La función "
+"`survival_rate_aggregation()` se puede usar para resumir el conjunto de "
+"datos completo para la evaluación del modelo."
+
+#: ../source/notebooks/clv/sbg.ipynb:390002 48af88a86a5a4454b953bea576af293a
+msgid ""
+"We are also running predictions on training (shown as negative) time "
+"periods to get the full context."
+msgstr ""
+"También ejecutamos predicciones sobre los períodos de tiempo de "
+"entrenamiento (mostrados como negativos) para tener el contexto completo."
+
+#: ../source/notebooks/clv/sbg.ipynb:390004 7649d2a819604a8884c7f4884ba8dfff
+msgid "Survival Function"
+msgstr "Función de supervivencia"
+
+#: ../source/notebooks/clv/sbg.ipynb:390005 24fc2146c17a4a8eabc9cb3d0a917c73
+msgid ""
+"The sBG [*survival function*](https://www.pymc-"
+"marketing.io/en/stable/api/generated/classmethods/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_probability_alive.html#pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_probability_alive)"
+" is the probability customers within a given cohort are still active "
+"after a specified time period. It is called with "
+"`ShiftedBetaGeoModel.expected_probability_alive()`:"
+msgstr ""
+"La [*función de supervivencia*](https://www.pymc-"
+"marketing.io/en/stable/api/generated/classmethods/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_probability_alive.html#pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_probability_alive)"
+" del modelo sBG es la probabilidad de que los clientes de una cohorte dada "
+"sigan activos después de un período de tiempo especificado. Se invoca con "
+"`ShiftedBetaGeoModel.expected_probability_alive()`:"
+
+#: ../source/notebooks/clv/sbg.ipynb:410002 21e708643c8e4bacba48b3e0c8071684
+msgid "Plotting credibility intervals for survival rates against observed data:"
+msgstr ""
+"Trazado de los intervalos creíbles de las tasas de supervivencia frente a "
+"los datos observados:"
+
+#: ../source/notebooks/clv/sbg.ipynb:430002 eec96ec39fdb48669c53cbc78fbcdb21
+#, python-format
+msgid "Observed survival rates fall well within the 94% credibility intervals!"
+msgstr ""
+"¡Las tasas de supervivencia observadas caen bien dentro de los intervalos "
+"creíbles del 94%!"
+
+#: ../source/notebooks/clv/sbg.ipynb:430004 b37b76936f374774b319fe58c13b1a33
+msgid "Retention Rate"
+msgstr "Tasa de retención"
+
+#: ../source/notebooks/clv/sbg.ipynb:430006 241c43505e3941fc8bad58b310d2831a
+msgid ""
+"We can also predict the [*retention rate*](https://www.pymc-"
+"marketing.io/en/stable/api/generated/classmethods/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_rate.html#pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_rate)"
+" by cohort, which is defined as the proportion of customers active in "
+"period $T-1$ who are still active in period $T$:"
+msgstr ""
+"También podemos predecir la [*tasa de retención*](https://www.pymc-"
+"marketing.io/en/stable/api/generated/classmethods/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_rate.html#pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_rate)"
+" por cohorte, que se define como la proporción de clientes activos en el "
+"período $T-1$ que siguen activos en el período $T$:"
+
+#: ../source/notebooks/clv/sbg.ipynb:460002 eddf18cff5784aee825935bbd9e13aaf
+#, python-format
+msgid ""
+"Retention rate predictions fall within the 94% credibility intervals for "
+"the Regular customers. Highend customers are more erratic, but stabilize "
+"over time."
+msgstr ""
+"Las predicciones de la tasa de retención caen dentro de los intervalos "
+"creíbles del 94% para los clientes Regular. Los clientes Highend son más "
+"erráticos, pero se estabilizan con el tiempo."
+
+#: ../source/notebooks/clv/sbg.ipynb:460004 a2be5335e4b2492eaff67042327b5908
+msgid ""
+"The plots also highlight an interesting implication from the model: "
+"*Retention rates increase over time as high-risk customers drop out.* "
+"This is a direct outcome of heterogeneity among customers. Heterogeneity "
+"within cohorts can be modeled further with the addition of covariates."
+msgstr ""
+"Los gráficos también destacan una implicación interesante del modelo: *las "
+"tasas de retención aumentan con el tiempo a medida que los clientes de alto "
+"riesgo abandonan.* Esto es un resultado directo de la heterogeneidad entre "
+"los clientes. La heterogeneidad dentro de las cohortes se puede seguir "
+"modelando añadiendo covariables."
+
+#: ../source/notebooks/clv/sbg.ipynb:470002 9407a1ddd94b4a0c9da8b60b27463415
+msgid "Reproduce Research Results with Covariates"
+msgstr "Reproducir los resultados de la investigación con covariables"
+
+#: ../source/notebooks/clv/sbg.ipynb:480002 306674c5f6594e8f8902c80211629e84
+msgid ""
+"Two segments starting in the same time period can also be represented as "
+"a binary covariate. Let's modify the fit data to do so:"
+msgstr ""
+"Dos segmentos que comienzan en el mismo período de tiempo también se pueden "
+"representar como una covariable binaria. Vamos a modificar los datos de "
+"ajuste para hacerlo:"
+
+#: ../source/notebooks/clv/sbg.ipynb:500002 4aa33f83887a4d1f978e071959a79bd2
+msgid ""
+"Recall $\\alpha$ and $\\beta$ represent the shape parameters of the "
+"latent Beta dropout distribution for each cohort. To include time-"
+"invariant covariates in our model, we simply modify these parameters as "
+"follows:"
+msgstr ""
+"Recuerde que $\\alpha$ y $\\beta$ representan los parámetros de forma de la "
+"distribución Beta latente de abandono de cada cohorte. Para incluir "
+"covariables invariantes en el tiempo en nuestro modelo, simplemente "
+"modificamos estos parámetros de la siguiente manera:"
+
+#: ../source/notebooks/clv/sbg.ipynb:500004 6e81c66a6cf245b896778c4af14a696f
+#, python-brace-format
+msgid "\\alpha = \\alpha_0e^{-\\gamma_1z}"
+msgstr "\\alpha = \\alpha_0e^{-\\gamma_1z}"
+
+#: ../source/notebooks/clv/sbg.ipynb:500005 179667e3a302402cbbbf7bb36c80d635
+#, python-brace-format
+msgid "\\beta = \\beta_0e^{-\\gamma_2z}"
+msgstr "\\beta = \\beta_0e^{-\\gamma_2z}"
+
+#: ../source/notebooks/clv/sbg.ipynb:500007 8a0cdb91d2bc4d639e4a506a315ec446
+msgid ""
+"Where $\\gamma_1$ and $\\gamma_2$ are coefficients capturing the effects "
+"of the $z$ covariate arrays for each customer. Covariates can be one-hot "
+"encoded for discrete factors like segment or marketing channel, as well "
+"as continuous for variables like user ratings or contract renewal costs."
+msgstr ""
+"Donde $\\gamma_1$ y $\\gamma_2$ son coeficientes que capturan los efectos de"
+" los arrays de covariables $z$ de cada cliente. Las covariables pueden "
+"codificarse mediante one-hot encoding para factores discretos como el "
+"segmento o el canal de marketing, o ser continuas para variables como las "
+"valoraciones de los usuarios o los costos de renovación del contrato."
+
+#: ../source/notebooks/clv/sbg.ipynb:500009 8a2ffc4f985a4a248f1324b903988933
+msgid ""
+"These additional parameters are automatically created when covariate "
+"column names are specified in the `model_config`:"
+msgstr ""
+"Estos parámetros adicionales se crean automáticamente cuando se especifican "
+"los nombres de las columnas de covariables en `model_config`:"
+
+#: ../source/notebooks/clv/sbg.ipynb:520002 d7fd408ce7464b748268680810e98da8
+msgid "Model Fitting with DEMZ"
+msgstr "Ajuste del modelo con DEMZ"
+
+#: ../source/notebooks/clv/sbg.ipynb:530002 27e1d3be495f4713948d53b9dacfd2bb
+msgid ""
+"MCMC model fitting takes longer with covariates compared to cohorts. A "
+"gradient-free sampler like Adaptive Differential Evolution Metropolis "
+"([`DEMetropolisZ`](https://www.pymc.io/projects/docs/en/v5.6.1/api/generated/pymc.DEMetropolisZ.html))"
+" will converge faster than NUTS, but requires more samples."
+msgstr ""
+"El ajuste de modelos con MCMC tarda más con covariables que con cohortes. Un"
+" muestreador sin gradiente como Adaptive Differential Evolution Metropolis "
+"([`DEMetropolisZ`](https://www.pymc.io/projects/docs/en/v5.6.1/api/generated/pymc.DEMetropolisZ.html))"
+" convergerá más rápido que NUTS, pero requiere más muestras."
+
+#: ../source/notebooks/clv/sbg.ipynb:560002 2cb2cdc49a7545f28189fa99a2bc3bd2
+msgid ""
+"`alpha_scale` and `beta_scale` are baseline posteriors for each cohort, "
+"and the `dropout_coefficient` posteriors represent covariate effects "
+"across the entire customer population."
+msgstr ""
+"`alpha_scale` y `beta_scale` son las posteriores de línea base de cada "
+"cohorte, y las posteriores de `dropout_coefficient` representan los efectos "
+"de las covariables en toda la población de clientes."
+
+#: ../source/notebooks/clv/sbg.ipynb:560004 110d06123ed24b39b018bc8e156d136e
+msgid ""
+"In this simple example with a single cohort (\"population\") and binary "
+"covariate variable (\"highend customer\"), we can see the mean impact of "
+"this covariate on `alpha` is near-zero, but the impact on `beta` is "
+"significantly higher."
+msgstr ""
+"En este ejemplo sencillo, con una única cohorte (\"population\") y una "
+"covariable binaria (\"highend customer\"), podemos ver que el impacto medio "
+"de esta covariable sobre `alpha` es casi nulo, pero el impacto sobre `beta` "
+"es significativamente mayor."
+
+#: ../source/notebooks/clv/sbg.ipynb:560006 3afc748149e948c19f10994df32b4aec
+msgid "Recall the mean of the Beta distribution:"
+msgstr "Recuerde la media de la distribución Beta:"
+
+#: ../source/notebooks/clv/sbg.ipynb:560008 563cd56c5c9d42378e98e0e4226f59b7
+#, python-brace-format
+msgid "E(\\theta) = \\frac{\\alpha}{\\alpha + \\beta}"
+msgstr "E(\\theta) = \\frac{\\alpha}{\\alpha + \\beta}"
+
+#: ../source/notebooks/clv/sbg.ipynb:560010 a65b9841dd0942e0941abc1f5dec7e5a
+msgid ""
+"The negatively-valued posterior indicates `beta` will *increase* for each"
+" highend customer, and reduce the dropout expectation."
+msgstr ""
+"La posterior de valor negativo indica que `beta` *aumentará* para cada "
+"cliente de alta gama y reducirá la expectativa de abandono."
+
+#: ../source/notebooks/clv/sbg.ipynb:560012 686eaa66ca4040748289018ee8b6e6d1
+msgid ""
+"Cohort and covariate parameters are broadcasted together to create "
+"`alpha` and `beta` parameter pairs for every `customer id`:"
+msgstr ""
+"Los parámetros de cohorte y de covariables se combinan mediante broadcasting"
+" para crear pares de parámetros `alpha` y `beta` para cada `customer id`:"
+
+#: ../source/notebooks/clv/sbg.ipynb:580002 ac2c82af82d147b4a765a49e5e27d003
+msgid "Reproduce Research with Covariates"
+msgstr "Reproducir la investigación con covariables"
+
+#: ../source/notebooks/clv/sbg.ipynb:580003 5374f7fac25343ffbc60c46dbb8f5e77
+msgid ""
+"To compare covariate `alpha` and `beta` estimates to the original "
+"research, we can use `customer_id` to extract parameters for known "
+"highend and regular customers:"
+msgstr ""
+"Para comparar las estimaciones de `alpha` y `beta` de las covariables con la"
+" investigación original, podemos usar `customer_id` para extraer los "
+"parámetros de clientes de alta gama y regulares conocidos:"
+
+#: ../source/notebooks/clv/sbg.ipynb:600002 d5a25beb25e5427a9ffad6abbf2f0276
+msgid ""
+"Parameter estimates are equivalent regardless if segments are specified "
+"by cohort or covariate!"
+msgstr ""
+"Las estimaciones de los parámetros son equivalentes, ¡sin importar si los "
+"segmentos se especifican por cohorte o por covariable!"
+
+#: ../source/notebooks/clv/sbg.ipynb:610002 788bed27569c41eb864b4f18822e2375
+msgid "End-to-End Example with Cohorts and Covariates"
+msgstr "Ejemplo de principio a fin con cohortes y covariables"
+
+#: ../source/notebooks/clv/sbg.ipynb:620002 fb225185e2824b1197a7386a480ed65f
+msgid "Simulate Data"
+msgstr "Simular datos"
+
+#: ../source/notebooks/clv/sbg.ipynb:620003 5d2c85abf0474cb79234410b319bf3d1
+msgid ""
+"Let's expand the previous covariate dataframe to create a monthly cohort "
+"dataset that also includes the same covariates:"
+msgstr ""
+"Vamos a ampliar el dataframe de covariables anterior para crear un conjunto "
+"de datos de cohortes mensuales que también incluya las mismas covariables:"
+
+#: ../source/notebooks/clv/sbg.ipynb:640002 d64d792ef8a64f7c9e80dc5a05e99a07
+msgid ""
+"A cohort chart is useful to see how cohorts compare in size and "
+"retention, revealing seasonality and growth trends:"
+msgstr ""
+"Un gráfico de cohortes es útil para ver cómo se comparan las cohortes en "
+"tamaño y retención, y revela la estacionalidad y las tendencias de "
+"crecimiento:"
+
+#: ../source/notebooks/clv/sbg.ipynb:660002 6b47ad1cea194d1ea62b5d821e088856
+msgid ""
+"In this example there are no external time-varying effects on retention "
+"because we simply shifted the survival curve one period forward for each "
+"cohort. In practice there will always be seasonality and events like "
+"holidays influencing retention. Since we are estimating a parameter set "
+"for each starting time period, we can control for time-varying factors!"
+msgstr ""
+"En este ejemplo no hay efectos externos variables en el tiempo sobre la "
+"retención, porque simplemente desplazamos la curva de supervivencia un "
+"período hacia adelante para cada cohorte. En la práctica siempre habrá "
+"estacionalidad y eventos, como los días festivos, que influyan en la "
+"retención. Como estamos estimando un conjunto de parámetros para cada "
+"período de inicio, ¡podemos controlar los factores variables en el tiempo!"
+
+#: ../source/notebooks/clv/sbg.ipynb:680002 4a6304ee1de14903a8f52f1a2d10365d
+msgid ""
+"These survival rates are the average of the Highend and Regular customer "
+"segments, which are indicated by covariates."
+msgstr ""
+"Estas tasas de supervivencia son el promedio de los segmentos de clientes "
+"Highend y Regular, que se indican mediante covariables."
+
+#: ../source/notebooks/clv/sbg.ipynb:690002 6f2eb3d22b59499fa142aa19f8ead70e
+msgid "Cohort + Covariate Model Fitting and Diagnostics"
+msgstr "Ajuste del modelo con cohortes y covariables, y diagnósticos"
+
+#: ../source/notebooks/clv/sbg.ipynb:700002 cb93305a4b634752b032ff2b38374d16
+msgid ""
+"`DEMEtropolisZ` works well for covariates, but covergence is more "
+"difficult when dealing with multiple cohorts. For large datasets with "
+"millions of customers and dozens of cohorts, MAP fits may be the more "
+"practical choice. Regardless of the fit method used, multidimensional "
+"models often require well-defined priors - priors that are too broad may "
+"diverge, and if too narrow can overfit. For more information on prior "
+"elicitation see the "
+"[`preliz`](https://preliz.readthedocs.io/en/latest/index.html) library, "
+"as well as the [Prior Configuration](https://www.pymc-"
+"marketing.io/en/stable/notebooks/general/model_configuration.html#prior-"
+"distributions) section of the Model Configuration Notebook."
+msgstr ""
+"`DEMEtropolisZ` funciona bien con covariables, pero la convergencia es más "
+"difícil cuando se trabaja con múltiples cohortes. Para conjuntos de datos "
+"grandes, con millones de clientes y decenas de cohortes, los ajustes MAP "
+"pueden ser la opción más práctica. Sea cual sea el método de ajuste "
+"utilizado, los modelos multidimensionales suelen requerir priors bien "
+"definidos: los priors demasiado amplios pueden divergir, y si son demasiado "
+"estrechos pueden sobreajustar. Para más información sobre la elicitación de "
+"priors, consulte la biblioteca "
+"[`preliz`](https://preliz.readthedocs.io/en/latest/index.html), así como la "
+"sección [Prior Configuration](https://www.pymc-"
+"marketing.io/en/stable/notebooks/general/model_configuration.html#prior-"
+"distributions) del cuaderno Model Configuration."
+
+#: ../source/notebooks/clv/sbg.ipynb:700004 b05ff078fd4d44fcbaea46ae27656c0f
+msgid ""
+"For this last example we will be using the default model config with the "
+"external `nutpie` sampler, which is written in rust and can run on GPUs."
+msgstr ""
+"Para este último ejemplo usaremos la configuración de modelo predeterminada "
+"con el muestreador externo `nutpie`, que está escrito en Rust y puede "
+"ejecutarse en GPU."
+
+#: ../source/notebooks/clv/sbg.ipynb:730002 42d4b412d1e34544b3a292a296001e7f
+msgid ""
+"We can see from the fit summary the covariate posteriors are similar to "
+"the previous model, but cohort parameters shift towards larger values "
+"(and higher dropout probabilities) in later cohorts as observable "
+"training data decreases."
+msgstr ""
+"En el resumen del ajuste vemos que las posteriores de las covariables son "
+"similares a las del modelo anterior, pero los parámetros de las cohortes se "
+"desplazan hacia valores más grandes (y probabilidades de abandono más altas)"
+" en las cohortes posteriores, a medida que disminuyen los datos de "
+"entrenamiento observables."
+
+#: ../source/notebooks/clv/sbg.ipynb:740002 63693fe8e514416a925a1e6cdc875be2
+msgid "Survival and Retention Plot Diagnostics"
+msgstr "Diagnósticos de los gráficos de supervivencia y retención"
+
+#: ../source/notebooks/clv/sbg.ipynb:760002 63ac10932855411fbf42184e34376d1d
+msgid ""
+"There is clear bias in the survival plots over time. However, when "
+"plotted only for the current time period, an interesting story emerges:"
+msgstr ""
+"Hay un sesgo claro en los gráficos de supervivencia a lo largo del tiempo. "
+"Sin embargo, cuando se grafican solo para el período de tiempo actual, surge"
+" una historia interesante:"
+
+#: ../source/notebooks/clv/sbg.ipynb:780002 064493f5ba344caf9aa0713d026cad0e
+msgid ""
+"**Survival estimates are bi-modal for all cohorts!** This is due to "
+"earlier cohorts retaining an increasingly higher proportion of Highend "
+"customers over time. For later cohorts with shorter time durations, the "
+"observed survival rates shift towards Regular customers who cancel their "
+"contracts sooner. *The survival curves would look much better if filtered"
+" by covariate segment.*"
+msgstr ""
+"**¡Las estimaciones de supervivencia son bimodales para todas las "
+"cohortes!** Esto se debe a que las cohortes más antiguas retienen con el "
+"tiempo una proporción cada vez mayor de clientes Highend. En las cohortes "
+"más recientes, con duraciones más cortas, las tasas de supervivencia "
+"observadas se desplazan hacia los clientes Regular, que cancelan sus "
+"contratos antes. *Las curvas de supervivencia se verían mucho mejor si se "
+"filtraran por segmento de covariable.*"
+
+#: ../source/notebooks/clv/sbg.ipynb:780004 7319845f1f254837997f640efb8121a1
+msgid ""
+"Note the consistency in the highend customer densities. Information-"
+"sharing across cohorts is where hierarchical Bayesian models truly shine."
+" The 2025-07 cohort would overfit with a dedicated Frequentist model, but"
+" when doing things the Bayesian way, we still have useful estimates for a"
+" cohort consisting of only 2 time periods and 25% non-censored customers!"
+msgstr ""
+"Observe la consistencia en las densidades de los clientes Highend. El "
+"intercambio de información entre cohortes es donde los modelos bayesianos "
+"jerárquicos realmente brillan. La cohorte de 2025-07 sobreajustaría con un "
+"modelo frecuentista dedicado, pero al hacer las cosas a la manera bayesiana,"
+" ¡aún tenemos estimaciones útiles para una cohorte formada por solo 2 "
+"períodos de tiempo y un 25% de clientes no censurados!"
+
+#: ../source/notebooks/clv/sbg.ipynb:780006 9d5e8e8352294149b004c05ea2d6681d
+msgid "A similar bi-modal pattern emerges when we look at retention rates:"
+msgstr ""
+"Surge un patrón bimodal similar cuando observamos las tasas de retención:"
+
+#: ../source/notebooks/clv/sbg.ipynb:800002 c5fbed62918d429ebf8602c564ea1971
+msgid ""
+"Survival rates are good snapshots of model performance, but retention "
+"rates for the current time period are more useful in practice because "
+"they give an indication of which customers to prioritize now for "
+"marketing efforts."
+msgstr ""
+"Las tasas de supervivencia son buenas instantáneas del desempeño del modelo,"
+" pero las tasas de retención del período de tiempo actual son más útiles en "
+"la práctica, porque indican a qué clientes dar prioridad ahora en las "
+"acciones de marketing."
+
+#: ../source/notebooks/clv/sbg.ipynb:800004 3e52f7665d764a8ca77e7a676dfba1b1
+msgid ""
+"For the record, the survival curves are spot-on when the model is fit to "
+"the same dataset sans covariates. However, retention estimates would be "
+"unimodal, providing no insight for why observed rates drift further into "
+"the tail regions. This highlights the importance of customer "
+"heterogeneity as a modeling consideration, the advantages of doing so "
+"with covariates, and why both survival *and* retention rates should be "
+"inspected after fitting."
+msgstr ""
+"Para que conste, las curvas de supervivencia son precisas cuando el modelo "
+"se ajusta al mismo conjunto de datos sin covariables. Sin embargo, las "
+"estimaciones de retención serían unimodales y no darían ninguna pista de por"
+" qué las tasas observadas se alejan cada vez más hacia las regiones de las "
+"colas. Esto destaca la importancia de la heterogeneidad de los clientes como"
+" consideración de modelado, las ventajas de hacerlo con covariables y por "
+"qué se deben inspeccionar tanto las tasas de supervivencia *como* las de "
+"retención después del ajuste."
+
+#: ../source/notebooks/clv/sbg.ipynb:810002 11e6b6b6f0874cf7ac6d66aaf9ea4526
+msgid "Discounted Residual Lifetime and Retention Elasticity"
+msgstr "Tiempo de vida residual descontado y elasticidad de la retención"
+
+#: ../source/notebooks/clv/sbg.ipynb:810003 1622ee62945645a7a1c723e235c26659
+msgid ""
+"These additional predictive methods were introduced in the follow-up "
+"research paper [\"Customer Base Valuation in a Contractual Setting: The "
+"Perils of Ignoring Heterogeneity\"](https://faculty.wharton.upenn.edu/wp-"
+"content/uploads/2012/04/Fader_hardie_contractual_mksc_10.pdf) by Hardie &"
+" Fader in 2010."
+msgstr ""
+"Estos métodos predictivos adicionales se introdujeron en el artículo de "
+"investigación posterior [\"Customer Base Valuation in a Contractual Setting:"
+" The Perils of Ignoring "
+"Heterogeneity\"](https://faculty.wharton.upenn.edu/wp-"
+"content/uploads/2012/04/Fader_hardie_contractual_mksc_10.pdf) por Hardie y "
+"Fader en 2010."
+
+#: ../source/notebooks/clv/sbg.ipynb:820002 fabbcb80c8a54375a294a7270c625b58
+msgid "Discounted Expected Residual Lifetime"
+msgstr "Tiempo de vida residual esperado descontado"
+
+#: ../source/notebooks/clv/sbg.ipynb:830002 259f49a204544bf89169cdca973aef86
+msgid ""
+"With [`ShiftedBetaGeoModel.expected_residual_lifetime()`](https://www"
+".pymc-"
+"marketing.io/en/stable/api/generated/classmethods/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_residual_lifetime.html#pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_residual_lifetime),"
+" we can estimate the average remaining number of time periods a cohort of"
+" customers will be active. A discount rate parameter is provided to "
+"calculate Net Present Value (NPV). It is always recommended to use a "
+"discount rate as an industry best practice."
+msgstr ""
+"Con [`ShiftedBetaGeoModel.expected_residual_lifetime()`](https://www.pymc-"
+"marketing.io/en/stable/api/generated/classmethods/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_residual_lifetime.html#pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_residual_lifetime)"
+" podemos estimar el número promedio de períodos de tiempo restantes en los "
+"que una cohorte de clientes seguirá activa. Se proporciona un parámetro de "
+"tasa de descuento para calcular el valor presente neto (NPV). Se recomienda "
+"siempre usar una tasa de descuento, como buena práctica del sector."
+
+#: ../source/notebooks/clv/sbg.ipynb:830004 b87bb882da2b46089e9a25a97d545df6
+#, python-format
+msgid ""
+"Given how well the segment covariates explain the heterogeneity uncovered"
+" earlier, we will calculate DERL between segments separately with a 10% "
+"discount rate. Note this is very high discount rate - it is equivalent to"
+" saying purchases made $9$ time periods from now have zero value!"
+msgstr ""
+"Dado lo bien que las covariables de segmento explican la heterogeneidad "
+"descubierta anteriormente, calcularemos el DERL de cada segmento por "
+"separado con una tasa de descuento del 10%. Tenga en cuenta que es una tasa "
+"de descuento muy alta: equivale a decir que las compras realizadas dentro de"
+" $9$ períodos de tiempo no tienen ningún valor."
+
+#: ../source/notebooks/clv/sbg.ipynb:860002 03403d64dbff416da4e819d651fb4b35
+msgid ""
+"We can see the segment DERL estimates in the later cohorts are quite "
+"different and broadly distributed, but over time variance decreases and "
+"segments become more similar."
+msgstr ""
+"Vemos que las estimaciones de DERL de los segmentos en las cohortes más "
+"recientes son bastante diferentes y están ampliamente distribuidas, pero con"
+" el tiempo la varianza disminuye y los segmentos se vuelven más similares."
+
+#: ../source/notebooks/clv/sbg.ipynb:870002 bfbba76c951c4e528270f335b14e2ed0
+msgid "Discounted Expected Retention Elasticity"
+msgstr "Elasticidad esperada descontada de la retención"
+
+#: ../source/notebooks/clv/sbg.ipynb:880002 602d0346cbbe4e3f83b7ae6d70c249b0
+#, python-format
+msgid ""
+"With [`ShiftedBetaGeoModel.expected_retention_elasticity()`](https://www"
+".pymc-"
+"marketing.io/en/stable/api/generated/classmethods/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_elasticity.html#pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_elasticity),"
+" we can estimate the % increase in residual lifetime given a 1% increase "
+"in the retention rate. This is very useful for causal studies on customer"
+" lifetime durations. It is recommended to apply a discount rate for "
+"elasticity as well."
+msgstr ""
+"Con "
+"[`ShiftedBetaGeoModel.expected_retention_elasticity()`](https://www.pymc-"
+"marketing.io/en/stable/api/generated/classmethods/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_elasticity.html#pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_elasticity)"
+" podemos estimar el % de aumento en el tiempo de vida residual dado un "
+"aumento de 1% en la tasa de retención. Esto es muy útil para estudios "
+"causales sobre las duraciones de vida de los clientes. También se recomienda"
+" aplicar una tasa de descuento a la elasticidad."
+
+#: ../source/notebooks/clv/sbg.ipynb:910002 f52fd0a505c8403384cde4c3e5aab487
+#, python-format
+msgid ""
+"Retention elasticity is higher for earlier, long-running cohorts, but "
+"these retention rates also approach 95%. If retention were to be "
+"increased by just 5% for Regular customers in the 2025-07 cohort, their "
+"respective remaining lifetimes could be 25% longer!"
+msgstr ""
+"La elasticidad de la retención es mayor en las cohortes más antiguas y de "
+"larga duración, pero estas tasas de retención también se acercan al 95%. Si "
+"la retención aumentara solo un 5% para los clientes Regular de la cohorte de"
+" 2025-07, ¡sus respectivos tiempos de vida restantes podrían ser un 25% más "
+"largos!"
+
+#: ../source/notebooks/clv/sbg.ipynb:910004 308e01ae402248eca60f51b8d3d2802b
+msgid ""
+"The [`xarray`](https://docs.xarray.dev/en/stable/) outputs we've been "
+"working with for the sBG predictive methods can also be converted to "
+"dataframes for downstream handling:"
+msgstr ""
+"Las salidas de [`xarray`](https://docs.xarray.dev/en/stable/) con las que "
+"hemos estado trabajando en los métodos predictivos de sBG también se pueden "
+"convertir en dataframes para su procesamiento posterior:"

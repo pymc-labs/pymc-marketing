@@ -1,0 +1,783 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2026, PyMC Labs
+# This file is distributed under the same license as the PyMC-Marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyMC-Marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:10003
+#: 9b85c8e69aad4592b87931938c0b5b85
+msgid "Understanding Media Saturation in Marketing Mix Models"
+msgstr ""
+"Comprender la saturación de medios en los modelos de mezcla de marketing"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:10005
+#: a6ce2dc151aa46f08a68625aeba3aac8
+msgid ""
+"One of the most important concepts in Marketing Mix Modeling (MMM) is "
+"**media saturation** - the phenomenon where the incremental impact of "
+"advertising spend diminishes as spending increases. Understanding "
+"saturation is crucial for making optimal budget allocation decisions."
+msgstr ""
+"Uno de los conceptos más importantes del modelado de mezcla de marketing "
+"(MMM) es la **saturación de medios** - el fenómeno por el cual el impacto "
+"incremental del gasto publicitario disminuye a medida que aumenta el gasto. "
+"Comprender la saturación es crucial para tomar decisiones óptimas de "
+"asignación de presupuesto."
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:10007
+#: 0e053937ed7941a09bf5b96a08cc1fc2
+msgid ""
+"This tutorial explores two complementary ways to visualize and understand"
+" media saturation after fitting an MMM."
+msgstr ""
+"Este tutorial explora dos formas complementarias de visualizar y comprender "
+"la saturación de medios después de ajustar un MMM."
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:10009
+#: f4c5b914b2944111a149840bcf62bf4d
+msgid ""
+"**Direct/Marginal Contribution** (`saturation_scatterplot`) - Shows the "
+"relationship between spend and contribution at each time point."
+msgstr ""
+"**Contribución directa/marginal** (`saturation_scatterplot`) - Muestra la "
+"relación entre el gasto y la contribución en cada punto de tiempo."
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:10011
+#: cdba4d41cbf645c091ea027939dbb8fd
+msgid ""
+"**Total Contribution over Spend Share** "
+"(`mmm.plot.channel_contribution_grid`) - Shows how total contribution "
+"changes as you scale overall spend"
+msgstr ""
+"**Contribución total en función de la proporción del gasto** "
+"(`mmm.plot.channel_contribution_grid`) - Muestra cómo cambia la contribución"
+" total al escalar el gasto global"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:10014
+#: a6760fd3f4914cd8881a6e9882162c8f
+msgid ""
+"These two visualizations answer different questions and are often "
+"confused. This tutorial clarifies the distinction and provides guidance "
+"on when to use each."
+msgstr ""
+"Estas dos visualizaciones responden a preguntas diferentes y a menudo se "
+"confunden. Este tutorial aclara la distinción y ofrece orientación sobre "
+"cuándo usar cada una."
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:20002
+#: 1cf684d889d34564af9834f5a3129d08
+msgid "Setup and Data Preparation"
+msgstr "Configuración y preparación de los datos"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:50002
+#: ae56f55446904288bde1bda7f08fc254
+msgid "Understanding the Saturation Curve"
+msgstr "Comprender la curva de saturación"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:50004
+#: 8b156b5c43414e4daca35169e0857290
+msgid ""
+"Before diving into the visualizations, let's understand what a saturation"
+" curve represents. In this notebook we consider the **logistic saturation"
+" function**:"
+msgstr ""
+"Antes de profundizar en las visualizaciones, entendamos qué representa una "
+"curva de saturación. En este cuaderno consideramos la **función de "
+"saturación logística**:"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:50006
+#: 8b026fb1d51a49369359d1088d9b4973
+msgid ""
+"\n"
+"f(x) = \\beta \\cdot \\frac{1 - e^{-\\lambda x}}{1 + e^{-\\lambda x}}\n"
+msgstr ""
+"\n"
+"f(x) = \\beta \\cdot \\frac{1 - e^{-\\lambda x}}{1 + e^{-\\lambda x}}\n"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:50012
+#: 9be30bd60ecc4cdbb796e1ef0c10404f
+msgid "Where:"
+msgstr "Donde:"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:50013
+#: eb9d9fe6eea44d7ba295cce95ad4bdc3
+msgid "$x$ is the (adstocked) media spend"
+msgstr "$x$ es el gasto en medios (con adstock aplicado)"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:50014
+#: 1ca014536d684a8fa566c45bea1054e4
+msgid ""
+"$\\beta$ is the **saturation ceiling** - the maximum contribution a "
+"channel can achieve"
+msgstr ""
+"$\\beta$ es el **techo de saturación** - la contribución máxima que puede "
+"alcanzar un canal"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:50015
+#: 9ce4224e7b294b06a1ce8e2b52fb91a9
+msgid ""
+"$\\lambda$ is the **efficiency parameter** - how quickly the curve "
+"approaches saturation"
+msgstr ""
+"$\\lambda$ es el **parámetro de eficiencia** - qué tan rápido se aproxima la"
+" curva a la saturación"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:50019
+#: e74fe0ee3a6d4d1c99dcd937c763de95
+#, python-brace-format
+msgid ""
+"PyMC-Marketing provides the "
+"{class}`~pymc_marketing.mmm.components.saturation.LogisticSaturation` "
+"class to work with this transformation. This class allows us to:"
+msgstr ""
+"PyMC-Marketing proporciona la clase "
+"{class}`~pymc_marketing.mmm.components.saturation.LogisticSaturation` para "
+"trabajar con esta transformación. Esta clase nos permite:"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:50020
+#: 496edaffcb6c4c2ca3b0c4de548bb6b5
+msgid "Define custom priors for the parameters"
+msgstr "Definir priors personalizados para los parámetros"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:50021
+#: aa65017a809f42b7b7082d19e211ccf3
+msgid "Sample from the prior distributions"
+msgstr "Muestrear de las distribuciones previas"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:50022
+#: 20f1018aa5a84c2e90005948da348a4c
+msgid "Visualize the saturation curves"
+msgstr "Visualizar las curvas de saturación"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:50024
+#: aa8b2335be334725aced4cef54e3c826
+msgid ""
+"Let's explore how to use this class and understand how the parameters "
+"affect the saturation curve."
+msgstr ""
+"Exploremos cómo usar esta clase y entendamos cómo afectan los parámetros a "
+"la curva de saturación."
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:70003
+#: 5aeb25b66a5b4c4b8ef6d786e6f87f0b
+#, python-brace-format
+msgid ""
+"PyMC-Marketing provides many other saturation functions like "
+"{class}`~pymc_marketing.mmm.components.saturation.HillSaturation` and "
+"{class}`~pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation`."
+msgstr ""
+"PyMC-Marketing proporciona muchas otras funciones de saturación, como "
+"{class}`~pymc_marketing.mmm.components.saturation.HillSaturation` y "
+"{class}`~pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation`."
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:80002
+#: c5a7fabdbb61468ea3ee1626670e3e73
+msgid ""
+"Before doing any sampling, let's get an intuition of how the parameters "
+"affect the saturation curve."
+msgstr ""
+"Antes de hacer cualquier muestreo, obtengamos una intuición de cómo afectan "
+"los parámetros a la curva de saturación."
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:100002
+#: 4316450b63b64db9870272b19fa00ece
+msgid "**Key observations:**"
+msgstr "**Observaciones clave:**"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:100003
+#: d197a380767a458cbfbdb412089c7023
+msgid "Higher $\\beta$ → Higher maximum contribution (the curve's ceiling)"
+msgstr "$\\beta$ más alto → Mayor contribución máxima (el techo de la curva)"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:100004
+#: 97704c49b55644439d9ef932144fd6f3
+msgid ""
+"Higher $\\lambda$ → Faster saturation (the curve rises more steeply but "
+"plateaus sooner)"
+msgstr ""
+"$\\lambda$ más alto → Saturación más rápida (la curva sube con más "
+"pendiente, pero llega antes a la meseta)"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:110002
+#: 278ff52356ec40339d1ef6f3c7d9854c
+msgid ""
+"Next, we show how to sample from the prior distributions and visualize "
+"the saturation curves."
+msgstr ""
+"A continuación, mostramos cómo muestrear de las distribuciones previas y "
+"visualizar las curvas de saturación."
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:130002
+#: 09d4363e98af41bd8428a8ce55c98dd6
+msgid "Let's do the same thing with more tight priors."
+msgstr "Hagamos lo mismo con priors más concentrados."
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:160002
+#: 3e1b96fbf0d24da68c4486931b7b89ef
+msgid "We clearly see the samples are more concentrated around the mean."
+msgstr ""
+"Vemos claramente que las muestras están más concentradas alrededor de la "
+"media."
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:170002
+#: 23ef886e60094327a1695b3ce17dfaf2
+msgid ""
+"We now see how these saturation curves are used in an MMM and how to "
+"extract business insights from them."
+msgstr ""
+"Ahora veremos cómo se usan estas curvas de saturación en un MMM y cómo "
+"extraer insights de negocio a partir de ellas."
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:180002
+#: 7f135cd584c94105bd16825e3867037f
+msgid "Read Data"
+msgstr "Leer los datos"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:180004
+#: 133ab288a8d64c12bc2e401440cec6df
+#, python-brace-format
+msgid ""
+"We use the same data as in the {ref}`mmm_multidimensional_example` "
+"tutorial."
+msgstr ""
+"Usamos los mismos datos que en el tutorial "
+"{ref}`mmm_multidimensional_example`."
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:200002
+#: e3074f1a9edd4f559def85470fac46cb
+msgid "Let's visualize the spend and sales data for each channel and geography."
+msgstr ""
+"Visualicemos los datos de gasto y ventas de cada canal y zona geográfica."
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:220002
+#: f443cd2e5d4d48bcac867e2c7748a12c
+msgid "Let's compute the spend share for each channel and geography."
+msgstr "Calculemos la proporción de gasto de cada canal y zona geográfica."
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:240002
+#: 6ac056ca07b14cdf9690d5ed91d63486
+msgid "Model Specification and Fitting"
+msgstr "Especificación y ajuste del modelo"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:240004
+#: 8ca887ab0c804ad8a6656f0767f87cb8
+msgid "We'll fit a multi-dimensional MMM with:"
+msgstr "Ajustaremos un MMM multidimensional con:"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:240005
+#: feb9ef961ef644ecaeda33c30aae2634
+msgid "**Geometric Adstock**: Models the carry-over effect of advertising"
+msgstr "**Adstock geométrico**: Modela el efecto de arrastre de la publicidad"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:240006
+#: 1d2569e3259a457280ab6cea872661af
+msgid "**Logistic Saturation**: Models diminishing returns as spend increases"
+msgstr ""
+"**Saturación logística**: Modela los rendimientos decrecientes a medida que "
+"aumenta el gasto"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:240008
+#: 95e2bea8fb9541f0a9db8fec1610f720
+msgid "For simplicity, we use a streamlined model configuration."
+msgstr "Para simplificar, usamos una configuración de modelo reducida."
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:260002
+#: 5049f39c5c8d455b8ff649b4913032fe
+msgid "Now we fit the model."
+msgstr "Ahora ajustamos el modelo."
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:290002
+#: 99b77aac40f04e0fad168cce2df2c2d3
+msgid "We have no divergences!"
+msgstr "¡No tenemos divergencias!"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:300002
+#: a2ffa5671d794635bc2353dcb5dd9ae0
+msgid ""
+"We can continue by looking into the aggregated contribution posterior of "
+"each channel."
+msgstr ""
+"Podemos continuar examinando la distribución posterior de la contribución "
+"agregada de cada canal."
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:320002
+#: 4301fe30b157488f9d69f74a30fbeeb4
+msgid ""
+"For Geo A, we see that the contribution of $x_1$ and $x_2$ are comparable"
+" whereas for Geo B, $x_1$ has a much higher contribution than $x_2$."
+msgstr ""
+"Para Geo A, vemos que las contribuciones de $x_1$ y $x_2$ son comparables, "
+"mientras que para Geo B, $x_1$ tiene una contribución mucho mayor que $x_2$."
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:320004
+#: c165c6ffd2274aaeb0280903c6780cad
+msgid ""
+"This is a great start, but we want to understand better these "
+"contributions and how they are related by the current spend levels."
+msgstr ""
+"Este es un buen comienzo, pero queremos entender mejor estas contribuciones "
+"y cómo se relacionan con los niveles de gasto actuales."
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:330002
+#: 0d5b65b7bd3248ac9138ac8084e3066b
+msgid "Visualization 1: Direct/Marginal Contribution"
+msgstr "Visualización 1: contribución directa/marginal"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:330004
+#: f5259af9acf44138b09bb2bfa0107a96
+msgid ""
+"The `saturation_scatterplot` shows the **direct relationship between "
+"spend and contribution at each time point**. This visualization answers "
+"the question:"
+msgstr ""
+"El `saturation_scatterplot` muestra la **relación directa entre el gasto y "
+"la contribución en cada punto de tiempo**. Esta visualización responde a la "
+"pregunta:"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:330006
+#: 5dc6ce4120a84de789e0fb2453147a5b
+msgid ""
+"*\"Given a specific spend level, what is the direct contribution to "
+"sales?\"*"
+msgstr ""
+"*\"Dado un nivel de gasto específico, ¿cuál es la contribución directa a las"
+" ventas?\"*"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:330008
+#: 4f2ecbe4a85d4781ae093b2bf7b8f54a
+msgid ""
+"Each point in this plot represents a single observation (one time "
+"period), showing:"
+msgstr ""
+"Cada punto de este gráfico representa una única observación (un período de "
+"tiempo) y muestra:"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:330009
+#: c4139b6222454cfbb6efa81250185351
+msgid "**X-axis**: Channel spend at that time point"
+msgstr "**Eje X**: Gasto del canal en ese punto de tiempo"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:330010
+#: e89aea06617c4f54a40db3a79d0ea2c2
+msgid "**Y-axis**: Direct contribution to sales at that time point"
+msgstr "**Eje Y**: Contribución directa a las ventas en ese punto de tiempo"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:350002
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:420002
+#: b3b7e0fe43684a6b8ea1e1295db60ebf c6fec472ed07444092dff458f877d0f1
+msgid "**How to interpret this plot:**"
+msgstr "**Cómo interpretar este gráfico:**"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:350004
+#: d2c22e65d94e4581973b98961e1a1de6
+msgid ""
+"**Shape of the curve**: The fitted line shows how contribution increases "
+"with spend, with diminishing returns visible as the curve flattens at "
+"higher spend levels."
+msgstr ""
+"**Forma de la curva**: La línea ajustada muestra cómo aumenta la "
+"contribución con el gasto, con rendimientos decrecientes visibles a medida "
+"que la curva se aplana en niveles de gasto más altos."
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:350006
+#: 67f39e63687a4745aca164774587f6f2
+msgid ""
+"**Scatter points**: Each point represents a specific date's spend-"
+"contribution pair."
+msgstr ""
+"**Puntos de dispersión**: Cada punto representa el par gasto-contribución de"
+" una fecha específica."
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:350009
+#: 4c703f98f8d24e9bb43456b755f5daf8
+msgid ""
+"This plot shows the **instantaneous/marginal** relationship. It tells you"
+" \"if I spend X on a given day, I expect Y contribution on that day.\""
+msgstr ""
+"Este gráfico muestra la relación **instantánea/marginal**. Le indica que "
+"\"si gasto X en un día dado, espero una contribución Y ese día.\""
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:350011
+#: 3bf5eac0a51f4b98b5b5db94c35b1aeb
+msgid ""
+"The reason you see non-zero contribution even at zero spend is because of"
+" the adstock effect."
+msgstr ""
+"La razón por la que se observa una contribución distinta de cero incluso con"
+" gasto cero es el efecto adstock."
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:360003
+#: 1531fb0f3fad4c4e9ceb93f2020ad610
+msgid ""
+"We can plot the posterior saturation curves for each channel and "
+"geography using the `mmm.saturation.sample_curve` method (please note you"
+" need to pass the whole posterior inference data!). As we are internally "
+"scaling data data, these plots are in the scaled space. They are still "
+"useful to compare relative behavior across channels and geographies."
+msgstr ""
+"Podemos trazar las curvas de saturación posteriores de cada canal y zona "
+"geográfica usando el método `mmm.saturation.sample_curve` (¡tenga en cuenta "
+"que debe pasar la totalidad de los datos de inferencia posteriores!). Como "
+"internamente escalamos los datos, estos gráficos están en el espacio "
+"escalado. Aun así, son útiles para comparar el comportamiento relativo entre"
+" canales y zonas geográficas."
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:380002
+#: 7af5448c0526452bb59e8f44d47516ce
+msgid "Visualization 2: Total Contribution over Spend Share"
+msgstr ""
+"Visualización 2: contribución total en función de la proporción del gasto"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:380004
+#: baaaaa68ca794928a9e5dc13b8bd6257
+msgid ""
+"The `sensitivity_analysis` shows how **total contribution (summed over "
+"all time periods)** changes as you scale overall spend. This "
+"visualization answers the question:"
+msgstr ""
+"El `sensitivity_analysis` muestra cómo cambia la **contribución total "
+"(sumada sobre todos los períodos de tiempo)** a medida que se escala el "
+"gasto global. Esta visualización responde a la pregunta:"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:380006
+#: d815e43c4e0043479be4ba71b697e9ec
+msgid ""
+"*\"If I increase/decrease my total budget by X%, what is the total impact"
+" on sales?\"*"
+msgstr ""
+"*\"Si aumento/disminuyo mi presupuesto total en X%, ¿cuál es el impacto "
+"total en las ventas?\"*"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:380008
+#: 93f528a56ff44442bd02637944e5caa0
+msgid ""
+"This is a **counterfactual analysis**: we ask \"what would have happened "
+"if we had spent more or less?\""
+msgstr ""
+"Este es un **análisis contrafactual**: nos preguntamos \"¿qué habría pasado "
+"si hubiéramos gastado más o menos?\""
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:400002
+#: cb6e43bf1d024442bea3633473048c1c
+msgid "Let's plot the results:"
+msgstr "Tracemos los resultados:"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:420004
+#: 435a80fcf3c34d6dbc0cc801b07eb09a
+msgid ""
+"**X-axis (sweep multiplicative)**: The spend multiplier. A value of 1.0 "
+"represents the actual historical spend, 0.5 means half the spend, and 2.0"
+" means double the spend."
+msgstr ""
+"**Eje X (sweep multiplicative)**: El multiplicador de gasto. Un valor de 1.0"
+" representa el gasto histórico real, 0.5 significa la mitad del gasto y 2.0 "
+"significa el doble del gasto."
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:420006
+#: 8348bad9fa1f4e93936f87387cf18e51
+msgid ""
+"**Y-axis (Total Contribution)**: The sum of contributions across all time"
+" periods in the dataset."
+msgstr ""
+"**Eje Y (Total Contribution)**: La suma de las contribuciones en todos los "
+"períodos de tiempo del conjunto de datos."
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:420008
+#: 24a5359c1d6f43989c579ef8824d8384
+msgid ""
+"**Vertical line at sweep=1**: This marks the current/historical spend "
+"level."
+msgstr ""
+"**Línea vertical en sweep=1**: Marca el nivel de gasto actual/histórico."
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:420010
+#: 282cadfd8d5443f78b011e25282d8adf
+msgid ""
+"**HDI bands**: Show the uncertainty in total contribution at each spend "
+"level."
+msgstr ""
+"**Bandas HDI**: Muestran la incertidumbre de la contribución total en cada "
+"nivel de gasto."
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:420012
+#: 60f188868b8f44f08f8f1c5c16b4495f
+msgid "**Curve shape**:"
+msgstr "**Forma de la curva**:"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:420013
+#: dedbed1eadc442fc80d7922d920b84dd
+msgid ""
+"Steep slope at low sweep → High marginal returns (you're not yet "
+"saturated)"
+msgstr ""
+"Pendiente pronunciada con sweep bajo → Rendimientos marginales altos (aún no"
+" hay saturación)"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:420014
+#: a97531e53de2457c971c58e4eba2278c
+msgid ""
+"Flattening slope at high sweep → Diminishing returns (approaching "
+"saturation)"
+msgstr ""
+"Pendiente que se aplana con sweep alto → Rendimientos decrecientes (se "
+"aproxima a la saturación)"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:420017
+#: 0b542d896aa84d558593a656b9a0242e
+msgid ""
+"This plot shows the **global/total** relationship. It tells you \"across "
+"the entire time period, if I had scaled all my spend by factor \"sweep\","
+" my total contribution would be Y.\""
+msgstr ""
+"Este gráfico muestra la relación **global/total**. Le indica que \"a lo "
+"largo de todo el período de tiempo, si hubiera escalado todo mi gasto por un"
+" factor \"sweep\", mi contribución total sería Y.\""
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:430002
+#: 288812d8126d4cbd92ff0d6b59e90f5d
+msgid ""
+"Observe, that these results are consistent with the initial total "
+"copntribution analysis: For Geo A, $x_1$ and $x_2$ have similar "
+"contributions, but for Geo B, $x_1$ has a much higher contribution than "
+"$x_2$ (at the current spend levels)."
+msgstr ""
+"Observe que estos resultados son consistentes con el análisis inicial de la "
+"contribución total: Para Geo A, $x_1$ y $x_2$ tienen contribuciones "
+"similares, pero para Geo B, $x_1$ tiene una contribución mucho mayor que "
+"$x_2$ (con los niveles de gasto actuales)."
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:440002
+#: 0c49b1e7eba94267aee380037027da33
+msgid "Advanced Usage"
+msgstr "Uso avanzado"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:440004
+#: e42b4dad569f429ba843f06b732b5d14
+msgid ""
+"The `plot.sensitivity_analysis` method supports several advanced options "
+"for customization."
+msgstr ""
+"El método `plot.sensitivity_analysis` admite varias opciones avanzadas de "
+"personalización."
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:450002
+#: f82987f917ba4ce480f3c63d45c733da
+msgid "Using Absolute X-Axis"
+msgstr "Uso del eje X absoluto"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:450004
+#: f0e3b6851c7f4e0b86909dc57dcfbce1
+msgid ""
+"Instead of showing the sweep multiplier on the x-axis, you can display "
+"absolute spend values using `x_sweep_axis=\"absolute\"`. This multiplies "
+"the sweep values by the `channel_scale` for each channel, so each line "
+"shows its actual spend range."
+msgstr ""
+"En lugar de mostrar el multiplicador de barrido en el eje X, puede mostrar "
+"valores de gasto absolutos usando `x_sweep_axis=\"absolute\"`. Esto "
+"multiplica los valores de barrido por el `channel_scale` de cada canal, de "
+"modo que cada línea muestra su rango de gasto real."
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:450006
+#: 438a11616b8e409c9eeebd029b097442
+msgid "**Note:** When using `x_sweep_axis=\"absolute\"`:"
+msgstr "**Nota:** Al usar `x_sweep_axis=\"absolute\"`:"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:450007
+#: 34b7aff524164fb6b969ccaf8b7b764a
+msgid "Each channel will have its own X-axis range based on its scale factor"
+msgstr "Cada canal tendrá su propio rango del eje X según su factor de escala"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:450008
+#: b857271bade5417283d10d929109f84a
+msgid ""
+"For example, if channel A has scale 500K and channel B has scale 2M, at "
+"sweep=2x:"
+msgstr ""
+"Por ejemplo, si el canal A tiene una escala de 500K y el canal B de 2M, con "
+"sweep=2x:"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:450009
+#: bc3b319ec3ad45a39df1da78b3fed583
+msgid "Channel A shows values up to 1M (500K x 2)"
+msgstr "El canal A muestra valores de hasta 1M (500K x 2)"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:450010
+#: c485a287d53c4faf958249d81ca7a2a1
+msgid "Channel B shows values up to 4M (2M x 2)"
+msgstr "El canal B muestra valores de hasta 4M (2M x 2)"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:450011
+#: 5a1f9fcd042748e89fd77ae821915669
+msgid ""
+"This is useful for seeing actual spend values rather than relative "
+"multipliers"
+msgstr ""
+"Esto es útil para ver los valores de gasto reales en lugar de "
+"multiplicadores relativos"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:450012
+#: 9b8022e5d4324c2ca5084b30c6d32862
+msgid ""
+"Channels are automatically coloured (hue) and geographies are faceted "
+"into separate panels"
+msgstr ""
+"Los canales se colorean automáticamente (hue) y las zonas geográficas se "
+"dividen en paneles separados"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:450014
+#: cc68819130954369b6a4d2f99a7970bf
+msgid "Let's first examine the sensitivity analysis data structure:"
+msgstr ""
+"Primero examinemos la estructura de datos del análisis de sensibilidad:"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:470002
+#: 3fadf475b8334b0a9bf1e327f109cde9
+msgid "With `x_sweep_axis=\"absolute\"`:"
+msgstr "Con `x_sweep_axis=\"absolute\"`:"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:470003
+#: 460fb5ad9d934a3d9bd12d95b0ac7eea
+msgid ""
+"The x-axis shows actual spend values (sweep multiplier x total spend over"
+" the training period)"
+msgstr ""
+"El eje X muestra los valores de gasto reales (multiplicador de barrido x "
+"gasto total durante el período de entrenamiento)"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:470004
+#: bd51b4b05f66458f90e321e69be21048
+msgid "Each channel has its own x-axis range based on its scale factor"
+msgstr "Cada canal tiene su propio rango del eje X según su factor de escala"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:470005
+#: c06c35bac11c4f2f8182ad5be9ef18a5
+msgid ""
+"This view is more intuitive for budget discussions (\"If we spend X "
+"total, we get Y contribution\")"
+msgstr ""
+"Esta vista es más intuitiva para las conversaciones sobre presupuesto (\"Si "
+"gastamos X en total, obtenemos una contribución Y\")"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:470006
+#: 4d4a8b931b684e2ab4cd173724633811
+msgid ""
+"Note: Lines may end at different x-values since channels have different "
+"scales"
+msgstr ""
+"Nota: Las líneas pueden terminar en valores de x distintos porque los "
+"canales tienen escalas diferentes"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:480002
+#: fcacfe0aa1974e90bab79506376264ca
+msgid "Filtering by Geography"
+msgstr "Filtrar por zona geográfica"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:480004
+#: 6b30185349d4481d916bbb0220b8ffc3
+msgid ""
+"We can use [`xarray`](https://docs.xarray.dev/en/stable/)'s API to filter"
+" by geography."
+msgstr ""
+"Podemos usar la API de [`xarray`](https://docs.xarray.dev/en/stable/) para "
+"filtrar por zona geográfica."
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:500002
+#: 367498ad2a0e48b8a041ff6e5179f925
+msgid "Aggregating Across Geographies"
+msgstr "Agregar entre zonas geográficas"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:500004
+#: c58c7cbd2e74496e9c507b42c5fa19ca
+msgid ""
+"Use the `aggregation` parameter to combine results across dimensions. "
+"This is useful when you want to see the total impact across all markets:"
+msgstr ""
+"Use el parámetro `aggregation` para combinar los resultados entre "
+"dimensiones. Esto es útil cuando desea ver el impacto total en todos los "
+"mercados:"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:520002
+#: 627f52cf6a394d4e93a57da1fc7ff9d1
+msgid "Supported aggregation operations:"
+msgstr "Operaciones de agregación admitidas:"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:520003
+#: ea363df9bff548b9960b04020340efe8
+msgid "`\"sum\"`: Sum contributions across the specified dimensions"
+msgstr "`\"sum\"`: Suma de las contribuciones en las dimensiones especificadas"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:520004
+#: 543861d6f2284f05baf94fc266f20ffe
+msgid "`\"mean\"`: Average contributions across the specified dimensions"
+msgstr ""
+"`\"mean\"`: Promedio de las contribuciones en las dimensiones especificadas"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:520005
+#: 53014fdf08be4ff588354483edfc1dd2
+msgid "`\"median\"`: Median contributions across the specified dimensions"
+msgstr ""
+"`\"median\"`: Mediana de las contribuciones en las dimensiones especificadas"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:530002
+#: 07772dcd4cc24fa7af7fe5c8796f9e8f
+msgid "Summary"
+msgstr "Resumen"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:530004
+#: b8e7513cc4cb49829d4cd1abc80a54a3
+msgid ""
+"In this tutorial, we explored two complementary ways to visualize media "
+"saturation in Marketing Mix Models:"
+msgstr ""
+"En este tutorial, exploramos dos formas complementarias de visualizar la "
+"saturación de medios en los modelos de mezcla de marketing:"
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:530006
+#: e3d4f33380d04b828ca543ad9e9dffd0
+msgid ""
+"**`saturation_scatterplot`**: Shows the direct/marginal relationship "
+"between spend and contribution at each time point. Best for understanding"
+" the shape of saturation and validating model behavior."
+msgstr ""
+"**`saturation_scatterplot`**: Muestra la relación directa/marginal entre el "
+"gasto y la contribución en cada punto de tiempo. Ideal para entender la "
+"forma de la saturación y validar el comportamiento del modelo."
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:530008
+#: 409fa7c4b3584166bb486056d3980865
+msgid ""
+"**`sensitivity_analysis`**: Shows how total contribution changes as you "
+"scale overall spend. Best for budget planning, what-if analysis, and "
+"making allocation decisions."
+msgstr ""
+"**`sensitivity_analysis`**: Muestra cómo cambia la contribución total al "
+"escalar el gasto global. Ideal para la planificación del presupuesto, el "
+"análisis de “qué pasaría si” y la toma de decisiones de asignación."
+
+#: ../source/notebooks/mmm/mmm_media_saturation.ipynb:530010
+#: e9f5dba16b1544f4b43c8fcd855f04c2
+msgid ""
+"Understanding the difference between these visualizations is crucial for "
+"correctly interpreting your MMM results and making informed marketing "
+"decisions."
+msgstr ""
+"Comprender la diferencia entre estas visualizaciones es crucial para "
+"interpretar correctamente los resultados de su MMM y tomar decisiones de "
+"marketing informadas."

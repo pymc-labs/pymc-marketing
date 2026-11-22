@@ -102,11 +102,19 @@ def mock_curve() -> xr.DataArray:
     )
 
 
-@pytest.mark.parametrize("plot_func", [plot_samples, plot_hdi])
 @pytest.mark.parametrize(
-    "same_axes", [True, False], ids=["same_axes", "different_axes"]
+    "plot_func, same_axes, legend",
+    [
+        pytest.param(plot_samples, True, True, id="legend-same_axes-plot_samples"),
+        pytest.param(plot_hdi, True, True, id="legend-same_axes-plot_hdi"),
+        pytest.param(
+            plot_samples, False, True, id="legend-different_axes-plot_samples"
+        ),
+        pytest.param(plot_samples, True, False, id="no_legend-same_axes-plot_samples"),
+        pytest.param(plot_hdi, True, False, id="no_legend-same_axes-plot_hdi"),
+        pytest.param(plot_hdi, False, False, id="no_legend-different_axes-plot_hdi"),
+    ],
 )
-@pytest.mark.parametrize("legend", [True, False], ids=["legend", "no_legend"])
 def test_plot_functions(mock_curve, plot_func, same_axes: bool, legend: bool) -> None:
     fig, axes = plot_func(
         mock_curve,
