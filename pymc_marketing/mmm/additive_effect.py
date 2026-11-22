@@ -93,7 +93,9 @@ How it works
   ``pymc`` variable with ``as_xtensor``. Passing ``dims=`` to the ``pymc``
   distribution lets analyses conditioned on the posterior read its draws by dim
   name; without it they are read in storage order, which matches the axes for a
-  posterior from ``pm.sample``.
+  posterior from ``pm.sample``. The effect's contribution itself must be registered
+  with ``pmd.Deterministic``: incrementality cannot evaluate a contribution
+  registered with ``pm.Deterministic``.
 - During posterior predictive, ``set_data`` is called with the cloned PyMC model
   and the new coordinates; update any ``pmd.Data`` you created using ``pm.set_data``.
 
