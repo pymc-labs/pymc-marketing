@@ -15,6 +15,7 @@ import warnings
 from types import SimpleNamespace
 
 import arviz as az
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -40,6 +41,8 @@ from pymc_marketing.mmm.mmm import (
     MMM,
     BudgetOptimizerWrapper,
 )
+from pymc_marketing.mmm.plotting import BudgetPlots
+from pymc_marketing.mmm.summary import BudgetSummaryFactory
 from pymc_marketing.mmm.utility import average_response
 from pymc_marketing.version import __version__
 
@@ -1351,6 +1354,41 @@ def test_sample_response_distribution_includes_total_allocation(
         expected = allocation_strategy * optimizable_model.num_periods
         xr.testing.assert_allclose(result["total_allocation"], expected)
         assert result.attrs.get("pymc_marketing_version") == __version__
+
+
+def test_evaluate_response_distribution_feeds_budget_plots_and_summary(
+    dummy_df, fitted_mmm
+):
+    """The data_export guide's recipe builds samples for BudgetPlots and
+    BudgetSummaryFactory without BudgetOptimizerWrapper (issue #3004)."""
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
+    fitted_mmm.add_original_scale_contribution_variable(["channel_contribution"])
+
+    optimizer = fitted_mmm.budget_optimizer(
+        start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+        end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=4),
+    )
+    result = optimizer.allocate_budget(total_budget=100)
+
+    response = optimizer.evaluate_response_distribution(
+        result.budgets, "channel_contribution_original_scale"
+    )
+    samples = response.to_dataset(name="channel_contribution_original_scale").assign(
+        allocation=result.budgets,
+        total_allocation=result.budgets * optimizer.num_periods,
+    )
+
+    for summary in (
+        BudgetSummaryFactory.allocation_roas(samples=samples),
+        BudgetSummaryFactory.contribution_over_time(samples=samples),
+    ):
+        assert isinstance(summary, pd.DataFrame)
+        assert len(summary) > 0
+        assert set(summary["channel"]) == {"channel_1", "channel_2"}
+
+    BudgetPlots().allocation_roas(samples=samples)
+    BudgetPlots().contribution_over_time(samples=samples)
+    plt.close("all")
 
 
 @compile_kwargs

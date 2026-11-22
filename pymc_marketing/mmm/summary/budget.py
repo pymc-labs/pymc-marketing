@@ -117,7 +117,10 @@ class BudgetSummaryFactory:
         Parameters
         ----------
         samples : xr.Dataset
-            Output of ``sample_response_distribution(...)`` or equivalent.
+            Response samples for an allocation: the result of
+            :meth:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.evaluate_response_distribution`
+            converted with ``.to_dataset(name=...)``, or the output of the
+            deprecated ``BudgetOptimizerWrapper.sample_response_distribution``.
             Must contain ``channel_contribution_original_scale``, ``allocation``,
             and ``total_allocation``.
         hdi_probs : sequence of float, default (0.94,)
@@ -151,7 +154,10 @@ class BudgetSummaryFactory:
         Parameters
         ----------
         samples : xr.Dataset
-            Output of ``sample_response_distribution(...)`` or equivalent.
+            Response samples for an allocation: the result of
+            :meth:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.evaluate_response_distribution`
+            converted with ``.to_dataset(name=...)``, or the output of the
+            deprecated ``BudgetOptimizerWrapper.sample_response_distribution``.
             Must contain ``channel_contribution_original_scale`` with ``channel``,
             ``date``, and ``sample`` or ``(chain, draw)`` dimensions.
         hdi_probs : sequence of float, default (0.94,)

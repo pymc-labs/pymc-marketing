@@ -6005,7 +6005,9 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
     ):
         warnings.warn(
             "BudgetOptimizerWrapper is deprecated. "
-            "Use mmm.budget_optimizer(start_date, end_date, ...) instead.",
+            "Use mmm.budget_optimizer(start_date, end_date, ...) instead. "
+            "For response samples to pass to BudgetPlots or BudgetSummaryFactory, "
+            "use BudgetOptimizer.evaluate_response_distribution.",
             DeprecationWarning,
             stacklevel=2,
         )

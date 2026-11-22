@@ -77,8 +77,11 @@ class BudgetPlots:
         Parameters
         ----------
         samples : xr.Dataset
-            Output of ``sample_response_distribution(...)`` or
-            equivalent.  Must contain:
+            Response samples for an allocation: the result of
+            :meth:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.evaluate_response_distribution`
+            converted with ``.to_dataset(name=...)``, or the output of the
+            deprecated ``BudgetOptimizerWrapper.sample_response_distribution``.
+            Must contain:
 
             - ``channel_contribution_original_scale``
               (dims: ``sample`` or ``(chain, draw)``, ``date``, ``channel``, ...)
@@ -146,8 +149,11 @@ class BudgetPlots:
         Parameters
         ----------
         samples : xr.Dataset
-            Output of ``mmm.sample_response_distribution(...)`` or
-            equivalent.  Must have:
+            Response samples for an allocation: the result of
+            :meth:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.evaluate_response_distribution`
+            converted with ``.to_dataset(name=...)``, or the output of the
+            deprecated ``BudgetOptimizerWrapper.sample_response_distribution``.
+            Must have:
 
             - a variable whose name contains ``"channel_contribution"``
               (dims: ``sample``, ``date``, ``channel``, ...)
