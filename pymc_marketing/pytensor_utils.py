@@ -1087,10 +1087,17 @@ def extract_response_distribution(
             # the variable's own axes in their declared order, whatever order
             # the posterior stores them in.
             classic = not isinstance(placeholder, XTensorVariable)
-            if classic and (
-                declared := pymc_model.named_vars_to_dims.get(placeholder.name)
-            ):
-                posterior_da = posterior_da.transpose("sample", *declared)
+            declared = (
+                pymc_model.named_vars_to_dims.get(placeholder.name) if classic else None
+            )
+            if declared:
+                try:
+                    posterior_da = posterior_da.transpose("sample", *declared)
+                except ValueError as error:
+                    raise ValueError(
+                        f"The posterior draws of {placeholder.name!r} cannot be put "
+                        f"in the order its dims declare, {declared}: {error}"
+                    ) from error
             if shared_posterior is not None:
                 replacement = shared_posterior._get_or_create(
                     posterior_da, name=placeholder.name, dtype=placeholder.dtype
@@ -1101,6 +1108,11 @@ def extract_response_distribution(
                     name=placeholder.name,
                     dims=posterior_da.dims,
                 )
+            if declared:
+                # A shared variable keeps the order it was first bound in, which
+                # another extraction may have chosen.  Reading the view in the
+                # declared order is the identity when the two orders match.
+                replacement = replacement.transpose("sample", *declared)
             replace_dict[placeholder] = replacement.values if classic else replacement
 
         # Vectorize across samples.  vectorize_graph moves the new batch
