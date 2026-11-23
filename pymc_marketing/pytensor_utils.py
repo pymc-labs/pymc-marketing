@@ -596,11 +596,12 @@ def refuse_frozen_deterministic_renames(
     Raises
     ------
     ValueError
-        If a frozen name is in such a pair, naming it and the other name.
+        If a frozen name is in such a pair, naming it and every other name it
+        pairs with.
     """
     deterministics = set(pymc_model.deterministics)
     renames_rv = frozen_variables(pymc_model, [det.name for det in deterministics])
-    pairs: dict[str, str] = {}
+    pairs: dict[str, list[str]] = {}
     for det in pymc_model.deterministics:
         if (
             det.owner is not None
@@ -609,12 +610,13 @@ def refuse_frozen_deterministic_renames(
             and renames_rv[det.name] is det
         ):
             target = det.owner.inputs[0]
-            pairs.setdefault(det.name, target.name)
-            pairs.setdefault(target.name, det.name)
+            pairs.setdefault(det.name, []).append(target.name)
+            pairs.setdefault(target.name, []).append(det.name)
     paired = {name: pairs[name] for name in frozen_deterministics if name in pairs}
     if paired:
         listing = ", ".join(
-            f"{name!r} (with {other!r})" for name, other in paired.items()
+            f"{name!r} (with {', '.join(map(repr, others))})"
+            for name, others in paired.items()
         )
         raise ValueError(
             f"frozen_deterministics includes {listing}: one of each pair only "
@@ -657,7 +659,9 @@ def frozen_renames_read_elsewhere(
     free_rvs = set(pymc_model.free_RVs)
     shared: dict[str, str] = {}
     for name, var in held.items():
-        if var is pymc_model[name]:
+        # A name that stands for itself, or a variable frozen by its own name too,
+        # already holds every read of the variable.
+        if var is pymc_model[name] or var in declared:
             continue
         # The declared names and every other free random variable stop the walk:
         # a read through them is a read of their posterior draws, not of ``var``.

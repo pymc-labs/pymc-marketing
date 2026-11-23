@@ -1111,11 +1111,16 @@ def test_frozen_renames_read_elsewhere_lists_a_variable_read_another_way():
     assert frozen_renames_read_elsewhere(model, [model["resp"]], ["renamed"]) == {
         "renamed": "level"
     }
-    # Read only through the rename, or listed by its own name: nothing to report.
+    # Read only through the rename, listed by its own name, or frozen by its own name
+    # alongside the rename: nothing to report.
     assert (
         frozen_renames_read_elsewhere(model, [model["one_reader"]], ["renamed"]) == {}
     )
     assert frozen_renames_read_elsewhere(model, [model["resp"]], ["level"]) == {}
+    assert (
+        frozen_renames_read_elsewhere(model, [model["resp"]], ["renamed", "level"])
+        == {}
+    )
 
 
 def _deterministic_rename_model() -> pm.Model:
@@ -1138,6 +1143,21 @@ def test_a_frozen_rename_of_a_deterministic_is_refused(name):
         ValueError, match=rf"frozen_deterministics includes {name!r} \(with '"
     ):
         refuse_frozen_deterministic_renames(model, [name])
+
+
+def test_a_refusal_names_every_rename_of_a_frozen_deterministic():
+    """Two Deterministics rename ``walk``; freezing ``walk`` names both."""
+    with pm.Model(coords={"date": range(4)}) as model:
+        steps = pmd.Normal("steps", dims="date")
+        walk = pmd.Deterministic("walk", steps.cumsum("date"))
+        pmd.Deterministic("first", walk)
+        pmd.Deterministic("second", walk)
+
+    with pytest.raises(
+        ValueError,
+        match=r"frozen_deterministics includes 'walk' \(with 'first', 'second'\)",
+    ):
+        refuse_frozen_deterministic_renames(model, ["walk"])
 
 
 def test_renames_that_end_at_a_free_variable_or_an_expression_are_not_refused():
