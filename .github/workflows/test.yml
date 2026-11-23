@@ -71,8 +71,11 @@ jobs:
           uv run --no-sync --frozen python -c "import pymc; assert pymc.__version__ == '${OLDEST}', pymc.__version__"
       - name: Compute PyTensor cache key
         run: |
+          # Python version is intentionally not recorded: the numba cache
+          # suffixes cache files with the interpreter version and the C
+          # compiledir embeds it in its directory name, so entries
+          # self-select at load time.
           uv run --no-sync python -c "
-          import sys
           import importlib.metadata as md
 
           pkgs = ['pytensor', 'numba', 'llvmlite', 'numpy', 'scipy', 'pymc']
@@ -84,7 +87,6 @@ jobs:
                   return 'missing'
 
           with open('.pytensor-cache-key', 'w') as f:
-              f.write(f'python={sys.version.split()[0]}\n')
               for pkg in pkgs:
                   f.write(f'{pkg}={ver(pkg)}\n')
           "
@@ -93,7 +95,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.pytensor
-          key: pytensor-${{ hashFiles('.pytensor-cache-key') }}
+          key: pytensor-${{ hashFiles('.pytensor-cache-key') }}-${{ github.run_id }}-group${{ matrix.group }}
+          restore-keys: |
+            pytensor-${{ hashFiles('.pytensor-cache-key') }}-
       - name: Run tests
         run: |
           uv run --no-sync --frozen pytest --splits 6 \
