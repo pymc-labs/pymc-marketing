@@ -1463,6 +1463,28 @@ def test_extract_response_distribution_mixes_classic_and_dims_variables(
     )
 
 
+@pytest.mark.parametrize("make_shared_posterior", POSTERIOR_PATHS)
+def test_extract_response_distribution_returns_a_classic_response_as_a_plain_tensor(
+    make_shared_posterior,
+):
+    """A response declared with ``pymc`` comes back unnamed, ``sample`` first."""
+    with pm.Model(coords={"date": [0, 1, 2], "channel": ["a", "b"]}) as model:
+        lam = pm.Normal("lam", dims=("date", "channel"))
+        pm.Deterministic("doubled", 2.0 * lam, dims=("date", "channel"))
+
+    values = np.arange(12.0).reshape(1, 2, 3, 2)  # chain, draw, date, channel
+    posterior = xr.Dataset(
+        {"lam": (("chain", "draw", "date", "channel"), values)},
+        coords={"date": [0, 1, 2], "channel": ["a", "b"]},
+    )
+    graph = extract_response_distribution(
+        model, posterior, "doubled", shared_posterior=make_shared_posterior()
+    )
+
+    assert not isinstance(graph, ptx.type.XTensorVariable)
+    np.testing.assert_allclose(function([], graph)(), 2.0 * values.reshape(2, 3, 2))
+
+
 def test_a_shared_posterior_reused_by_a_classic_model_reads_the_declared_order():
     """A classic model reads a shared variable in its own order, whoever bound it.
 
