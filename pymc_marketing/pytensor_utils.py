@@ -538,9 +538,8 @@ def frozen_variables(
     model variables, so the graphs of the clone read the random variable, and the
     Deterministic is registered again as a new view that nothing reads.  Mapping
     the name to the random variable gives the same answer on the source model
-    and on a clone.  Any other name stands for its own variable.  A Deterministic
-    that only renames another Deterministic is not mapped: a clone registers both
-    names on one variable (pymc-devs/pymc#8608), see
+    and on a clone.  Any other name stands for its own variable, including a
+    Deterministic that only renames another Deterministic, see
     :func:`refuse_frozen_deterministic_renames`.
 
     Parameters
@@ -600,14 +599,13 @@ def refuse_frozen_deterministic_renames(
         pairs with.
     """
     deterministics = set(pymc_model.deterministics)
-    renames_rv = frozen_variables(pymc_model, [det.name for det in deterministics])
     pairs: dict[str, list[str]] = {}
     for det in pymc_model.deterministics:
         if (
             det.owner is not None
             and isinstance(det.owner.op, ViewOp)
             and det.owner.inputs[0] in deterministics
-            and renames_rv[det.name] is det
+            and frozen_variables(pymc_model, [det.name])[det.name] is det
         ):
             target = det.owner.inputs[0]
             pairs.setdefault(det.name, []).append(target.name)
@@ -660,8 +658,8 @@ def frozen_renames_read_elsewhere(
     shared: dict[str, str] = {}
     for name, var in held.items():
         # A name that stands for itself, or a variable frozen by its own name too,
-        # already holds every read of the variable.
-        if var is pymc_model[name] or var in declared:
+        # already holds every read of the variable: either way it is declared.
+        if var in declared:
             continue
         # The declared names and every other free random variable stop the walk:
         # a read through them is a read of their posterior draws, not of ``var``.

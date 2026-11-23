@@ -2156,16 +2156,13 @@ class BudgetOptimizer(BaseModel):
         when it substitutes their posterior draws, so a path that enters the
         objective only through another frozen deterministic is not reached.  It
         runs on the source model, where a deterministic that only renames a free
-        random variable is still apart from it: the optimization model is a clone,
-        whose graphs read the variable wherever they read the rename (see
-        :func:`~pymc_marketing.pytensor_utils.frozen_variables`).  The clone
-        comes from ``freeze_dims_and_data`` and ``do``, which add no named
-        variable, so the objective is a variable of the source model too.  A
-        rename the objective does not reach is not refused even when the
-        objective reads its variable another way: on the clone, freezing the
-        rename holds the variable at its posterior draws, which conditioning does
-        for every free random variable anyway, so the allocation is the same as
-        without it.
+        random variable is still apart from it (see
+        :func:`~pymc_marketing.pytensor_utils.frozen_variables`); the objective
+        exists there too, since ``freeze_dims_and_data`` and ``do`` add no named
+        variable.  A rename the objective does not reach is not refused even when
+        the objective reads its variable another way: freezing the rename holds
+        the variable at its posterior draws, which conditioning does for every
+        free random variable anyway, so the allocation is the same as without it.
 
         Parameters
         ----------
@@ -2179,19 +2176,14 @@ class BudgetOptimizer(BaseModel):
             variable a name only renames, or ``None``.
         """
         model = self.model
-        declared = {
-            name: model[name]
-            for name in self.frozen_deterministics or ()
-            if name in model.named_vars
-        }
-        held = frozen_variables(model, list(declared))
+        held = frozen_variables(model, self.frozen_deterministics or ())
         upstream = set(
-            ancestors([model[response_variable]], blockers=list(declared.values()))
+            ancestors([model[response_variable]], blockers=[model[n] for n in held])
         )
         return {
-            name: held[name].name if held[name] is not var else None
-            for name, var in declared.items()
-            if var in upstream
+            name: var.name if var is not model[name] else None
+            for name, var in held.items()
+            if model[name] in upstream
             and self.date_dim in (model.named_vars_to_dims.get(name) or ())
         }
 

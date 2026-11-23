@@ -2309,16 +2309,15 @@ def test_objective_reaching_a_frozen_path_over_date_raises():
 
 def _renamed_path_optimizer(
     *,
-    objective_reads_path: bool,
     path_renames_walk: bool = False,
     frozen: tuple[str, ...] = ("path",),
 ) -> BudgetOptimizer:
     """An optimizer on a model where ``path`` is a Deterministic that only renames another variable.
 
     ``path`` renames the free ``steps``, or with *path_renames_walk* the Deterministic
-    ``walk`` of their cumulative sum.  ``report`` reads ``path``; the objective reads it
-    too with *objective_reads_path*, or else ``steps`` directly.  The media response
-    saturates, so the allocation is interior.  *frozen* is ``frozen_deterministics``.
+    ``walk`` of their cumulative sum.  Only ``report`` reads ``path``; the objective
+    reads ``steps`` directly.  The media response saturates, so the allocation is
+    interior.  *frozen* is ``frozen_deterministics``.
     """
     channels, n_dates = ["a", "b"], 6
     with pm.Model(coords={"channel": channels}) as model:
@@ -2339,8 +2338,7 @@ def _renamed_path_optimizer(
         )
         path = pmd.Deterministic("path", inner)
         pmd.Deterministic("report", path * 2)
-        read = path if objective_reads_path else steps
-        pmd.Deterministic("total_response_original_scale", media + read.sum("date"))
+        pmd.Deterministic("total_response_original_scale", media + steps.sum("date"))
     prior = pm.sample_prior_predictive(draws=4, model=model, random_seed=1).prior
     return BudgetOptimizer(
         model=model,
@@ -2358,8 +2356,8 @@ def test_objective_that_does_not_read_a_frozen_rename_is_optimized():
     Freezing ``path`` holds ``steps`` at its posterior draws, which conditioning
     does anyway, so the allocation is the one without it.
     """
-    frozen = _renamed_path_optimizer(objective_reads_path=False)
-    unfrozen = _renamed_path_optimizer(objective_reads_path=False, frozen=())
+    frozen = _renamed_path_optimizer()
+    unfrozen = _renamed_path_optimizer(frozen=())
 
     result = frozen.allocate_budget(total_budget=10.0)
     expected = unfrozen.allocate_budget(total_budget=10.0)
@@ -2375,7 +2373,7 @@ def test_a_frozen_rename_of_a_deterministic_is_refused_before_cloning():
         match=r"frozen_deterministics includes 'path' \(with 'walk'\): one of each "
         r"pair only renames the other Deterministic",
     ):
-        _renamed_path_optimizer(objective_reads_path=True, path_renames_walk=True)
+        _renamed_path_optimizer(path_renames_walk=True)
 
 
 @pytest.mark.parametrize("renames", [1, 2], ids=["renamed", "chained"])
