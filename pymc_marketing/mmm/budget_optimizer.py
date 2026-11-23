@@ -3225,18 +3225,25 @@ class BudgetOptimizer(BaseModel):
         the newly introduced budgets and the posterior of model parameters.
         """
         if self._conditioned is not None:
-            return self._conditioned.extract(response_variable)
-        return cast(
-            XTensorVariable,
-            extract_response_distribution(
+            graph = self._conditioned.extract(response_variable)
+        else:
+            graph = extract_response_distribution(
                 pymc_model=self._pymc_model,
                 idata=reorder_to_model_coords(
                     _extract_dataset(self.idata, "posterior"), self._pymc_model.coords
                 ),
                 response_variable=response_variable,
                 frozen_deterministics=self.frozen_deterministics,
-            ),
-        )
+            )
+        # A response declared with pymc rather than pymc.dims comes back as a
+        # plain tensor, which the objective cannot reduce by dim name.
+        if not isinstance(graph, XTensorVariable):
+            raise ValueError(
+                f"{response_variable!r} is not a pymc.dims variable.  The budget "
+                "optimizer requires a response with named dimensions, for "
+                "example one built with pmd.Deterministic(..., dims=(...))."
+            )
+        return graph
 
     def evaluate_response_distribution(
         self,

@@ -3410,13 +3410,17 @@ class _ScaledByDateLevelEffect(_ZeroEffect):
     With ``walk``, the variable holds the steps of a random walk, and the walk, their
     cumulative sum over ``date``, is a Deterministic whether frozen or not.  With
     ``classic``, the variable is declared with ``pymc`` and wrapped with
-    ``as_xtensor``.
+    ``as_xtensor``, over ``dims="date"`` or, without ``classic_dims``, over a bare
+    ``shape``.  With ``classic_contribution``, the contribution is registered with
+    ``pm.Deterministic``.
     """
 
     prefix: str = "scaled"
     walk: bool = False
     freeze: bool = False
     classic: bool = False
+    classic_dims: bool = True
+    classic_contribution: bool = False
 
     def incrementality_spec(self) -> IncrementalitySpec:
         """Opt in: the effect reads the channel contribution."""
@@ -3436,22 +3440,48 @@ class _ScaledByDateLevelEffect(_ZeroEffect):
     def create_effect(self, mmm):
         """The channel contribution, times one free value per date or their walk."""
         name = f"{self.prefix}_level"
-        if self.classic:
-            level = as_xtensor(
-                pm.Normal(name, mu=1.0, sigma=0.5, dims="date"), dims=("date",)
-            )
+        if self.classic and self.classic_dims:
+            draws = pm.Normal(name, mu=1.0, sigma=0.5, dims="date")
+            level = as_xtensor(draws, dims=("date",))
+        elif self.classic:
+            n_dates = mmm.model.dim_lengths["date"]
+            draws = pm.Normal(name, mu=1.0, sigma=0.5, shape=n_dates)
+            level = as_xtensor(draws, dims=("date",))
         else:
             level = pmd.Normal(name, mu=1.0, sigma=0.5, dims="date")
         if self.walk:
             level = pmd.Deterministic(f"{self.prefix}_walk", level.cumsum("date"))
         contribution = mmm.model["channel_contribution"].sum("channel")
+        if self.classic_contribution:
+            classic = pm.Deterministic(
+                self.contribution_var_name, (level * contribution).values, dims="date"
+            )
+            return as_xtensor(classic, dims=("date",))
         return pmd.Deterministic(self.contribution_var_name, level * contribution)
 
 
-@pytest.mark.parametrize("classic", [False, True], ids=["dims", "classic"])
+def _scaled_mmm(**effect) -> MMM:
+    """The 18-month MMM the scaled-level tests share, carrying the effect asked for."""
+    return MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        adstock=GeometricAdstock(l_max=6),
+        saturation=LogisticSaturation(),
+    ).add_mu_effect(_ScaledByDateLevelEffect(**effect))
+
+
+@pytest.fixture
+def scaled_data():
+    """18 months of month-start data: one yearly window spans every date."""
+    from tests.mmm.conftest import _make_mmm_data
+
+    return _make_mmm_data(periods=18, freq="MS", n_channels=3, seed=99)
+
+
 @pytest.mark.parametrize("walk", [False, True], ids=["level", "random-walk"])
 def test_yearly_incrementality_on_a_variable_that_scales_spend(
-    mock_pymc_sample, walk, classic
+    mock_pymc_sample, scaled_data, walk
 ):
     """Unfrozen, a variable that scales spend gives the increments of its frozen path.
 
@@ -3459,22 +3489,12 @@ def test_yearly_incrementality_on_a_variable_that_scales_spend(
     same length, so no shape fails.  Unfrozen, the variable holds its draws over all
     fitted dates and every period is evaluated on the full date axis, with the
     horizon the probe measured.  Frozen at the path where it meets spend, it is cut
-    to each window.  The same holds for a variable declared with ``pymc`` (#3398).
+    to each window.
     """
-    from tests.mmm.conftest import _make_mmm_data
-
-    data = _make_mmm_data(periods=18, freq="MS", n_channels=3, seed=99)
+    data = scaled_data
 
     def yearly(freeze: bool) -> tuple[xr.DataArray, xr.Dataset]:
-        mmm = MMM(
-            date_column="date",
-            target_column="target",
-            channel_columns=["channel_1", "channel_2", "channel_3"],
-            adstock=GeometricAdstock(l_max=6),
-            saturation=LogisticSaturation(),
-        ).add_mu_effect(
-            _ScaledByDateLevelEffect(walk=walk, freeze=freeze, classic=classic)
-        )
+        mmm = _scaled_mmm(walk=walk, freeze=freeze)
         mmm.fit(data["X"], data["y"], draws=50, chains=1, random_seed=42)
         incrementality = mmm.incrementality
         return (
@@ -3496,6 +3516,100 @@ def test_yearly_incrementality_on_a_variable_that_scales_spend(
     )
     assert json.loads(unfrozen_split.attrs["assumptions"])["evaluation"] == "full_axis"
     assert "'scaled_level'" in unfrozen_split.attrs["warnings"]
+
+
+@pytest.mark.parametrize(
+    "freeze, evaluation",
+    [
+        pytest.param(False, "full_axis", id="unfrozen"),
+        pytest.param(True, "window", id="frozen"),
+    ],
+)
+def test_yearly_incrementality_reads_a_classic_variable_like_its_pymc_dims_twin(
+    mock_pymc_sample, scaled_data, freeze, evaluation
+):
+    """A level declared with ``pymc`` gives the increments of the ``pymc.dims`` one.
+
+    Both models are evaluated on the same posterior, fitted once with the
+    ``pymc.dims`` level, so the comparison is exact.  Unfrozen, the classic level is
+    found as a path over the fitted dates and every period runs on the full date
+    axis; frozen, it is cut to each window (#3398).
+    """
+    data = scaled_data
+    reference = _scaled_mmm(freeze=freeze)
+    reference.fit(data["X"], data["y"], draws=50, chains=1, random_seed=42)
+    classic = _scaled_mmm(freeze=freeze, classic=True)
+    classic.build_model(data["X"], data["y"])
+    classic.idata = reference.idata
+
+    def yearly(mmm: MMM) -> tuple[xr.DataArray, xr.Dataset]:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            return (
+                mmm.incrementality.compute_incremental_contribution(frequency="yearly"),
+                mmm.incrementality.split_incremental_contribution_current_future(
+                    frequency="yearly"
+                ),
+            )
+
+    expected, expected_split = yearly(reference)
+    result, result_split = yearly(classic)
+
+    np.testing.assert_allclose(result, expected.transpose(*result.dims))
+    xr.testing.assert_allclose(result_split, expected_split)
+    assert json.loads(result_split.attrs["assumptions"])["evaluation"] == evaluation
+
+
+def test_incrementality_refuses_a_classic_variable_without_dims(
+    mock_pymc_sample, scaled_data
+):
+    """A ``pymc`` level over the dates declared by ``shape`` alone is refused.
+
+    It is stored with a generated axis name, so its date axis cannot be found, and
+    a windowed evaluation would read it at the wrong dates without an error.
+    """
+    mmm = _scaled_mmm(classic=True, classic_dims=False)
+    mmm.fit(scaled_data["X"], scaled_data["y"], draws=50, chains=1, random_seed=42)
+
+    with pytest.raises(
+        ValueError,
+        match=r"^The posterior variables \['scaled_level'\] are declared with pymc "
+        r"and have axes but no dims",
+    ):
+        mmm.incrementality.compute_incremental_contribution(frequency="yearly")
+
+
+def test_incrementality_refuses_a_classic_contribution(mock_pymc_sample, scaled_data):
+    """A contribution registered with ``pm.Deterministic`` is refused by name."""
+    mmm = _scaled_mmm(classic_contribution=True)
+    mmm.fit(scaled_data["X"], scaled_data["y"], draws=50, chains=1, random_seed=42)
+
+    with pytest.raises(
+        ValueError,
+        match=r"^The response variables \['scaled_effect_contribution'\] are not "
+        r"pymc.dims variables",
+    ):
+        mmm.incrementality.compute_incremental_contribution(frequency="all_time")
+
+
+def test_budget_optimizer_refuses_a_classic_response(single_dim_data, mock_pymc_sample):
+    """A response registered with ``pm.Deterministic`` is refused by name."""
+    X, y = single_dim_data
+    mmm = _mmm_with_effects(_ScaledByDateLevelEffect(classic_contribution=True))
+    mmm.fit(X.iloc[:9], y.iloc[:9], draws=50, chains=1, random_seed=42)
+
+    # BudgetOptimizer is a pydantic model, so the error arrives as a ValidationError.
+    with pytest.raises(
+        ValueError,
+        match=r"'scaled_effect_contribution' is not a pymc.dims variable",
+    ):
+        _optimize_budget(
+            "budget_optimizer",
+            mmm,
+            "2023-01-10",
+            "2023-01-14",
+            response_variable="scaled_effect_contribution",
+        )
 
 
 def test_no_full_axis_warning_where_the_mode_uses_the_full_axis_anyway(

@@ -90,11 +90,11 @@ How it works
   introduce any needed ``pmd.Data``. Then ``create_effect`` must return a tensor with
   dims ``("date", *mmm.dims)`` that is added additively to the model mean.
 - Random variables in an effect may come from ``pymc.dims`` or from ``pymc``. Wrap a
-  ``pymc`` variable with ``as_xtensor``. Passing ``dims=`` to the ``pymc``
-  distribution lets analyses conditioned on the posterior read its draws by dim
-  name; without it they are read in storage order, which matches the axes for a
-  posterior from ``pm.sample``. The effect's contribution itself must be registered
-  with ``pmd.Deterministic``: incrementality cannot evaluate a contribution
+  ``pymc`` variable with ``as_xtensor``, and pass ``dims=`` to the ``pymc``
+  distribution when the variable has any axes: analyses conditioned on the
+  posterior read its draws by dim name, and incrementality refuses to read a
+  ``pymc`` variable with axes but no ``dims``. An effect that opts into incrementality must
+  register its contribution with ``pmd.Deterministic``; incrementality refuses one
   registered with ``pm.Deterministic``.
 - During posterior predictive, ``set_data`` is called with the cloned PyMC model
   and the new coordinates; update any ``pmd.Data`` you created using ``pm.set_data``.
