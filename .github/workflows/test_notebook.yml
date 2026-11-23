@@ -57,7 +57,7 @@ jobs:
           - split: "--notebooks general"
           - split: "--exclude-dirs mmm clv bass customer_choice general"
     steps:
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@v7.0.1
 
     # Some MMM notebooks load a fitted posterior stored in Git LFS
     # (docs/source/notebooks/mmm/multidimensional_model.nc, 95 MB). Pull it
@@ -74,7 +74,7 @@ jobs:
     - name: Restore LFS cache
       id: lfs-cache
       if: matrix.lfs
-      uses: actions/cache/restore@v6
+      uses: actions/cache/restore@v6.1.0
       with:
         path: .git/lfs
         key: lfs-${{ hashFiles('.lfs-assets-id') }}
@@ -87,7 +87,7 @@ jobs:
     # succeeds, so a failing notebook would leave the cache empty.
     - name: Save LFS cache
       if: matrix.lfs && steps.lfs-cache.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v6
+      uses: actions/cache/save@v6.1.0
       with:
         path: .git/lfs
         key: ${{ steps.lfs-cache.outputs.cache-primary-key }}

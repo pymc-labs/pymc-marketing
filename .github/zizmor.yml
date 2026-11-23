@@ -1,0 +1,43 @@
+# zizmor baseline configuration.
+#
+# These ignores cover findings that predate the adoption of zizmor
+# (November 2026). Each entry silences a rule for an entire file, so
+# prefer fixing the underlying workflow over extending this list.
+# Tracked follow-ups, in rough order of ease:
+#
+#   1. artipacked: add `persist-credentials: false` to each checkout
+#   2. excessive-permissions: add least-privilege `permissions:` blocks
+#   3. template-injection: quote/interpolate untrusted input safely
+#   4. dangerous-triggers: audit the pull_request_target workflows by
+#      hand; these cannot be auto-fixed safely
+#
+# Remove the ignore entry for a rule once all of its files are clean.
+rules:
+  artipacked:
+    ignore:
+      - bot-prs.yml
+      - docs.yml
+      - generate-test-durations.yml
+      - pr-auto-label.yml
+      - pypi.yml
+      - test.yml
+      - test_notebook.yml
+      - validate-lockfile.yml
+  dangerous-triggers:
+    ignore:
+      - pr-auto-label.yml
+      - rtd-link-preview.yml
+  excessive-permissions:
+    ignore:
+      - broken-link-checker.yml
+      - docs.yml
+      - pypi.yml
+      - streamlit_url_health.yml
+      - test.yml
+      - test_notebook.yml
+      - uml.yml
+      - validate-lockfile.yml
+  template-injection:
+    ignore:
+      - generate-test-durations.yml
+      - pypi.yml

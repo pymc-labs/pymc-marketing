@@ -1,0 +1,34 @@
+# Security audit of GitHub Actions workflows with zizmor.
+# https://docs.zizmor.sh/
+
+name: zizmor
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/**"
+      - ".github/zizmor.yml"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/**"
+      - ".github/zizmor.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  zizmor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v8.3.2
+      - name: Run zizmor
+        run: uvx zizmor@1.33.1 --no-online-audits .github/workflows
