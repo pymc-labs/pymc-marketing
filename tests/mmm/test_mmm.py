@@ -3412,7 +3412,8 @@ class _ScaledByDateLevelEffect(_ZeroEffect):
     ``classic``, the variable is declared with ``pymc`` and wrapped with
     ``as_xtensor``, over ``dims="date"`` or, without ``classic_dims``, over a bare
     ``shape``.  With ``classic_contribution``, the contribution is registered with
-    ``pm.Deterministic``.
+    ``pm.Deterministic``.  With ``scalar``, the variable is one value for every date,
+    declared with ``pymc.dims`` or, with ``classic``, with ``pymc``.
     """
 
     prefix: str = "scaled"
@@ -3421,6 +3422,7 @@ class _ScaledByDateLevelEffect(_ZeroEffect):
     classic: bool = False
     classic_dims: bool = True
     classic_contribution: bool = False
+    scalar: bool = False
 
     def incrementality_spec(self) -> IncrementalitySpec:
         """Opt in: the effect reads the channel contribution."""
@@ -3438,9 +3440,18 @@ class _ScaledByDateLevelEffect(_ZeroEffect):
         return [f"{self.prefix}_walk" if self.walk else f"{self.prefix}_level"]
 
     def create_effect(self, mmm):
-        """The channel contribution, times one free value per date or their walk."""
+        """The channel contribution, times one free value per date or their walk.
+
+        With ``scalar``, times one free value for every date.
+        """
         name = f"{self.prefix}_level"
-        if self.classic and self.classic_dims:
+        if self.scalar:
+            level = (
+                as_xtensor(pm.Normal(name, mu=1.0, sigma=0.5), dims=())
+                if self.classic
+                else pmd.Normal(name, mu=1.0, sigma=0.5)
+            )
+        elif self.classic and self.classic_dims:
             draws = pm.Normal(name, mu=1.0, sigma=0.5, dims="date")
             level = as_xtensor(draws, dims=("date",))
         elif self.classic:
@@ -3519,26 +3530,28 @@ def test_yearly_incrementality_on_a_variable_that_scales_spend(
 
 
 @pytest.mark.parametrize(
-    "freeze, evaluation",
+    "scalar, freeze, evaluation",
     [
-        pytest.param(False, "full_axis", id="unfrozen"),
-        pytest.param(True, "window", id="frozen"),
+        pytest.param(False, False, "full_axis", id="unfrozen"),
+        pytest.param(False, True, "window", id="frozen"),
+        pytest.param(True, False, "window", id="scalar"),
     ],
 )
 def test_yearly_incrementality_reads_a_classic_variable_like_its_pymc_dims_twin(
-    mock_pymc_sample, scaled_data, freeze, evaluation
+    mock_pymc_sample, scaled_data, scalar, freeze, evaluation
 ):
     """A level declared with ``pymc`` gives the increments of the ``pymc.dims`` one.
 
     Both models are evaluated on the same posterior, fitted once with the
     ``pymc.dims`` level, so the comparison is exact.  Unfrozen, the classic level is
     found as a path over the fitted dates and every period runs on the full date
-    axis; frozen, it is cut to each window (#3398).
+    axis; frozen, it is cut to each window (#3398).  A scalar level has no axes, so
+    it needs no ``dims`` and every period keeps its window.
     """
     data = scaled_data
-    reference = _scaled_mmm(freeze=freeze)
+    reference = _scaled_mmm(scalar=scalar, freeze=freeze)
     reference.fit(data["X"], data["y"], draws=50, chains=1, random_seed=42)
-    classic = _scaled_mmm(freeze=freeze, classic=True)
+    classic = _scaled_mmm(scalar=scalar, freeze=freeze, classic=True)
     classic.build_model(data["X"], data["y"])
     classic.idata = reference.idata
 
