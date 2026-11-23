@@ -1920,9 +1920,10 @@ class SpendProbe:
         Parameters
         ----------
         effects : sequence of ChannelDependentEffect
-            The effects being evaluated alongside ``channel_contribution``: one
-            per node of the baseline other than ``channel_contribution``, the
-            predictor and the mediators, in the baseline's order.
+            The effects being evaluated alongside ``channel_contribution``,
+            whose ``contribution_var`` names are the nodes of the baseline
+            other than ``channel_contribution``, the predictor and the
+            mediators, in the baseline's order.
         non_date_dims : mapping
             Per node, the dimensions its evaluation carries after ``sample`` and
             ``date``.  The terms are added by name: an effect may legitimately
