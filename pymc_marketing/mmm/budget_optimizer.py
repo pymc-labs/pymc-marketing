@@ -2158,8 +2158,14 @@ class BudgetOptimizer(BaseModel):
         runs on the source model, where a deterministic that only renames a free
         random variable is still apart from it: the optimization model is a clone,
         whose graphs read the variable wherever they read the rename (see
-        :func:`~pymc_marketing.pytensor_utils.frozen_variables`).  An objective
-        that exists only on the optimization model is traversed there.
+        :func:`~pymc_marketing.pytensor_utils.frozen_variables`).  The clone
+        comes from ``freeze_dims_and_data`` and ``do``, which add no named
+        variable, so the objective is a variable of the source model too.  A
+        rename the objective does not reach is not refused even when the
+        objective reads its variable another way: on the clone, freezing the
+        rename holds the variable at its posterior draws, which conditioning does
+        for every free random variable anyway, so the allocation is the same as
+        without it.
 
         Parameters
         ----------
@@ -2172,11 +2178,7 @@ class BudgetOptimizer(BaseModel):
             By name, in the order of ``frozen_deterministics``: the free random
             variable a name only renames, or ``None``.
         """
-        model = (
-            self.model
-            if response_variable in self.model.named_vars
-            else self._pymc_model
-        )
+        model = self.model
         declared = {
             name: model[name]
             for name in self.frozen_deterministics or ()

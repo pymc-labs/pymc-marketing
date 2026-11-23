@@ -2308,13 +2308,17 @@ def test_objective_reaching_a_frozen_path_over_date_raises():
 
 
 def _renamed_path_optimizer(
-    *, objective_reads_path: bool, path_renames_walk: bool = False
+    *,
+    objective_reads_path: bool,
+    path_renames_walk: bool = False,
+    frozen: tuple[str, ...] = ("path",),
 ) -> BudgetOptimizer:
-    """An optimizer with ``path`` frozen, a Deterministic that only renames another variable.
+    """An optimizer on a model where ``path`` is a Deterministic that only renames another variable.
 
     ``path`` renames the free ``steps``, or with *path_renames_walk* the Deterministic
     ``walk`` of their cumulative sum.  ``report`` reads ``path``; the objective reads it
-    too with *objective_reads_path*, or else ``steps`` directly.
+    too with *objective_reads_path*, or else ``steps`` directly.  The media response
+    saturates, so the allocation is interior.  *frozen* is ``frozen_deterministics``.
     """
     channels, n_dates = ["a", "b"], 6
     with pm.Model(coords={"channel": channels}) as model:
@@ -2324,7 +2328,8 @@ def _renamed_path_optimizer(
         )
         beta = pmd.Normal("beta", 1.0, 0.1, dims="channel")
         media = pmd.Deterministic(
-            "total_media_contribution_original_scale", (channel_data * beta).sum()
+            "total_media_contribution_original_scale",
+            pmd.math.log1p(channel_data * beta).sum(),
         )
         steps = pmd.Normal("steps", sigma=0.1, dims="date")
         inner = (
@@ -2342,18 +2347,25 @@ def _renamed_path_optimizer(
         idata=xr.DataTree.from_dict({"posterior": prior}),
         num_periods=4,
         adstock_periods=2,
-        frozen_deterministics=["path"],
+        frozen_deterministics=list(frozen),
         response_variable="total_response_original_scale",
     )
 
 
 def test_objective_that_does_not_read_a_frozen_rename_is_optimized():
-    """Only ``report`` reads ``path``; the objective reads ``steps`` without it."""
-    optimizer = _renamed_path_optimizer(objective_reads_path=False)
+    """Only ``report`` reads ``path``; the objective reads ``steps`` without it.
 
-    result = optimizer.allocate_budget(total_budget=10.0)
+    Freezing ``path`` holds ``steps`` at its posterior draws, which conditioning
+    does anyway, so the allocation is the one without it.
+    """
+    frozen = _renamed_path_optimizer(objective_reads_path=False)
+    unfrozen = _renamed_path_optimizer(objective_reads_path=False, frozen=())
+
+    result = frozen.allocate_budget(total_budget=10.0)
+    expected = unfrozen.allocate_budget(total_budget=10.0)
 
     np.testing.assert_allclose(result.budgets.sum(), 10.0)
+    np.testing.assert_allclose(result.budgets, expected.budgets)
 
 
 def test_a_frozen_rename_of_a_deterministic_is_refused_before_cloning():
