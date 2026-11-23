@@ -1,0 +1,19 @@
+tests/mmm/test_mmm.py
+  s_09fd69b0729cc4::t_0bc4e688549b8a 4214-4216
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "267f2b0819dd541c49afad7c699562dac41da92e",
+  "prompts": {},
+  "sessions": {
+    "s_09fd69b0729cc4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9ccf91f7-5ae7-4d8d-9754-7c0a8bbef09a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "daimon <daimon@pymc-labs.com>"
+    }
+  }
+}
