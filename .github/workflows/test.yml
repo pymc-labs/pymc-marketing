@@ -69,6 +69,31 @@ jobs:
         run: |
           OLDEST=$(grep '"pymc>=' pyproject.toml | head -1 | sed 's/.*>=//' | sed 's/[",].*//')
           uv run --no-sync --frozen python -c "import pymc; assert pymc.__version__ == '${OLDEST}', pymc.__version__"
+      - name: Compute PyTensor cache key
+        run: |
+          uv run --no-sync python -c "
+          import sys
+          import importlib.metadata as md
+
+          pkgs = ['pytensor', 'numba', 'llvmlite', 'numpy', 'scipy', 'pymc']
+
+          def ver(pkg):
+              try:
+                  return md.version(pkg)
+              except Exception:
+                  return 'missing'
+
+          with open('.pytensor-cache-key', 'w') as f:
+              f.write(f'python={sys.version.split()[0]}\n')
+              for pkg in pkgs:
+                  f.write(f'{pkg}={ver(pkg)}\n')
+          "
+          test -f .pytensor-cache-key || echo 'fallback=unknown' > .pytensor-cache-key
+      - name: Restore PyTensor compile caches
+        uses: actions/cache@v4
+        with:
+          path: ~/.pytensor
+          key: pytensor-${{ hashFiles('.pytensor-cache-key') }}
       - name: Run tests
         run: |
           uv run --no-sync --frozen pytest --splits 6 \
