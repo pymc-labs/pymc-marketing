@@ -1,0 +1,767 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2026, PyMC Labs
+# This file is distributed under the same license as the PyMC-Marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyMC-Marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:10002
+#: 1e1bd2bc863c4caaa45185a53902df2d
+msgid "MMM API Migration Guide"
+msgstr "Guía de migración de la API de MMM"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:10004
+#: 052d5d71bca2498ba837470ece462835
+msgid ""
+"This guide helps you migrate from the old `MMM` class "
+"(`pymc_marketing.mmm.MMM`) to the new multidimensional `MMM` class "
+"(`pymc_marketing.mmm.mmm.MMM`)."
+msgstr ""
+"Esta guía le ayuda a migrar de la antigua clase `MMM` "
+"(`pymc_marketing.mmm.MMM`) a la nueva clase `MMM` multidimensional "
+"(`pymc_marketing.mmm.mmm.MMM`)."
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:10006
+#: 1b3217c28be54480b1599effd2c57618
+msgid "Why Migrate?"
+msgstr "¿Por qué migrar?"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:10008
+#: 82c7d9b5d7414776b16996c190dd825a
+msgid "The new `MMM` class provides several improvements:"
+msgstr "La nueva clase `MMM` ofrece varias mejoras:"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:10010
+#: 7d4545f6853c4e50a76b3519f3e2419a
+msgid ""
+"**Multidimensional Support**: Native support for hierarchical and "
+"multidimensional models"
+msgstr ""
+"**Soporte multidimensional**: Soporte nativo para modelos jerárquicos y "
+"multidimensionales"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:10011
+#: c063ab5807c54afeaccb14d8ae39d3c6
+msgid ""
+"**Cleaner API**: More explicit model building steps with better "
+"separation of concerns"
+msgstr ""
+"**API más limpia**: Pasos de construcción del modelo más explícitos y con "
+"una mejor separación de responsabilidades"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:10012
+#: 802f5d9304fc47aebaf10c37bc4df366
+msgid ""
+"**Flexible Priors**: Choose between total pooling (shared parameters) or "
+"channel-specific priors"
+msgstr ""
+"**Priors flexibles**: Elija entre agrupación total (parámetros compartidos) "
+"o priors específicos por canal"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:10013
+#: 190c78c28fd3485ea230c23d73f6fbb6
+msgid ""
+"**Enhanced Plotting**: Reorganized plotting API under `mmm.plot.*` "
+"namespace"
+msgstr ""
+"**Gráficos mejorados**: API de gráficos reorganizada bajo el espacio de "
+"nombres `mmm.plot.*`"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:10014
+#: 7f606d5367c641ef9bb1a7d089549520
+msgid ""
+"**Improved Budget Optimization**: New wrapper class for more flexible "
+"optimization scenarios"
+msgstr ""
+"**Optimización de presupuesto mejorada**: Nueva clase wrapper para "
+"escenarios de optimización más flexibles"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:10016
+#: 0146922abcac40368ddeaa7ca0862fd2
+msgid ""
+"This guide covers all API changes with side-by-side code comparisons to "
+"make your migration straightforward."
+msgstr ""
+"Esta guía cubre todos los cambios de la API con comparaciones de código lado"
+" a lado para que su migración sea sencilla."
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:20002
+#: 124c1d835457493eb9531010d865973e
+msgid "1. Import Path Change"
+msgstr "1. Cambio en la ruta de importación"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:20004
+#: 05f9adc29c284f039134dc31be4521a5
+msgid "The primary import path has changed:"
+msgstr "La ruta de importación principal ha cambiado:"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:20006
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:110008
+#: 7d255fffbb32455691b6024ee830e58b e98d9128eeb04560842d632dfe676773
+msgid "**Old:**"
+msgstr "**Antes:**"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:20011
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:110014
+#: 86c210a51be04677a569a7f90165930c c9566f56f87246b0acd56e3f850d1e4b
+msgid "**New:**"
+msgstr "**Ahora:**"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:20016
+#: 64065a97b8f84dcfac84bcadacb6d856
+msgid ""
+"The new class is imported from the `multidimensional` submodule during "
+"the migration. From version 0.20.0 onwards, the new class is imported "
+"from the root `pymc_marketing.mmm.MMM` module."
+msgstr ""
+"La nueva clase se importa desde el submódulo `multidimensional` durante la "
+"migración. A partir de la versión 0.20.0, la nueva clase se importa desde el"
+" módulo raíz `pymc_marketing.mmm.MMM`."
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:30002
+#: e18e8782c6484981ad980a2fa7204f57
+msgid "Methods Removed Without 1-to-1 Replacement"
+msgstr "Métodos eliminados sin reemplazo 1 a 1"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:30004
+#: 36d3fc3b2ffc4a2d953ca4b024659915
+msgid ""
+"The old `mmm.MMM` API had helper methods that are no longer available "
+"directly on the new multidimensional `MMM` class."
+msgstr ""
+"La antigua API `mmm.MMM` tenía métodos auxiliares que ya no están "
+"disponibles directamente en la nueva clase `MMM` multidimensional."
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:30006
+#: d5adece7942c4ea0b051106b7245631c
+msgid ""
+"`compute_channel_contribution_original_scale` -> call "
+"`mmm.add_original_scale_contribution_variable(var=[\"channel_contribution\"])`"
+" and read `mmm.idata.posterior[\"channel_contribution_original_scale\"]`."
+msgstr ""
+"`compute_channel_contribution_original_scale` -> llame a "
+"`mmm.add_original_scale_contribution_variable(var=[\"channel_contribution\"])`"
+" y lea `mmm.idata.posterior[\"channel_contribution_original_scale\"]`."
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:30007
+#: 4a81f9448d254488afa733e13a570839
+msgid ""
+"`get_channel_contribution_share_samples` -> no dedicated public data "
+"accessor; use `mmm.plot.channel_contribution_share_hdi()` for "
+"visualization, or compute shares manually from `channel_contribution` "
+"posterior samples."
+msgstr ""
+"`get_channel_contribution_share_samples` -> no hay un acceso público "
+"dedicado a los datos; use `mmm.plot.channel_contribution_share_hdi()` para "
+"la visualización, o calcule las proporciones manualmente a partir de las "
+"muestras posteriores de `channel_contribution`."
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:30008
+#: c75a1446d875496dbd5420f95b32fe30
+msgid ""
+"`get_ts_contribution_posterior` -> no dedicated method on the new `MMM`. "
+"Access the time-series of channel contributions directly via "
+"`mmm.idata.posterior[\"channel_contribution\"]`. For original-scale "
+"values, first call "
+"`mmm.add_original_scale_contribution_variable(var=[\"channel_contribution\"])`"
+" and then read "
+"`mmm.idata.posterior[\"channel_contribution_original_scale\"]`."
+msgstr ""
+"`get_ts_contribution_posterior` -> no hay un método dedicado en la nueva "
+"`MMM`. Acceda a la serie temporal de las contribuciones de los canales "
+"directamente mediante `mmm.idata.posterior[\"channel_contribution\"]`. Para "
+"obtener valores en la escala original, llame primero a "
+"`mmm.add_original_scale_contribution_variable(var=[\"channel_contribution\"])`"
+" y luego lea `mmm.idata.posterior[\"channel_contribution_original_scale\"]`."
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:30009
+#: d899bf3ccc304a8eb448561774052121
+msgid ""
+"`new_spend_contributions` / `plot_new_spend_contributions` -> wrap the "
+"model with `BudgetOptimizerWrapper` and call its "
+"`sample_response_distribution(...)` method on the wrapper (not on `MMM`)."
+" The API and output format differ from the old helpers:"
+msgstr ""
+"`new_spend_contributions` / `plot_new_spend_contributions` -> envuelva el "
+"modelo con `BudgetOptimizerWrapper` y llame a su método "
+"`sample_response_distribution(...)` en el wrapper (no en `MMM`). La API y el"
+" formato de salida difieren de los antiguos métodos auxiliares:"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:30022
+#: 41a7d1d4b31b46aa9a88debd826bfc9d
+msgid ""
+"`plot_grouped_contribution_breakdown_over_time` -> no built-in stacked-"
+"area + group-merging plot on the new `MMM`. The closest replacements are "
+"`mmm.plot.contributions_over_time(...)` (line plot) and "
+"`mmm.plot.waterfall_components_decomposition(...)` (single-snapshot bar)."
+" For stacked-area visuals or custom channel groupings, build the figure "
+"manually by indexing `mmm.idata.posterior[\"channel_contribution\"]` and "
+"aggregating channels into groups before plotting."
+msgstr ""
+"`plot_grouped_contribution_breakdown_over_time` -> no hay un gráfico "
+"integrado de área apilada con agrupación de componentes en la nueva `MMM`. "
+"Los reemplazos más cercanos son `mmm.plot.contributions_over_time(...)` "
+"(gráfico de líneas) y `mmm.plot.waterfall_components_decomposition(...)` "
+"(gráfico de barras de un único instante). Para visualizaciones de área "
+"apilada o agrupaciones personalizadas de canales, construya la figura "
+"manualmente indexando `mmm.idata.posterior[\"channel_contribution\"]` y "
+"agregando los canales en grupos antes de trazar el gráfico."
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:30023
+#: b6a4b6cdeb624b57a4ce719bf98d0a8d
+msgid ""
+"`format_recovered_transformation_parameters` -> removed, no direct "
+"replacement."
+msgstr ""
+"`format_recovered_transformation_parameters` -> eliminado, sin reemplazo "
+"directo."
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:30024
+#: d3ca4c28ea644bbeb2f8186564400a29
+msgid ""
+"`BaseValidateMMM` and `MMMModelBuilder` were removed from the public "
+"migration path; external subclasses should migrate to "
+"`multidimensional.MMM` composition/integration patterns."
+msgstr ""
+"`BaseValidateMMM` y `MMMModelBuilder` se eliminaron de la ruta pública de "
+"migración; las subclases externas deberían migrar a los patrones de "
+"composición/integración de `multidimensional.MMM`."
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:50002
+#: 1adeaeba59ea40eca422bf9264d98997
+msgid "2. Model Initialization & Model Config Defaults"
+msgstr ""
+"2. Inicialización del modelo y valores predeterminados de la configuración "
+"del modelo"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:50004
+#: 1b832d98b7714fdaa42e3165c1132d81
+msgid "The new `MMM` class initializes is the same as the old one."
+msgstr ""
+"La nueva clase `MMM` se inicializa de la misma manera que la anterior."
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:90002
+#: 0b5c86e98859416c8627f2f612eb516b
+msgid "3. Adding Original Scale Variables to the Inference Data"
+msgstr "3. Agregar variables en la escala original a los datos de inferencia"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:90004
+#: e3fd0853e49044ab9776cd77c5cc727a
+msgid ""
+"The new API allows you to store variable contribution in the original "
+"scale in the inference data attribute."
+msgstr ""
+"La nueva API le permite almacenar la contribución de las variables en la "
+"escala original en el atributo de datos de inferencia."
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:90018
+#: ffda6310b736476f92b359ff214d9a09
+msgid "Why `add_original_scale_contribution_variable()`?"
+msgstr "¿Por qué `add_original_scale_contribution_variable()`?"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:90020
+#: 6ad840d083784919a293a8f32af39da3
+msgid ""
+"This method stores unscaled (original scale) contribution variables in "
+"`idata[\"posterior\"]`. This is particularly useful when:"
+msgstr ""
+"Este método almacena las variables de contribución sin escalar (en la escala"
+" original) en `idata[\"posterior\"]`. Esto es particularmente útil cuando:"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:90022
+#: abdb3dcfdfab44869a5af6c4b4f0c4f3
+msgid ""
+"You want to analyze contributions in the original units (dollars, "
+"impressions, etc.)"
+msgstr ""
+"Desea analizar las contribuciones en las unidades originales (dólares, "
+"impresiones, etc.)"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:90023
+#: b94131f5ddf04730b5fcb79252217b71
+msgid "You need to compare contributions across different scales"
+msgstr "Necesita comparar contribuciones entre diferentes escalas"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:90025
+#: 386bf3384eda473e977d96027c52c1e2
+msgid ""
+"Without this call, you would need to manually reverse the scaling "
+"transformation during analysis."
+msgstr ""
+"Sin esta llamada, tendría que revertir manualmente la transformación de "
+"escalado durante el análisis."
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:100002
+#: 398f957b8baa44d3add32ed8d824ded3
+msgid "4. Parameter Naming Changes"
+msgstr "4. Cambios en los nombres de los parámetros"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:100004
+#: 2517ee967ebd4e1ab724f3913c334100
+msgid ""
+"Some internal parameter names have changed. Update your code if you "
+"access parameters directly:"
+msgstr ""
+"Algunos nombres internos de parámetros han cambiado. Actualice su código si "
+"accede a los parámetros directamente:"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 291a9eca1f094b3a9c101818087a51b2
+msgid "Old Name"
+msgstr "Nombre anterior"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: af51524a2687450aa8553f69810277a3
+msgid "New Name"
+msgstr "Nombre nuevo"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 13d71c5ce6724419bdcedfd5c50c7f64 bbec079556b949edb89e32be9f070924
+msgid "`intercept`"
+msgstr "`intercept`"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 13cd95ae2e624f6f8404547bc3012a20 b3a88b2f188d42ea8778643782a7dc31
+msgid "`intercept_contribution`"
+msgstr "`intercept_contribution`"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:100010
+#: 6e5ff6a2286a429b955d15d2b485a361
+msgid "**Example:**"
+msgstr "**Ejemplo:**"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:110002
+#: d278c50dda5842698ba967d91f1feeea
+msgid "5. Plotting API Changes"
+msgstr "5. Cambios en la API de gráficos"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:110004
+#: 138b789319954ed8b14fa6724b4a6578
+msgid "New Access Pattern"
+msgstr "Nuevo patrón de acceso"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:110006
+#: a3e0222e0a164e448ebab8fb9c03ca4b
+msgid "Plotting functions are now accessed through the `plot` attribute:"
+msgstr ""
+"Ahora se accede a las funciones de gráficos a través del atributo `plot`:"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:110020
+#: 5873251e749e4df08d8e3c1bd5b7b5d1
+msgid "Renamed Functions"
+msgstr "Funciones renombradas"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:110022
+#: 706d9bb1663a4ff0bf30a11bb20646ee
+msgid "Several plotting functions have been renamed for clarity:"
+msgstr "Se han renombrado varias funciones de gráficos para mayor claridad:"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: ddea852f45e24168b808c738188adfae
+msgid "Old Function"
+msgstr "Función anterior"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: dc9cad4cd0584ae780dfe24cd82413dd
+msgid "New Function"
+msgstr "Función nueva"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 1ad0db0f3b7b46768c5762000217eda5 6b4aa298daf24e139e005b666a3c585f
+msgid "`plot_components_contributions`"
+msgstr "`plot_components_contributions`"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 6548899a4f234fd09de72c035e4d0ea6 f7bb3b5486674cffaf264cc2d83f90db
+msgid "`plot.contributions_over_time`"
+msgstr "`plot.contributions_over_time`"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 5b03aff89e15402ea38fc415c956a9c9 a0d6187d410e4d3da2fd842699853277
+msgid "`plot_direct_contribution_curves`"
+msgstr "`plot_direct_contribution_curves`"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 09f935dc552e4a0f8764ce3126fdd741 cd0099f5aca649ba9d187bc3165c5c40
+msgid "`plot.saturation_scatterplot`"
+msgstr "`plot.saturation_scatterplot`"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 8c45655e5904441dba4e5de0b742a7f0 a6b582baecdb4b029725f050b894fb88
+msgid "`plot_channel_contribution_grid`"
+msgstr "`plot_channel_contribution_grid`"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 4a7272e617254335a9704e2e77f5e00c 842a91885eab4e8e8e9581f95308211e
+msgid "`plot.sensitivity_analysis`"
+msgstr "`plot.sensitivity_analysis`"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:110030
+#: 4691dbb508504b79a79448c60bcb8910
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:110032
+#: 933583155172451abe1564123b731c60
+msgid "**Contributions over time:**"
+msgstr "**Contribuciones a lo largo del tiempo:**"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:110041
+#: 8ac13ed32c7c4f2ea6b2ebb3639c503d
+msgid "**Saturation curves:**"
+msgstr "**Curvas de saturación:**"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:110050
+#: c0455c53982f41cb9e5dfda798026d60
+msgid "Channel-Specific Parameter Plots"
+msgstr "Gráficos de parámetros específicos por canal"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:110052
+#: 714cca3782404e34b77d38290333c17d
+msgid "For channel-specific parameters, use ArviZ directly:"
+msgstr "Para los parámetros específicos por canal, use ArviZ directamente:"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:120002
+#: 513440e92b63411caba90060431d6dd0
+msgid "6. Sensitivity Analysis Workflow"
+msgstr "6. Flujo de trabajo del análisis de sensibilidad"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:120004
+#: 1be782a5f41c4b02a425bc77b42aa964
+msgid ""
+"Sensitivity analysis now follows a two-step process, separating "
+"computation from visualization."
+msgstr ""
+"El análisis de sensibilidad ahora sigue un proceso de dos pasos, que separa "
+"el cálculo de la visualización."
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:120006
+#: f4718916b47b41adb74cba003fef3e07
+msgid "Old Approach (Single Function)"
+msgstr "Enfoque anterior (una sola función)"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:120013
+#: 2b95a15eb73044409f4969171740c949
+msgid "New Approach (Two Steps)"
+msgstr "Enfoque nuevo (dos pasos)"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:120028
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:130058
+#: aaec4159460845f4942076cdcafcc38d e1a8f335b88d4f74a1e4feffa635ea45
+msgid "Benefits of the New Approach"
+msgstr "Beneficios del nuevo enfoque"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:120030
+#: 35dca80dbd7f4c108abe48ce9fe0bb0a
+msgid ""
+"**Reusable Results**: Sweep results are stored in "
+"`idata[\"sensitivity_analysis\"]` and can be accessed later"
+msgstr ""
+"**Resultados reutilizables**: Los resultados del barrido se almacenan en "
+"`idata[\"sensitivity_analysis\"]` y se puede acceder a ellos más adelante"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:120031
+#: 6cf1200ae1f44d0793a138eb74126f68
+msgid ""
+"**Flexible Visualization**: Plot the same results in different ways "
+"without re-running the sweep"
+msgstr ""
+"**Visualización flexible**: Trace los mismos resultados de diferentes "
+"maneras sin volver a ejecutar el barrido"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:120032
+#: 9a0c544371494f7ba066101e22587484
+msgid "**Custom Analysis**: Access raw sweep results for custom analysis:"
+msgstr ""
+"**Análisis personalizado**: Acceda a los resultados brutos del barrido para "
+"realizar análisis personalizados:"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:130002
+#: 5c5b832a38dd4c03aeb9e95a290bc521
+msgid "7. Budget Optimization Changes"
+msgstr "7. Cambios en la optimización del presupuesto"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:130004
+#: 37d0f9f7627448628bf1df0bd650588a
+msgid ""
+"Budget optimization now uses a dedicated wrapper class for more "
+"flexibility."
+msgstr ""
+"La optimización del presupuesto ahora usa una clase wrapper dedicada para "
+"mayor flexibilidad."
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:130006
+#: 455a1713f58f4a50821b68e1b93266bf
+msgid "Old Approach"
+msgstr "Enfoque anterior"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:130017
+#: 64663ce240c34700b5b742c7d326f38d
+msgid "New Approach"
+msgstr "Enfoque nuevo"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:130050
+#: 99b3063f79864167aff1fd2236b6060e
+msgid "Key Differences"
+msgstr "Diferencias clave"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 8c11a5d4d00a4129811dac3f734f086f
+msgid "Aspect"
+msgstr "Aspecto"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 0bc880c0bcfd40598b45608b478be569 10fe8f6b0f3946b4aa3b051e4fec9b10
+#: 116f4b6506594285b0e4269dd4701637 a61f342fd5234034b6370564206b66dc
+#: b0f2bf34dc4b485788fa5cfe6af67cc3 caed2afee0f94c238e34ac7656051579
+#: db6c98d94e094bab84df3c04a629a87e e312c2ae34cf4e1e9b18915450cae126
+msgid "Old"
+msgstr "Antes"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 1353552f72494b31920004ef2c0a2dfa 2b13c5b96f284db6b3f34ca38c34b4c7
+#: 2fe4f1844a504c25bc0e91f1d89cd297 66ce0577fd3b4cad80e6470efe705d0e
+#: b320b37a2fc94d4faff437895d9afd52 f3ff9cb0f35847b997a43911dffb7f5e
+#: f7ef230eb2b34b7c8b18b43b1199ab4a fdd12a81898c41d3907a050304e3ae1a
+msgid "New"
+msgstr "Ahora"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: b8d0b88a9e83423a9ad31a278ce823c0
+msgid "**Budget bounds**"
+msgstr "**Límites del presupuesto**"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 5a1f08701fb5452d9f0e24e4f5d23e0e
+msgid "Dictionary"
+msgstr "Diccionario"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: edf34640715f4468bbfc82e3d8caccac
+msgid "`xarray.DataArray`"
+msgstr "`xarray.DataArray`"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 2c5142558fcb4b6fb7bf4b25f7cde407
+msgid "**Date range**"
+msgstr "**Rango de fechas**"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 42c38e387290419ca2068a6e852e4524 e6abf2c1af034d2281d5fb1726f2d8ff
+msgid "`num_days` parameter"
+msgstr "Parámetro `num_days`"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 042763727fe946a482d4b440265f2af2
+msgid "`start_date`/`end_date` in wrapper"
+msgstr "`start_date`/`end_date` en el wrapper"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 8fb3083ff7c040c3911dab424f19a309
+msgid "**Plotting**"
+msgstr "**Gráficos**"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 32a79db3ffd9461f9ba64ff05366f3d9
+msgid "`mmm.plot_budget_allocation()`"
+msgstr "`mmm.plot_budget_allocation()`"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 708834220fa24619b1ebb0b0b6f031b7
+msgid "`optimizable_model.plot.budget_allocation()`"
+msgstr "`optimizable_model.plot.budget_allocation()`"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:130060
+#: 3f89198b1d06495a8f4765b6609a95f0
+msgid "**Time-Aware Optimization**: Specify exact date ranges for optimization"
+msgstr ""
+"**Optimización con conciencia temporal**: Especifique rangos de fechas "
+"exactos para la optimización"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:130061
+#: 9e0fe3e87dc04cee8c8ebd8dc58b6e67
+msgid ""
+"**Multidimensional Bounds**: Use xarray for complex constraint structures"
+" (e.g., time-varying bounds)"
+msgstr ""
+"**Límites multidimensionales**: Use xarray para estructuras de restricciones"
+" complejas (por ejemplo, límites que varían en el tiempo)"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:130062
+#: ce6bc3ad2d1c407494e64586e6f72d12
+msgid ""
+"**Separation of Concerns**: Optimization logic is separate from the core "
+"model"
+msgstr ""
+"**Separación de responsabilidades**: La lógica de optimización está separada"
+" del modelo central"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:140002
+#: ea522e1396b240e3a590ab4c6a20c99d
+msgid "8. Complete Example"
+msgstr "8. Ejemplo completo"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:140004
+#: 0ea1d73b40144153be913aeca6b64357
+msgid "Here's a minimal end-to-end example using the new API:"
+msgstr "Aquí hay un ejemplo mínimo de principio a fin usando la nueva API:"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:170002
+#: 1262faa698d74b969b7d43d61e93622e
+msgid "10. Quick Reference Summary"
+msgstr "10. Resumen de referencia rápida"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:170004
+#: 486e49c9306b47a28da59fe08d0111c8
+msgid "Import Changes"
+msgstr "Cambios en las importaciones"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 808f95add2e74c40bb1f2c31bbb6f510
+msgid "`from pymc_marketing.mmm import MMM`"
+msgstr "`from pymc_marketing.mmm import MMM`"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 77c4bf8c660f4c8b9296cc234adb10b1
+msgid "`from pymc_marketing.mmm.mmm import MMM`"
+msgstr "`from pymc_marketing.mmm.mmm import MMM`"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:170010
+#: 011d188d181d4fefbb23663b0bbb4c74
+msgid "Model Building"
+msgstr "Construcción del modelo"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: d28f37d7bc5d42eb8c881d990739ea15
+msgid "Implicit (during `fit()`)"
+msgstr "Implícita (durante `fit()`)"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 5802b0cdcd3e4f6eaf62a8d0c9183714
+msgid ""
+"Explicit: `build_model()` then "
+"`add_original_scale_contribution_variable()`"
+msgstr ""
+"Explícita: `build_model()` y luego "
+"`add_original_scale_contribution_variable()`"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:170016
+#: 34ce223a39ba4321b64d1f459b6c729a
+msgid "Prior Defaults"
+msgstr "Valores predeterminados de los priors"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: f12100d2ffd64777879476d003147cc5
+msgid "Behavior"
+msgstr "Comportamiento"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 09a4b30d563940a485ec349d3a8e4c10
+msgid "Default"
+msgstr "Predeterminado"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 3ab77e4be3f246d4b7535d711a74c5b3
+msgid "Channel-specific (`dims=\"channel\"`)"
+msgstr "Específico por canal (`dims=\"channel\"`)"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 1a6af3c439a946f78dd34768f710db3f
+msgid "Total pooling (shared)"
+msgstr "Agrupación total (compartido)"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 0e18bb7fa9b84bffb4de3f7869ec1f1e
+msgid "Channel-specific"
+msgstr "Específico por canal"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 2f01ae92054d40ec98c8decb160de87e
+msgid "Implicit"
+msgstr "Implícito"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 8cdcadecd4c94a26b3515c2d2225a509
+msgid "Add `dims=\"channel\"` to `model_config`"
+msgstr "Agregue `dims=\"channel\"` a `model_config`"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:170023
+#: cce673eb0ada44029c8225540c8d5b9a
+msgid "Parameter Names"
+msgstr "Nombres de los parámetros"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:170029
+#: 6c39997ec87248c5b2a696c56598bf75
+msgid "Plotting API"
+msgstr "API de gráficos"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 2856d8df65f74408a015329ac4a3c556
+msgid "`mmm.plot_*()`"
+msgstr "`mmm.plot_*()`"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 3348a296b92748f7939526cc6fb411b7
+msgid "`mmm.plot.*()`"
+msgstr "`mmm.plot.*()`"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:170038
+#: 8c0d9e8a6b9e48148d579e0cf8a1caa1
+msgid "Sensitivity Analysis"
+msgstr "Análisis de sensibilidad"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 352ae1a2170044b4a4f1ebb3d3b5b0a7
+msgid "`mmm.plot_channel_contribution_grid(...)`"
+msgstr "`mmm.plot_channel_contribution_grid(...)`"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 78941579d78a44fa82b4f503b71209b9
+msgid "`mmm.sensitivity.run_sweep(...)` then `mmm.plot.sensitivity_analysis()`"
+msgstr ""
+"`mmm.sensitivity.run_sweep(...)` y luego `mmm.plot.sensitivity_analysis()`"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb:170044
+#: c0f01fb87516413882fd19ae2a1839ce
+msgid "Budget Optimization"
+msgstr "Optimización del presupuesto"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 32fd00ac36534a8f861eae995350098f
+msgid "`mmm.optimize_budget(...)`"
+msgstr "`mmm.optimize_budget(...)`"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 21d58a89bd0c4460be994dbe277796e6
+msgid "`BudgetOptimizerWrapper(model=mmm, ...).optimize_budget(...)`"
+msgstr "`BudgetOptimizerWrapper(model=mmm, ...).optimize_budget(...)`"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 356283569aaf414f896feca11f084ea6
+msgid "`budget_bounds` as dict"
+msgstr "`budget_bounds` como diccionario"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: cc3a8e4d89e647ada338ce609d07b184
+msgid "`budget_bounds` as `xarray.DataArray`"
+msgstr "`budget_bounds` como `xarray.DataArray`"
+
+#: ../source/notebooks/mmm/mmm_migration_guide.ipynb
+#: 6ecbd25c270c4a498ac32490fe979551
+msgid "`start_date`/`end_date` in wrapper constructor"
+msgstr "`start_date`/`end_date` en el constructor del wrapper"

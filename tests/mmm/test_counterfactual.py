@@ -13,6 +13,7 @@
 #   limitations under the License.
 """Tests for the counterfactual evaluation machinery: windows, scenarios, inputs."""
 
+import dataclasses
 import gc
 import math
 import warnings
@@ -35,6 +36,18 @@ from pymc_marketing.mmm.counterfactual import (
 )
 from pymc_marketing.mmm.spend_reach import linear_predictor
 from pymc_marketing.mmm.transformers import ConvMode, batched_convolution
+
+
+def eval_mask(window: PeriodWindow, max_window: int) -> np.ndarray:
+    """Positions in the padded window that enter the sum, as a boolean mask.
+
+    The mask a period's dates were read through before they were read through
+    :attr:`PeriodWindow.window_eval_slice`; the tests check the slices against
+    it.
+    """
+    mask = np.zeros(max_window, dtype=bool)
+    mask[np.flatnonzero(window.in_eval[window.in_window])] = True
+    return mask
 
 
 def build_aux_dims_model(aux_dims, n_dates, n_country):
@@ -588,6 +601,228 @@ class TestDateIndexedInputs:
                     spend[scenario, :, 0] + expected[:, 1:4],
                 )
 
+    def _level_evaluator(
+        self, reduce: bool, in_tensors: bool = False
+    ) -> tuple[CounterfactualEvaluator, np.ndarray]:
+        """Build an evaluator whose spend is scaled by a free ``level`` over date.
+
+        ``level`` is not frozen, so it keeps its draws over all fitted dates.  When
+        *reduce* is set, the graph takes its mean over ``date`` first.  When
+        *in_tensors* is set, the product is taken on plain tensors, which carry no
+        dims.
+        """
+        n_dates = len(self.dates)
+        with pm.Model(coords={"date": range(n_dates), "channel": ["c"]}) as model:
+            channel_data = pmd.Data(
+                "channel_data", np.ones((n_dates, 1)), dims=("date", "channel")
+            )
+            level = pmd.Normal("level", dims="date")
+            if reduce:
+                level = level.mean("date")
+            if in_tensors:
+                product = ptx.as_xtensor(
+                    channel_data.values * level.values[:, None],
+                    dims=("date", "channel"),
+                )
+            else:
+                product = channel_data * level
+            pmd.Deterministic("channel_contribution", product)
+
+        values = np.arange(1.0, n_dates + 1)
+        posterior = xr.Dataset(
+            {"level": (("chain", "draw", "date"), values[np.newaxis, np.newaxis])},
+            coords={"chain": [0], "draw": [0]},
+        )
+        evaluator = CounterfactualEvaluator(
+            pymc_model=model,
+            posterior=posterior,
+            response_vars=["channel_contribution"],
+            frozen_deterministics=[],
+            dates=self.dates,
+        )
+        return evaluator, values
+
+    @pytest.mark.parametrize(
+        "in_tensors",
+        [pytest.param(False, id="xtensor"), pytest.param(True, id="plain-tensor")],
+    )
+    @pytest.mark.parametrize(
+        "entry", ["evaluate_counterfactual", "iter_counterfactual"]
+    )
+    def test_an_uncut_variable_meeting_a_window_is_refused(self, entry, in_tensors):
+        """An uncut variable over date that meets spend's windowed date is refused.
+
+        One window spans every fitted date, so the padded length equals the fitted
+        one and no shape fails: the later window would read ``level`` from the
+        first fitted date instead of its own.  The meeting is found also when it
+        happens on plain tensors, which carry no dims.
+        """
+        evaluator, _ = self._level_evaluator(reduce=False, in_tensors=in_tensors)
+        assert evaluator.uncut_date_paths() == ("level",)
+        n_dates = len(self.dates)
+        windows = self._windows(
+            slice(0, n_dates), slice(2, n_dates), max_window=n_dates
+        )
+        scenarios = CounterfactualScenarios(
+            spend=np.ones((2, n_dates, 1)),
+            period_index=np.array([0, 1]),
+            rows={(0, None): 0, (1, None): 1},
+        )
+
+        with pytest.raises(
+            ValueError,
+            match=r"^Posterior variables not cut to windows meet a windowed 'date' "
+            r"axis in the graph: 'level'\.",
+        ):
+            getattr(evaluator, entry)(scenarios, windows=windows)
+
+    def test_an_uncut_variable_evaluates_on_a_full_window(self):
+        """A window that spans the fitted dates reads the variable at its own dates."""
+        evaluator, values = self._level_evaluator(reduce=False)
+        n_dates = len(self.dates)
+        windows = self._windows(slice(0, n_dates), max_window=n_dates)
+        spend = np.full((1, n_dates, 1), 2.0)
+        scenarios = CounterfactualScenarios(
+            spend=spend, period_index=np.array([0]), rows={(0, None): 0}
+        )
+
+        cut = evaluator.evaluate_counterfactual(scenarios, windows=windows)
+
+        np.testing.assert_allclose(
+            cut["channel_contribution"][0, 0, :, 0], 2.0 * values
+        )
+
+    def test_an_uncut_variable_reduced_over_date_evaluates_on_short_windows(self):
+        """Reduced over date first, the variable never meets a window's date axis."""
+        evaluator, values = self._level_evaluator(reduce=True)
+        assert evaluator.uncut_date_paths() == ()
+        n_dates = len(self.dates)
+        windows = self._windows(
+            slice(0, n_dates), slice(2, n_dates), max_window=n_dates
+        )
+        spend = np.ones((2, n_dates, 1))
+        scenarios = CounterfactualScenarios(
+            spend=spend,
+            period_index=np.array([0, 1]),
+            rows={(0, None): 0, (1, None): 1},
+        )
+
+        cut = evaluator.evaluate_counterfactual(scenarios, windows=windows)
+
+        np.testing.assert_allclose(
+            cut["channel_contribution"][1, 0, :, 0], values.mean()
+        )
+
+    @pytest.mark.parametrize(
+        "product_on_tensors",
+        [
+            # Back on xtensors without date, the reduction is seen.
+            pytest.param(False, id="reduced-then-xtensor"),
+            # Plain tensors carry no dims, so the walk cannot see the reduction
+            # and takes date to survive it: a known false positive, refused on
+            # the safe side (Incrementality evaluates such a graph on the full
+            # date axis).  Drop this case if the walk learns to see reductions
+            # on plain tensors.
+            pytest.param(True, id="reduced-and-multiplied-on-tensors"),
+        ],
+    )
+    def test_an_uncut_variable_reduced_on_plain_tensors(self, product_on_tensors):
+        """A reduction on plain tensors is seen only once it is back on xtensors."""
+        n_dates = len(self.dates)
+        with pm.Model(coords={"date": range(n_dates), "channel": ["c"]}) as model:
+            channel_data = pmd.Data(
+                "channel_data", np.ones((n_dates, 1)), dims=("date", "channel")
+            )
+            level = pmd.Normal("level", dims="date")
+            if product_on_tensors:
+                product = ptx.as_xtensor(
+                    channel_data.values * level.values.mean(),
+                    dims=("date", "channel"),
+                )
+            else:
+                product = channel_data * ptx.as_xtensor(level.values.mean(), dims=())
+            pmd.Deterministic("channel_contribution", product)
+        posterior = xr.Dataset(
+            {"level": (("chain", "draw", "date"), np.ones((1, 1, n_dates)))},
+            coords={"chain": [0], "draw": [0]},
+        )
+        evaluator = CounterfactualEvaluator(
+            pymc_model=model,
+            posterior=posterior,
+            response_vars=["channel_contribution"],
+            frozen_deterministics=[],
+            dates=self.dates,
+        )
+        windows = self._windows(
+            slice(0, n_dates), slice(2, n_dates), max_window=n_dates
+        )
+        scenarios = CounterfactualScenarios(
+            spend=np.ones((2, n_dates, 1)),
+            period_index=np.array([0, 1]),
+            rows={(0, None): 0, (1, None): 1},
+        )
+
+        if product_on_tensors:
+            with pytest.raises(ValueError, match=r"in the graph: 'level'\."):
+                evaluator.evaluate_counterfactual(scenarios, windows=windows)
+        else:
+            cut = evaluator.evaluate_counterfactual(scenarios, windows=windows)
+            np.testing.assert_allclose(cut["channel_contribution"], 1.0)
+
+    @pytest.mark.parametrize(
+        "entry", ["evaluate_counterfactual", "iter_counterfactual"]
+    )
+    def test_outputs_leave_out_a_node_an_uncut_variable_meets(self, entry):
+        """Evaluating some of the nodes leaves out an uncut variable another one reads.
+
+        ``mu`` adds ``level`` to spend, so it cannot be computed on windows shorter
+        than the fitted dates.  ``channel_contribution`` alone can.
+        """
+        n_dates = len(self.dates)
+        with pm.Model(coords={"date": range(n_dates), "channel": ["c"]}) as model:
+            channel_data = pmd.Data(
+                "channel_data", np.ones((n_dates, 1)), dims=("date", "channel")
+            )
+            level = pmd.Normal("level", dims="date")
+            contribution = pmd.Deterministic("channel_contribution", 2.0 * channel_data)
+            pmd.Deterministic("mu", contribution.sum("channel") + level)
+        posterior = xr.Dataset(
+            {"level": (("chain", "draw", "date"), np.ones((1, 1, n_dates)))},
+            coords={"chain": [0], "draw": [0]},
+        )
+        evaluator = CounterfactualEvaluator(
+            pymc_model=model,
+            posterior=posterior,
+            response_vars=["channel_contribution", "mu"],
+            frozen_deterministics=[],
+            dates=self.dates,
+        )
+        windows = self._windows(slice(0, 4), slice(2, 6), max_window=4)
+        spend = np.arange(1.0, 9.0).reshape(2, 4, 1)
+        scenarios = CounterfactualScenarios(
+            spend=spend,
+            period_index=np.array([0, 1]),
+            rows={(0, None): 0, (1, None): 1},
+        )
+
+        def evaluate(**kwargs):
+            if entry == "evaluate_counterfactual":
+                return evaluator.evaluate_counterfactual(
+                    scenarios, windows=windows, **kwargs
+                )
+            (block,) = evaluator.iter_counterfactual(
+                scenarios, windows=windows, **kwargs
+            )
+            return block.outputs
+
+        assert evaluator.uncut_date_paths() == ("level",)
+        assert evaluator.uncut_date_paths(["channel_contribution"]) == ()
+        cut = evaluate(outputs=["channel_contribution"])
+        assert cut.keys() == {"channel_contribution"}
+        np.testing.assert_allclose(cut["channel_contribution"][:, 0], 2.0 * spend)
+        with pytest.raises(ValueError, match=r"in the graph: 'level'\."):
+            evaluate()
+
     @pytest.mark.parametrize(
         "max_elements",
         [
@@ -1048,6 +1283,45 @@ class TestPeriodEdgeCases:
     dates = pd.date_range("2023-01-02", freq="W-MON", periods=8)
     freq_offset = pd.tseries.frequencies.to_offset("W-MON")
 
+    def test_a_window_built_from_its_six_fields_derives_its_slices(self):
+        """``PeriodWindow`` is public, and its constructor takes the same fields as before.
+
+        The slices follow the masks, also after ``dataclasses.replace``.
+        """
+        dates = pd.date_range("2023-01-01", periods=4, freq="W-SUN")
+        in_eval = np.array([False, True, True, False])
+        window = PeriodWindow(
+            start=dates[1],
+            end=dates[2],
+            in_window=np.ones(4, dtype=bool),
+            actual_dates=dates,
+            in_eval=in_eval,
+            eval_dates=dates[in_eval],
+        )
+
+        assert window.eval_slice == slice(1, 3)
+        assert window.window_eval_slice == slice(1, 3)
+        moved = dataclasses.replace(
+            window, in_eval=np.array([True, True, False, False])
+        )
+        assert moved.eval_slice == slice(0, 2)
+
+    def test_a_gap_in_the_evaluation_dates_is_refused(self):
+        """A hand-built window whose evaluation dates are not one run cannot be sliced."""
+        dates = pd.date_range("2023-01-01", periods=4, freq="W-SUN")
+        in_eval = np.array([True, False, True, False])
+        window = PeriodWindow(
+            start=dates[0],
+            end=dates[2],
+            in_window=np.ones(4, dtype=bool),
+            actual_dates=dates,
+            in_eval=in_eval,
+            eval_dates=dates[in_eval],
+        )
+
+        with pytest.raises(ValueError, match="not one contiguous run"):
+            _ = window.eval_slice
+
     def test_a_period_outside_the_data_yields_an_empty_window(self):
         """A period the fitted data does not reach produces no evaluated dates.
 
@@ -1079,7 +1353,7 @@ class TestPeriodEdgeCases:
         )
 
         # The empty period contributes a row of padding and sums to nothing.
-        assert not empty.eval_mask(windows.max_window).any()
+        assert not eval_mask(empty, windows.max_window).any()
         assert len(empty.eval_dates) == 0
         assert (scenarios.spend[scenarios.rows[(1, None)]] == 0).all()
 
@@ -1113,20 +1387,57 @@ class TestPeriodEdgeCases:
 
         # Perturbed on its own date; summed over that date and the two after.
         np.testing.assert_array_equal(
-            window.eval_mask(windows.max_window), [False, False, True, True, True]
+            eval_mask(window, windows.max_window), [False, False, True, True, True]
         )
         np.testing.assert_array_equal(window.eval_dates, self.dates[4:7])
         spend = scenarios.spend[scenarios.rows[(0, None)]]
         np.testing.assert_array_equal(spend[:, 0], [1.0, 1.0, 0.0, 1.0, 1.0])
+
+    @pytest.mark.parametrize("channel_axis", [None, 0])
+    def test_factual_rows_are_appended_and_hold_actual_spend(self, channel_axis):
+        """Asked for, each period gets one more row with nothing perturbed.
+
+        A request that checks its own accounting compares every perturbed row
+        with actual spend evaluated on the same window.  The rows go last, so
+        the perturbed ones keep their positions and their keys.
+        """
+        baseline = np.random.default_rng(0).uniform(1.0, 2.0, (len(self.dates), 2))
+        windows = EvaluationWindows.build(
+            periods=[(self.dates[1], self.dates[2]), (self.dates[5], self.dates[6])],
+            dates=self.dates,
+            l_max=1,
+            freq_offset=self.freq_offset,
+        )
+
+        def build(**kwargs):
+            return windows.build_scenarios(
+                baseline_array=baseline,
+                counterfactual_spend_factor=0.0,
+                dtype="float64",
+                channel_axis=channel_axis,
+                n_channels=2,
+                estimand="per_channel",
+                **kwargs,
+            )
+
+        plain, with_factual = build(), build(factual_rows=True)
+
+        n_perturbed = len(plain.spend)
+        assert plain.factual_rows == {}
+        assert with_factual.rows == plain.rows
+        np.testing.assert_array_equal(with_factual.spend[:n_perturbed], plain.spend)
+        assert with_factual.factual_rows == {0: n_perturbed, 1: n_perturbed + 1}
+        np.testing.assert_array_equal(with_factual.period_index[n_perturbed:], [0, 1])
+        np.testing.assert_array_equal(
+            with_factual.spend[n_perturbed:], windows.cut(baseline, "float64")
+        )
 
     @pytest.mark.parametrize(
         ("mode", "full_axis", "expected_eval_dates"),
         [
             (ConvMode.After, False, slice(5, 10)),
             (ConvMode.After, True, slice(5, None)),
-            (ConvMode.Before, False, slice(1, 6)),
-            (ConvMode.Before, True, slice(None, 6)),
-            (ConvMode.Overlap, False, slice(4, 8)),
+            (ConvMode.Before, True, slice(None)),
             (ConvMode.Overlap, True, slice(None)),
         ],
     )
@@ -1163,6 +1474,19 @@ class TestPeriodEdgeCases:
 
         assert contribution[window.in_eval].sum() == pytest.approx(weights.sum())
 
+    @pytest.mark.parametrize("mode", [ConvMode.Before, ConvMode.Overlap], ids=str)
+    def test_a_window_with_carryover_needs_a_forward_kernel(self, mode):
+        """A windowed sum under a non-``After`` mode would cut forward carryover."""
+        dates = pd.date_range("2023-01-02", freq="W-MON", periods=11)
+        with pytest.raises(ValueError, match=r"needs ConvMode\.After"):
+            EvaluationWindows.build(
+                periods=[(dates[5], dates[5])],
+                dates=dates,
+                l_max=4,
+                freq_offset=pd.tseries.frequencies.to_offset("W-MON"),
+                mode=mode,
+            )
+
     def test_carryover_is_dropped_from_the_mask_but_not_from_the_window(self):
         """``include_carryover=False`` narrows the mask and leaves the window.
 
@@ -1181,9 +1505,85 @@ class TestPeriodEdgeCases:
         (window,) = windows.windows
         assert window.n_actual == 5
         np.testing.assert_array_equal(
-            window.eval_mask(windows.max_window), [False, False, True, False, False]
+            eval_mask(window, windows.max_window), [False, False, True, False, False]
         )
         np.testing.assert_array_equal(window.eval_dates, self.dates[4:5])
+
+    @pytest.mark.parametrize(
+        "mode, full_axis, include_carryover",
+        [
+            (mode, full_axis, include_carryover)
+            for mode in ConvMode
+            for full_axis in (False, True)
+            for include_carryover in (False, True)
+            # A windowed evaluation with carryover needs ConvMode.After, and
+            # EvaluationWindows.build refuses the other modes there.
+            if mode == ConvMode.After or full_axis or not include_carryover
+        ],
+    )
+    def test_slices_select_the_same_dates_as_the_masks(
+        self, mode, full_axis, include_carryover
+    ):
+        """Each window's slices pick out its masks' dates.
+
+        The periods cover the start and the end of the data, the middle, and
+        one the data never reaches.  That one sums nothing unless a full-axis
+        evaluation reaches back into the data, and then its slices are empty.
+        """
+        far_future = pd.Timestamp("2030-01-07")
+        windows = EvaluationWindows.build(
+            periods=[
+                (self.dates[0], self.dates[1]),
+                (self.dates[3], self.dates[4]),
+                (self.dates[7], self.dates[7]),
+                (far_future, far_future),
+            ],
+            dates=self.dates,
+            l_max=2,
+            freq_offset=self.freq_offset,
+            full_axis=full_axis,
+            include_carryover=include_carryover,
+            mode=mode,
+        )
+        full_axis_values = np.arange(len(self.dates))
+        window_positions = np.arange(windows.max_window)
+
+        for window in windows.windows:
+            np.testing.assert_array_equal(
+                full_axis_values[window.eval_slice],
+                full_axis_values[window.in_eval],
+            )
+            np.testing.assert_array_equal(
+                window_positions[window.window_eval_slice],
+                np.flatnonzero(eval_mask(window, windows.max_window)),
+            )
+            if not window.in_eval.any():
+                assert window.eval_slice == slice(0, 0)
+                assert window.window_eval_slice == slice(0, 0)
+
+    @pytest.mark.parametrize(
+        "order, period",
+        [
+            # The swap falls inside the period: its dates are not one run.
+            ([1, 0, 2], (1, 2)),
+            # The swap falls before the period: its dates are still one run.
+            ([1, 0, 2], (2, 2)),
+            ([2, 1, 0], (1, 2)),
+        ],
+        ids=["swap-inside", "swap-before", "descending"],
+    )
+    @pytest.mark.parametrize("full_axis", [False, True])
+    def test_unsorted_dates_are_refused(self, order, period, full_axis):
+        """An unsorted axis is refused for every period, wherever the swap falls."""
+        with pytest.raises(ValueError, match="must be sorted in increasing order"):
+            EvaluationWindows.build(
+                periods=[(self.dates[period[0]], self.dates[period[1]])],
+                dates=self.dates[order],
+                l_max=0,
+                freq_offset=self.freq_offset,
+                include_carryover=False,
+                full_axis=full_axis,
+            )
 
 
 def build_observed_model(n_dates=6):
@@ -1610,7 +2010,7 @@ class TestConditionedModelRebinding:
         spend = np.ones((len(self.dates), 2, 1))
 
         refused = xr.DataTree.from_dict({"/posterior": first.drop_vars("beta")})
-        with pytest.raises(KeyError, match="missing variables"):
+        with pytest.raises(KeyError, match="missing variables this graph reads"):
             reused.set_posterior(refused)
 
         self._assert_same_as_fresh(

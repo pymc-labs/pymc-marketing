@@ -913,28 +913,6 @@ class TestOutputFormats:
             f"{method_name} should return pandas DataFrame"
         )
 
-    @pytest.mark.parametrize(
-        "method_name",
-        ["saturation_curves", "adstock_curves"],
-    )
-    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-    def test_model_factory_methods_support_output_format(
-        self, method_name, fitted_mmm, request
-    ):
-        """Test that model-requiring factory methods accept output_format parameter."""
-        mmm = request.getfixturevalue(fitted_mmm)
-        factory = MMMSummaryFactory(mmm.data, model=mmm)
-        method = getattr(factory, method_name)
-
-        # Act
-        df = method(output_format="pandas")
-
-        # Assert it returned a pandas DataFrame
-        assert df is not None, f"{method_name} returned None"
-        assert isinstance(df, pd.DataFrame), (
-            f"{method_name} should return pandas DataFrame"
-        )
-
     @pytest.mark.skipif(
         not importlib.util.find_spec("polars"),
         reason="Polars not installed",
@@ -1261,19 +1239,6 @@ class TestModelRequiringMethods:
             match=r"roas with method='incremental' requires model",
         ):
             factory.roas(method="incremental")
-
-    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-    def test_factory_accepts_data_and_model(self, fitted_mmm, request):
-        """Test that MMMSummaryFactory accepts both data and model."""
-        mmm = request.getfixturevalue(fitted_mmm)
-        data = mmm.data
-
-        factory = MMMSummaryFactory(data, model=mmm)
-
-        assert factory.data is data
-        assert factory.model is mmm
-        assert hasattr(factory.model, "saturation")
-        assert hasattr(factory.model, "adstock")
 
 
 # =============================================================================

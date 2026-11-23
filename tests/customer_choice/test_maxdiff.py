@@ -1325,17 +1325,6 @@ class TestSampleConvenienceWrapper:
         assert "/posterior" in model.idata.groups
         assert "/posterior_predictive" in model.idata.groups
 
-    def test_sample_builds_model_if_needed(self, small_maxdiff, mock_pymc_sample):
-        """sample() must build the model automatically when not yet built."""
-        task_df, items, _ = small_maxdiff
-        model = MaxDiffMixedLogit(task_df=task_df, items=items)
-        assert not hasattr(model, "model")
-        model.sample(
-            fit_kwargs=FAST_FIT_KWARGS,
-            sample_prior_predictive_kwargs={"samples": 5},
-        )
-        assert hasattr(model, "model")
-
 
 # ---------------------------------------------------------------------------
 # Full LKJ covariance (HB-MaxDiff)

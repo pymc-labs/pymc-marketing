@@ -17,7 +17,7 @@
 import contextlib
 import warnings
 from collections import Counter, OrderedDict
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from typing import Any, NamedTuple, cast, overload
 
 import arviz as az
@@ -811,9 +811,10 @@ class SharedPosterior:
             name, posterior_da, self._layouts[name], sample_dims=("sample",)
         )
         var = self._variables[name]
-        # astype always allocates, so the shared variable owns the array and
-        # borrow=True cannot alias the caller's data.
-        return aligned.values.astype(var.type.dtype)
+        # A fresh C-ordered copy: the shared variable owns it, so borrow=True
+        # cannot alias the caller's data, and numba, which compiles one
+        # signature per layout, never sees the layout label realignment leaves.
+        return aligned.values.astype(var.type.dtype, order="C")
 
     def _get_or_create(self, posterior_da: xr.DataArray, *, name: str, dtype: str):
         """Return the xtensor view of ``name``'s shared variable, creating it if needed.
@@ -833,7 +834,11 @@ class SharedPosterior:
                         f"Posterior variable {name!r} has duplicated {dim} labels: "
                         f"{index[index.duplicated()].unique().tolist()}."
                     )
-            self._variables[name] = shared(posterior_da.values.astype(dtype), name=name)
+            # A fresh C-ordered copy, the layout _aligned_values hands every
+            # rebind, so shared() can borrow it and numba compiles one signature.
+            self._variables[name] = shared(
+                posterior_da.values.astype(dtype, order="C"), name=name, borrow=True
+            )
             self._layouts[name] = layout
             dims = ("sample", *layout.dims)
         else:
@@ -1085,10 +1090,28 @@ def extract_response_distribution(
                     dims=posterior_da.dims,
                 )
 
-        # Vectorize across samples
-        response_distribution = list(
-            vectorize_graph(response_vars, replace=replace_dict)
+        # Vectorize across samples.  vectorize_graph moves the new batch
+        # dimension to the front of every output and raises on one that did not
+        # get it, so a response no posterior variable reaches stays out of the
+        # call and comes back as it is, without a "sample" dimension.
+        reads_posterior = [
+            not replace_dict.keys().isdisjoint(ancestors([var]))
+            for var in response_vars
+        ]
+        vectorized = iter(
+            vectorize_graph(
+                [
+                    var
+                    for var, reads in zip(response_vars, reads_posterior, strict=True)
+                    if reads
+                ],
+                replace=replace_dict,
+            )
         )
+        response_distribution = [
+            next(vectorized) if reads else var
+            for var, reads in zip(response_vars, reads_posterior, strict=True)
+        ]
 
         # Final cleanup
         response_distribution = list(
@@ -1142,6 +1165,31 @@ def _posterior_dataset(idata: xr.DataTree | xr.Dataset) -> xr.Dataset:
         "Expected the posterior as an xarray.Dataset or xarray.DataTree, "
         f"got {type(idata).__name__}."
     )
+
+
+def _raise_for_missing_posterior_variables(
+    read_names: Iterable[str], posterior: xr.Dataset
+) -> None:
+    """Raise the one ``KeyError`` for a posterior missing a variable a graph reads.
+
+    Construction and rebinding go through this, so a missing variable is named
+    the same way when a graph is extracted and when it is rebound.
+
+    Parameters
+    ----------
+    read_names : iterable of str
+        The posterior variables the graphs read.
+    posterior : xr.Dataset
+        The posterior the graphs would read them from.
+
+    Raises
+    ------
+    KeyError
+        If ``posterior`` lacks one of ``read_names``.
+    """
+    missing = sorted(set(read_names) - set(posterior.data_vars))
+    if missing:
+        raise KeyError(f"Posterior is missing variables this graph reads: {missing}")
 
 
 def _apply_intervention(
@@ -1407,7 +1455,8 @@ class ConditionedModel:
         Raises
         ------
         KeyError
-            If the posterior lacks a variable a graph reads.
+            If the posterior lacks a variable a graph reads, named as
+            extraction names it.
         ValueError
             If a variable a graph reads differs from its construction layout in
             its non-sample dimensions, their lengths or their labels.
@@ -1419,6 +1468,9 @@ class ConditionedModel:
         """
         posterior = reorder_to_model_coords(
             _posterior_dataset(idata), self._model.coords
+        )
+        _raise_for_missing_posterior_variables(
+            self._shared_posterior.variables, posterior
         )
         previous = self._posterior
         self._posterior = posterior
@@ -1465,11 +1517,7 @@ class ConditionedModel:
         """
         if not read_names:
             return posterior
-        missing = sorted(set(read_names) - set(posterior.data_vars))
-        if missing:
-            raise KeyError(
-                f"Posterior is missing variables this graph reads: {missing}"
-            )
+        _raise_for_missing_posterior_variables(read_names, posterior)
         ordered = [name for name in self._layouts if name in read_names]
         ordered += [name for name in read_names if name not in self._layouts]
         selected: dict[str, xr.DataArray] = {}

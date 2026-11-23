@@ -1,0 +1,3347 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2026, PyMC Labs
+# This file is distributed under the same license as the PyMC-Marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyMC-Marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:10003
+#: 2521438d6fc3472192c1df8334820820
+msgid "Year-over-Year Target Transform: A Custom MMM for Highly Seasonal KPIs"
+msgstr ""
+"Transformación interanual del objetivo: un MMM personalizado para KPIs muy "
+"estacionales"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:10005
+#: fbd0428712d740aaa3c20dc9dccda687
+msgid ""
+"Some KPIs move mostly with the calendar. Think of garden centers in "
+"spring, toy stores before Christmas, or travel around a moving holiday "
+"such as Easter. For these KPIs the annual cycle dominates the variance. A"
+" level-space media mix model (MMM) then spends most of its parameters on "
+"the seasonal shape before it can say anything about media."
+msgstr ""
+"Algunos KPIs se mueven sobre todo con el calendario. Piense en los centros "
+"de jardinería en primavera, las jugueterías antes de Navidad o los viajes en"
+" torno a una festividad móvil como la Pascua. Para estos KPIs el ciclo anual"
+" domina la varianza. Un modelo de mezcla de medios (MMM) en espacio de "
+"niveles gasta entonces la mayor parte de sus parámetros en la forma "
+"estacional antes de poder decir algo sobre los medios."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:10007
+#: 3fe22628b6df4eba893b787730367b7a
+msgid ""
+"In this notebook we try a different route. We stop modeling the level and"
+" model the **year-over-year ratio** instead. Last year's observed KPI "
+"becomes the seasonal baseline, so seasonality enters multiplicatively and"
+" at no cost: the model needs no Fourier basis, no trend component and no "
+"per-unit seasonal profile."
+msgstr ""
+"En este cuaderno probamos un camino distinto. Dejamos de modelar el nivel y "
+"modelamos en su lugar la **razón interanual**. El KPI observado del año "
+"pasado se convierte en la línea base estacional, de modo que la "
+"estacionalidad entra de forma multiplicativa y sin costo: el modelo no "
+"necesita base de Fourier, ni componente de tendencia, ni perfil estacional "
+"por unidad."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:10009
+#: b02b978f79114aac9eaa4682f3d42897
+#, python-brace-format
+msgid ""
+"The transform is easy to implement, but it changes what the likelihood "
+"can identify. As a result, it also changes what a channel contribution "
+"means. We build the model with plain PyMC and PyMC-Marketing components, "
+"generate a synthetic panel from it, and compare it out of sample with "
+"level-space {class}`~pymc_marketing.mmm.mmm.MMM` models on the same data."
+msgstr ""
+"La transformación es fácil de implementar, pero cambia lo que la "
+"verosimilitud puede identificar. Como consecuencia, también cambia lo que "
+"significa la contribución de un canal. Construimos el modelo con componentes"
+" de PyMC y PyMC-Marketing, generamos un panel sintético a partir de él y lo "
+"comparamos fuera de muestra con modelos {class}`~pymc_marketing.mmm.mmm.MMM`"
+" en espacio de niveles sobre los mismos datos."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:10011
+#: f2511c1ab95945dd82d37ff00dfe811a
+msgid "The analysis proceeds in these steps:"
+msgstr "El análisis sigue estos pasos:"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:10013
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:50002
+#: 48a0de76243e48fc9adbcf18f75aa270 b7bbf8400bc340c3b2460b697f7f39ad
+msgid "The Transform"
+msgstr "La transformación"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:10014
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:60002
+#: a04921f05b5f4b57a28c53a905f87d41 f35eac8708084232934536891264607c
+msgid "The Reference Map"
+msgstr "El mapa de referencia"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:10015
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:270002
+#: 74d60c8f80944516a4939be60492d9ae ca6036cf0f7a46379eb3d56dcc8f6e5c
+msgid "Synthetic Data"
+msgstr "Datos sintéticos"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:10016
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:520002
+#: 1e741c22f33543239402d41daff1cc83 8aa18fc8af1b43dab155d7e74fde21e4
+msgid "Model Specification"
+msgstr "Especificación del modelo"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:10017
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:590002
+#: 40113dea60c24855889a2c31f1236166 c6cec84b07894414b8724a769f28154d
+msgid "Data Generation"
+msgstr "Generación de datos"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:10018
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:750002
+#: 18f5e9af49f64d8d9fe0aac9ff209f62 d10debe60d474a9fa827d0d622e4dab2
+msgid "Exploratory Data Analysis"
+msgstr "Análisis exploratorio de datos"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:10019
+#: d524eef590864c46b5178e23a4da4511
+msgid "Train Test Split, Prior Predictive Checks and Model Fitting"
+msgstr ""
+"División entrenamiento-prueba, chequeos predictivos previos y ajuste del "
+"modelo"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:10020
+#: 6c85e1ac59f64135bf632c7bacecf786
+msgid "Model Diagnostics and Posterior Predictive Checks"
+msgstr "Diagnósticos del modelo y chequeos predictivos posteriores"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:10021
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1050002
+#: 19664c5e8b3645e4872e24ea90abd90b 7bd85b0754054509b37749b79bf8f2c6
+msgid "Parameter Recovery"
+msgstr "Recuperación de parámetros"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:10022
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1160002
+#: 8829218ee9f1407db23ad5801d10c8ae da4b43b6b0ee41f3b7a88764e6792637
+msgid "Media Deep Dive"
+msgstr "Análisis detallado de los medios"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:10023
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1390002
+#: 02eadc624de544f0beea48fe8485944a 7007180e30934fe2acd5471e996f8f14
+msgid "Level-Space Benchmarks"
+msgstr "Comparativas en espacio de niveles"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:10024
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1510002
+#: 14015749fb7f470087f605dd378f1484 a2ae2400cf5b4c91b72306cdb8ba63ec
+msgid "Out-of-Sample Comparison"
+msgstr "Comparación fuera de muestra"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:10025
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1720002
+#: 2ae65214a2114031b3b215612e8d7ab3 3b5f27102c7d4f9fb4f0ad8a040b1c83
+msgid "A Fixed Seasonal Shape"
+msgstr "Una forma estacional fija"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:10026
+#: eaf871fd5f9e47adbb2e32dbf514fd6b
+msgid "Conclusion and Next Steps"
+msgstr "Conclusión y próximos pasos"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:10029
+#: f0a8b46e8b7b469ca006cccc659caa64
+#, python-brace-format
+msgid ""
+"We build a custom model from PyMC-Marketing components, following the "
+"strategy of {ref}`mmm_components` and {ref}`mmm_custom_splines`. We "
+"generate the data from a PyMC model with {func}`pymc.do`, as in "
+"{ref}`mmm_data_generator`. For the standard MMM workflow see "
+"{ref}`mmm_example`, and for the continuous ranked probability score "
+"(CRPS) see {ref}`mmm_time_slice_cross_validation`."
+msgstr ""
+"Construimos un modelo personalizado a partir de componentes de PyMC-"
+"Marketing, siguiendo la estrategia de {ref}`mmm_components` y "
+"{ref}`mmm_custom_splines`. Generamos los datos a partir de un modelo de PyMC"
+" con {func}`pymc.do`, como en {ref}`mmm_data_generator`. Para el flujo de "
+"trabajo estándar de MMM consulte {ref}`mmm_example`, y para la puntuación de"
+" probabilidad ranqueada continua (CRPS) consulte "
+"{ref}`mmm_time_slice_cross_validation`."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:20002
+#: 7372778c990e43ceb92d4492dd27958e
+msgid "Prepare Notebook"
+msgstr "Preparar el cuaderno"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:20004
+#: 6547731469774d9d9a6c4057eca951ea
+msgid "We load the necessary libraries and set the notebook's configuration."
+msgstr ""
+"Cargamos las bibliotecas necesarias y establecemos la configuración del "
+"cuaderno."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:50004
+#: 6f92225f2a0844699698c2ec3208ee95
+#, python-brace-format
+msgid ""
+"Let $y_{u,t}$ be the KPI of unit $u$ (a store, a region or a product) in "
+"week $t$. Let $r(t)$ be the **reference map**: it sends week $t$ to the "
+"week one cycle earlier that we compare it with. Without moving holidays, "
+"$r(t) = t - 52$. We model the ratio"
+msgstr ""
+"Sea $y_{u,t}$ el KPI de la unidad $u$ (una tienda, una región o un producto)"
+" en la semana $t$. Sea $r(t)$ el **mapa de referencia**: lleva la semana $t$"
+" a la semana un ciclo anterior con la que la comparamos. Sin festividades "
+"móviles, $r(t) = t - 52$. Modelamos la razón"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:50006
+#: b7688991afef4af7a131a7097162d44e
+msgid ""
+"\n"
+"z_{u,t} = \\frac{y_{u,t}}{y_{u,r(t)}}.\n"
+msgstr ""
+"\n"
+"z_{u,t} = \\frac{y_{u,t}}{y_{u,r(t)}}.\n"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:50010
+#: 60d16388314245a2894311b7a05a2869
+#, python-brace-format
+msgid ""
+"Why should a ratio help? Let's write the level as the product of a "
+"seasonal shape $S_{u,t}$, a trend $G_{u,t}$, a lift $m_{u,t}$ from media "
+"and controls, and noise $\\varepsilon_{u,t}$:"
+msgstr ""
+"¿Por qué debería ayudar una razón? Escribamos el nivel como el producto de "
+"una forma estacional $S_{u,t}$, una tendencia $G_{u,t}$, un incremento "
+"$m_{u,t}$ debido a los medios y los controles, y ruido $\\varepsilon_{u,t}$:"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:50012
+#: a22d22bbced44c2dab40b8ee319fbe31
+#, python-brace-format
+msgid ""
+"\n"
+"y_{u,t} = S_{u,t} \\, G_{u,t} \\, (1 + m_{u,t}) \\, (1 + "
+"\\varepsilon_{u,t}),\n"
+"\\qquad\n"
+"m_{u,t} = \\sum_{c} f_{c,u,t} + \\sum_{j} \\gamma_j \\, x_{j,u,t}.\n"
+msgstr ""
+"\n"
+"y_{u,t} = S_{u,t} \\, G_{u,t} \\, (1 + m_{u,t}) \\, (1 + \\varepsilon_{u,t}),\n"
+"\\qquad\n"
+"m_{u,t} = \\sum_{c} f_{c,u,t} + \\sum_{j} \\gamma_j \\, x_{j,u,t}.\n"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:50018
+#: 92d0fd19c36248ddb1d9218850877964
+#, python-brace-format
+msgid ""
+"Here $c$ indexes the media channels (`tv`, `search` and `sponsorship`) "
+"and $j$ indexes the controls (`discount`). The term $f_{c,u,t}$ is the "
+"effect of channel $c$ after adstock and saturation, $x_{j,u,t}$ is "
+"control $j$ in its raw units, and $\\gamma_j$ is its coefficient. The "
+"lift is a share of the baseline, so $m_{u,t} = 0.1$ means $10\\%$ more "
+"KPI."
+msgstr ""
+"Aquí $c$ indexa los canales de medios (`tv`, `search` y `sponsorship`) y $j$"
+" indexa los controles (`discount`). El término $f_{c,u,t}$ es el efecto del "
+"canal $c$ después del adstock y la saturación, $x_{j,u,t}$ es el control $j$"
+" en sus unidades originales y $\\gamma_j$ es su coeficiente. El incremento "
+"es una proporción de la línea base, de modo que $m_{u,t} = 0.1$ significa "
+"$10\\%$ más de KPI."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:50020
+#: 8f3bdd3cdfe14d6cbe7dd5e643035e8f
+#, python-brace-format
+msgid ""
+"Now assume that the shape repeats, $S_{u,t} = S_{u,r(t)}$, and that the "
+"trend grows by a factor $g_u$ per cycle, $G_{u,t} = g_u \\, G_{u,r(t)}$. "
+"Then the shape cancels in the ratio:"
+msgstr ""
+"Supongamos ahora que la forma se repite, $S_{u,t} = S_{u,r(t)}$, y que la "
+"tendencia crece por un factor $g_u$ por ciclo, $G_{u,t} = g_u \\, "
+"G_{u,r(t)}$. Entonces la forma se cancela en la razón:"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:50022
+#: 2d2bed576cd846eab4a9e5c1cacc0d36
+msgid ""
+"\n"
+"z_{u,t} = g_u \\, \\frac{1 + m_{u,t}}{1 + m_{u,r(t)}} \\, \\frac{1 + "
+"\\varepsilon_{u,t}}{1 + \\varepsilon_{u,r(t)}}\n"
+"\\approx g_u + \\bigl(m_{u,t} - m_{u,r(t)}\\bigr) + \\text{noise}.\n"
+msgstr ""
+"\n"
+"z_{u,t} = g_u \\, \\frac{1 + m_{u,t}}{1 + m_{u,r(t)}} \\, \\frac{1 + \\varepsilon_{u,t}}{1 + \\varepsilon_{u,r(t)}}\n"
+"\\approx g_u + \\bigl(m_{u,t} - m_{u,r(t)}\\bigr) + \\text{noise}.\n"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:50027
+#: 4c529acbabbb439f8d4c5df70ec6a9c9
+msgid ""
+"The approximation holds to first order when the lifts are small and $g_u$"
+" is close to one. We take its right-hand side as our model:"
+msgstr ""
+"La aproximación se cumple a primer orden cuando los incrementos son pequeños"
+" y $g_u$ está cerca de uno. Tomamos su lado derecho como nuestro modelo:"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:50029
+#: d0bcc1cce6c344189cec456fea71126e
+#, python-brace-format
+msgid ""
+"\n"
+"z_{u,t} = g_u\n"
+"+ \\sum_c \\bigl[f_{c,u,t} - f_{c,u,r(t)}\\bigr]\n"
+"+ \\sum_j \\gamma_j \\bigl[x_{j,u,t} - x_{j,u,r(t)}\\bigr]\n"
+"+ \\varepsilon_{u,t}.\n"
+msgstr ""
+"\n"
+"z_{u,t} = g_u\n"
+"+ \\sum_c \\bigl[f_{c,u,t} - f_{c,u,r(t)}\\bigr]\n"
+"+ \\sum_j \\gamma_j \\bigl[x_{j,u,t} - x_{j,u,r(t)}\\bigr]\n"
+"+ \\varepsilon_{u,t}.\n"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:50036
+#: f851747b07fc4dcd9b433c40ff03ab97
+#, python-brace-format
+msgid ""
+"In other words, every driver enters as a **within-pair contrast**: its "
+"value in week $t$ minus its value in the reference week $r(t)$. A channel"
+" can only move this year's KPI away from \"last year's level times the "
+"growth rate\" if its spend changed between the two weeks. We recover the "
+"level exactly with $y_{u,t} = y_{u,r(t)} \\, z_{u,t}$."
+msgstr ""
+"En otras palabras, cada factor entra como un **contraste dentro del par**: "
+"su valor en la semana $t$ menos su valor en la semana de referencia $r(t)$. "
+"Un canal solo puede alejar el KPI de este año del \"nivel del año pasado por"
+" la tasa de crecimiento\" si su gasto cambió entre las dos semanas. "
+"Recuperamos el nivel exactamente con $y_{u,t} = y_{u,r(t)} \\, z_{u,t}$."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:50038
+#: 3867df8bf75b4aa2a66c19b55237b9bd
+msgid "Here are three important remarks about this parametrization:"
+msgstr "Aquí hay tres observaciones importantes sobre esta parametrización:"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:50040
+#: 250f4c42c89b4e6aace08e13de531ac7
+#, python-brace-format
+msgid ""
+"**Seasonality is absorbed multiplicatively.** Any part of the seasonal "
+"shape that repeats from cycle to cycle is already in $y_{u,r(t)}$. The "
+"model only has to explain the departures from last cycle."
+msgstr ""
+"**La estacionalidad se absorbe de forma multiplicativa.** Cualquier parte de"
+" la forma estacional que se repite de un ciclo a otro ya está en "
+"$y_{u,r(t)}$. El modelo solo tiene que explicar las desviaciones respecto "
+"del ciclo anterior."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:50041
+#: a5fe6491306e46ea8907d00fa93f6807
+msgid ""
+"**The per-unit baseline collapses to a scalar.** $g_u$ is the typical "
+"growth rate of unit $u$. There is no per-unit seasonal curve, which is "
+"where most of the parameters of a level-space panel MMM go."
+msgstr ""
+"**La línea base por unidad se reduce a un escalar.** $g_u$ es la tasa de "
+"crecimiento típica de la unidad $u$. No hay una curva estacional por unidad,"
+" que es donde se va la mayor parte de los parámetros de un MMM de panel en "
+"espacio de niveles."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:50042
+#: e629ed93555c44f2b4bb742b9e6088a3
+#, python-brace-format
+msgid ""
+"**The noise is proportional, and the reference is noisy too.** Additive "
+"noise on $z$ is proportional noise on $y$, which is usually closer to the"
+" truth for sales-like KPIs. But $y_{u,r(t)}$ is an observation, not a "
+"parameter. If the level noise is independent across cycles, the ratio has"
+" about twice the noise variance of the level, and it is negatively "
+"correlated with the ratio one cycle earlier. The last section of the "
+"notebook measures both effects."
+msgstr ""
+"**El ruido es proporcional, y la referencia también es ruidosa.** El ruido "
+"aditivo sobre $z$ es ruido proporcional sobre $y$, que suele estar más cerca"
+" de la verdad en KPIs de tipo ventas. Pero $y_{u,r(t)}$ es una observación, "
+"no un parámetro. Si el ruido del nivel es independiente entre ciclos, la "
+"razón tiene aproximadamente el doble de varianza de ruido que el nivel, y "
+"está correlacionada negativamente con la razón del ciclo anterior. La última"
+" sección del cuaderno mide ambos efectos."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:60004
+#: 235cc174d6c248ab9f17a748e3b09746
+msgid ""
+"The naive map $r(t) = t - 52$ works only if the calendar repeats exactly,"
+" and it does not. Moving holidays such as Easter, Ramadan or Chinese New "
+"Year shift by a few weeks from one year to the next. With a naive lag, a "
+"holiday week is divided by a normal week. This puts a spurious spike into"
+" $z$ exactly where the KPI is largest."
+msgstr ""
+"El mapa ingenuo $r(t) = t - 52$ solo funciona si el calendario se repite "
+"exactamente, y no lo hace. Las festividades móviles como la Pascua, el "
+"Ramadán o el Año Nuevo chino se desplazan unas semanas de un año al "
+"siguiente. Con un rezago ingenuo, una semana festiva se divide por una "
+"semana normal. Esto introduce un pico espurio en $z$ justo donde el KPI es "
+"mayor."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:60006
+#: 89a25ddbbe394810b8b27aed4068f37e
+msgid ""
+"So we anchor $r$ on the event: this year's holiday week points to last "
+"year's holiday week. A shoulder of `pad` weeks on each side of the "
+"holiday travels with it."
+msgstr ""
+"Por eso anclamos $r$ en el evento: la semana festiva de este año apunta a la"
+" semana festiva del año pasado. Un margen de `pad` semanas a cada lado viaja"
+" con ella."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:60008
+#: 20149f4200d843ff944b0127cc47a6f9
+msgid ""
+"Let's see how this works with a concrete example. Last year the holiday "
+"fell in week $13$, and this year it falls in week $15$, so it moved by $k"
+" = 2$ weeks. With `pad=1`, the holiday window covers weeks $12$ to $14$ "
+"last year and weeks $14$ to $16$ this year."
+msgstr ""
+"Veamos cómo funciona con un ejemplo concreto. El año pasado la festividad "
+"cayó en la semana $13$, y este año cae en la semana $15$, de modo que se "
+"movió $k = 2$ semanas. Con `pad=1`, la ventana de la festividad abarca las "
+"semanas $12$ a $14$ el año pasado y las semanas $14$ a $16$ este año."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:60010
+#: d48c9d055d034efcaaf215f536f04c61
+msgid ""
+"The obvious approach drags this year's window onto last year's window and"
+" keeps the base lag for every other week. This year's weeks $14$, $15$ "
+"and $16$ then point to last year's weeks $12$, $13$ and $14$. But this "
+"year's weeks $12$ and $13$ are normal weeks, and they keep their base "
+"references: last year's weeks $12$ and $13$."
+msgstr ""
+"El enfoque obvio traslada la ventana de este año sobre la del año pasado y "
+"mantiene el rezago base para todas las demás semanas. Las semanas $14$, $15$"
+" y $16$ de este año apuntan entonces a las semanas $12$, $13$ y $14$ del año"
+" pasado. Pero las semanas $12$ y $13$ de este año son semanas normales, y "
+"mantienen sus referencias base: las semanas $12$ y $13$ del año pasado."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:60012
+#: 3a8946b0d7984d0aa536ed82ba787a68
+msgid "This has two defects that are easy to miss:"
+msgstr "Esto tiene dos defectos fáciles de pasar por alto:"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:60014
+#: eb072bae3351427db324f00514db2eea
+msgid ""
+"**Duplicated and orphaned references.** Last year's weeks $12$ and $13$ "
+"are now the reference for two weeks each, and last year's weeks $15$ and "
+"$16$ are the reference for no week at all."
+msgstr ""
+"**Referencias duplicadas y huérfanas.** Las semanas $12$ y $13$ del año "
+"pasado son ahora la referencia de dos semanas cada una, y las semanas $15$ y"
+" $16$ del año pasado no son la referencia de ninguna semana."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:60015
+#: 48f830f1e97f4719924e187f5abadd2c
+msgid ""
+"**A displaced crater.** This year's week $13$ is a normal week, but its "
+"reference is last year's holiday peak. A normal week divided by a holiday"
+" week is a crater in $z$. This is the same artifact that anchoring should"
+" remove, only one week earlier."
+msgstr ""
+"**Un cráter desplazado.** La semana $13$ de este año es una semana normal, "
+"pero su referencia es el pico festivo del año pasado. Una semana normal "
+"dividida por una semana festiva es un cráter en $z$. Es el mismo artefacto "
+"que el anclaje debería eliminar, solo que una semana antes."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:60017
+#: cca76a49776a4107becaf2efc8b35bea
+#, python-brace-format
+msgid ""
+"In general, dragging leaves $|k|$ duplicated and $|k|$ orphaned weeks "
+"whenever the event moves. As soon as the move is larger than the "
+"shoulder, $|k| > \\text{pad}$, a normal week is also divided by last "
+"year's holiday peak."
+msgstr ""
+"En general, trasladar la ventana deja $|k|$ semanas duplicadas y $|k|$ "
+"huérfanas cada vez que el evento se mueve. En cuanto el desplazamiento es "
+"mayor que el margen, $|k| > \\text{pad}$, una semana normal también se "
+"divide por el pico festivo del año pasado."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:60019
+#: 98b7a3585bac4f2fba4aa5791d3981e2
+msgid ""
+"The fix is to treat the realignment as a **permutation** of last year's "
+"weeks, not as a shift. In our example, the two windows together span last"
+" year's weeks $12$ to $16$. We rotate this segment by $k = 2$ weeks. This"
+" year's weeks $14$, $15$ and $16$ still point to last year's weeks $12$, "
+"$13$ and $14$. This year's weeks $12$ and $13$ now point to last year's "
+"weeks $15$ and $16$, the two weeks that the holiday window left free."
+msgstr ""
+"La solución es tratar la realineación como una **permutación** de las "
+"semanas del año pasado, no como un desplazamiento. En nuestro ejemplo, las "
+"dos ventanas juntas abarcan las semanas $12$ a $16$ del año pasado. Rotamos "
+"este segmento $k = 2$ semanas. Las semanas $14$, $15$ y $16$ de este año "
+"siguen apuntando a las semanas $12$, $13$ y $14$ del año pasado. Las semanas"
+" $12$ y $13$ de este año apuntan ahora a las semanas $15$ y $16$ del año "
+"pasado, las dos semanas que la ventana festiva dejó libres."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:60021
+#: 4917e38e9469424693c108c2335f26ff
+#, python-brace-format
+msgid ""
+"Now every week of last year is the reference for exactly one week of this"
+" year, so $r$ is a bijection between consecutive cycles. Every holiday "
+"week is paired with a holiday week, and the sum of $y_{u,r(t)}$ over a "
+"cycle equals last year's total. The price is that the pushed-aside weeks "
+"pair with a week $2\\,\\text{pad} + 1 = 3$ weeks away. On a smooth "
+"seasonal shape this costs a few percent, not a holiday-sized spike."
+msgstr ""
+"Ahora cada semana del año pasado es la referencia de exactamente una semana "
+"de este año, de modo que $r$ es una biyección entre ciclos consecutivos. "
+"Cada semana festiva se empareja con una semana festiva, y la suma de "
+"$y_{u,r(t)}$ sobre un ciclo es igual al total del año pasado. El precio es "
+"que las semanas desplazadas a un lado se emparejan con una semana a "
+"$2\\,\\text{pad} + 1 = 3$ semanas de distancia. Sobre una forma estacional "
+"suave esto cuesta un pequeño porcentaje, no un pico del tamaño de una "
+"festividad."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:70002
+#: b99c398aa0e04d38a53cc220aedc88af
+msgid ""
+"We encode an anchor as a pair of period indices. The builder returns the "
+"map together with the two checks that it is a bijection: the prior "
+"periods that it uses twice and the ones that it never uses."
+msgstr ""
+"Codificamos un ancla como un par de índices de período. El constructor "
+"devuelve el mapa junto con las dos verificaciones de que es una biyección: "
+"los períodos previos que usa dos veces y los que nunca usa."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:90002
+#: 3b00d5dbaa324532bd5bc9eecef662c6
+msgid ""
+"The builder starts from the base lag and rotates one prior-cycle segment "
+"per anchor."
+msgstr ""
+"El constructor parte del rezago base y rota un segmento del ciclo previo por"
+" cada ancla."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:110002
+#: 769d26a064404a47bac6f05b17ca917f
+msgid ""
+"To see the defect, we also code the obvious version that drags each "
+"window."
+msgstr ""
+"Para ver el defecto, programamos también la versión obvia que traslada cada "
+"ventana."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:130002
+#: 56da74e2f3754b0e95087ba51f98c576
+msgid ""
+"We draw each map as arrows from this year's weeks to their reference "
+"weeks last year. A red arrow pairs a holiday week with a normal week."
+msgstr ""
+"Dibujamos cada mapa como flechas desde las semanas de este año hasta sus "
+"semanas de referencia del año pasado. Una flecha roja empareja una semana "
+"festiva con una semana normal."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:150002
+#: 4e724e3996814f60bb08f145794f056f
+msgid ""
+"Here is the example from above: the holiday moves from week $13$ to week "
+"$15$, with `pad=1`. We use a two-year series, so that last year's weeks "
+"are also their period indices."
+msgstr ""
+"Este es el ejemplo de arriba: la festividad pasa de la semana $13$ a la "
+"semana $15$, con `pad=1`. Usamos una serie de dos años, de modo que las "
+"semanas del año pasado son también sus índices de período."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:170002
+#: 1b292172e80049bb9233856e48ae26fa
+msgid ""
+"The top diagram is the naive lag. This year's holiday weeks $15$ and $16$"
+" point to normal weeks, and this year's normal weeks $12$ and $13$ point "
+"into last year's holiday window. The middle diagram drags the window. "
+"Last year's weeks $12$ and $13$ get two arrows each, weeks $15$ and $16$ "
+"get none, and the red arrow from this year's week $13$ to last year's "
+"peak is the displaced crater. The bottom diagram rotates the segment. "
+"Every week of last year gets exactly one arrow, and no arrow mixes a "
+"holiday week with a normal week."
+msgstr ""
+"El diagrama superior es el rezago ingenuo. Las semanas festivas $15$ y $16$ "
+"de este año apuntan a semanas normales, y las semanas normales $12$ y $13$ "
+"de este año apuntan a la ventana festiva del año pasado. El diagrama del "
+"medio traslada la ventana. Las semanas $12$ y $13$ del año pasado reciben "
+"dos flechas cada una, las semanas $15$ y $16$ no reciben ninguna, y la "
+"flecha roja desde la semana $13$ de este año hasta el pico del año pasado es"
+" el cráter desplazado. El diagrama inferior rota el segmento. Cada semana "
+"del año pasado recibe exactamente una flecha, y ninguna flecha mezcla una "
+"semana festiva con una semana normal."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:180002
+#: 7e4dcf7a83554983a13285973d6c7888
+msgid "Anchor Contract"
+msgstr "Contrato de anclas"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:180004
+#: a73d93323fca449fa8403b9b8c12ea32
+msgid ""
+"The builder takes anchors as pairs of **consecutive occurrences**, and "
+"the rotation only makes sense when the two occurrences are about one "
+"cycle apart. The builder checks this condition and raises a `ValueError` "
+"when it fails."
+msgstr ""
+"El constructor recibe las anclas como pares de **ocurrencias consecutivas**,"
+" y la rotación solo tiene sentido cuando las dos ocurrencias están separadas"
+" aproximadamente por un ciclo. El constructor comprueba esta condición y "
+"lanza un `ValueError` cuando no se cumple."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:180006
+#: d76aaa556e794586b38d203e2eb85aad
+msgid ""
+"The check matters because a convenient encoding can break the condition "
+"without notice. We often store a moving event as one week of the year per"
+" cycle. But an event in week $50$ of one year and in week $0$ of the next"
+" year is two weeks apart, not one year. A map built from that pair would "
+"return a two-week ratio that looks like a year-over-year one."
+msgstr ""
+"La comprobación importa porque una codificación cómoda puede romper la "
+"condición sin avisar. A menudo guardamos un evento móvil como una semana del"
+" año por ciclo. Pero un evento en la semana $50$ de un año y en la semana "
+"$0$ del año siguiente está a dos semanas de distancia, no a un año. Un mapa "
+"construido con ese par devolvería una razón de dos semanas que parece "
+"interanual."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:180008
+#: e4c7a0d3da504f229a877328f32c91b8
+msgid ""
+"An event window that crosses the boundary between two cycles is *not* a "
+"problem. Take a yearly event that moves two weeks earlier every year: "
+"weeks $3$, $1$, $51$, $49$, $47$ and $45$. The third year then holds two "
+"occurrences (weeks $1$ and $51$), and one event window crosses into the "
+"fourth year. The rotation works on runs of consecutive periods, not on "
+"calendar years, so it handles this case."
+msgstr ""
+"Una ventana de evento que cruza el límite entre dos ciclos *no* es un "
+"problema. Tomemos un evento anual que se adelanta dos semanas cada año: "
+"semanas $3$, $1$, $51$, $49$, $47$ y $45$. El tercer año contiene entonces "
+"dos ocurrencias (semanas $1$ y $51$), y una ventana de evento cruza al "
+"cuarto año. La rotación trabaja sobre tramos de períodos consecutivos, no "
+"sobre años calendario, así que maneja este caso."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:180010
+#: 822caee430854139a2a985b350a11d13
+msgid "We pair consecutive occurrences with a small helper."
+msgstr ""
+"Emparejamos ocurrencias consecutivas con una pequeña función auxiliar."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:200002
+#: 906152553dfd4518a4d60f47832ac9cb
+msgid ""
+"Next, we write a diagnostic figure that we use twice: for this drifting "
+"event and for the holiday calendar of our panel. The top panel shows the "
+"lag $t - r(t)$ of every week. The middle panel shows how often each prior"
+" week is the reference of a week, which is one everywhere for a "
+"bijection. When we pass the event weeks, a bottom panel marks the pairs "
+"that mix an event week with a normal week."
+msgstr ""
+"A continuación, escribimos una figura de diagnóstico que usamos dos veces: "
+"para este evento a la deriva y para el calendario de festividades de nuestro"
+" panel. El subgráfico superior muestra el rezago $t - r(t)$ de cada semana. "
+"El subgráfico del medio muestra con qué frecuencia cada semana previa es la "
+"referencia de una semana, que es uno en todas partes para una biyección. "
+"Cuando pasamos las semanas del evento, un subgráfico inferior marca los "
+"pares que mezclan una semana de evento con una semana normal."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:220002
+#: fdb0680f76bb4e74a60eb3bbf5898b6a
+msgid "Let's check the drifting event."
+msgstr "Revisemos el evento que se desplaza."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:240002
+#: 883b006924fd4a69bed3937f32bfd346
+msgid ""
+"Every lag stays between $50$ and $55$ weeks, so every reference is about "
+"one year back, even across the boundary between the third and the fourth "
+"year. Every prior week is used exactly once, so the map is a bijection."
+msgstr ""
+"Todos los rezagos se mantienen entre $50$ y $55$ semanas, de modo que cada "
+"referencia está aproximadamente un año atrás, incluso al cruzar el límite "
+"entre el tercer y el cuarto año. Cada semana previa se usa exactamente una "
+"vez, de modo que el mapa es una biyección."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:240004
+#: 3f7d1ca73f9f47ef84fb6d83094f34a5
+msgid ""
+"Now let's encode the same kind of event as one week of the year per "
+"cycle, with weeks $48$, $50$, $0$, $2$, $4$ and $6$. Week $0$ of the "
+"third year and week $50$ of the second year are only two weeks apart."
+msgstr ""
+"Ahora codifiquemos el mismo tipo de evento como una semana del año por "
+"ciclo, con las semanas $48$, $50$, $0$, $2$, $4$ y $6$. La semana $0$ del "
+"tercer año y la semana $50$ del segundo año están separadas solo por dos "
+"semanas."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:260002
+#: f5408e0cf9024897a0c8cc9c497c5ffd
+msgid "The builder refuses the pair instead of returning a two-week ratio."
+msgstr ""
+"El constructor rechaza el par en lugar de devolver una razón de dos semanas."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:270004
+#: 889ffcbc8e8c4014ab9af3a8d1c2da9f
+msgid ""
+"We build a weekly panel of four regions over six years. The design favors"
+" the ratio model on purpose, so that the comparison isolates the "
+"mechanism rather than the tuning:"
+msgstr ""
+"Construimos un panel semanal de cuatro regiones durante seis años. El diseño"
+" favorece al modelo de razón a propósito, de modo que la comparación aísle "
+"el mecanismo y no el ajuste fino:"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:270006
+#: 2703647f34a24d85bb7487c4dc1e99b9
+msgid ""
+"**Inherited seasonal shape**: the annual shape carries over from cycle to"
+" cycle through the reference map, so we do not draw it again each year."
+msgstr ""
+"**Forma estacional heredada**: la forma anual se transmite de un ciclo a "
+"otro a través del mapa de referencia, por lo que no la volvemos a generar "
+"cada año."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:270007
+#: a926deba80ba4fcea44c847ceb5fb3c4
+msgid ""
+"**Moving holiday**: the holiday has a three-week profile (the week "
+"before, the peak and the week after), and its week of the year moves "
+"between weeks $12$ and $15$."
+msgstr ""
+"**Festividad móvil**: la festividad tiene un perfil de tres semanas (la "
+"semana anterior, el pico y la semana posterior), y su semana del año se "
+"mueve entre las semanas $12$ y $15$."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:270008
+#: d5b6549b9e2d4dcbb62a408cdc23c019
+msgid ""
+"**Always-on channel**: of the three media channels, `sponsorship` runs at"
+" a flat plan, so its year-over-year contrast is exactly zero."
+msgstr ""
+"**Canal siempre activo**: de los tres canales de medios, `sponsorship` "
+"funciona con un plan plano, de modo que su contraste interanual es "
+"exactamente cero."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:270009
+#: 9e9ba9df2cd84012bd4ea75372a25c09
+msgid "**Proportional noise**: the observation noise scales with the level."
+msgstr "**Ruido proporcional**: el ruido de observación escala con el nivel."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:270011
+#: c7d254f7c7e340b18778656e10c6b31d
+msgid ""
+"We come back to the fairness of this design in the comparison, and with a"
+" second panel at the end of the notebook."
+msgstr ""
+"Volvemos sobre la imparcialidad de este diseño en la comparación, y con un "
+"segundo panel al final del cuaderno."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:290002
+#: 601e48152eea43c7a9545912061395f3
+msgid ""
+"The holiday falls in a different week of the year in each of the six "
+"cycles. Its multiplicative profile lifts the week before by $15\\%$, the "
+"peak by $55\\%$ and the week after by $10\\%$."
+msgstr ""
+"La festividad cae en una semana distinta del año en cada uno de los seis "
+"ciclos. Su perfil multiplicativo eleva la semana anterior un $15\\%$, el "
+"pico un $55\\%$ y la semana posterior un $10\\%$."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:310002
+#: 5958ec8278134d799f793cbbe4f11fb8
+msgid "Holiday Calendar"
+msgstr "Calendario de festividades"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:310004
+#: 854f09a3350d4e158391fcaa9021074a
+msgid ""
+"We anchor each cycle's holiday to the previous cycle's holiday, with "
+"`pad=1`. This one-week shoulder on each side matches the width of the "
+"holiday profile. For comparison, we also build the naive lag and the "
+"dragged map on the same calendar."
+msgstr ""
+"Anclamos la festividad de cada ciclo a la festividad del ciclo anterior, con"
+" `pad=1`. Este margen de una semana a cada lado coincide con el ancho del "
+"perfil de la festividad. Para comparar, construimos también el rezago "
+"ingenuo y el mapa trasladado sobre el mismo calendario."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:330002
+#: fefab35c881c40f0b383d6a169fa7486
+msgid "Let's run the diagnostic figure on the three maps."
+msgstr "Ejecutemos la figura de diagnóstico sobre los tres mapas."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:350002
+#: a2454f907e584b968f7294adb305e431
+msgid ""
+"The naive lag is a bijection, but it pairs holiday weeks with normal "
+"weeks $14$ times, around every holiday that moved. The dragged map aligns"
+" every holiday window, but it uses $7$ prior weeks twice and $7$ never, "
+"and it still mixes $7$ pairs, one per week of shift. The rotated map is a"
+" bijection without mixed pairs."
+msgstr ""
+"El rezago ingenuo es una biyección, pero empareja semanas festivas con "
+"semanas normales $14$ veces, alrededor de cada festividad que se movió. El "
+"mapa trasladado alinea todas las ventanas festivas, pero usa $7$ semanas "
+"previas dos veces y $7$ ninguna, y aún mezcla $7$ pares, uno por semana de "
+"desplazamiento. El mapa rotado es una biyección sin pares mezclados."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:350004
+#: 4e4737dde2264a16845694eb4f21f5ae
+#, python-brace-format
+msgid ""
+"The lag of the rotated map leaves $52$ weeks only at the seams. The "
+"holiday windows move by $|k| = 1$ or $2$ weeks, and the weeks that they "
+"push aside move by $2\\,\\text{pad} + 1 = 3$ weeks in the other "
+"direction. The second anchor is the example of the previous section, with"
+" the holiday moving from week $13$ to week $15$."
+msgstr ""
+"El rezago del mapa rotado se aparta de $52$ semanas solo en las uniones. Las"
+" ventanas festivas se mueven $|k| = 1$ o $2$ semanas, y las semanas que "
+"desplazan a un lado se mueven $2\\,\\text{pad} + 1 = 3$ semanas en la "
+"dirección contraria. La segunda ancla es el ejemplo de la sección anterior, "
+"con la festividad pasando de la semana $13$ a la semana $15$."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:350007
+#: 98756834b0c24fc4959e73cc86f134e4
+msgid "**The cost of anchoring**"
+msgstr "**El costo del anclaje**"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:350009
+#: 6571161656ff43b3bf33ab0f8c05648e
+#, python-brace-format
+msgid ""
+"Anchoring moves two groups of weeks. The holiday window moves by $|k|$, "
+"the size of the holiday's own shift, which is the point. The $|k|$ weeks "
+"that the window pushes aside move by $2\\,\\text{pad} + 1$ in the other "
+"direction, and that is the cost. So the shoulder should be no wider than "
+"the real footprint of the event. For a one-week event, `pad=0` moves the "
+"pushed-aside weeks by one week. Here the holiday has a three-week "
+"profile, so `pad=1` is the right width."
+msgstr ""
+"El anclaje mueve dos grupos de semanas. La ventana festiva se mueve $|k|$, "
+"el tamaño del desplazamiento propio de la festividad, que es el objetivo. "
+"Las $|k|$ semanas que la ventana desplaza a un lado se mueven "
+"$2\\,\\text{pad} + 1$ en la dirección contraria, y ese es el costo. Por eso "
+"el margen no debería ser más ancho que la huella real del evento. Para un "
+"evento de una semana, `pad=0` mueve las semanas desplazadas a un lado una "
+"semana. Aquí la festividad tiene un perfil de tres semanas, así que `pad=1` "
+"es el ancho correcto."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:360002
+#: 3fe6d7bcc99a4696a933ad7f04882595
+msgid "Channel Spend"
+msgstr "Gasto por canal"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:360004
+#: e9bdccd98a3547f0a374e95c81968dd3
+msgid ""
+"Media spend comes from a small PyMC model. A multivariate normal over the"
+" channels with an LKJ prior on the correlation captures that brands "
+"rarely move one channel at a time. Each unit-channel pair has its own "
+"intercept and trend, and a softplus keeps the spend positive. The "
+"discount control comes from a Beta distribution."
+msgstr ""
+"El gasto en medios proviene de un pequeño modelo de PyMC. Una normal "
+"multivariada sobre los canales con un prior LKJ sobre la correlación captura"
+" que las marcas rara vez mueven un solo canal a la vez. Cada par unidad-"
+"canal tiene su propio intercepto y tendencia, y una softplus mantiene el "
+"gasto positivo. El control de descuento proviene de una distribución Beta."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:380002
+#: 8813372c9a1b4952ab44c5eb022c03d0
+msgid ""
+"The graph shows the correlated latent spend `spend_raw` for every date, "
+"unit and channel, its softplus `spend`, and the independent `discount` "
+"draw."
+msgstr ""
+"El grafo muestra el gasto latente correlacionado `spend_raw` para cada "
+"fecha, unidad y canal, su softplus `spend` y la muestra independiente de "
+"`discount`."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:380004
+#: c18efcd2fc73463498b6453afc6a26a9
+msgid ""
+"We draw one realization of spend and discount. Then we hold `sponsorship`"
+" at a flat always-on plan: constant over time, so identical from cycle to"
+" cycle by construction. Finally, we scale each channel by its maximum, so"
+" that the true saturation parameters and every fitted model use the same "
+"input scale."
+msgstr ""
+"Generamos una realización del gasto y del descuento. Luego mantenemos "
+"`sponsorship` en un plan plano siempre activo: constante en el tiempo, por "
+"lo que es idéntico de un ciclo a otro por construcción. Por último, "
+"escalamos cada canal por su máximo, de modo que los parámetros de saturación"
+" verdaderos y cada modelo ajustado usen la misma escala de entrada."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:400002
+#: 6633961077a64f7db79e6ed54f5a2e37
+msgid "Let's look at the scaled spend over time."
+msgstr "Veamos el gasto escalado a lo largo del tiempo."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:420002
+#: 0d52e2f522a84800bb1f90d779e6626f
+msgid ""
+"`tv` and `search` move from week to week and follow a different trend in "
+"each unit. `sponsorship` is a flat line at a different level for each "
+"unit."
+msgstr ""
+"`tv` y `search` cambian de una semana a otra y siguen una tendencia distinta"
+" en cada unidad. `sponsorship` es una línea plana en un nivel distinto para "
+"cada unidad."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:420004
+#: 17ee8f2dd75a433aa9334c6b2d1ee5ec
+msgid "The average spend per unit makes the `sponsorship` plan explicit."
+msgstr "El gasto promedio por unidad deja explícito el plan de `sponsorship`."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:440002
+#: 25d2c2adeeb348969d7aa496d3c83e86
+msgid ""
+"Each unit has its own `sponsorship` level, lowest in `south` and highest "
+"in `north`. Keep this in mind: a constant per unit is exactly what a per-"
+"unit intercept also describes."
+msgstr ""
+"Cada unidad tiene su propio nivel de `sponsorship`, el más bajo en `south` y"
+" el más alto en `north`. Tenga esto presente: una constante por unidad es "
+"exactamente lo que también describe un intercepto por unidad."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:440004
+#: 4f7d0ffe03204d24ba745207942bf66a
+#, python-brace-format
+msgid ""
+"Here is the key design check. We compare the variability of the spend "
+"level with the variability of the year-over-year spend contrast. We only "
+"use the modeled weeks: every week after the first cycle except the first "
+"$l_{\\max} = 8$, so that adstock has warmed up on both sides of every "
+"pair. The level recursion still needs the first $8$ weeks, so we generate"
+" them too."
+msgstr ""
+"Aquí está la verificación clave del diseño. Comparamos la variabilidad del "
+"nivel de gasto con la variabilidad del contraste interanual del gasto. Solo "
+"usamos las semanas modeladas: cada semana posterior al primer ciclo salvo "
+"las primeras $l_{\\max} = 8$, de modo que el adstock se haya calentado a "
+"ambos lados de cada par. La recursión del nivel aún necesita las primeras "
+"$8$ semanas, así que también las generamos."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:460002
+#: 845fbbaaf7ae40719080d7ac92f48d4c
+msgid ""
+"The year-over-year contrasts of `tv` and `search` vary even more than "
+"their levels, so the ratio model has plenty of signal for these two "
+"channels. The contrast of `sponsorship` is exactly zero, although its "
+"level varies across units. The ratio model never sees this channel."
+msgstr ""
+"Los contrastes interanuales de `tv` y `search` varían incluso más que sus "
+"niveles, así que el modelo de razón tiene señal de sobra para estos dos "
+"canales. El contraste de `sponsorship` es exactamente cero, aunque su nivel "
+"varía entre unidades. El modelo de razón nunca ve este canal."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:470002
+#: e26656452d894bf28100c1d00d8dfbe5
+msgid "Ground-Truth Parameters"
+msgstr "Parámetros verdaderos"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:470004
+#: b63896067f86414e9964986b9bc2c051
+msgid ""
+"Next, we fix the true parameters. The saturation `beta` values are in "
+"**ratio points**: a full swing of `tv` moves the year-over-year ratio by "
+"up to $0.13$, that is $13\\%$ of the reference level."
+msgstr ""
+"A continuación fijamos los parámetros verdaderos. Los valores de `beta` de "
+"saturación están en **puntos de razón**: una variación completa de `tv` "
+"mueve la razón interanual hasta $0.13$, es decir, un $13\\%$ del nivel de "
+"referencia."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:490002
+#: dc98e0d7a0dc4c72baf32448fdf25408
+msgid ""
+"Let's look at the true media parameters. We reuse these labels in every "
+"parameter figure below."
+msgstr ""
+"Veamos los parámetros verdaderos de los medios. Reutilizamos estas etiquetas"
+" en cada figura de parámetros más abajo."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:510002
+#: b5ad6f60bdda4f5fb40ac89132004f2a
+msgid ""
+"`tv` has the longest carryover and the largest effect. `search` has the "
+"shortest carryover and the steepest saturation. `sponsorship` has the "
+"smallest effect, but we will see that the year-over-year model cannot see"
+" it at all."
+msgstr ""
+"`tv` tiene el efecto de arrastre más largo y el efecto más grande. `search` "
+"tiene el efecto de arrastre más corto y la saturación más pronunciada. "
+"`sponsorship` tiene el menor efecto, pero veremos que el modelo interanual "
+"no puede verlo en absoluto."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:520004
+#: 6100fbfc21ea429d96c9f8f3f285d529
+#, python-brace-format
+msgid ""
+"We wrap the model in a function, so that the *same* graph serves three "
+"purposes: data generation (with the parameters clamped by "
+"{func}`pymc.do`), inference on the training window, and prediction on "
+"another window. Here is the full model for unit $u$ and week $t$:"
+msgstr ""
+"Envolvemos el modelo en una función, de modo que el *mismo* grafo sirva para"
+" tres propósitos: generación de datos (con los parámetros fijados mediante "
+"{func}`pymc.do`), inferencia sobre la ventana de entrenamiento y predicción "
+"sobre otra ventana. Este es el modelo completo para la unidad $u$ y la "
+"semana $t$:"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:520006
+#: 32945c3836994876b6d3f11e87037842
+msgid ""
+"\n"
+"\\begin{aligned}\n"
+"\\tilde{a}_{c,u,t} &= \\sum_{l=0}^{L-1} w_l(\\alpha_c) \\, a_{c,u,t-l},\n"
+"\\qquad w_l(\\alpha_c) = \\frac{\\alpha_c^{l}}{\\sum_{i=0}^{L-1} "
+"\\alpha_c^{i}} \\\\\n"
+"f_{c,u,t} &= \\beta_c \\, \\frac{1 - \\exp(-\\lambda_c "
+"\\tilde{a}_{c,u,t})}{1 + \\exp(-\\lambda_c \\tilde{a}_{c,u,t})} \\\\\n"
+"\\mu_{u,t} &= g_u + \\sum_c \\bigl(f_{c,u,t} - f_{c,u,r(t)}\\bigr) + "
+"\\sum_j \\gamma_j \\bigl(x_{j,u,t} - x_{j,u,r(t)}\\bigr) \\\\\n"
+"z_{u,t} &\\sim \\text{Normal}(\\mu_{u,t}, \\sigma_u)\n"
+"\\end{aligned}\n"
+msgstr ""
+"\n"
+"\\begin{aligned}\n"
+"\\tilde{a}_{c,u,t} &= \\sum_{l=0}^{L-1} w_l(\\alpha_c) \\, a_{c,u,t-l},\n"
+"\\qquad w_l(\\alpha_c) = \\frac{\\alpha_c^{l}}{\\sum_{i=0}^{L-1} \\alpha_c^{i}} \\\\\n"
+"f_{c,u,t} &= \\beta_c \\, \\frac{1 - \\exp(-\\lambda_c \\tilde{a}_{c,u,t})}{1 + \\exp(-\\lambda_c \\tilde{a}_{c,u,t})} \\\\\n"
+"\\mu_{u,t} &= g_u + \\sum_c \\bigl(f_{c,u,t} - f_{c,u,r(t)}\\bigr) + \\sum_j \\gamma_j \\bigl(x_{j,u,t} - x_{j,u,r(t)}\\bigr) \\\\\n"
+"z_{u,t} &\\sim \\text{Normal}(\\mu_{u,t}, \\sigma_u)\n"
+"\\end{aligned}\n"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:520016
+#: d195d1eecd6c4b0299ac11c8fd439cc4
+msgid "The symbols mean the following:"
+msgstr "Los símbolos significan lo siguiente:"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:520018
+#: df9c4542ca604ffba598e9af7e77d31a
+#, python-brace-format
+msgid ""
+"$a_{c,u,t}$ is the spend of channel $c$, scaled so that the largest value"
+" of each channel is $1$."
+msgstr ""
+"$a_{c,u,t}$ es el gasto del canal $c$, escalado de modo que el mayor valor "
+"de cada canal sea $1$."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:520019
+#: 5004dd4d647c4fbcbee25e91e901f256
+#, python-brace-format
+msgid ""
+"$\\tilde{a}_{c,u,t}$ is the adstocked spend. The geometric weights "
+"$w_l(\\alpha_c)$ sum to one over $L = 8$ weeks (`GeometricAdstock`)."
+msgstr ""
+"$\\tilde{a}_{c,u,t}$ es el gasto con adstock. Los pesos geométricos "
+"$w_l(\\alpha_c)$ suman uno sobre $L = 8$ semanas (`GeometricAdstock`)."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:520020
+#: 76122dd912d7439aad70544f0f2d0d3c
+msgid ""
+"$\\alpha_c$ is the adstock decay, the share of the effect that carries "
+"over to the next week."
+msgstr ""
+"$\\alpha_c$ es el decaimiento del adstock, la proporción del efecto que se "
+"arrastra a la semana siguiente."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:520021
+#: 97a998e8719f40d2927b6d959cd6e9d2
+msgid ""
+"$\\lambda_c$ and $\\beta_c$ are the steepness and the maximum of the "
+"saturation curve (`LogisticSaturation`). $\\beta_c$ is in ratio points, "
+"so $\\beta_c = 0.1$ means that the channel at full spend lifts the KPI by"
+" up to $10\\%$ of the reference level."
+msgstr ""
+"$\\lambda_c$ y $\\beta_c$ son la pendiente y el máximo de la curva de "
+"saturación (`LogisticSaturation`). $\\beta_c$ está en puntos de razón, de "
+"modo que $\\beta_c = 0.1$ significa que el canal con gasto completo eleva el"
+" KPI hasta un $10\\%$ del nivel de referencia."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:520022
+#: 681273a3f2a64331aada6ca62f0cb1b8
+msgid "$g_u$ is the growth rate of unit $u$ (`intercept` in the code)."
+msgstr ""
+"$g_u$ es la tasa de crecimiento de la unidad $u$ (`intercept` en el código)."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:520023
+#: 09929effd1fb44159f69dc1f36cc8faf
+msgid ""
+"$\\gamma_j$ is the coefficient of control $j$ on its raw scale "
+"(`gamma_control` in the code)."
+msgstr ""
+"$\\gamma_j$ es el coeficiente del control $j$ en su escala original "
+"(`gamma_control` en el código)."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:520024
+#: 0a98bd8b760341a48fc193b652de3e0b
+msgid ""
+"$\\sigma_u$ is the noise scale of the ratio, one per unit (`z_sigma` in "
+"the code)."
+msgstr ""
+"$\\sigma_u$ es la escala de ruido de la razón, una por unidad (`z_sigma` en "
+"el código)."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:520027
+#: 80e7bd9d9c0a49e0bb0cdec1d3226e12
+msgid "**Why this parametrization?**"
+msgstr "**¿Por qué esta parametrización?**"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:520029
+#: bb3501492df8476dbc3aeefe5b8dd0d2
+#, python-brace-format
+msgid ""
+"The saturation acts on the spend level of each week, and we take the "
+"difference afterwards. A difference inside the curve, $f_c(a_t - "
+"a_{r(t)})$, would treat a move from $0.0$ to $0.1$ like a move from $0.9$"
+" to $1.0$, which contradicts diminishing returns."
+msgstr ""
+"La saturación actúa sobre el nivel de gasto de cada semana, y tomamos la "
+"diferencia después. Una diferencia dentro de la curva, $f_c(a_t - "
+"a_{r(t)})$, trataría un paso de $0.0$ a $0.1$ igual que un paso de $0.9$ a "
+"$1.0$, lo que contradice los rendimientos decrecientes."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:520031
+#: abd41fe1ffcf46dbb6f6bb8e493d96f6
+msgid ""
+"The adstock runs over the full contiguous series, and only then do we "
+"pick the weeks $t$ and $r(t)$. If we picked the weeks first, the "
+"carryover of the reference week would come from the history of the "
+"current week, which is wrong."
+msgstr ""
+"El adstock se ejecuta sobre toda la serie contigua, y solo después elegimos "
+"las semanas $t$ y $r(t)$. Si eligiéramos las semanas primero, el efecto de "
+"arrastre de la semana de referencia provendría del historial de la semana "
+"actual, lo cual es incorrecto."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:520033
+#: f6df60209b4b4f858f76dcffcba1edeb
+#, python-brace-format
+msgid ""
+"The controls enter linearly, so $\\gamma_j (x_{j,u,t} - x_{j,u,r(t)}) = "
+"\\gamma_j x_{j,u,t} - \\gamma_j x_{j,u,r(t)}$ holds exactly. We use this "
+"property when we decompose the KPI later."
+msgstr ""
+"Los controles entran de forma lineal, de modo que $\\gamma_j (x_{j,u,t} - "
+"x_{j,u,r(t)}) = \\gamma_j x_{j,u,t} - \\gamma_j x_{j,u,r(t)}$ se cumple "
+"exactamente. Usamos esta propiedad cuando descomponemos el KPI más adelante."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:520035
+#: 6d4ef53a12dd4a3eadd35fcb38d1e7fb
+#, python-brace-format
+msgid ""
+"The noise is additive on $z$, so in KPI units its standard deviation is "
+"$\\sigma_u \\, y_{u,r(t)}$: large in the peak season and small in the "
+"trough."
+msgstr ""
+"El ruido es aditivo sobre $z$, así que en unidades de KPI su desviación "
+"estándar es $\\sigma_u \\, y_{u,r(t)}$: grande en temporada alta y pequeña "
+"en el valle."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:520039
+#: 142b59bdffdd49eeac7103165f02bbf6
+msgid "**Why a custom model?**"
+msgstr "**¿Por qué un modelo personalizado?**"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:520041
+#: 16cb9d005c034044aa5875271af9e72a
+#, python-brace-format
+msgid ""
+"The {class}`~pymc_marketing.mmm.mmm.MMM` class covers a lot of ground, "
+"but the year-over-year transform changes the model itself, not only the "
+"preprocessing. Every driver has to enter as a within-pair contrast, and "
+"the difference comes *after* adstock and saturation. Writing the model in"
+" PyMC keeps this structure visible, while the PyMC-Marketing components "
+"still do the heavy lifting."
+msgstr ""
+"La clase {class}`~pymc_marketing.mmm.mmm.MMM` cubre mucho terreno, pero la "
+"transformación interanual cambia el modelo en sí, no solo el "
+"preprocesamiento. Cada factor tiene que entrar como un contraste dentro del "
+"par, y la diferencia viene *después* del adstock y la saturación. Escribir "
+"el modelo en PyMC mantiene visible esta estructura, mientras que los "
+"componentes de PyMC-Marketing siguen haciendo el trabajo pesado."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:530002
+#: 35d1ea2f5ae048b2960863ab6c32d639
+msgid "We use the following priors:"
+msgstr "Usamos los siguientes priors:"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:530004
+#: 1c3a8fa5a37847e9bfe962f12f9ceb4f
+#, python-brace-format
+msgid ""
+"\n"
+"\\begin{aligned}\n"
+"\\alpha_c &\\sim \\text{Beta}(1, 3) \\\\\n"
+"\\lambda_c &\\sim \\text{Gamma}(3, 1) \\\\\n"
+"\\beta_c &\\sim \\text{HalfNormal}(0.2) \\\\\n"
+"g_u &\\sim \\text{Normal}(1, 0.15) \\\\\n"
+"\\gamma_j &\\sim \\text{Normal}(0, 0.5) \\\\\n"
+"\\sigma_u &\\sim \\text{HalfNormal}(0.1)\n"
+"\\end{aligned}\n"
+msgstr ""
+"\n"
+"\\begin{aligned}\n"
+"\\alpha_c &\\sim \\text{Beta}(1, 3) \\\\\n"
+"\\lambda_c &\\sim \\text{Gamma}(3, 1) \\\\\n"
+"\\beta_c &\\sim \\text{HalfNormal}(0.2) \\\\\n"
+"g_u &\\sim \\text{Normal}(1, 0.15) \\\\\n"
+"\\gamma_j &\\sim \\text{Normal}(0, 0.5) \\\\\n"
+"\\sigma_u &\\sim \\text{HalfNormal}(0.1)\n"
+"\\end{aligned}\n"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:530015
+#: 5c9c883fabfc49f4beb057967bfa57a3
+msgid ""
+"The adstock prior has mean $0.25$, so most of the effect lands in the "
+"week of the spend, while its tail allows a carryover over several weeks. "
+"The steepness prior has mean $3$. At that value, a channel at full scaled"
+" spend reaches about $90\\%$ of its maximum effect, so the data have to "
+"decide how strong the diminishing returns are."
+msgstr ""
+"El prior del adstock tiene media $0.25$, de modo que la mayor parte del "
+"efecto cae en la semana del gasto, mientras que su cola permite un efecto de"
+" arrastre de varias semanas. El prior de la pendiente tiene media $3$. Con "
+"ese valor, un canal con gasto escalado completo alcanza alrededor del "
+"$90\\%$ de su efecto máximo, así que los datos tienen que decidir cuán "
+"fuertes son los rendimientos decrecientes."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:530017
+#: 79ce637ecb254bfa85df4c2e516acae7
+msgid ""
+"The maximum effect has mean $0.16$ ratio points and puts $94\\%$ of its "
+"mass below $0.38$. Its standard deviation, about $0.12$, is on the same "
+"scale as the true values ($0.06$ to $0.13$). Keep this in mind: the "
+"recovery check runs with a prior that already knows the right order of "
+"magnitude."
+msgstr ""
+"El efecto máximo tiene media $0.16$ puntos de razón y coloca el $94\\%$ de "
+"su masa por debajo de $0.38$. Su desviación estándar, de cerca de $0.12$, "
+"está en la misma escala que los valores verdaderos ($0.06$ a $0.13$). Tenga "
+"esto presente: la verificación de recuperación se ejecuta con un prior que "
+"ya conoce el orden de magnitud correcto."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:530019
+#: 41ea7f3d24ac41ce8b172ddce3181c39
+msgid ""
+"The growth prior is centered at no growth and puts $94\\%$ of its mass "
+"between $0.72$ and $1.28$, which allows annual growth between $-28\\%$ "
+"and $+28\\%$. The control prior is weakly informative on the raw discount"
+" share. The noise prior has mean $0.08$, so it expects noise of a few "
+"percent of the reference level and still allows more."
+msgstr ""
+"El prior del crecimiento está centrado en ausencia de crecimiento y coloca "
+"el $94\\%$ de su masa entre $0.72$ y $1.28$, lo que permite un crecimiento "
+"anual entre $-28\\%$ y $+28\\%$. El prior del control es débilmente "
+"informativo sobre la proporción de descuento en su escala original. El prior"
+" del ruido tiene media $0.08$, así que espera un ruido de unos pocos puntos "
+"porcentuales del nivel de referencia y aun así permite más."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:530021
+#: b617756a8f514d8d840a6e450ca00faa
+#, python-brace-format
+msgid ""
+"We define each prior once as a {class}`~pymc_extras.prior.Prior`, so that"
+" the same object feeds the model and the plots."
+msgstr ""
+"Definimos cada prior una sola vez como un {class}`~pymc_extras.prior.Prior`,"
+" de modo que el mismo objeto alimente al modelo y a los gráficos."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:550002
+#: 250e096c5f4f4ae7b3cc04420569c676
+msgid ""
+"Let's visualize the priors with preliz, together with the true values "
+"that generate the data."
+msgstr ""
+"Visualicemos los priors con preliz, junto con los valores verdaderos que "
+"generan los datos."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:570002
+#: fb092dc2a5544b84917c75ca58808f2b
+msgid ""
+"Every true value sits inside the bulk of its prior, so the priors do not "
+"rule out the truth, and they are wide enough to let the data decide."
+msgstr ""
+"Cada valor verdadero se ubica dentro de la parte central de su prior, así "
+"que los priors no descartan la verdad y son lo bastante amplios para dejar "
+"que los datos decidan."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:570004
+#: 59646c1196ba40ec89f7790e4592d260
+msgid ""
+"Now we write the model builder. Note how the adstock and the saturation "
+"act on the whole series before we gather the current and the reference "
+"weeks."
+msgstr ""
+"Ahora escribimos el constructor del modelo. Observe cómo el adstock y la "
+"saturación actúan sobre toda la serie antes de que reunamos las semanas "
+"actual y de referencia."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:590004
+#: 65fff827c36849e8bc37137c62b42372
+msgid "Forward Simulation"
+msgstr "Simulación hacia adelante"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:590006
+#: 3105e6394ca44f18b5dc7349a2d81130
+#, python-brace-format
+msgid ""
+"We clamp every random variable to its true value with `do`, then draw one"
+" realization of $z$. This is the strategy of {ref}`mmm_data_generator`: "
+"the probabilistic model becomes a deterministic forward simulator, except"
+" for the observation noise. The generator covers every week after the "
+"first cycle, including the adstock warm-up."
+msgstr ""
+"Fijamos cada variable aleatoria a su valor verdadero con `do`, y luego "
+"generamos una realización de $z$. Esta es la estrategia de "
+"{ref}`mmm_data_generator`: el modelo probabilístico se convierte en un "
+"simulador hacia adelante determinista, salvo por el ruido de observación. El"
+" generador cubre cada semana posterior al primer ciclo, incluido el "
+"calentamiento del adstock."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:610002
+#: c9942ed2b01a46b88f0527a966df7404
+msgid ""
+"The clamped parameters now appear as `Data` nodes, and the only random "
+"node left is the ratio `z`. The rest of the graph is the model that we "
+"fit later: the adstock and the saturation act on the full series, and "
+"`f_current` and `f_reference` gather the result at the current and at the"
+" reference week."
+msgstr ""
+"Los parámetros fijados aparecen ahora como nodos `Data`, y el único nodo "
+"aleatorio que queda es la razón `z`. El resto del grafo es el modelo que "
+"ajustamos más adelante: el adstock y la saturación actúan sobre la serie "
+"completa, y `f_current` y `f_reference` reúnen el resultado en la semana "
+"actual y en la de referencia."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:610004
+#: 998753697c184eafa5d382c735d94340
+msgid ""
+"We draw the ratio and keep the true mean `mu` too, because it defines the"
+" best possible forecast later."
+msgstr ""
+"Generamos la razón y conservamos también la media verdadera `mu`, porque "
+"define el mejor pronóstico posible más adelante."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:630002
+#: 75950becdd1b432c928e5bb6133644df
+msgid "From Ratios to Levels"
+msgstr "De razones a niveles"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:630004
+#: 1ef92a13523e483eb6c8a898a93b8f90
+#, python-brace-format
+msgid ""
+"The first cycle is the seed: a smooth annual shape scaled by the size of "
+"each unit, with the holiday profile at its first-year position. Every "
+"later week comes from the recursion $y_{u,t} = y_{u,r(t)} \\, z_{u,t}$. "
+"So the seasonal shape, the trend and the holiday all move forward through"
+" the reference map. The moving holiday needs no separate term, because "
+"the anchored map carries the whole three-week window from one cycle to "
+"the next."
+msgstr ""
+"El primer ciclo es la semilla: una forma anual suave escalada por el tamaño "
+"de cada unidad, con el perfil de la festividad en su posición del primer "
+"año. Cada semana posterior sale de la recursión $y_{u,t} = y_{u,r(t)} \\, "
+"z_{u,t}$. Así, la forma estacional, la tendencia y la festividad avanzan a "
+"través del mapa de referencia. La festividad móvil no necesita un término "
+"aparte, porque el mapa anclado lleva la ventana completa de tres semanas de "
+"un ciclo al siguiente."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:630006
+#: 6733204295e049a3af6c031939cf8ddb
+msgid "Here are two important remarks about this construction:"
+msgstr "Aquí hay dos observaciones importantes sobre esta construcción:"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:630008
+#: 7fa8325b361d47ab91beae8564a096d3
+#, python-brace-format
+msgid ""
+"**The model sees its own draw.** The ratio $y_{u,t} / y_{u,r(t)}$ gives "
+"back $z$ to floating point, because the division undoes the recursion. So"
+" we fit the year-over-year model on a draw from its own prior predictive."
+" The level construction only matters for the level-space models and for "
+"scoring in KPI units."
+msgstr ""
+"**El modelo ve su propia muestra.** La razón $y_{u,t} / y_{u,r(t)}$ devuelve"
+" $z$ hasta el punto flotante, porque la división deshace la recursión. Por "
+"eso ajustamos el modelo interanual sobre una muestra de su propia predictiva"
+" previa. La construcción del nivel solo importa para los modelos en espacio "
+"de niveles y para evaluar en unidades de KPI."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:630009
+#: 71e16f9ed0a74d0c9b64a678537fa107
+msgid ""
+"**The seasonal shape drifts.** The recursion chains across cycles, so "
+"$\\log y$ at each week of the year is a random walk across years with a "
+"step size of about $\\sigma_u$. This is a seasonal random walk, the "
+"process for which seasonal differencing is the best predictor. In other "
+"words, this panel is the home turf of the transform."
+msgstr ""
+"**La forma estacional deriva.** La recursión se encadena entre ciclos, de "
+"modo que $\\log y$ en cada semana del año es una caminata aleatoria a lo "
+"largo de los años con un tamaño de paso de aproximadamente $\\sigma_u$. Es "
+"una caminata aleatoria estacional, el proceso para el cual la diferenciación"
+" estacional es el mejor predictor. En otras palabras, este panel es el "
+"terreno propio de la transformación."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:630011
+#: 4b8145ab98c94a97bf22edb67ac8f735
+msgid "We start with the annual shape and the size of each unit."
+msgstr "Empezamos con la forma anual y el tamaño de cada unidad."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:650002
+#: 27317d21c4084ccf8b72675423e31508
+msgid ""
+"The seed puts the holiday profile into the annual shape and scales it by "
+"unit size."
+msgstr ""
+"La semilla incorpora el perfil de la festividad a la forma anual y la escala"
+" por el tamaño de la unidad."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:670002
+#: 5f61fb5a96f84ee08a9c98c01dbaf8d6
+msgid "The recursion then rolls the seed forward, one week at a time."
+msgstr "La recursión luego hace avanzar la semilla, una semana a la vez."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:690002
+#: c65fcbe58d50479b85d3cee2d958d55a
+msgid "We combine the two helpers to build the KPI of the panel."
+msgstr ""
+"Combinamos las dos funciones auxiliares para construir el KPI del panel."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:710002
+#: cdb96d4b421a435f9ce5b8c450461a01
+msgid ""
+"Let's check the calendar of the generated KPI. A holiday spike should "
+"appear exactly once per cycle, at the anchored position, and nowhere "
+"else. We measure each week against the mean of its two neighbors."
+msgstr ""
+"Revisemos el calendario del KPI generado. Un pico festivo debería aparecer "
+"exactamente una vez por ciclo, en la posición anclada, y en ningún otro "
+"lugar. Medimos cada semana contra la media de sus dos vecinas."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:740002
+#: c5d27bcccf894d678c94dc656116b111
+msgid ""
+"Exactly six weeks pass the threshold, one per cycle, and each one sits on"
+" a holiday line. So the anchored map carries the holiday forward without "
+"copying it onto a normal week. The smooth stretch in 2019 is the noise-"
+"free seed cycle."
+msgstr ""
+"Exactamente seis semanas superan el umbral, una por ciclo, y cada una se "
+"ubica sobre una línea de festividad. Así, el mapa anclado lleva la "
+"festividad hacia adelante sin copiarla sobre una semana normal. El tramo "
+"suave de 2019 es el ciclo semilla sin ruido."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:750004
+#: 713f207acf2f44669c42bf37c0b66831
+msgid ""
+"We should always start by looking at the data! Let's plot the KPI of "
+"every unit."
+msgstr ""
+"¡Siempre deberíamos empezar mirando los datos! Tracemos el KPI de cada "
+"unidad."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:770002
+#: a8b943bf88a047a985d44306d8751af1
+msgid ""
+"The seasonal amplitude is large and grows with the level: the summer peak"
+" is about three times the winter trough. The holiday spike moves between "
+"weeks $12$ and $15$, in March and April. The units differ in size and "
+"growth, and the seasonal shape drifts slowly from year to year, as a "
+"seasonal random walk should."
+msgstr ""
+"La amplitud estacional es grande y crece con el nivel: el pico de verano es "
+"aproximadamente tres veces el valle de invierno. El pico de la festividad se"
+" mueve entre las semanas $12$ y $15$, en marzo y abril. Las unidades "
+"difieren en tamaño y crecimiento, y la forma estacional deriva lentamente de"
+" un año a otro, como debe hacerlo una caminata aleatoria estacional."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:770004
+#: fcf0b516d65945f1878f8aa34fb8c564
+msgid ""
+"Now let's look at the same series after the transform, with the anchored "
+"map and with the naive lag."
+msgstr ""
+"Veamos ahora la misma serie después de la transformación, con el mapa "
+"anclado y con el rezago ingenuo."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:790002
+#: d9cef5af210d40e3bc0ee668541877c1
+msgid ""
+"With the anchored map, the ratio fluctuates around the growth rate of "
+"each unit. With the naive lag, the same series has a spike and a crater "
+"at every moving holiday, because a holiday week is divided by a normal "
+"week and the other way around. These are the weeks where the KPI is "
+"largest, so a model fitted on the naive ratio would spend its media "
+"coefficients on a calendar artifact."
+msgstr ""
+"Con el mapa anclado, la razón fluctúa alrededor de la tasa de crecimiento de"
+" cada unidad. Con el rezago ingenuo, la misma serie tiene un pico y un "
+"cráter en cada festividad móvil, porque una semana festiva se divide por una"
+" semana normal y al revés. Estas son las semanas en las que el KPI es mayor,"
+" así que un modelo ajustado sobre la razón ingenua gastaría sus coeficientes"
+" de medios en un artefacto del calendario."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:790004
+#: 6311c874b00140ffba9bb45e1811b581
+msgid "The bar chart below puts a number on the damage."
+msgstr "El gráfico de barras de abajo pone un número al daño."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:810002
+#: 0b5ee28a607a4859a85edf5ca4b36a7a
+msgid ""
+"The naive lag almost doubles the standard deviation of $z$, and it more "
+"than triples its largest deviation from one."
+msgstr ""
+"El rezago ingenuo casi duplica la desviación estándar de $z$, y más que "
+"triplica su mayor desviación respecto de uno."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:810005
+#: 1e3ee27bd22d4a31851a52c4ba42b7c3
+msgid ""
+"On this panel the comparison is circular, because we generated the levels"
+" *through* the anchored map. The figure shows the size of the artifact "
+"that a wrong map produces. It is not evidence that this map is right for "
+"real data."
+msgstr ""
+"En este panel la comparación es circular, porque generamos los niveles *a "
+"través* del mapa anclado. La figura muestra el tamaño del artefacto que "
+"produce un mapa equivocado. No es evidencia de que este mapa sea el correcto"
+" para datos reales."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:820002
+#: c7837cc975ec48ca9e5091b13c9162dd
+msgid "Train Test Split"
+msgstr "División entrenamiento-prueba"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:820004
+#: 1fa95fde378c44bdb13e0c2578643dc3
+msgid ""
+"We hold out the last $52$ weeks and train on all modeled weeks before "
+"them. Every reference week of the holdout window sits inside the training"
+" window, so the holdout prediction only needs observed history, not model"
+" output."
+msgstr ""
+"Reservamos las últimas $52$ semanas y entrenamos con todas las semanas "
+"modeladas anteriores. Cada semana de referencia de la ventana de prueba está"
+" dentro de la ventana de entrenamiento, de modo que la predicción sobre la "
+"ventana de prueba solo necesita historial observado, no la salida del "
+"modelo."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:840002
+#: daf3cc7e903c415d8e034a2cdad8fb3e
+msgid "Prior Predictive Checks"
+msgstr "Chequeos predictivos previos"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:840004
+#: f5397f21316d47a7974ba00fa6644830
+msgid "We build the model on the training window and look at its graph."
+msgstr ""
+"Construimos el modelo sobre la ventana de entrenamiento y miramos su grafo."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:860002
+#: bf00ef5922594d8bb040b9719660983e
+msgid ""
+"The graph shows the structure of the transform. The adstock and "
+"saturation parameters act on the full series (`date`), and the result is "
+"gathered twice, as `f_current` and `f_reference` (`obs_date`). Their "
+"difference, the control contrast and the growth rate `intercept` add up "
+"to `mu`."
+msgstr ""
+"El grafo muestra la estructura de la transformación. Los parámetros de "
+"adstock y saturación actúan sobre la serie completa (`date`), y el resultado"
+" se reúne dos veces, como `f_current` y `f_reference` (`obs_date`). Su "
+"diferencia, el contraste del control y la tasa de crecimiento `intercept` "
+"suman `mu`."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:860004
+#: 55eab1c8ca504021851214ce07aa69e8
+msgid "Next, we sample from the prior predictive distribution."
+msgstr "A continuación, muestreamos de la distribución predictiva previa."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:880002
+#: d6d7aa1c53da48cfa463047db40a6ae6
+msgid ""
+"Let's compare the prior predictive ratio with the observed ratio of "
+"`north`."
+msgstr ""
+"Comparemos la razón predictiva previa con la razón observada de `north`."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:900002
+#: 4f8e02ba616344d6b2e79a2c7b37133d
+msgid ""
+"The prior $94\\%$ HDI covers ratios from about $0.6$ to $1.4$, so before "
+"seeing the data the priors allow year-over-year swings of a few tens of "
+"percent. This is wide around the observed ratio, but not absurd for a "
+"sales KPI."
+msgstr ""
+"El HDI del $94\\%$ del prior cubre razones de aproximadamente $0.6$ a $1.4$,"
+" así que antes de ver los datos los priors permiten oscilaciones "
+"interanuales de unas pocas decenas de puntos porcentuales. Esto es amplio "
+"alrededor de la razón observada, pero no absurdo para un KPI de ventas."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:910002
+#: 53b9bcf96bdb4a06a3e2e9f6a719094d
+msgid "Model Fitting"
+msgstr "Ajuste del modelo"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:910004
+#: c5a58c69ba494e56b82883485c17635c
+msgid "We are now ready to fit the model."
+msgstr "Ya estamos listos para ajustar el modelo."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:930002
+#: 1abb7731df01415f9816120b3554debf
+msgid "Model Diagnostics"
+msgstr "Diagnósticos del modelo"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:930004
+#: c377c0829b0a44e3bd4a37b96087c0de
+msgid ""
+"Before looking into the results, let's check some diagnostics. We start "
+"with the number of divergences."
+msgstr ""
+"Antes de analizar los resultados, revisemos algunos diagnósticos. Empezamos "
+"con el número de divergencias."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:950002
+#: 8360a868262d4e6cb4b9e0227a7e78fa
+#, python-brace-format
+msgid ""
+"Next, {func}`arviz.diagnose` runs the standard sampler checks in one "
+"call: divergences, energy, effective sample size and $\\hat{R}$."
+msgstr ""
+"A continuación, {func}`arviz.diagnose` ejecuta las verificaciones estándar "
+"del muestreador en una sola llamada: divergencias, energía, tamaño de "
+"muestra efectivo y $\\hat{R}$."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:970002
+#: 056ebadd8e94447b9612c4baae1e476c
+msgid "Finally, we look at the traces of the media parameters."
+msgstr "Por último, miramos las trazas de los parámetros de los medios."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:990002
+#: abd8c6e72d9a4e8a850d26a71b003e9c
+#, python-brace-format
+msgid ""
+"We see a good mixing in the traces, consistent with zero divergences and "
+"a largest $\\hat{R}$ of $1.003$. Note that the `sponsorship` traces "
+"wander over the whole range of their priors. This is the first sign of "
+"what we discuss in the parameter recovery section."
+msgstr ""
+"Vemos una buena mezcla en las trazas, consistente con cero divergencias y un"
+" $\\hat{R}$ máximo de $1.003$. Observe que las trazas de `sponsorship` vagan"
+" por todo el rango de sus priors. Esta es la primera señal de lo que "
+"discutimos en la sección de recuperación de parámetros."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1000002
+#: 839545a0ad2b48d3ad908e804afc6a5e
+msgid "Posterior Predictive Checks"
+msgstr "Chequeos predictivos posteriores"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1000004
+#: 448012afeda8492f995fde4790a4d83e
+msgid ""
+"As our model and posterior samples are looking good, we can now look into"
+" the posterior predictive checks. We compare the posterior predictive "
+"ratio with the observed ratio of every unit."
+msgstr ""
+"Como nuestro modelo y las muestras posteriores se ven bien, ahora podemos "
+"pasar a los chequeos predictivos posteriores. Comparamos la razón predictiva"
+" posterior con la razón observada de cada unidad."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1020002
+#: c0f3b43624194a51ad8fd4e3ea7065ea
+msgid ""
+"Let's put a number on the fit: the share of training weeks inside the "
+"$94\\%$ HDI of every unit."
+msgstr ""
+"Pongamos un número al ajuste: la proporción de semanas de entrenamiento "
+"dentro del HDI del $94\\%$ de cada unidad."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1040002
+#: 08d27f4f63c345c6b120f8eeffea11e4
+msgid ""
+"The posterior predictive ratio looks quite reasonable. The in-sample "
+"coverage of the $94\\%$ HDI ranges from $93.0\\%$ to $95.5\\%$ across the"
+" four units, close to nominal."
+msgstr ""
+"La razón predictiva posterior se ve bastante razonable. La cobertura dentro "
+"de muestra del HDI del $94\\%$ va de $93.0\\%$ a $95.5\\%$ entre las cuatro "
+"unidades, cerca del nivel nominal."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1050004
+#: 5f1697155bfa41d590086c9fa55e9d3f
+msgid ""
+"The data-generating process *is* this model, so the posteriors should "
+"concentrate on the true values. Where they do not is the interesting "
+"part. We start with the growth rates, the control coefficient and the "
+"noise scales."
+msgstr ""
+"El proceso generador de datos *es* este modelo, así que las distribuciones "
+"posteriores deberían concentrarse en los valores verdaderos. Donde no lo "
+"hacen está lo interesante. Empezamos con las tasas de crecimiento, el "
+"coeficiente del control y las escalas de ruido."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1050006
+#: ec88d848e5154e8a8eefd764359e4e72
+#, python-brace-format
+msgid ""
+"These three groups live on very different scales, so we divide every "
+"posterior draw by its true value. On this scale a ratio of one means "
+"perfect recovery, and all parameters fit in one forest plot. We write a "
+"small helper around {func}`arviz.plot_forest`, and we reuse it for the "
+"contributions and for the comparison with the level models."
+msgstr ""
+"Estos tres grupos viven en escalas muy distintas, así que dividimos cada "
+"muestra posterior por su valor verdadero. En esta escala una razón de uno "
+"significa recuperación perfecta, y todos los parámetros caben en un solo "
+"gráfico de bosque. Escribimos una pequeña función auxiliar alrededor de "
+"{func}`arviz.plot_forest`, y la reutilizamos para las contribuciones y para "
+"la comparación con los modelos de nivel."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1070002
+#: 527ce439beeb4460a762338d2b1bbac1
+msgid ""
+"Let's compare the growth rates, the control coefficient and the noise "
+"scales with their true values."
+msgstr ""
+"Comparemos las tasas de crecimiento, el coeficiente del control y las "
+"escalas de ruido con sus valores verdaderos."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1090002
+#: b43ffe951aa846f7bca9883bb99f9ce7
+msgid ""
+"Every growth rate sits within half a percent of its true value. "
+"`gamma_control` sits about $5\\%$ below its true value, which stays "
+"inside its $94\\%$ HDI. The noise scales follow the *realized* noise of "
+"the training weeks rather than the true values. For `west`, the posterior"
+" sits about $14\\%$ below the true value, outside its $94\\%$ HDI, "
+"because the training weeks of `west` happened to be calm. We come back to"
+" this in the coverage section."
+msgstr ""
+"Cada tasa de crecimiento queda dentro de medio por ciento de su valor "
+"verdadero. `gamma_control` queda cerca de un $5\\%$ por debajo de su valor "
+"verdadero, lo que sigue dentro de su HDI del $94\\%$. Las escalas de ruido "
+"siguen el ruido *realizado* de las semanas de entrenamiento y no los valores"
+" verdaderos. Para `west`, la distribución posterior queda cerca de un "
+"$14\\%$ por debajo del valor verdadero, fuera de su HDI del $94\\%$, porque "
+"las semanas de entrenamiento de `west` resultaron ser tranquilas. Volvemos "
+"sobre esto en la sección de cobertura."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1090004
+#: 3ff93472dc6c42c0838964337e95e63a
+msgid "Next, let's compare prior, posterior and truth for the media parameters."
+msgstr ""
+"A continuación, comparemos el prior, la distribución posterior y el valor "
+"verdadero de los parámetros de los medios."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1110002
+#: 0326abcbae924e75a7316cc327a40630
+msgid ""
+"`tv` and `search` are recovered: the true values sit inside the bulk of "
+"their posteriors for all three parameters, and the posteriors are much "
+"narrower than the priors. `sponsorship` is not recovered. Its posteriors "
+"match its priors."
+msgstr ""
+"`tv` y `search` se recuperan: los valores verdaderos se ubican dentro de la "
+"parte central de sus distribuciones posteriores para los tres parámetros, y "
+"estas son mucho más estrechas que los priors. `sponsorship` no se recupera. "
+"Sus distribuciones posteriores coinciden con sus priors."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1120002
+#: ea160b89b5954bcdaa026c9d686159c9
+msgid "The Always-On Channel"
+msgstr "El canal siempre activo"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1120004
+#: 6006d2de31e842d38acc5c188851e61a
+#, python-brace-format
+msgid ""
+"Why does `sponsorship` not move? Its spend is identical from cycle to "
+"cycle, so $f_{c,u,t} - f_{c,u,r(t)} = 0$ for every modeled week. The "
+"channel drops out of the likelihood entirely, and its posterior is its "
+"prior. This is also why the modeled window starts $l_{\\max}$ weeks after"
+" the first cycle. Without that warm-up, the reference weeks at the very "
+"start of the series would carry a partially built adstock, and the "
+"always-on channel would leak a small amount of spurious information."
+msgstr ""
+"¿Por qué `sponsorship` no se mueve? Su gasto es idéntico de un ciclo a otro,"
+" así que $f_{c,u,t} - f_{c,u,r(t)} = 0$ para cada semana modelada. El canal "
+"desaparece por completo de la verosimilitud, y su distribución posterior es "
+"su prior. Por eso también la ventana modelada empieza $l_{\\max}$ semanas "
+"después del primer ciclo. Sin ese calentamiento, las semanas de referencia "
+"al inicio de la serie arrastrarían un adstock construido solo en parte, y el"
+" canal siempre activo filtraría una pequeña cantidad de información espuria."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1120006
+#: a1e9ec61a1fb4f84884a48988ceb7d34
+msgid ""
+"This is a property of the design, not a bug. But in practice it is one of"
+" the main traps of the transform: a user who reads a tight posterior "
+"interval on such a channel reads a prior and calls it evidence."
+msgstr ""
+"Esto es una propiedad del diseño, no un error. Pero en la práctica es una de"
+" las principales trampas de la transformación: un usuario que lee un "
+"intervalo posterior estrecho en un canal así está leyendo un prior y lo "
+"llama evidencia."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1120008
+#: 60a7f6c333954b7c9689a7798a93446d
+msgid ""
+"Let's be precise about what is specific to the transform. A channel whose"
+" spend is constant within each unit is collinear with a per-unit "
+"intercept in *any* model, including the level-space MMMs below, which is "
+"why we leave it out of them. A plan that repeats from cycle to cycle with"
+" any shape is confounded with the seasonal basis of a level model. So the"
+" transform does not create the problem. It makes it exact and detectable:"
+" the contrast is identically zero, and the ratio of posterior to prior "
+"standard deviation says so."
+msgstr ""
+"Seamos precisos sobre qué es específico de la transformación. Un canal cuyo "
+"gasto es constante dentro de cada unidad es colineal con un intercepto por "
+"unidad en *cualquier* modelo, incluidos los MMM en espacio de niveles de más"
+" abajo, razón por la cual lo dejamos fuera de ellos. Un plan que se repite "
+"de un ciclo a otro con cualquier forma se confunde con la base estacional de"
+" un modelo de nivel. Así que la transformación no crea el problema. Lo "
+"vuelve exacto y detectable: el contraste es idénticamente cero, y la razón "
+"entre la desviación estándar posterior y la del prior lo indica."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1120010
+#: 9bccfa4e4b4a4515bf69729492db891d
+msgid "Let's compute this ratio for every media parameter."
+msgstr "Calculemos esta razón para cada parámetro de los medios."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1150002
+#: c771cf0c92224ecf9311b72f3244dd89
+msgid ""
+"A ratio near $1$ means that the likelihood said nothing. `sponsorship` "
+"sits there for all three parameters ($1.02$, $0.98$ and $1.05$), and no "
+"amount of data collected under a flat plan will move it. The other two "
+"channels shrink to between $0.11$ and $0.44$ of their prior width. In "
+"other words, a year-over-year target model measures **plan changes**, not"
+" programs."
+msgstr ""
+"Una razón cercana a $1$ significa que la verosimilitud no dijo nada. "
+"`sponsorship` está ahí para los tres parámetros ($1.02$, $0.98$ y $1.05$), y"
+" ninguna cantidad de datos recolectados bajo un plan plano la moverá. Los "
+"otros dos canales se reducen a entre $0.11$ y $0.44$ del ancho de su prior. "
+"En otras palabras, un modelo interanual del objetivo mide **cambios de "
+"plan**, no programas."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1160004
+#: 0537b0e42fce405a98896cd9b7e043e5
+msgid ""
+"Now that we are happy with the model fit, we can look into the media and "
+"individual channel contributions."
+msgstr ""
+"Ahora que estamos conformes con el ajuste del modelo, podemos analizar las "
+"contribuciones de los medios y de cada canal."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1160006
+#: e7478e0703624fb09d7cfe75729d053c
+msgid "Channel Contributions"
+msgstr "Contribuciones por canal"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1160008
+#: a849a4b20da14eeeb148d3773d70e7c4
+#, python-brace-format
+msgid ""
+"The model works in ratio points, so we first convert every part of "
+"$\\mu_{u,t}$ to KPI units. We do this **per unit-period**: we multiply "
+"each ratio-space part by that unit-period's own reference level "
+"$y_{u,r(t)}$, and only then sum. Averaging the ratio contributions across"
+" the panel and scaling the average by one reference factor gives a "
+"different number, and the gap grows with the spread of the unit sizes."
+msgstr ""
+"El modelo trabaja en puntos de razón, así que primero convertimos cada parte"
+" de $\\mu_{u,t}$ a unidades de KPI. Lo hacemos **por unidad-período**: "
+"multiplicamos cada parte en el espacio de la razón por el nivel de "
+"referencia $y_{u,r(t)}$ propio de esa unidad-período, y solo entonces "
+"sumamos. Promediar las contribuciones de la razón sobre el panel y escalar "
+"el promedio por un único factor de referencia da un número distinto, y la "
+"brecha crece con la dispersión de los tamaños de las unidades."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1160010
+#: 70829c51657f47019e286cb91b1920b5
+#, python-brace-format
+msgid ""
+"The closure check below confirms that the converted parts plus the "
+"converted residual give back the observed level $y_{u,t}$ at every unit-"
+"period. This checks the conversion: it fails if the reference level that "
+"converts the parts is not the one that defined $z$, or if we aggregate "
+"the parts before the conversion. It does not check how we split $\\mu$ "
+"into parts. Any split that sums to $\\mu$ passes, so a constant moved "
+"between the baseline and a control would go unnoticed. The split is a "
+"modeling decision, and the next subsection makes it explicit."
+msgstr ""
+"La verificación de cierre de abajo confirma que las partes convertidas más "
+"el residuo convertido devuelven el nivel observado $y_{u,t}$ en cada unidad-"
+"período. Esto verifica la conversión: falla si el nivel de referencia que "
+"convierte las partes no es el que definió $z$, o si agregamos las partes "
+"antes de la conversión. No verifica cómo dividimos $\\mu$ en partes. "
+"Cualquier división que sume $\\mu$ la pasa, así que una constante movida "
+"entre la línea base y un control pasaría inadvertida. La división es una "
+"decisión de modelado, y la siguiente subsección la hace explícita."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1180002
+#: 8c367762dfee4d61bbc1e6ee587c4599
+msgid ""
+"We summarize each part by its posterior total over the training weeks and"
+" the units."
+msgstr ""
+"Resumimos cada parte por su total posterior sobre las semanas de "
+"entrenamiento y las unidades."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1200002
+#: a6b16ec2be9a45d79d8ede83d8da2c03
+msgid ""
+"Let's look at the media and control totals on the contrast basis. The "
+"baseline total is much larger, so we print it instead."
+msgstr ""
+"Veamos los totales de los medios y de los controles en la base de "
+"contrastes. El total de la línea base es mucho mayor, así que lo imprimimos "
+"aparte."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1220002
+#: abd8423ca35b4c3695feb4c70791e0cf
+msgid ""
+"A contrast-basis total can be **negative**. It is the effect of the "
+"change in plan versus last cycle, so a channel whose spend fell relative "
+"to the previous cycle contributed negatively: `tv` and `discount` total "
+"about $-160$ and $-220$ KPI units, while `search` totals about $300$. "
+"This is the correct answer to the question that we asked, but it is easy "
+"to misread as a total contribution."
+msgstr ""
+"Un total en la base de contrastes puede ser **negativo**. Es el efecto del "
+"cambio de plan respecto del ciclo anterior, así que un canal cuyo gasto cayó"
+" respecto del ciclo previo contribuyó negativamente: `tv` y `discount` suman"
+" alrededor de $-160$ y $-220$ unidades de KPI, mientras que `search` suma "
+"alrededor de $300$. Esta es la respuesta correcta a la pregunta que "
+"planteamos, pero es fácil malinterpretarla como una contribución total."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1220004
+#: b1340c2199a243d4ad32f37965748cc6
+msgid ""
+"Note also how small these totals are against the baseline total of "
+"$831K$. The contrasts average out over a window in which spend went up in"
+" some years and down in others. So the window total says little about a "
+"channel, even when every weekly contrast is well measured. `sponsorship` "
+"is exactly zero."
+msgstr ""
+"Observe también lo pequeños que son estos totales frente al total de la "
+"línea base de $831K$. Los contrastes se compensan en una ventana en la que "
+"el gasto subió algunos años y bajó otros. Por eso el total de la ventana "
+"dice poco sobre un canal, incluso cuando cada contraste semanal está bien "
+"medido. `sponsorship` es exactamente cero."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1230002
+#: fb1554178fbc454a88c00fb3afd854fd
+msgid "The Level Basis"
+msgstr "La base de niveles"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1230004
+#: a66b15fa6639487aad4f90039e2b01ab
+msgid ""
+"The totals above answer the question *\"what did the change in plan "
+"versus last cycle contribute?\"*. We read them directly off the fitted "
+"terms, and the likelihood identifies them."
+msgstr ""
+"Los totales de arriba responden la pregunta *\"¿qué aportó el cambio de plan"
+" respecto del ciclo anterior?\"*. Los leemos directamente de los términos "
+"ajustados, y la verosimilitud los identifica."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1230006
+#: fdc8143cd82840f5b5b4a42d4c5b2858
+msgid ""
+"The other question, *\"what did this channel contribute in total?\"*, "
+"needs the exact regrouping"
+msgstr ""
+"La otra pregunta, *\"¿qué aportó este canal en total?\"*, necesita la "
+"reagrupación exacta"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1230008
+#: 4470ed3b0c3a407b894c21e29806a777
+msgid ""
+"\n"
+"f_{c,u,t} - f_{c,u,r(t)} =\n"
+"\\underbrace{\\bigl[f_c(a^\\ast) - f_{c,u,r(t)}\\bigr]}_{\\text{moves "
+"into the baseline}}\n"
+"+ \\underbrace{\\bigl[f_{c,u,t} - f_c(a^\\ast)\\bigr]}_{\\text{reported "
+"as the channel level}}\n"
+msgstr ""
+"\n"
+"f_{c,u,t} - f_{c,u,r(t)} =\n"
+"\\underbrace{\\bigl[f_c(a^\\ast) - f_{c,u,r(t)}\\bigr]}_{\\text{moves into the baseline}}\n"
+"+ \\underbrace{\\bigl[f_{c,u,t} - f_c(a^\\ast)\\bigr]}_{\\text{reported as the channel level}}\n"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1230014
+#: ffa83f7ca8d14809a1065ffc0918cf86
+#, python-brace-format
+msgid ""
+"for a declared reference spend $a^\\ast$. The regrouping is exact, but "
+"the *number* depends on the choice. With $a^\\ast = 0$, it depends on the"
+" shape of $f_c$ over a range that the data never visited. Under logistic "
+"saturation $f_c(0) = 0$, so the level read is simply $f_{c,u,t}$, and the"
+" baseline absorbs $-f_{c,u,r(t)}$."
+msgstr ""
+"para un gasto de referencia declarado $a^\\ast$. La reagrupación es exacta, "
+"pero el *número* depende de la elección. Con $a^\\ast = 0$, depende de la "
+"forma de $f_c$ en un rango que los datos nunca visitaron. Bajo saturación "
+"logística $f_c(0) = 0$, así que la lectura de nivel es simplemente "
+"$f_{c,u,t}$, y la línea base absorbe $-f_{c,u,r(t)}$."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1230016
+#: 11bfa3a590134d55a5bf0ef27224ba82
+#, python-brace-format
+msgid ""
+"The controls get the same treatment with $x_j^\\ast = 0$. Because they "
+"are linear, the level read is $\\gamma_j x_{j,u,t}$ and the baseline "
+"absorbs $-\\gamma_j x_{j,u,r(t)}$. Together this gives a decomposition of"
+" the KPI into baseline, channels and control, in KPI units:"
+msgstr ""
+"Los controles reciben el mismo tratamiento con $x_j^\\ast = 0$. Como son "
+"lineales, la lectura de nivel es $\\gamma_j x_{j,u,t}$ y la línea base "
+"absorbe $-\\gamma_j x_{j,u,r(t)}$. En conjunto esto da una descomposición "
+"del KPI en línea base, canales y control, en unidades de KPI:"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1230018
+#: 617377371b724e3496675ef1ea938ee3
+msgid ""
+"\n"
+"y_{u,r(t)} \\, \\mu_{u,t} =\n"
+"\\underbrace{y_{u,r(t)} \\Bigl[g_u - \\sum_c f_{c,u,r(t)} - \\sum_j "
+"\\gamma_j x_{j,u,r(t)}\\Bigr]}_{\\text{baseline}}\n"
+"+ \\sum_c \\underbrace{y_{u,r(t)} \\, f_{c,u,t}}_{\\text{channel } c}\n"
+"+ \\sum_j \\underbrace{y_{u,r(t)} \\, \\gamma_j "
+"x_{j,u,t}}_{\\text{control } j}.\n"
+msgstr ""
+"\n"
+"y_{u,r(t)} \\, \\mu_{u,t} =\n"
+"\\underbrace{y_{u,r(t)} \\Bigl[g_u - \\sum_c f_{c,u,r(t)} - \\sum_j \\gamma_j x_{j,u,r(t)}\\Bigr]}_{\\text{baseline}}\n"
+"+ \\sum_c \\underbrace{y_{u,r(t)} \\, f_{c,u,t}}_{\\text{channel } c}\n"
+"+ \\sum_j \\underbrace{y_{u,r(t)} \\, \\gamma_j x_{j,u,t}}_{\\text{control } j}.\n"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1250002
+#: 4110c80235894fb4998daf15b31e9857
+msgid ""
+"The smallest observed discount is close to zero, so $x_j^\\ast = 0$ sits "
+"inside the observed range and the control's level read is not an "
+"extrapolation. Here are the totals on the level basis."
+msgstr ""
+"El menor descuento observado es cercano a cero, así que $x_j^\\ast = 0$ "
+"queda dentro del rango observado y la lectura de nivel del control no es una"
+" extrapolación. Estos son los totales en la base de niveles."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1270002
+#: da20ef1fb7084803a3c7dbea2765395f
+msgid ""
+"The two bases answer two different questions about the same fit, and the "
+"totals are far larger on the level basis: `tv`, `search` and `discount` "
+"each total between about $18K$ and $30K$ KPI units."
+msgstr ""
+"Las dos bases responden dos preguntas distintas sobre el mismo ajuste, y los"
+" totales son mucho mayores en la base de niveles: `tv`, `search` y "
+"`discount` suman cada uno entre aproximadamente $18K$ y $30K$ unidades de "
+"KPI."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1270004
+#: 4fdffeb1eec544af908186aa7d716bca
+msgid ""
+"Here is an important observation: `sponsorship` becomes the largest media"
+" contributor at about $90K$, and its $94\\%$ HDI runs from close to zero "
+"to more than twice that value. This number comes from the prior, not from"
+" the data. The baseline shrinks from $831K$ to $669K$, because it hands "
+"the levels of the channels and of the control back to them."
+msgstr ""
+"Aquí hay una observación importante: `sponsorship` se convierte en el mayor "
+"contribuyente de medios, con cerca de $90K$, y su HDI del $94\\%$ va desde "
+"casi cero hasta más del doble de ese valor. Este número proviene del prior, "
+"no de los datos. La línea base baja de $831K$ a $669K$, porque les devuelve "
+"los niveles de los canales y del control."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1280002
+#: 47e8fd9c217d4034b3a3877235891883
+msgid "Contribution Decomposition"
+msgstr "Descomposición de la contribución"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1280004
+#: 9d7b93b7f38b4c459d3aa48338313767
+msgid ""
+"The level basis gives the familiar decomposition of the KPI into "
+"baseline, channels and control. We plot the posterior mean of every part,"
+" summed over the units, together with the observed total."
+msgstr ""
+"La base de niveles da la descomposición familiar del KPI en línea base, "
+"canales y control. Trazamos la media posterior de cada parte, sumada sobre "
+"las unidades, junto con el total observado."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1300002
+#: 2cc77a89f3954169953604ce486b3205
+msgid ""
+"The baseline carries the seasonal shape and the holiday, and it makes up "
+"$80.4\\%$ of the modeled KPI. The channels and the control add a thin "
+"layer on top: `tv` $3.5\\%$, `search` $2.1\\%$ and `discount` $2.9\\%$."
+msgstr ""
+"La línea base lleva la forma estacional y la festividad, y representa el "
+"$80.4\\%$ del KPI modelado. Los canales y el control añaden una capa fina "
+"encima: `tv` $3.5\\%$, `search` $2.1\\%$ y `discount` $2.9\\%$."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1300004
+#: 69968d8bcfc84009a69486911f52dbcb
+msgid ""
+"The `sponsorship` slice is the thickest media layer at $11.0\\%$, but we "
+"know from the bars above that its size is the prior's guess. The plot "
+"itself does not show this. So we always read a decomposition together "
+"with the identification checks."
+msgstr ""
+"La porción de `sponsorship` es la capa de medios más gruesa, con $11.0\\%$, "
+"pero sabemos por las barras de arriba que su tamaño es una conjetura del "
+"prior. El gráfico en sí no lo muestra. Por eso siempre leemos una "
+"descomposición junto con las verificaciones de identificación."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1310002
+#: 81b1715442b64c36855d3615507a1ecb
+msgid "Saturation Curves"
+msgstr "Curvas de saturación"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1310004
+#: 166cbec8ea9644d5bb6a7ec1e7877a20
+#, python-brace-format
+msgid ""
+"The year-over-year model has a response curve per channel, in ratio "
+"points: $f_c(\\tilde{a})$ is the lift as a share of last year's level. To"
+" express it in KPI units we need a reference level, because the response "
+"is proportional to $y_{u,r(t)}$. The same spend buys more KPI in the peak"
+" season than in the trough. So a single curve in KPI units is an "
+"approximation: we scale the ratio-point curve by the average reference "
+"level of a unit-week in the training window."
+msgstr ""
+"El modelo interanual tiene una curva de respuesta por canal, en puntos de "
+"razón: $f_c(\\tilde{a})$ es el incremento como proporción del nivel del año "
+"pasado. Para expresarlo en unidades de KPI necesitamos un nivel de "
+"referencia, porque la respuesta es proporcional a $y_{u,r(t)}$. El mismo "
+"gasto compra más KPI en temporada alta que en el valle. Por eso una única "
+"curva en unidades de KPI es una aproximación: escalamos la curva en puntos "
+"de razón por el nivel de referencia promedio de una unidad-semana en la "
+"ventana de entrenamiento."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1310006
+#: 0b92e54ff11047d7988b35d0ad4f5b63
+msgid ""
+"Recall that the adstock weights sum to one, so a constant weekly spend "
+"$a$ has the adstocked value $a$. We can therefore read the horizontal "
+"axis as a steady weekly spend."
+msgstr ""
+"Recuerde que los pesos del adstock suman uno, de modo que un gasto semanal "
+"constante $a$ tiene el valor con adstock $a$. Por lo tanto, podemos leer el "
+"eje horizontal como un gasto semanal estable."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1330002
+#: 923e0e78869c40928b7953f943fcfaed
+msgid ""
+"Let's plot the prior band, the posterior band and the true curve of every"
+" channel."
+msgstr ""
+"Tracemos la banda del prior, la banda de la distribución posterior y la "
+"curva verdadera de cada canal."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1350002
+#: 7edd33f45359429299c9c4c05b31c056
+msgid ""
+"For `tv` and `search`, the posterior band is narrow and contains the true"
+" curve over the observed spend range. Beyond that range the band widens, "
+"and for `tv` the posterior mean drifts slightly below the truth at full "
+"spend. For `sponsorship`, the posterior band is the prior band, and the "
+"posterior mean is more than twice the true curve. Its spend takes only "
+"four values, one per unit, and its year-over-year contrast is zero, so "
+"the data cannot shape this curve at all."
+msgstr ""
+"Para `tv` y `search`, la banda posterior es estrecha y contiene la curva "
+"verdadera en el rango de gasto observado. Más allá de ese rango la banda se "
+"ensancha, y para `tv` la media posterior se desvía ligeramente por debajo de"
+" la verdad con el gasto completo. Para `sponsorship`, la banda posterior es "
+"la banda del prior, y la media posterior es más del doble de la curva "
+"verdadera. Su gasto toma solo cuatro valores, uno por unidad, y su contraste"
+" interanual es cero, así que los datos no pueden darle forma a esta curva en"
+" absoluto."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1350004
+#: 45883fd41ea44d4897cc5b1ebe9bcdd6
+msgid ""
+"Keep in mind that the KPI scale of these curves rests on the average "
+"reference level of $1027$ KPI units per unit-week. In the peak season, "
+"the same spend buys about twice as much."
+msgstr ""
+"Tenga presente que la escala de KPI de estas curvas descansa en el nivel de "
+"referencia promedio de $1027$ unidades de KPI por unidad-semana. En "
+"temporada alta, el mismo gasto compra aproximadamente el doble."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1360002
+#: 50197af49f174dabbd53adde911e50f7
+msgid "Leverage"
+msgstr "Apalancamiento"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1360004
+#: 836a5b97066e4e58b99e9bda61c9f525
+msgid ""
+"How much does the level read rely on the shape of the curve? The level "
+"read is levered off the measured contrast by roughly"
+msgstr ""
+"¿Cuánto depende la lectura de nivel de la forma de la curva? La lectura de "
+"nivel se apalanca sobre el contraste medido en aproximadamente"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1360006
+#: 578a3a6471b443a1922aca9f1012fd89
+msgid ""
+"\n"
+"\\frac{\\operatorname{mean}_{u,t} \\lvert f_{c,u,t} - f_c(a^\\ast) "
+"\\rvert}\n"
+"     {\\operatorname{mean}_{u,t} \\lvert f_{c,u,t} - f_{c,u,r(t)} "
+"\\rvert}.\n"
+msgstr ""
+"\n"
+"\\frac{\\operatorname{mean}_{u,t} \\lvert f_{c,u,t} - f_c(a^\\ast) \\rvert}\n"
+"     {\\operatorname{mean}_{u,t} \\lvert f_{c,u,t} - f_{c,u,r(t)} \\rvert}.\n"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1360011
+#: 3b4e37227aae4a838d7e58b51c2834d8
+msgid ""
+"For a channel whose spend barely moved from cycle to cycle, this is a "
+"large multiplier on a small measured quantity."
+msgstr ""
+"Para un canal cuyo gasto apenas se movió de un ciclo a otro, este es un "
+"multiplicador grande sobre una cantidad medida pequeña."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1380002
+#: 7cb7bec823654c67aef18fafd481c59b
+msgid ""
+"The leverage is about $2.6$ for `tv`, close to one for `search` and "
+"infinite for `sponsorship`. A value near one means that the level read is"
+" about as well measured as the contrast, which is the case for `search`. "
+"A large value means that the level number extrapolates the saturation "
+"curve into territory that the data never visited."
+msgstr ""
+"El apalancamiento es de aproximadamente $2.6$ para `tv`, cercano a uno para "
+"`search` e infinito para `sponsorship`. Un valor cercano a uno significa que"
+" la lectura de nivel está aproximadamente tan bien medida como el contraste,"
+" que es el caso de `search`. Un valor grande significa que el número de "
+"nivel extrapola la curva de saturación hacia un territorio que los datos "
+"nunca visitaron."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1380004
+#: 97c3338b5dbd459d9ce24934ec32f718
+msgid ""
+"For `sponsorship`, the measured contrast is exactly zero, so there is no "
+"defensible total-contribution number for this channel under this "
+"parametrization, at any posterior width. Budget optimization and response"
+" curves live on the level basis, so they inherit this dependence."
+msgstr ""
+"Para `sponsorship`, el contraste medido es exactamente cero, así que no hay "
+"un número defendible de contribución total para este canal bajo esta "
+"parametrización, con cualquier ancho posterior. La optimización del "
+"presupuesto y las curvas de respuesta viven en la base de niveles, así que "
+"heredan esta dependencia."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1390004
+#: c0132acc2e4a4b668e8bdb5280002dcb
+#, python-brace-format
+msgid ""
+"For the comparison we fit standard multidimensional "
+"{class}`~pymc_marketing.mmm.mmm.MMM` models on the same panel, in level "
+"space, with yearly Fourier seasonality and the same adstock and "
+"saturation families. We fit two of them:"
+msgstr ""
+"Para la comparación ajustamos modelos {class}`~pymc_marketing.mmm.mmm.MMM` "
+"multidimensionales estándar sobre el mismo panel, en espacio de niveles, con"
+" estacionalidad de Fourier anual y las mismas familias de adstock y "
+"saturación. Ajustamos dos de ellos:"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1390006
+#: 9a251e1f609642dabadd839c26d5a128
+msgid ""
+"**Level + Fourier**: four yearly harmonics, the discount control and a "
+"constant per-unit intercept. This is the usual vanilla comparison. It "
+"misses two things that the panel contains: a compounding per-unit trend, "
+"and a moving holiday that a smooth annual basis cannot represent."
+msgstr ""
+"**Nivel + Fourier**: cuatro armónicos anuales, el control de descuento y un "
+"intercepto constante por unidad. Esta es la comparación básica habitual. "
+"Pasa por alto dos cosas que contiene el panel: una tendencia compuesta por "
+"unidad, y una festividad móvil que una base anual suave no puede "
+"representar."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1390007
+#: a803fd5da29342e398c006e49dffeec3
+msgid ""
+"**Level + Fourier + holiday + trend**: the same model with a linear trend"
+" control and three holiday indicators (the week before, the peak and the "
+"week after). These features only use the calendar, which a practitioner "
+"would also have."
+msgstr ""
+"**Nivel + Fourier + festividad + tendencia**: el mismo modelo con un control"
+" de tendencia lineal y tres indicadores de festividad (la semana anterior, "
+"el pico y la semana posterior). Estas variables solo usan el calendario, que"
+" un profesional también tendría."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1390009
+#: e4d4be69827e42b9b34666fcaec3ce12
+#, python-brace-format
+msgid ""
+"Both models see the same training window and the same scaled spend as the"
+" ratio model, with two differences. They leave out `sponsorship`, because"
+" its spend is constant within each unit: in a level model it is collinear"
+" with the per-unit intercept (see the always-on section), and the "
+"intercept absorbs its effect. They also start the adstock from zero in "
+"the first training week, while the ratio model applies it to the full "
+"series. So their carryover is only partly built in the first $l_{\\max} ="
+" 8$ of the $200$ training weeks. This is a small handicap that we accept "
+"to keep the models standard."
+msgstr ""
+"Ambos modelos ven la misma ventana de entrenamiento y el mismo gasto "
+"escalado que el modelo de razón, con dos diferencias. Dejan fuera "
+"`sponsorship`, porque su gasto es constante dentro de cada unidad: en un "
+"modelo de nivel es colineal con el intercepto por unidad (véase la sección "
+"del canal siempre activo), y el intercepto absorbe su efecto. También "
+"inician el adstock desde cero en la primera semana de entrenamiento, "
+"mientras que el modelo de razón lo aplica a la serie completa. Por eso su "
+"efecto de arrastre solo está parcialmente construido en las primeras "
+"$l_{\\max} = 8$ de las $200$ semanas de entrenamiento. Es una pequeña "
+"desventaja que aceptamos para mantener los modelos estándar."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1390011
+#: c9313c57e2ac41cf8a4777b29e62b81e
+#, python-brace-format
+msgid ""
+"First, we build the long data frame that the "
+"{class}`~pymc_marketing.mmm.mmm.MMM` class expects, with the calendar "
+"features."
+msgstr ""
+"Primero, construimos el DataFrame largo que espera la clase "
+"{class}`~pymc_marketing.mmm.mmm.MMM`, con las variables de calendario."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1410002
+#: 23c94b19fc51470f927486a55dd25e94
+msgid ""
+"Next, the fitting helper. It uses the same adstock and saturation "
+"families as the ratio model, with a wider `beta` prior because the level "
+"model works on the internally scaled KPI. At low spend the logistic "
+"saturation is close to linear, so the data pin down the product of its "
+"steepness and its maximum better than either of the two. The level models"
+" see the media signal through more residual noise than the ratio model, "
+"so this trade-off is stronger for them. We therefore sample them with "
+"`target_accept=0.99` and let nutpie adapt a low-rank mass matrix, which "
+"can follow the correlation between the two parameters."
+msgstr ""
+"A continuación, la función auxiliar de ajuste. Usa las mismas familias de "
+"adstock y saturación que el modelo de razón, con un prior de `beta` más "
+"amplio porque el modelo de nivel trabaja sobre el KPI escalado internamente."
+" Con gasto bajo la saturación logística es casi lineal, así que los datos "
+"fijan mejor el producto de su pendiente y su máximo que cualquiera de los "
+"dos por separado. Los modelos de nivel ven la señal de los medios a través "
+"de más ruido residual que el modelo de razón, así que este compromiso es más"
+" fuerte para ellos. Por eso los muestreamos con `target_accept=0.99` y "
+"dejamos que nutpie adapte una matriz de masa de rango bajo, que puede seguir"
+" la correlación entre los dos parámetros."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1430002
+#: 33de68bdf8d34b34b534cdc03027cdda
+msgid "We fit both level models on the training weeks."
+msgstr "Ajustamos ambos modelos de nivel sobre las semanas de entrenamiento."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1450002
+#: b0e32a9f645a45779038e0b171b02217
+msgid ""
+"Before using the level models, let's run the same sampler checks as for "
+"the ratio model."
+msgstr ""
+"Antes de usar los modelos de nivel, ejecutemos las mismas verificaciones del"
+" muestreador que para el modelo de razón."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1470002
+#: a4573735c5854a288d3a986904411544
+#, python-brace-format
+msgid ""
+"Both level models pass all checks, with no divergences and a largest "
+"$\\hat{R}$ of $1.009$ and $1.005$. Without `sponsorship`, nothing in them"
+" is collinear with the per-unit intercept. With the channel in, the data "
+"would pin down little more than the sum of each intercept and the "
+"`sponsorship` effect. The sampler would then wander along a ridge of "
+"parameter values that fit equally well. This ridge is the level-space "
+"face of the standard deviation ratio of one in the ratio model. Both say "
+"that the data carry no information about the channel, but only the ratio "
+"model can keep the channel and report this as a clean number."
+msgstr ""
+"Ambos modelos de nivel pasan todas las verificaciones, sin divergencias y "
+"con un $\\hat{R}$ máximo de $1.009$ y $1.005$. Sin `sponsorship`, nada en "
+"ellos es colineal con el intercepto por unidad. Con el canal incluido, los "
+"datos fijarían poco más que la suma de cada intercepto y el efecto de "
+"`sponsorship`. El muestreador vagaría entonces por una cresta de valores de "
+"parámetros que ajustan igual de bien. Esta cresta es la cara en espacio de "
+"niveles de la razón de desviaciones estándar de uno en el modelo de razón. "
+"Ambas dicen que los datos no contienen información sobre el canal, pero solo"
+" el modelo de razón puede conservar el canal e informarlo como un número "
+"limpio."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1480002
+#: 859c1da9ae2145fcbb0ee006e28da030
+msgid ""
+"`adstock_alpha` and `saturation_lam` act on the scaled spend, which is "
+"the same in all models, so we can compare them across the two model "
+"families. `saturation_beta` lives in ratio points in one family and in "
+"internally scaled KPI units in the other, so it is not comparable. The "
+"level models have no `sponsorship` parameters, so we compare `tv` and "
+"`search`."
+msgstr ""
+"`adstock_alpha` y `saturation_lam` actúan sobre el gasto escalado, que es el"
+" mismo en todos los modelos, así que podemos compararlos entre las dos "
+"familias de modelos. `saturation_beta` vive en puntos de razón en una "
+"familia y en unidades de KPI escaladas internamente en la otra, así que no "
+"es comparable. Los modelos de nivel no tienen parámetros de `sponsorship`, "
+"así que comparamos `tv` y `search`."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1500002
+#: 5bc03fda74ce402abc40fc55457d4c16
+msgid ""
+"The intervals of the ratio model are narrower and contain the true "
+"values. The full level model has wider intervals, and all four of its "
+"means sit below the truth."
+msgstr ""
+"Los intervalos del modelo de razón son más estrechos y contienen los valores"
+" verdaderos. El modelo de nivel completo tiene intervalos más anchos, y sus "
+"cuatro medias quedan por debajo de la verdad."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1510004
+#: 233ab0a8e59448b0b12a649d813b8306
+msgid ""
+"All models now predict the last $52$ weeks in **KPI units**, the only "
+"scale on which they are comparable:"
+msgstr ""
+"Ahora todos los modelos predicen las últimas $52$ semanas en **unidades de "
+"KPI**, la única escala en la que son comparables:"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1510006
+#: 79b1dbe75d2a4b85a1f4b5168aee6856
+#, python-brace-format
+msgid ""
+"**Year-over-year**: the model predicts $z$ on the holdout window and "
+"multiplies it by the observed reference level $y_{u,r(t)}$, which sits "
+"entirely inside the training window."
+msgstr ""
+"**Interanual**: el modelo predice $z$ en la ventana de prueba y lo "
+"multiplica por el nivel de referencia observado $y_{u,r(t)}$, que está por "
+"completo dentro de la ventana de entrenamiento."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1510007
+#: a2f36e202aa248f28c8ad3602d1326a2
+msgid ""
+"**Level models**: the models predict $y$ directly, with "
+"`include_last_observations=True` so that their adstock carries over from "
+"the training window."
+msgstr ""
+"**Modelos de nivel**: los modelos predicen $y$ directamente, con "
+"`include_last_observations=True` para que su adstock se arrastre desde la "
+"ventana de entrenamiento."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1510009
+#: 86bf3d298ec049fabe49513b4c8fa594
+#, python-brace-format
+msgid ""
+"Our main metric is the continuous ranked probability score (CRPS). It "
+"scores the whole predictive distribution against the observed value, and "
+"lower is better. For a point forecast it reduces to the mean absolute "
+"error, so we can read it in KPI units (see "
+"{ref}`mmm_time_slice_cross_validation`). We also report the RMSE, the "
+"MAPE, the coverage and the width of the $94\\%$ HDI, and the share of the"
+" squared error that falls in the holiday window."
+msgstr ""
+"Nuestra métrica principal es la puntuación de probabilidad ranqueada "
+"continua (CRPS). Evalúa toda la distribución predictiva frente al valor "
+"observado, y menor es mejor. Para un pronóstico puntual se reduce al error "
+"absoluto medio, así que podemos leerla en unidades de KPI (véase "
+"{ref}`mmm_time_slice_cross_validation`). También reportamos el RMSE, el "
+"MAPE, la cobertura y el ancho del HDI del $94\\%$, y la proporción del error"
+" cuadrático que cae en la ventana de la festividad."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1510011
+#: 68e63ea709cc456aa2f020067bb6bd2b
+msgid ""
+"A comparison of two models alone invites the wrong reading, so we add "
+"reference forecasts that locate the gain. Each one is a full predictive "
+"distribution, so that every score applies to it:"
+msgstr ""
+"Una comparación de solo dos modelos invita a una lectura equivocada, así que"
+" añadimos pronósticos de referencia que ubican la ganancia. Cada uno es una "
+"distribución predictiva completa, de modo que todas las puntuaciones se le "
+"aplican:"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1510013
+#: 4fae1ce1f16b4e53b6c78b8e7ad9986d
+msgid ""
+"**Noise floor**: the true model, that is the true $\\mu$ times the "
+"reference level with the true noise. No model can do better than this in "
+"expectation."
+msgstr ""
+"**Piso de ruido**: el modelo verdadero, es decir, el $\\mu$ verdadero por el"
+" nivel de referencia con el ruido verdadero. Ningún modelo puede hacerlo "
+"mejor que esto en esperanza."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1510014
+#: f013f6d56e074f7bb75f9e8472ca9e3f
+#, python-brace-format
+msgid ""
+"**Seasonal naive**: last year's level times a growth factor, with "
+"Gaussian noise on the ratio fitted on the training weeks. We use it with "
+"no growth, $\\hat{z} = 1$, and with the mean training ratio of each unit "
+"as the growth. Neither version has media or controls."
+msgstr ""
+"**Estacional ingenuo**: el nivel del año pasado por un factor de "
+"crecimiento, con ruido gaussiano sobre la razón ajustado en las semanas de "
+"entrenamiento. Lo usamos sin crecimiento, $\\hat{z} = 1$, y con la razón "
+"media de entrenamiento de cada unidad como crecimiento. Ninguna de las dos "
+"versiones tiene medios ni controles."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1510016
+#: d530a4bf6428476d87fbc7b965f4ce06
+msgid ""
+"Whatever the year-over-year model gains beyond the naive forecast is what"
+" media and the control buy. Whatever the level models lose against it is "
+"what a level-space seasonal basis costs on this panel."
+msgstr ""
+"Todo lo que el modelo interanual gana más allá del pronóstico ingenuo es lo "
+"que aportan los medios y el control. Todo lo que los modelos de nivel "
+"pierden frente a él es lo que cuesta una base estacional en espacio de "
+"niveles en este panel."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1510018
+#: f9806f28df844b919f685f02b6cb8325
+msgid "We start with the holdout forecast of the ratio model."
+msgstr ""
+"Empezamos con el pronóstico del modelo de razón en la ventana de prueba."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1530002
+#: 73c4e390d5054f24b16ab98d63e139a2
+msgid "The level models predict in KPI units directly."
+msgstr "Los modelos de nivel predicen directamente en unidades de KPI."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1550002
+#: 9738ff0ff7354f5bba725376e745eb52
+msgid ""
+"The reference forecasts are Gaussian in KPI units. We draw them with a "
+"separate generator, so that their draws leave the random stream of the "
+"fits further below unchanged."
+msgstr ""
+"Los pronósticos de referencia son gaussianos en unidades de KPI. Los "
+"generamos con un generador aparte, de modo que sus muestras dejen sin "
+"cambios el flujo aleatorio de los ajustes de más abajo."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1570002
+#: 276296670f424953b13e335b664e00f5
+msgid ""
+"The scoring helper computes every metric in KPI units for a predictive "
+"distribution with dims `(chain, draw, date, unit)`."
+msgstr ""
+"La función auxiliar de puntuación calcula cada métrica en unidades de KPI "
+"para una distribución predictiva con dimensiones `(chain, draw, date, "
+"unit)`."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1590002
+#: 02a9f6723c344c50a34b54ae19da1bcf
+msgid "We show the scores as one bar chart per metric, with the CRPS first."
+msgstr ""
+"Mostramos las puntuaciones como un gráfico de barras por métrica, con el "
+"CRPS primero."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1610002
+#: 283135c9a7754e32aaf9d6b206714ffe
+msgid "Now we compute every holdout forecast and score it."
+msgstr ""
+"Ahora calculamos y puntuamos cada pronóstico sobre la ventana de prueba."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1630002
+#: f922f8d9a0d248218e8a1e0038895725
+msgid "Here are the scores."
+msgstr "Aquí están las puntuaciones."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1650002
+#: 6d3a56d484ee4686993d8ef2d1262b49
+msgid "Let's read the bar charts from the top."
+msgstr "Leamos los gráficos de barras de arriba hacia abajo."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1650004
+#: 73beb1dcb12446528b031173035040ac
+msgid ""
+"**The ratio model sits at the noise floor.** Its CRPS of $19.47$ is "
+"within $2\\%$ of the $19.12$ of the true model, and the same holds for "
+"the RMSE and the MAPE. On this panel it cannot be beaten, so its headline"
+" number is the noise level of the data, not a measure of the model."
+msgstr ""
+"**El modelo de razón está en el piso de ruido.** Su CRPS de $19.47$ está a "
+"menos de un $2\\%$ del $19.12$ del modelo verdadero, y lo mismo vale para el"
+" RMSE y el MAPE. En este panel no se le puede superar, así que su número "
+"principal es el nivel de ruido de los datos, no una medida del modelo."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1650005
+#: 01014d32e5c34cceb92f1e822d7de7c9
+msgid ""
+"**The reference level does most of the work.** With no media at all, last"
+" year's level times a fitted growth rate reaches a CRPS of $31.14$, and "
+"$36.09$ without the growth. Media and the control buy the remaining "
+"distance down to $19.47$."
+msgstr ""
+"**El nivel de referencia hace la mayor parte del trabajo.** Sin medios en "
+"absoluto, el nivel del año pasado por una tasa de crecimiento ajustada "
+"alcanza un CRPS de $31.14$, y $36.09$ sin el crecimiento. Los medios y el "
+"control compran la distancia restante hasta $19.47$."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1650006
+#: c0c2b77c44d54c08b579b3f82c0399a1
+msgid ""
+"**The level models pay for their specification.** Both lose against the "
+"naive forecast with fitted growth, the plain one by a wide margin "
+"($75.02$ against $31.14$). A third of its squared error sits in the "
+"holiday window ($0.33$), and we look at the rest in the holdout forecasts"
+" below. Adding the trend and the holiday indicators brings the CRPS down "
+"to $49.14$."
+msgstr ""
+"**Los modelos de nivel pagan por su especificación.** Ambos pierden frente "
+"al pronóstico ingenuo con crecimiento ajustado, el simple por un amplio "
+"margen ($75.02$ frente a $31.14$). Un tercio de su error cuadrático está en "
+"la ventana de la festividad ($0.33$), y vemos el resto en los pronósticos de"
+" la ventana de prueba más abajo. Añadir la tendencia y los indicadores de "
+"festividad baja el CRPS a $49.14$."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1650007
+#: 868894441ccc4735b6369930f8c68e07
+msgid ""
+"**The rest is the cost of a smooth seasonal basis.** The remaining gap "
+"between the full level model and the naive forecast is what a level-space"
+" seasonal basis pays against a seasonal random walk. The level model "
+"estimates one shape from four noisy years, while the ratio model "
+"conditions on last year's realization of it."
+msgstr ""
+"**El resto es el costo de una base estacional suave.** La brecha restante "
+"entre el modelo de nivel completo y el pronóstico ingenuo es lo que una base"
+" estacional en espacio de niveles paga frente a una caminata aleatoria "
+"estacional. El modelo de nivel estima una forma a partir de cuatro años "
+"ruidosos, mientras que el modelo de razón se condiciona a la realización de "
+"esa forma del año pasado."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1660002
+#: 959fc0535eb64eae8d85e546cb2b8594
+msgid "Holdout Forecasts"
+msgstr "Pronósticos en la ventana de prueba"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1660004
+#: 2701cb5eecba408994ff0d9ba3f66d07
+msgid ""
+"Let's look at the holdout forecasts of the ratio model and of the full "
+"level model, unit by unit, with the mean of the plain level model for "
+"reference."
+msgstr ""
+"Veamos los pronósticos en la ventana de prueba del modelo de razón y del "
+"modelo de nivel completo, unidad por unidad, con la media del modelo de "
+"nivel simple como referencia."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1680002
+#: 97d48b09388a41fa9b97a7704be86a65
+msgid ""
+"The ratio model tracks the observed KPI closely, including the holiday "
+"spike and the summer peak, and its narrow band follows the seasonal "
+"level. The full level model has a wider band and a smoother mean. The "
+"plain level model misses the holiday spike in every unit, and its mean is"
+" biased in the direction of each unit's growth: too low for the growing "
+"`north` and `west`, and too high for the shrinking `east`. A constant "
+"intercept cannot extrapolate a compounding trend."
+msgstr ""
+"El modelo de razón sigue de cerca el KPI observado, incluido el pico de la "
+"festividad y el pico de verano, y su banda estrecha acompaña el nivel "
+"estacional. El modelo de nivel completo tiene una banda más ancha y una "
+"media más suave. El modelo de nivel simple pasa por alto el pico de la "
+"festividad en cada unidad, y su media está sesgada en la dirección del "
+"crecimiento de cada unidad: demasiado baja para `north` y `west`, que "
+"crecen, y demasiado alta para `east`, que decrece. Un intercepto constante "
+"no puede extrapolar una tendencia compuesta."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1690002
+#: b7a8e85d7c5d47a1b7fd1065f552fef1
+msgid "Coverage"
+msgstr "Cobertura"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1690004
+#: 1a18ca71412f49a283cb7ab0bcc2181b
+#, python-brace-format
+msgid ""
+"We read coverage together with the width of the intervals. The intervals "
+"of the two level models are $2.2$ and $3.4$ times wider than those of the"
+" ratio model ($251.91$ and $394.93$ against $117.09$), and they still "
+"fall short of nominal coverage ($86\\%$ and $90\\%$). A single residual "
+"scale per unit has to cover the seasonal peak everywhere, and the misfit "
+"of the mean ends up in `y_sigma`, which widens the intervals without "
+"centering them. The intervals of the ratio model scale with $y_{u,r(t)}$,"
+" so they follow the cycle."
+msgstr ""
+"Leemos la cobertura junto con el ancho de los intervalos. Los intervalos de "
+"los dos modelos de nivel son $2.2$ y $3.4$ veces más anchos que los del "
+"modelo de razón ($251.91$ y $394.93$ frente a $117.09$), y aun así no "
+"alcanzan la cobertura nominal ($86\\%$ y $90\\%$). Una única escala residual"
+" por unidad tiene que cubrir el pico estacional en todas partes, y el "
+"desajuste de la media termina en `y_sigma`, lo que ensancha los intervalos "
+"sin centrarlos. Los intervalos del modelo de razón escalan con $y_{u,r(t)}$,"
+" así que siguen el ciclo."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1690006
+#: fbee297ffd054a838b7fafda3ec2b8fa
+msgid ""
+"The coverage of the ratio model also lands below nominal, at $89\\%$. "
+"Under this data-generating process the proportional noise model is "
+"exactly right, so there is no structural reason for that. Note that even "
+"the true model covers only $91\\%$ of the holdout weeks."
+msgstr ""
+"La cobertura del modelo de razón también queda por debajo del nivel nominal,"
+" en $89\\%$. Bajo este proceso generador de datos el modelo de ruido "
+"proporcional es exactamente correcto, así que no hay una razón estructural "
+"para ello. Observe que incluso el modelo verdadero cubre solo el $91\\%$ de "
+"las semanas de la ventana de prueba."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1690008
+#: 94dc64b45d7c4d06b15198e774521500
+msgid ""
+"Each `z_sigma` comes from $200$ training weeks, and the realized noise in"
+" the $52$ holdout weeks need not match it. Let's compare the noise scales"
+" and the coverage unit by unit."
+msgstr ""
+"Cada `z_sigma` proviene de $200$ semanas de entrenamiento, y el ruido "
+"realizado en las $52$ semanas de la ventana de prueba no tiene por qué "
+"coincidir. Comparemos las escalas de ruido y la cobertura unidad por unidad."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1710002
+#: 8d58e800269749338a1e615fd027746a
+msgid ""
+"The posterior `z_sigma` tracks the *realized* training noise rather than "
+"the true value, as it should. The unit with the lowest coverage, `west` "
+"at $83\\%$, is the one whose holdout weeks happened to be noisier than "
+"its training weeks ($3.47\\%$ against $2.74\\%$ of the reference level). "
+"For that unit the intervals are about a fifth too narrow, and a $94\\%$ "
+"interval that is a fifth too narrow covers about $86\\%$ of the time, "
+"close to what we see. This is one unlucky draw of $52$ weeks, not a "
+"defect of the noise model."
+msgstr ""
+"El `z_sigma` posterior sigue el ruido de entrenamiento *realizado* y no el "
+"valor verdadero, como debe ser. La unidad con la menor cobertura, `west` con"
+" $83\\%$, es aquella cuyas semanas de la ventana de prueba resultaron más "
+"ruidosas que sus semanas de entrenamiento ($3.47\\%$ frente a $2.74\\%$ del "
+"nivel de referencia). Para esa unidad los intervalos son aproximadamente un "
+"quinto demasiado estrechos, y un intervalo del $94\\%$ que es un quinto "
+"demasiado estrecho cubre cerca del $86\\%$ de las veces, cercano a lo que "
+"vemos. Es una muestra desafortunada de $52$ semanas, no un defecto del "
+"modelo de ruido."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1720004
+#: f8b37ed1afe84dea9beb120a11d5dd42
+msgid ""
+"We generated everything above with the ratio model itself. That is the "
+"right way to check parameter recovery, but the wrong way to decide "
+"whether to use the transform, because the alternative hypothesis about "
+"the data was never on the table. Here it is: the same spend, the same "
+"control, the same media response and growth rates, but a **fixed** "
+"seasonal shape that repeats every year, a moving holiday with the same "
+"three-week profile, and **independent** proportional noise at every unit-"
+"period:"
+msgstr ""
+"Generamos todo lo anterior con el propio modelo de razón. Esa es la forma "
+"correcta de comprobar la recuperación de parámetros, pero la forma "
+"equivocada de decidir si usar la transformación, porque la hipótesis "
+"alternativa sobre los datos nunca estuvo sobre la mesa. Aquí está: el mismo "
+"gasto, el mismo control, la misma respuesta de los medios y las mismas tasas"
+" de crecimiento, pero una forma estacional **fija** que se repite cada año, "
+"una festividad móvil con el mismo perfil de tres semanas y ruido "
+"proporcional **independiente** en cada unidad-período:"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1720006
+#: 579440cf6ad44aecb6492a26612b0fbc
+#, python-brace-format
+msgid ""
+"\n"
+"y_{u,t} = s_u \\, S(t) \\, g_u^{t/52} \\exp\\Bigl(\\sum_c f_{c,u,t} + "
+"\\sum_j \\gamma_j \\, x_{j,u,t}\\Bigr) (1 + \\varepsilon_{u,t}),\n"
+"\\qquad \\varepsilon_{u,t} \\sim \\text{Normal}(0, \\sigma_u) \\ "
+"\\text{i.i.d.}\n"
+msgstr ""
+"\n"
+"y_{u,t} = s_u \\, S(t) \\, g_u^{t/52} \\exp\\Bigl(\\sum_c f_{c,u,t} + \\sum_j \\gamma_j \\, x_{j,u,t}\\Bigr) (1 + \\varepsilon_{u,t}),\n"
+"\\qquad \\varepsilon_{u,t} \\sim \\text{Normal}(0, \\sigma_u) \\ \\text{i.i.d.}\n"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1720011
+#: f73718b2ad5245a0a67d2a746967abe5
+msgid ""
+"Here $s_u$ is the size of unit $u$ and $S(t)$ is the fixed annual shape "
+"with the holiday. On this panel the ratio model is *approximately* right "
+"in the mean, since $\\exp(\\Delta) \\approx 1 + \\Delta$ for small "
+"contrasts. But it is wrong about the noise in two ways:"
+msgstr ""
+"Aquí $s_u$ es el tamaño de la unidad $u$ y $S(t)$ es la forma anual fija con"
+" la festividad. En este panel el modelo de razón es *aproximadamente* "
+"correcto en la media, ya que $\\exp(\\Delta) \\approx 1 + \\Delta$ para "
+"contrastes pequeños. Pero se equivoca sobre el ruido de dos maneras:"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1720013
+#: f99124dc8a974a13a0e7f728a54956de
+msgid ""
+"**Twice the variance.** The ratio of two independent noisy levels has "
+"about twice the noise variance of either level."
+msgstr ""
+"**El doble de varianza.** La razón de dos niveles ruidosos independientes "
+"tiene aproximadamente el doble de varianza de ruido que cualquiera de los "
+"dos niveles."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1720014
+#: f3aefd71a8984192a47d8906078e1eae
+#, python-brace-format
+msgid ""
+"**Negative correlation.** $\\varepsilon_{u,r(t)}$ appears in the "
+"denominator of $z_{u,t}$ and in the numerator of $z_{u,r(t)}$, so the "
+"ratios of consecutive cycles are negatively correlated."
+msgstr ""
+"**Correlación negativa.** $\\varepsilon_{u,r(t)}$ aparece en el denominador "
+"de $z_{u,t}$ y en el numerador de $z_{u,r(t)}$, así que las razones de "
+"ciclos consecutivos están correlacionadas negativamente."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1720016
+#: 0365612f50dc49c994bc484a7a29880b
+msgid ""
+"Both effects are measurable. The pushed-aside shoulder weeks now also pay"
+" a real price, because a week is divided by the seasonal level of a "
+"different week."
+msgstr ""
+"Ambos efectos son medibles. Las semanas de margen desplazadas a un lado "
+"ahora también pagan un precio real, porque una semana se divide por el nivel"
+" estacional de una semana distinta."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1720018
+#: 01c321f02dff4fa9aba91dafddb20795
+msgid ""
+"We first compute the true media effect on the full series with the same "
+"components and the true parameters."
+msgstr ""
+"Primero calculamos el efecto verdadero de los medios sobre la serie completa"
+" con los mismos componentes y los parámetros verdaderos."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1740002
+#: ee6a3986051947f5b2a911691b99e337
+msgid ""
+"Next, we build the fixed shape with the holiday at its position in every "
+"cycle, then the mean and the noisy level of the second panel."
+msgstr ""
+"A continuación, construimos la forma fija con la festividad en su posición "
+"en cada ciclo, y luego la media y el nivel ruidoso del segundo panel."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1760002
+#: bf93b9f3b8e04742935421ed7dac07f8
+msgid ""
+"We fit the ratio model and the full level model on the training weeks of "
+"the second panel."
+msgstr ""
+"Ajustamos el modelo de razón y el modelo de nivel completo sobre las semanas"
+" de entrenamiento del segundo panel."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1780002
+#: 3896a53788934ffa82578ac1efc2fb47
+msgid "We run the same sampler checks on both fits."
+msgstr ""
+"Ejecutamos las mismas verificaciones del muestreador sobre ambos ajustes."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1800002
+#: be18ae1f7dc34027b87ebaa3b7ae30a8
+msgid ""
+"Both fits pass all checks. We score both models against the noise floor "
+"and the seasonal naive forecast, as before."
+msgstr ""
+"Ambos ajustes pasan todas las verificaciones. Puntuamos ambos modelos frente"
+" al piso de ruido y al pronóstico estacional ingenuo, como antes."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1820002
+#: 143fa570427040a799ec65ce1db41c62
+msgid "Here are the scores on the second panel."
+msgstr "Estas son las puntuaciones del segundo panel."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1840002
+#: 94e80d3a68054062a3e0dd7e47853e32
+msgid ""
+"The picture changes. All models now sit well above the noise floor of "
+"$22.74$. The full level model has the lowest CRPS ($32.56$ against "
+"$33.08$) and RMSE ($58.59$ against $63.88$). The ratio model has the "
+"lower MAPE ($3.68\\%$ against $3.98\\%$) and the better calibrated, but "
+"wider, intervals ($96\\%$ coverage against $89\\%$). In other words, the "
+"comparison is a draw that the level model wins by a small margin on our "
+"main metric."
+msgstr ""
+"El panorama cambia. Todos los modelos quedan ahora muy por encima del piso "
+"de ruido de $22.74$. El modelo de nivel completo tiene el menor CRPS "
+"($32.56$ frente a $33.08$) y RMSE ($58.59$ frente a $63.88$). El modelo de "
+"razón tiene el menor MAPE ($3.68\\%$ frente a $3.98\\%$) y los intervalos "
+"mejor calibrados, pero más anchos ($96\\%$ de cobertura frente a $89\\%$). "
+"En otras palabras, la comparación es un empate que el modelo de nivel gana "
+"por un margen pequeño en nuestra métrica principal."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1840004
+#: bdd8cf528a2248a48dacb9be75c83971
+msgid ""
+"The squared error of the ratio model concentrates at the peak: its "
+"holiday share is $0.18$, more than twice the $0.08$ of the noise floor. "
+"There are two reasons for this, and both are properties of the transform "
+"rather than of this fit:"
+msgstr ""
+"El error cuadrático del modelo de razón se concentra en el pico: su "
+"proporción en la festividad es $0.18$, más del doble del $0.08$ del piso de "
+"ruido. Hay dos razones para esto, y ambas son propiedades de la "
+"transformación y no de este ajuste:"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1840006
+#: e47116761648477bb3150f1c39603a10
+msgid ""
+"**The reference is noisy.** The noise variance of the ratio is roughly "
+"doubled, and in KPI units this doubling is largest exactly where the "
+"level is largest."
+msgstr ""
+"**La referencia es ruidosa.** La varianza del ruido de la razón se duplica "
+"aproximadamente, y en unidades de KPI esta duplicación es mayor justo donde "
+"el nivel es mayor."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1840007
+#: 461e415dc011468c834744e9925d5358
+#, python-brace-format
+msgid ""
+"**Anchoring realigns the event, not the seasonal level underneath it.** "
+"On a fixed shape $S(\\cdot)$, the anchored ratio at the holiday is "
+"$S(h_c) / S(h_{c-1})$, which is not one when the week of the holiday "
+"moves. The level model with explicit holiday indicators separates the two"
+" and has no such term."
+msgstr ""
+"**El anclaje realinea el evento, no el nivel estacional que hay debajo.** "
+"Sobre una forma fija $S(\\cdot)$, la razón anclada en la festividad es "
+"$S(h_c) / S(h_{c-1})$, que no es uno cuando la semana de la festividad se "
+"mueve. El modelo de nivel con indicadores explícitos de festividad separa "
+"ambos efectos y no tiene tal término."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1840009
+#: 730ce17a618c4eddbe95190dcb168a75
+msgid ""
+"The remaining handicaps of the level model are specification choices: a "
+"linear trend for compounding growth, a constant noise scale for "
+"proportional noise, and one `saturation_beta` per channel for a media "
+"lift that scales with the level. In the data, the lift moves with the "
+"season and with the size of the unit, while the level model applies the "
+"same response curve to every unit and every week. `MMM(link=\"log\")` "
+"with a multiplicative trend would remove all three. The handicaps of the "
+"transform are structural."
+msgstr ""
+"Las desventajas restantes del modelo de nivel son decisiones de "
+"especificación: una tendencia lineal para un crecimiento compuesto, una "
+"escala de ruido constante para un ruido proporcional, y un `saturation_beta`"
+" por canal para un incremento de los medios que escala con el nivel. En los "
+"datos, el incremento se mueve con la estación y con el tamaño de la unidad, "
+"mientras que el modelo de nivel aplica la misma curva de respuesta a cada "
+"unidad y a cada semana. `MMM(link=\"log\")` con una tendencia multiplicativa"
+" eliminaría las tres. Las desventajas de la transformación son "
+"estructurales."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1840011
+#: 66f9e02b206544cc86af1445811c807e
+msgid ""
+"What the ratio model pays is visible in its noise parameter and in its "
+"residuals. We pair every training residual with the residual of its own "
+"reference week, where both exist."
+msgstr ""
+"Lo que paga el modelo de razón es visible en su parámetro de ruido y en sus "
+"residuos. Emparejamos cada residuo de entrenamiento con el residuo de su "
+"propia semana de referencia, cuando existen ambos."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1860002
+#: 541fca9781404c8d893b577f8cca3666
+#, python-brace-format
+msgid ""
+"The posterior `z_sigma` sits *above* $\\sqrt{2}$ times the level noise in"
+" every unit ($4.49\\%$ to $6.10\\%$ of the reference level, against "
+"$3.96\\%$ to $4.95\\%$). The excess is the misalignment cost described "
+"above. The residual at $t$ is negatively correlated with the residual at "
+"$r(t)$, between $-0.34$ and $-0.40$. This is the direction and close to "
+"the size of the $-1/2$ that independent level noise implies, diluted by "
+"the misalignment variance."
+msgstr ""
+"El `z_sigma` posterior queda *por encima* de $\\sqrt{2}$ veces el ruido del "
+"nivel en todas las unidades ($4.49\\%$ a $6.10\\%$ del nivel de referencia, "
+"frente a $3.96\\%$ a $4.95\\%$). El exceso es el costo de desalineación "
+"descrito antes. El residuo en $t$ está correlacionado negativamente con el "
+"residuo en $r(t)$, entre $-0.34$ y $-0.40$. Tiene la dirección y un tamaño "
+"cercano al $-1/2$ que implica el ruido de nivel independiente, diluido por "
+"la varianza de la desalineación."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1860004
+#: 50e16fc061e746b89f1ebe5c5760ecad
+#, python-brace-format
+msgid ""
+"Neither effect is fatal, but both are mis-specifications of the i.i.d. "
+"Normal likelihood that we use here. The posterior intervals of the ratio-"
+"space coefficients are somewhat too narrow, and a reference year that was"
+" unusually good makes the current year look unusually bad. A likelihood "
+"that models $\\varepsilon_{u,t}$ and $\\varepsilon_{u,r(t)}$ jointly, or "
+"the log-difference variant of the transform with a moving-average error, "
+"would be the principled repair. This is the main reason to treat the "
+"home-turf margins above as an upper bound."
+msgstr ""
+"Ninguno de los dos efectos es fatal, pero ambos son errores de "
+"especificación de la verosimilitud Normal i.i.d. que usamos aquí. Los "
+"intervalos posteriores de los coeficientes en el espacio de la razón son "
+"algo demasiado estrechos, y un año de referencia inusualmente bueno hace que"
+" el año actual parezca inusualmente malo. Una verosimilitud que modele "
+"$\\varepsilon_{u,t}$ y $\\varepsilon_{u,r(t)}$ conjuntamente, o la variante "
+"de diferencia logarítmica de la transformación con un error de media móvil, "
+"sería la reparación con fundamento. Esta es la razón principal para tratar "
+"los márgenes del panel de terreno propio de arriba como una cota superior."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1870002
+#: 0a53c7d440fa466188447bc705d343b7
+msgid "Conclusion"
+msgstr "Conclusión"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1870004
+#: e1b4632672c7434dbdabea008f80d25e
+msgid ""
+"We built the year-over-year target transform as a custom PyMC model on "
+"top of PyMC-Marketing components, with an anchored reference map for the "
+"moving holiday. Then we compared it out of sample with level-space MMMs "
+"on two synthetic panels. On the panel generated from its own assumption, "
+"the ratio model reaches the noise floor. On a panel with a fixed seasonal"
+" shape and independent noise, a level model with the right calendar terms"
+" matches it."
+msgstr ""
+"Construimos la transformación interanual del objetivo como un modelo "
+"personalizado de PyMC sobre componentes de PyMC-Marketing, con un mapa de "
+"referencia anclado para la festividad móvil. Luego la comparamos fuera de "
+"muestra con MMM en espacio de niveles sobre dos paneles sintéticos. En el "
+"panel generado a partir de su propio supuesto, el modelo de razón alcanza el"
+" piso de ruido. En un panel con una forma estacional fija y ruido "
+"independiente, un modelo de nivel con los términos de calendario correctos "
+"la iguala."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1870006
+#: 24225ac961eb443199ecd763b34cc050
+msgid "Key Findings"
+msgstr "Hallazgos clave"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1870008
+#: edfdcbf07340428eb9987459b7a0deab
+msgid ""
+"**Seasonality comes at no cost, and so does most of the forecast.** On "
+"the home-turf panel, the CRPS of the ratio model ($19.47$) is within "
+"$2\\%$ of the true model ($19.12$). But a seasonal naive forecast without"
+" media already reaches $31.14$, so the reference level accounts for most "
+"of the gain over the level models ($49.14$ and $75.02$), and media plus "
+"the control for the rest. Decompose any headline gain against such a "
+"baseline before you attribute it to the MMM."
+msgstr ""
+"**La estacionalidad llega sin costo, y también la mayor parte del "
+"pronóstico.** En el panel de terreno propio, el CRPS del modelo de razón "
+"($19.47$) está a menos de un $2\\%$ del modelo verdadero ($19.12$). Pero un "
+"pronóstico estacional ingenuo sin medios ya alcanza $31.14$, así que el "
+"nivel de referencia explica la mayor parte de la ganancia sobre los modelos "
+"de nivel ($49.14$ y $75.02$), y los medios más el control, el resto. "
+"Descomponga cualquier ganancia destacada frente a una línea base así antes "
+"de atribuirla al MMM."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1870009
+#: 46b9ab9465004f19b167ce8e82e51b26
+#, python-brace-format
+msgid ""
+"**The failures of the level models are specification failures.** A "
+"constant intercept cannot extrapolate a compounding trend, and a smooth "
+"annual basis cannot represent a moving spike. A trend control and holiday"
+" indicators fix most of this inside {class}`~pymc_marketing.mmm.mmm.MMM` "
+"(CRPS from $75.02$ to $49.14$). On the fixed-shape panel, the same level "
+"model beats the ratio model by a small margin ($32.56$ against $33.08$)."
+msgstr ""
+"**Los fallos de los modelos de nivel son fallos de especificación.** Un "
+"intercepto constante no puede extrapolar una tendencia compuesta, y una base"
+" anual suave no puede representar un pico móvil. Un control de tendencia y "
+"los indicadores de festividad corrigen la mayor parte de esto dentro de "
+"{class}`~pymc_marketing.mmm.mmm.MMM` (CRPS de $75.02$ a $49.14$). En el "
+"panel de forma fija, el mismo modelo de nivel supera al modelo de razón por "
+"un margen pequeño ($32.56$ frente a $33.08$)."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1870010
+#: e5ddd4ba195646059f50babc0812b397
+#, python-brace-format
+msgid ""
+"**The reference map is a load-bearing component, not a preprocessing "
+"detail.** With a naive lag, the ratio has a spike and a crater at every "
+"moving holiday. Dragging the event window aligns the peaks, but it "
+"duplicates and orphans reference weeks and still divides normal weeks by "
+"holiday weeks. Rotating the prior-cycle segment keeps $r$ a bijection, at"
+" the cost of moving the $|k|$ pushed-aside weeks by $2\\,\\text{pad} + "
+"1$."
+msgstr ""
+"**El mapa de referencia es un componente estructural, no un detalle de "
+"preprocesamiento.** Con un rezago ingenuo, la razón tiene un pico y un "
+"cráter en cada festividad móvil. Trasladar la ventana del evento alinea los "
+"picos, pero duplica y deja huérfanas semanas de referencia y aun así divide "
+"semanas normales por semanas festivas. Rotar el segmento del ciclo previo "
+"mantiene $r$ como una biyección, al costo de mover las $|k|$ semanas "
+"desplazadas a un lado en $2\\,\\text{pad} + 1$."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1870011
+#: 0a9259262ce54003a89bb40b5301360b
+msgid ""
+"**The reference is an observation, and its noise comes along.** With "
+"independent level noise, the ratio carries about twice the variance and a"
+" residual correlation across cycles of about $-0.4$. The i.i.d. "
+"likelihood ignores both."
+msgstr ""
+"**La referencia es una observación, y su ruido viene con ella.** Con ruido "
+"de nivel independiente, la razón lleva aproximadamente el doble de varianza "
+"y una correlación residual entre ciclos de aproximadamente $-0.4$. La "
+"verosimilitud i.i.d. ignora ambas cosas."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1870012
+#: c907e3c0c908415c848668f3cc7b389e
+msgid ""
+"**Media enters only as a contrast.** The always-on `sponsorship` channel "
+"drops out of the likelihood exactly, and its posterior is its prior "
+"(standard deviation ratios between $0.98$ and $1.05$). In a level model "
+"the same channel is collinear with the per-unit intercept, so we leave it"
+" out of the level models. Only the ratio model can keep it and say "
+"cleanly that the data carry no information about it."
+msgstr ""
+"**Los medios entran solo como un contraste.** El canal siempre activo "
+"`sponsorship` desaparece de la verosimilitud exactamente, y su distribución "
+"posterior es su prior (razones de desviación estándar entre $0.98$ y "
+"$1.05$). En un modelo de nivel el mismo canal es colineal con el intercepto "
+"por unidad, así que lo dejamos fuera de los modelos de nivel. Solo el modelo"
+" de razón puede conservarlo y decir con claridad que los datos no contienen "
+"información sobre él."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1870013
+#: 963c593ea43f42659a5f485b475ff0ef
+msgid ""
+"**There are two attribution questions.** The contrast basis is identified"
+" and answers \"what did the change in plan contribute?\". The level basis"
+" answers \"what did the channel contribute in total?\" through an exact "
+"regrouping around $a^\\ast = 0$. Its leverage over the measured contrast "
+"(about $2.6$ for `tv`, close to one for `search` and infinite for "
+"`sponsorship`) says how much it rests on the shape of the curve."
+msgstr ""
+"**Hay dos preguntas de atribución.** La base de contrastes está identificada"
+" y responde \"¿qué aportó el cambio de plan?\". La base de niveles responde "
+"\"¿qué aportó el canal en total?\" mediante una reagrupación exacta "
+"alrededor de $a^\\ast = 0$. Su apalancamiento sobre el contraste medido "
+"(aproximadamente $2.6$ para `tv`, cercano a uno para `search` e infinito "
+"para `sponsorship`) indica cuánto descansa en la forma de la curva."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1870015
+#: 0f25a3266cd742d18dc939be7fc7008d
+msgid "Model Limitations"
+msgstr "Limitaciones del modelo"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1870017
+#: d4ab97ad5516432c9c269fada2a8843f
+msgid ""
+"We generated the home-turf panel from the ratio model itself, so its "
+"margins show what a level model pays when the assumption of the transform"
+" holds. They are not a general ranking."
+msgstr ""
+"Generamos el panel de terreno propio a partir del propio modelo de razón, "
+"así que sus márgenes muestran lo que paga un modelo de nivel cuando se "
+"cumple el supuesto de la transformación. No son un ranking general."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1870018
+#: e8415260b6b74f1b8d8493f5a27b6883
+msgid ""
+"The i.i.d. Normal likelihood ignores the noise of the reference level and"
+" the negative correlation across cycles."
+msgstr ""
+"La verosimilitud Normal i.i.d. ignora el ruido del nivel de referencia y la "
+"correlación negativa entre ciclos."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1870019
+#: 83c6995e1d954549bf6c5e9d6c287270
+msgid ""
+"The saturation curves in KPI units rest on an average reference level, "
+"because the response of the ratio model scales with last year's level."
+msgstr ""
+"Las curvas de saturación en unidades de KPI descansan en un nivel de "
+"referencia promedio, porque la respuesta del modelo de razón escala con el "
+"nivel del año pasado."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1870020
+#: 7c01fc0842544787801c0a60991c9426
+msgid ""
+"The `saturation_beta` prior is on the same scale as the true values, "
+"which flatters the recovery check."
+msgstr ""
+"El prior de `saturation_beta` está en la misma escala que los valores "
+"verdaderos, lo que favorece la verificación de recuperación."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1870021
+#: 062863a11269480ea434fbf5ed12bf55
+msgid ""
+"The reference map assumes fixed-length cycles and consecutive occurrences"
+" about one cycle apart, with windows that do not overlap. It refuses "
+"other calendars instead of approximating them."
+msgstr ""
+"El mapa de referencia supone ciclos de longitud fija y ocurrencias "
+"consecutivas separadas aproximadamente por un ciclo, con ventanas que no se "
+"superponen. Rechaza otros calendarios en lugar de aproximarlos."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1870022
+#: def6d3228ede494d9fe8d17e7e39bb17
+msgid ""
+"Each panel has a single $52$-week holdout, and the scores move with the "
+"realized noise of those weeks."
+msgstr ""
+"Cada panel tiene una única ventana de prueba de $52$ semanas, y las "
+"puntuaciones varían con el ruido realizado de esas semanas."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1870024
+#: e283d953e8c44e709822f9fc2caa336b
+msgid "Recommendations"
+msgstr "Recomendaciones"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1870026
+#: 85ee9a5917914c13bcb9d961edbb8b21
+msgid ""
+"Use the year-over-year transform when the seasonal shape drifts from year"
+" to year and the media plan changes from cycle to cycle. If the seasonal "
+"shape is fixed and the calendar is known, a level model with event terms "
+"is at least as accurate."
+msgstr ""
+"Use la transformación interanual cuando la forma estacional se desplaza de "
+"un año a otro y el plan de medios cambia de un ciclo a otro. Si la forma "
+"estacional es fija y el calendario es conocido, un modelo de nivel con "
+"términos de evento es al menos igual de preciso."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1870027
+#: c270da9dc80647b08a4c637088b72bb6
+msgid ""
+"Prefer a level-space model with an explicit seasonal basis when the KPI "
+"can touch zero, when the media plan is stable and the question is the "
+"total contribution, or when the reference year contains a shock (a "
+"stockout, a lockdown) that the current year should not be measured "
+"against."
+msgstr ""
+"Prefiera un modelo en espacio de niveles con una base estacional explícita "
+"cuando el KPI pueda tocar cero, cuando el plan de medios sea estable y la "
+"pregunta sea la contribución total, o cuando el año de referencia contenga "
+"un choque (un desabastecimiento, un confinamiento) frente al cual no deba "
+"medirse el año actual."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1870028
+#: 0bcfd2157c484c5fb53d7b0d40e7621c
+msgid ""
+"Report the ratio of posterior to prior standard deviation next to the "
+"media coefficients, and the leverage next to any level-basis "
+"contribution."
+msgstr ""
+"Reporte la razón entre la desviación estándar posterior y la del prior junto"
+" a los coeficientes de los medios, y el apalancamiento junto a cualquier "
+"contribución en la base de niveles."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1870029
+#: 0aa97903cd4940e38182f18cf9141768
+msgid ""
+"Build the reference map with the rotation, check that `duplicated` and "
+"`orphaned` are empty, and keep the shoulder as narrow as the real "
+"footprint of the event."
+msgstr ""
+"Construya el mapa de referencia con la rotación, verifique que `duplicated` "
+"y `orphaned` estén vacíos y mantenga el margen tan estrecho como la huella "
+"real del evento."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1870030
+#: f6293423911e4e8c94494c4dbd0ecfd6
+msgid ""
+"Convert ratio-space contributions to KPI units per unit-period before you"
+" aggregate them."
+msgstr ""
+"Convierta las contribuciones en el espacio de la razón a unidades de KPI por"
+" unidad-período antes de agregarlas."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1880002
+#: 85cd6b7471d64bddab18b0ed87675f1e
+msgid "Next Steps"
+msgstr "Próximos pasos"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1880004
+#: a650e08c847541028f764a2642283452
+msgid "Where would the next iteration go?"
+msgstr "¿Hacia dónde iría la siguiente iteración?"
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1880006
+#: efa80cbc7dc94039ab45023cb65030fa
+msgid ""
+"**A first-class reference map.** `build_reference_map` is useful on its "
+"own, independently of any model. Every other piece of this notebook "
+"consumes it, which argues for a reference map component in PyMC-Marketing"
+" rather than a divisor hidden inside a scaler."
+msgstr ""
+"**Un mapa de referencia de primera clase.** `build_reference_map` es útil "
+"por sí solo, independientemente de cualquier modelo. Cada una de las demás "
+"piezas de este cuaderno lo consume, lo que apunta a un componente de mapa de"
+" referencia en PyMC-Marketing en lugar de un divisor oculto dentro de un "
+"escalador."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1880007
+#: 7b5b1b56842d44678dd55ad205b9e26e
+#, python-brace-format
+msgid ""
+"**A better likelihood.** Model $\\varepsilon_{u,t}$ and "
+"$\\varepsilon_{u,r(t)}$ jointly, or use the log-difference variant of the"
+" transform with a moving-average error."
+msgstr ""
+"**Una mejor verosimilitud.** Modelar $\\varepsilon_{u,t}$ y "
+"$\\varepsilon_{u,r(t)}$ conjuntamente, o usar la variante de diferencia "
+"logarítmica de la transformación con un error de media móvil."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1880008
+#: a4f49938be3d4722a89888433b77b6ad
+#, python-brace-format
+msgid ""
+"**A wider benchmark.** Compare the ratio, the log-difference and "
+"`MMM(link=\"log\")` on the same panels, with time-slice cross-validation "
+"as in {ref}`mmm_time_slice_cross_validation` instead of a single holdout."
+msgstr ""
+"**Una comparación más amplia.** Comparar la razón, la diferencia logarítmica"
+" y `MMM(link=\"log\")` sobre los mismos paneles, con validación cruzada por "
+"intervalos de tiempo como en {ref}`mmm_time_slice_cross_validation` en lugar"
+" de una única ventana de prueba."
+
+#: ../source/notebooks/mmm/mmm_yoy_target_transform.ipynb:1880009
+#: 75688db853fc41eaab8a86f791a577b9
+msgid ""
+"**Event-relative references.** Support overlapping events, and "
+"occurrences that are not about one cycle apart, with a reference defined "
+"relative to the event rather than to a fixed cycle."
+msgstr ""
+"**Referencias relativas al evento.** Admitir eventos superpuestos, y "
+"ocurrencias que no están separadas aproximadamente por un ciclo, con una "
+"referencia definida en relación con el evento y no con un ciclo fijo."

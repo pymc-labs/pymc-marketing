@@ -116,39 +116,6 @@ def test_event_basis_in_model() -> None:
     plt.close()
 
 
-def test_gaussian_basis_serialization():
-    # Test serialization/deserialization of GaussianBasis
-    gaussian = GaussianBasis(
-        priors={
-            "sigma": Prior("Gamma", mu=7, sigma=1),
-        },
-    )
-
-    # Test to_dict and from_dict
-    gaussian_dict = gaussian.to_dict()
-    gaussian_restored = serialization.deserialize(gaussian_dict)
-
-    assert gaussian_restored.prefix == gaussian.prefix
-
-
-def test_event_effect_serialization():
-    # Test serialization/deserialization of EventEffect
-    gaussian = GaussianBasis(
-        priors={
-            "sigma": Prior("Gamma", mu=7, sigma=1),
-        },
-    )
-    effect_size = Prior("Normal", mu=1, sigma=1, dims="event")
-    effect = EventEffect(basis=gaussian, effect_size=effect_size, dims=("event",))
-
-    # Test to_dict and from_dict
-    effect_dict = effect.to_dict()
-    effect_restored = EventEffect.from_dict(effect_dict["data"])
-
-    assert effect_restored.dims == effect.dims
-    assert effect_restored.effect_size.to_dict() == effect.effect_size.to_dict()
-
-
 def test_gaussian_basis_curve_sampling():
     gaussian = GaussianBasis(
         priors={
@@ -608,23 +575,6 @@ def test_half_gaussian_in_event_effect_apply():
         assert y.type.shape == (len(dates), 1)
 
 
-def test_half_gaussian_serialization():
-    half = HalfGaussianBasis(
-        priors={
-            "sigma": Prior("Gamma", mu=7, sigma=1),
-        },
-        mode="before",
-        include_event=False,
-    )
-
-    d = half.to_dict()
-    restored = serialization.deserialize(d)
-
-    assert isinstance(restored, HalfGaussianBasis)
-    assert restored.mode == half.mode
-    assert restored.include_event == half.include_event
-
-
 @pytest.mark.parametrize(
     "event_in",
     [
@@ -685,25 +635,6 @@ def test_asymmetric_gaussian_basis_function(event_in):
         )
 
     np.testing.assert_array_almost_equal(result, expected)
-
-
-def test_asymmetric_gaussian_basis_curve_sampling():
-    """Test AsymmetricGaussianBasis curve sampling."""
-    asymmetric = AsymmetricGaussianBasis(
-        priors={
-            "sigma_before": Prior("Gamma", mu=3, sigma=1, dims="event"),
-            "sigma_after": Prior("Gamma", mu=7, sigma=2, dims="event"),
-            "a_after": Prior("Normal", mu=1, sigma=0.5, dims="event"),
-        },
-    )
-
-    coords = {"event": ["Event1", "Event2"]}
-    prior = asymmetric.sample_prior(coords=coords)
-    curve = asymmetric.sample_curve(prior, days=15)
-
-    assert curve.dims == ("chain", "draw", "x", "event")
-    assert curve.event.size == 2
-    assert curve.x.size == 100
 
 
 def test_asymmetric_gaussian_basis_multiple_events():

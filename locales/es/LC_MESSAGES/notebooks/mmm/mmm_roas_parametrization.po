@@ -1,0 +1,666 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2026, PyMC Labs
+# This file is distributed under the same license as the PyMC-Marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyMC-Marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:10003
+#: c152943e841b43acb72c5c494e69f8ee
+msgid "Custom MMM with ROAS Parameterization"
+msgstr "MMM personalizado con parametrización por ROAS"
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:10005
+#: f83cb4c3795542e5a04d51bcda8343bc
+msgid ""
+"This notebook demonstrates how to build a custom Media Mix Model (MMM) "
+"parameterized by **ROAS (Return on Ad Spend)** instead of the classical "
+"regression (beta) coefficients. The technique is based on the paper "
+"[Media Mix Model Calibration With Bayesian "
+"Priors](https://research.google/pubs/media-mix-model-calibration-with-"
+"bayesian-priors/) by Zhang et al. (2024) and the simulation study [Media "
+"Mix Model and Experimental "
+"Calibration](https://juanitorduz.github.io/mmm_roas/) by [Juan "
+"Orduz](https://juanitorduz.github.io/)."
+msgstr ""
+"Este cuaderno muestra cómo construir un modelo de mezcla de medios (MMM) "
+"personalizado parametrizado por **ROAS (retorno sobre la inversión "
+"publicitaria)** en lugar de los coeficientes de regresión (beta) clásicos. "
+"La técnica se basa en el artículo [Media Mix Model Calibration With Bayesian"
+" Priors](https://research.google/pubs/media-mix-model-calibration-with-"
+"bayesian-priors/) de Zhang et al. (2024) y en el estudio de simulación "
+"[Media Mix Model and Experimental "
+"Calibration](https://juanitorduz.github.io/mmm_roas/) de [Juan "
+"Orduz](https://juanitorduz.github.io/)."
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:10007
+#: 5c367d37e41c433abe9cc40603c156da
+msgid "Motivation"
+msgstr "Motivación"
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:10009
+#: de6817602edb47cf95ab8f0c9136ac7d
+msgid ""
+"In practice, MMMs suffer from omitted variable bias (unobserved "
+"confounders) which leads to biased channel contribution and ROAS "
+"estimates. Running randomized experiments (lift tests) can provide "
+"unbiased ROAS estimates for individual channels. The key idea in this "
+"notebook is to **reparameterize** the model so that the channel scaling "
+"coefficient $\\beta$ is expressed in terms of ROAS:"
+msgstr ""
+"En la práctica, los MMM sufren de sesgo por variables omitidas (confusores "
+"no observados), lo que conduce a estimaciones sesgadas de la contribución de"
+" los canales y del ROAS. Realizar experimentos aleatorizados (pruebas de "
+"elevación) puede proporcionar estimaciones insesgadas del ROAS para canales "
+"individuales. La idea clave de este cuaderno es **reparametrizar** el modelo"
+" de modo que el coeficiente de escala del canal $\\beta$ se exprese en "
+"términos del ROAS:"
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:10011
+#: f50dcd0592434d5fa2cadf1b3a59e578
+msgid ""
+"\n"
+"\\beta_m = \\frac{\\text{ROAS}_m \\cdot \\sum_t x_{m,t}}{\\sum_t "
+"f_m(x_{m,t})}\n"
+msgstr ""
+"\n"
+"\\beta_m = \\frac{\\text{ROAS}_m \\cdot \\sum_t x_{m,t}}{\\sum_t f_m(x_{m,t})}\n"
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:10015
+#: d0841b370c0448189474162c7a6b1f39
+#, python-brace-format
+msgid ""
+"where $x_{m,t}$ is the raw spend for channel $m$ at time $t$, and $f_m$ "
+"is the adstock + saturation transformation. This allows injecting "
+"experimental ROAS estimates directly as Bayesian priors, partially "
+"correcting for confounding bias."
+msgstr ""
+"donde $x_{m,t}$ es el gasto bruto del canal $m$ en el tiempo $t$, y $f_m$ es"
+" la transformación de adstock + saturación. Esto permite inyectar "
+"estimaciones experimentales de ROAS directamente como priors bayesianos, "
+"corrigiendo parcialmente el sesgo de confusión."
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:10017
+#: 27dc5f25eaa34172876248149795fe9f
+#, python-brace-format
+msgid ""
+"This is a different approach to the one taken in {ref}`mmm_roas`, where "
+"the ROAS is not a parameter of the model, but a derived quantity from the"
+" beta coefficients after lift-test calibration using the saturation-curve"
+" method (see {ref}`mmm_lift_test`). The benefit of PyMC-Marketing's "
+"calibration method is that the more experiments are conducted, the more "
+"precise the ROAS estimates become. In contrast, the approach here is more"
+" \"static\" in the sense that it uses an aggregation (e.g. mean or "
+"median) of ROAS estimates from experiments. We are losing information "
+"this way. Nevertheless, it is a clever and convenient parametrization "
+"that also works well in practice 🙂. The purpose of this notebook is to "
+"illustrate how PyMC-Marketing's components can be used to build custom "
+"models, and how the ROAS parameterization works."
+msgstr ""
+"Este es un enfoque distinto al adoptado en {ref}`mmm_roas`, donde el ROAS no"
+" es un parámetro del modelo, sino una cantidad derivada de los coeficientes "
+"beta después de la calibración con pruebas de elevación mediante el método "
+"de la curva de saturación (véase {ref}`mmm_lift_test`). La ventaja del "
+"método de calibración de PyMC-Marketing es que, cuantos más experimentos se "
+"realizan, más precisas se vuelven las estimaciones del ROAS. En cambio, el "
+"enfoque de aquí es más \"estático\" en el sentido de que utiliza una "
+"agregación (por ejemplo, la media o la mediana) de las estimaciones de ROAS "
+"de los experimentos. De esta manera estamos perdiendo información. Sin "
+"embargo, es una parametrización ingeniosa y conveniente que también funciona"
+" bien en la práctica 🙂. El propósito de este cuaderno es ilustrar cómo se "
+"pueden usar los componentes de PyMC-Marketing para construir modelos "
+"personalizados, y cómo funciona la parametrización por ROAS."
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:10019
+#: c59e87e9c652436e8f226563753bc374
+msgid "Approach"
+msgstr "Enfoque"
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:10021
+#: 185a076aecda402c8c700c613855e4c6
+#, python-brace-format
+msgid ""
+"We consider the same example as in the case study {ref}`mmm_roas`, where "
+"we have one unobserved confounder $z$ that affects both channel $x_1$ "
+"spend and the target $y$. In this notebook, we compare two custom PyMC "
+"models:"
+msgstr ""
+"Consideramos el mismo ejemplo que en el estudio de caso {ref}`mmm_roas`, "
+"donde tenemos un confusor no observado $z$ que afecta tanto al gasto del "
+"canal $x_1$ como a la variable objetivo $y$. En este cuaderno, comparamos "
+"dos modelos personalizados de PyMC:"
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:10023
+#: b277cc37e51443d99588d7ee8a331efa
+msgid ""
+"**Baseline model** (`model_baseline`): Standard beta-coefficient priors, "
+"no confounder $z$ in the model. This demonstrates the bias from omitted "
+"variables."
+msgstr ""
+"**Modelo base** (`model_baseline`): priors estándar sobre los coeficientes "
+"beta, sin el confusor $z$ en el modelo. Esto demuestra el sesgo debido a las"
+" variables omitidas."
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:10024
+#: 14cd8b022cc544e2bdedee89ed9c63be
+msgid ""
+"**Calibrated model** (`model_calibrated`): ROAS priors from "
+"\"experiments\" replace beta priors. Same structure, still no $z$, but "
+"ROAS priors mitigate the bias."
+msgstr ""
+"**Modelo calibrado** (`model_calibrated`): priors de ROAS provenientes de "
+"\"experimentos\" reemplazan a los priors de beta. Misma estructura, todavía "
+"sin $z$, pero los priors de ROAS mitigan el sesgo."
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:10026
+#: a437a110ec814291bd87d5bef38bbcfe
+msgid ""
+"We use [PyMC-Marketing](https://github.com/pymc-labs/pymc-marketing) "
+"components (`GeometricAdstock`, `YearlyFourier`) alongside raw PyMC for "
+"maximum flexibility."
+msgstr ""
+"Usamos componentes de [PyMC-Marketing](https://github.com/pymc-labs/pymc-"
+"marketing) (`GeometricAdstock`, `YearlyFourier`) junto con PyMC puro para "
+"lograr la máxima flexibilidad."
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:10029
+#: ee6566594fc24be99e0fbc5e595702ac
+#, python-brace-format
+msgid ""
+"{ref}`mmm_roas` for the full 3-model comparison using lift-test "
+"calibration."
+msgstr ""
+"{ref}`mmm_roas` para la comparación completa de los 3 modelos usando "
+"calibración con pruebas de elevación."
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:10030
+#: 1c83d9cb6c154f2db957f69417ea95db
+#, python-brace-format
+msgid ""
+"{ref}`mmm_components` and {ref}`mmm_custom_splines` for other custom "
+"model examples."
+msgstr ""
+"{ref}`mmm_components` y {ref}`mmm_custom_splines` para otros ejemplos de "
+"modelos personalizados."
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:10031
+#: 9178886907ba40a08fcdf7bfea434d9b
+#, python-brace-format
+msgid "{ref}`mmm_lift_test` for the lift-test likelihood approach to calibration."
+msgstr ""
+"{ref}`mmm_lift_test` para el enfoque de calibración basado en la "
+"verosimilitud de las pruebas de elevación."
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:20002
+#: ba038a261913443fa9d9f45614cbc53a
+msgid "Prepare Notebook"
+msgstr "Preparar el cuaderno"
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:50002
+#: 0af3ff34f1834967a74754fd23f1208b
+msgid "Load and Explore Data"
+msgstr "Cargar y explorar los datos"
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:50004
+#: f2ce7fbde158412b87ba5896441447cf
+#, python-brace-format
+msgid ""
+"We use the same synthetic dataset from {ref}`mmm_roas`. It was generated "
+"with an unobserved confounder $z$ that causally affects both channel "
+"$x_1$ spend and the target $y$ (for more details on the data generating "
+"process, see the original blog post [Media Mix Modeling with PyMC-"
+"Marketing](https://juanitorduz.github.io/mmm_roas/)). The dataset "
+"includes ground-truth columns (`y01` and `y02`) representing potential "
+"outcomes when each channel is turned off, which we use to compute the "
+"true ROAS."
+msgstr ""
+"Usamos el mismo conjunto de datos sintético de {ref}`mmm_roas`. Fue generado"
+" con un confusor no observado $z$ que afecta causalmente tanto al gasto del "
+"canal $x_1$ como a la variable objetivo $y$ (para más detalles sobre el "
+"proceso generador de datos, consulte la entrada original del blog [Media Mix"
+" Modeling with PyMC-Marketing](https://juanitorduz.github.io/mmm_roas/)). El"
+" conjunto de datos incluye columnas de verdad de referencia (`y01` y `y02`) "
+"que representan los resultados potenciales cuando cada canal se apaga, las "
+"cuales usamos para calcular el ROAS verdadero."
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:70002
+#: b3f85679bf514b41812f3e833f252ff9
+msgid "Causal DAG"
+msgstr "DAG causal"
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:70004
+#: 509722fc2e6c44f097423607b9a96ec7
+msgid ""
+"The data generating process follows this causal structure. Note the "
+"confounder $z$ affecting both $x_1$ and $y$:"
+msgstr ""
+"El proceso generador de datos sigue esta estructura causal. Observe el "
+"confusor $z$ que afecta tanto a $x_1$ como a $y$:"
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:90002
+#: d84cd905b8364ed287cbd4663ade9690
+msgid ""
+"Since $z$ is unobserved, we cannot include it in the model. This means "
+"the backdoor path $x_1 \\leftarrow z \\rightarrow y$ remains open, "
+"leading to omitted variable bias in the estimate of $x_1$'s effect."
+msgstr ""
+"Como $z$ no se observa, no podemos incluirlo en el modelo. Esto significa "
+"que el camino de puerta trasera $x_1 \\leftarrow z \\rightarrow y$ permanece"
+" abierto, lo que conduce a un sesgo por variable omitida en la estimación "
+"del efecto de $x_1$."
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:90004
+#: 1e4352c612764f659bcc29f2f077b582
+msgid "Select Modeling Columns"
+msgstr "Seleccionar las columnas de modelado"
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:90006
+#: d3c541d431c2494695304ab9e47d870f
+msgid ""
+"For modeling, we only use `date`, `dayofyear`, `x1`, `x2`, and `y`, "
+"deliberately excluding $z$ to simulate a realistic scenario."
+msgstr ""
+"Para el modelado, solo usamos `date`, `dayofyear`, `x1`, `x2` e `y`, "
+"excluyendo deliberadamente $z$ para simular un escenario realista."
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:120002
+#: c9b1978f65d84ee495b54de4e08c51ab
+msgid "True ROAS (Ground Truth)"
+msgstr "ROAS verdadero (verdad de referencia)"
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:120004
+#: bf9cf0bb85aa42558a6f400ef08ea8eb
+msgid ""
+"The dataset contains potential outcome columns `y01` (sales without "
+"$x_1$) and `y02` (sales without $x_2$). We compute the true global ROAS "
+"as:"
+msgstr ""
+"El conjunto de datos contiene las columnas de resultados potenciales `y01` "
+"(ventas sin $x_1$) y `y02` (ventas sin $x_2$). Calculamos el ROAS global "
+"verdadero como:"
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:120006
+#: 9176fabe339d4274b6fbdff6ff67629f
+msgid ""
+"\n"
+"\\text{ROAS}_m = \\frac{\\sum_t (y_t - y_{0m,t})}{\\sum_t x_{m,t}}\n"
+msgstr ""
+"\n"
+"\\text{ROAS}_m = \\frac{\\sum_t (y_t - y_{0m,t})}{\\sum_t x_{m,t}}\n"
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:140002
+#: 1e6fa36ec5cd4c0cb7b13cb913372f6f
+msgid "Data Preparation and Scaling"
+msgstr "Preparación y escalado de los datos"
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:140004
+#: d766167fe4bc42428023466f6e7338f8
+msgid ""
+"We scale the data using `MaxAbsScaler` to improve sampling efficiency (we"
+" could also do the scaling manually but this shows how to integrate PyMC "
+"posterior distributions with [scikit-learn](https://scikit-"
+"learn.org/stable/) transformers). The time index, target, and channels "
+"are each scaled independently."
+msgstr ""
+"Escalamos los datos usando `MaxAbsScaler` para mejorar la eficiencia del "
+"muestreo (también podríamos hacer el escalado manualmente, pero esto muestra"
+" cómo integrar las distribuciones posteriores de PyMC con transformadores de"
+" [scikit-learn](https://scikit-learn.org/stable/)). El índice de tiempo, la "
+"variable objetivo y los canales se escalan cada uno de forma independiente."
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:160002
+#: 65ad1870b3d0400eb501b7bb2206f8e4
+msgid "Let's look into the channel spend share:"
+msgstr "Veamos la participación de cada canal en el gasto:"
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:180002
+#: 5b0ba1f11b69433b934a6024ee4c203f
+msgid "Model Components Setup"
+msgstr "Configuración de los componentes del modelo"
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:180004
+#: d55452c3e5bc45c095228b975d61cc9b
+msgid ""
+"We define reusable PyMC-Marketing components for adstock and seasonality."
+" For the saturation transform, we use the raw `logistic_saturation` "
+"function (without the `LogisticSaturation` class) because we need to "
+"handle the channel scaling coefficient $\\beta$ separately in each model:"
+" the baseline uses a direct prior, while the calibrated model derives it "
+"from ROAS."
+msgstr ""
+"Definimos componentes reutilizables de PyMC-Marketing para el adstock y la "
+"estacionalidad. Para la transformación de saturación, usamos la función "
+"`logistic_saturation` en bruto (sin la clase `LogisticSaturation`) porque "
+"necesitamos manejar el coeficiente de escala del canal $\\beta$ por separado"
+" en cada modelo: el modelo base usa un prior directo, mientras que el modelo"
+" calibrado lo deriva del ROAS."
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:200002
+#: 0fb0bc2583ab449a8e3684c10507a02c
+msgid "Baseline Model: Standard Beta Priors (No Confounder)"
+msgstr "Modelo base: priors beta estándar (sin confusor)"
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:200004
+#: 84e4f8d73421462b91c0edc0f6df1e66
+msgid ""
+"This model excludes the confounder $z$ and uses standard `HalfNormal` "
+"priors on `beta_channel`, weighted by each channel's spend share. We "
+"expect the ROAS of $x_1$ to be heavily overestimated due to the open "
+"backdoor path through $z$."
+msgstr ""
+"Este modelo excluye el confusor $z$ y usa priors `HalfNormal` estándar sobre"
+" `beta_channel`, ponderados por la participación de cada canal en el gasto. "
+"Esperamos que el ROAS de $x_1$ resulte muy sobreestimado debido al camino de"
+" puerta trasera abierto a través de $z$."
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:200007
+#: 1103ead820af41e0ad489d34807d1887
+msgid ""
+"We will add a time-varying intercept using a [Hilbert Space Gaussian "
+"Process](https://docs.pymc.io/en/latest/api/gp.html#pymc.gp.HSGP). For "
+"details on the choice of priors, see the original blog post [Media Mix "
+"Modeling with PyMC-Marketing](https://juanitorduz.github.io/mmm_roas/) "
+"and the PyMC example [Gaussian Processes: HSGP Reference & First "
+"Steps](https://www.pymc.io/projects/examples/en/latest/gaussian_processes"
+"/HSGP-Basic.html)."
+msgstr ""
+"Agregaremos un intercepto variable en el tiempo usando un [Proceso Gaussiano"
+" de Espacio de "
+"Hilbert](https://docs.pymc.io/en/latest/api/gp.html#pymc.gp.HSGP). Para más "
+"detalles sobre la elección de los priors, consulte la entrada original del "
+"blog [Media Mix Modeling with PyMC-"
+"Marketing](https://juanitorduz.github.io/mmm_roas/) y el ejemplo de PyMC "
+"[Gaussian Processes: HSGP Reference & First "
+"Steps](https://www.pymc.io/projects/examples/en/latest/gaussian_processes/HSGP-"
+"Basic.html)."
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:220002
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:410002
+#: 7e662ccfca2542e6907b1654842eada5 d2d966ead70641d1a8778fd02964c1b4
+msgid "Fit Model"
+msgstr "Ajustar el modelo"
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:240002
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:440002
+#: 68a99f91936f426b9fd3e08a9a1d2bb4 774a3b2ec69c4748b643e969e4e998db
+msgid "Channel Contributions vs True Effects"
+msgstr "Contribuciones de los canales frente a los efectos verdaderos"
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:240004
+#: a4f3c0bf0617409f80b1e6a01ceb8944
+msgid ""
+"We compare estimated channel contributions against the ground truth. The "
+"omitted confounder $z$ causes $x_1$'s contribution to be heavily "
+"overestimated."
+msgstr ""
+"Comparamos las contribuciones estimadas de los canales con la verdad de "
+"referencia. El confusor omitido $z$ hace que la contribución de $x_1$ "
+"resulte muy sobreestimada."
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:250002
+#: 7a7f672778a84d938641af6e2540b4b8
+msgid "First, let's do some proper scaling back to the original data."
+msgstr ""
+"Primero, volvamos a la escala original de los datos de la forma adecuada."
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:270002
+#: c12205570d0c431da511d989a0a6be1d
+msgid ""
+"Now we can plot the estimated channel contributions against the true "
+"effects."
+msgstr ""
+"Ahora podemos trazar las contribuciones estimadas de los canales frente a "
+"los efectos verdaderos."
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:290002
+#: 76aec0daf5774da1a37eae08792a1560
+msgid ""
+"We clearly see the confounding bias from the omitted variable $z$ in the "
+"$x_1$ contribution estimation. Let's see how this bias gets translated "
+"into ROAS."
+msgstr ""
+"Vemos claramente el sesgo de confusión de la variable omitida $z$ en la "
+"estimación de la contribución de $x_1$. Veamos cómo se traduce este sesgo en"
+" el ROAS."
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:300002
+#: 3ee9ceab53a34ba78da512c4eabaa3cf
+msgid "ROAS Estimation (Baseline)"
+msgstr "Estimación del ROAS (modelo base)"
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:300004
+#: 61c1fd37498f47d385e45b91e7a772e3
+msgid ""
+"We compute the global ROAS by generating counterfactual predictions with "
+"each channel set to zero."
+msgstr ""
+"Calculamos el ROAS global generando predicciones contrafactuales con cada "
+"canal fijado en cero."
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:320002
+#: 2a06a7e8856e4ef9a336cb71553920cd
+msgid "Let's visualize the results."
+msgstr "Visualicemos los resultados."
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:340002
+#: ad0d1c977f274f4686206af3e3c91565
+#, python-brace-format
+msgid ""
+"The baseline model massively overestimates the ROAS of $x_1$ due to the "
+"confounding bias from the omitted variable $z$. This is something we "
+"already know from the case study {ref}`mmm_roas`."
+msgstr ""
+"El modelo base sobreestima enormemente el ROAS de $x_1$ debido al sesgo de "
+"confusión de la variable omitida $z$. Esto ya lo sabemos por el estudio de "
+"caso {ref}`mmm_roas`."
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:350002
+#: 4424192b3a0a45d3b514fad972a31d0a
+msgid "Calibrated Model: ROAS Parameterization"
+msgstr "Modelo calibrado: parametrización por ROAS"
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:350004
+#: 5036038604f346a5b3c83da999e8fd69
+msgid ""
+"We now build the same model structure but replace the `beta_channel` "
+"prior with a derived quantity based on ROAS priors. The ROAS values come "
+"from hypothetical experiments that provide unbiased estimates close to "
+"the true values."
+msgstr ""
+"Ahora construimos la misma estructura de modelo, pero reemplazamos el prior "
+"de `beta_channel` por una cantidad derivada basada en priors de ROAS. Los "
+"valores de ROAS provienen de experimentos hipotéticos que proporcionan "
+"estimaciones insesgadas cercanas a los valores verdaderos."
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:350006
+#: 55ded90311f842689995b543c088339c
+msgid "Experiment Calibration"
+msgstr "Calibración con experimentos"
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:350008
+#: 69f53bbeb9c04a66bc4e58b7dbc6429c
+msgid "Suppose experiments yielded the following ROAS estimates:"
+msgstr ""
+"Supongamos que los experimentos arrojaron las siguientes estimaciones de "
+"ROAS:"
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:370002
+#: 0492067a75f64a0183e64beeff481795
+msgid "ROAS Prior Distributions"
+msgstr "Distribuciones previas del ROAS"
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:370004
+#: c7402f6bf05949ed937eeb8caf8a99fd
+msgid ""
+"We use LogNormal priors centered at the experimental ROAS estimates. The "
+"LogNormal ensures positivity and allows for right-skewed uncertainty."
+msgstr ""
+"Usamos priors LogNormal centrados en las estimaciones experimentales de "
+"ROAS. La LogNormal garantiza la positividad y permite una incertidumbre con "
+"sesgo hacia la derecha."
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:390002
+#: ff87593636804ebb9cfc4f57e0d02c4c
+msgid "Model Specification"
+msgstr "Especificación del modelo"
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:390004
+#: c132bfbe8d854bb3a48a8d9d09509de3
+msgid ""
+"The key change from the baseline: instead of `beta_channel ~ "
+"HalfNormal(...)`, we define `roas ~ LogNormal(...)` and derive "
+"`beta_channel` deterministically:"
+msgstr ""
+"El cambio clave respecto al modelo base: en lugar de `beta_channel ~ "
+"HalfNormal(...)`, definimos `roas ~ LogNormal(...)` y derivamos "
+"`beta_channel` de forma determinista:"
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:390006
+#: a7fb966d51974a469ea9996a38af4e22
+msgid ""
+"\n"
+"\\beta_m = \\frac{\\text{ROAS}_m \\cdot \\sum_t x_{m,t}}\n"
+"               {\\sum_t \\text{saturation}(\\text{adstock}(x_{m,t})) + "
+"\\epsilon}\n"
+msgstr ""
+"\n"
+"\\beta_m = \\frac{\\text{ROAS}_m \\cdot \\sum_t x_{m,t}}\n"
+"               {\\sum_t \\text{saturation}(\\text{adstock}(x_{m,t})) + \\epsilon}\n"
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:390011
+#: d37c652784b54383b31dfc7861443502
+msgid ""
+"This ensures the total channel contribution equals `ROAS * total_spend` "
+"in expectation (the $\\epsilon$ term is a small constant to avoid "
+"division by zero)."
+msgstr ""
+"Esto garantiza que la contribución total del canal sea igual a `ROAS * "
+"total_spend` en valor esperado (el término $\\epsilon$ es una constante "
+"pequeña para evitar la división por cero)."
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:430002
+#: f56443822a6c43c4a7d01f047f08f2ee
+msgid "We do not see any divergences."
+msgstr "No vemos ninguna divergencia."
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:440004
+#: 2d509be6e5194bbe9eaccdbb7f47ae47
+msgid ""
+"As before, we scale back the estimated channel contributions to the "
+"original data."
+msgstr ""
+"Como antes, volvemos a la escala original de los datos para las "
+"contribuciones estimadas de los canales."
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:470002
+#: 00c10514da6e4f32afaad14f1bba2297
+msgid ""
+"The results are much better! The contributions are much closer to the "
+"true effects. It is not perfect for $x_1$, but it is much better than "
+"before. This can translate into better decisions and downstream "
+"optimization."
+msgstr ""
+"¡Los resultados son mucho mejores! Las contribuciones están mucho más cerca "
+"de los efectos verdaderos. No es perfecto para $x_1$, pero es mucho mejor "
+"que antes. Esto puede traducirse en mejores decisiones y en una mejor "
+"optimización posterior."
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:480002
+#: 202cdd56291347399b3be534d1ee2e42
+msgid "ROAS Estimation (Calibrated)"
+msgstr "Estimación del ROAS (modelo calibrado)"
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:480004
+#: 6304467778534a06b808f4a5db882ad5
+msgid ""
+"For the calibrated model, as before, we generate counterfactual "
+"predictions by zeroing out both `channels_scaled` (the model input) and "
+"`channels_cost`."
+msgstr ""
+"Para el modelo calibrado, como antes, generamos predicciones contrafactuales"
+" poniendo en cero tanto `channels_scaled` (la entrada del modelo) como "
+"`channels_cost`."
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:510002
+#: 408d41c439a648eb8397316c694d3fef
+msgid ""
+"The ROAS estimates are now closer to the true values, especially for "
+"$x_1$ where the confounding bias was most severe. Directionally, these "
+"estimates are much better for decision-making."
+msgstr ""
+"Las estimaciones de ROAS ahora están más cerca de los valores verdaderos, "
+"especialmente para $x_1$, donde el sesgo de confusión era más severo. En "
+"términos direccionales, estas estimaciones son mucho mejores para la toma de"
+" decisiones."
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:520002
+#: 9bbb87c187cc44c08b3eac12b0654bde
+msgid "Model Comparison"
+msgstr "Comparación de modelos"
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:520004
+#: cda2f8bf099e4baeb85459a777926567
+msgid "Let's summarize the results in a single figure."
+msgstr "Resumamos los resultados en una sola figura."
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:540002
+#: 1e315421fa684c4da8f95f8f312ef116
+msgid "The comparison shows (as described above):"
+msgstr "La comparación muestra (como se describió anteriormente):"
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:540004
+#: 82e15959df514687aa144c6c1a0e0083
+msgid ""
+"**$x_1$**: The baseline model massively overestimates ROAS due to the "
+"confounding bias from $z$. The calibrated model, informed by the "
+"experimental ROAS prior, brings the estimate much closer to the true "
+"value."
+msgstr ""
+"**$x_1$**: El modelo base sobreestima enormemente el ROAS debido al sesgo de"
+" confusión de $z$. El modelo calibrado, informado por el prior de ROAS "
+"experimental, acerca mucho más la estimación al valor verdadero."
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:540005
+#: c1fbeaabf519491c8ff0132b33310348
+msgid ""
+"**$x_2$**: Both models produce reasonable estimates since $x_2$ has no "
+"confounding path, though the calibrated model provides tighter "
+"uncertainty bounds."
+msgstr ""
+"**$x_2$**: Ambos modelos producen estimaciones razonables, ya que $x_2$ no "
+"tiene un camino de confusión, aunque el modelo calibrado proporciona límites"
+" de incertidumbre más estrechos."
+
+#: ../source/notebooks/mmm/mmm_roas_parametrization.ipynb:540007
+#: 021fe21147b14376ba7efce944eacbb4
+#, python-brace-format
+msgid ""
+"Note that the ROAS posteriors in the calibrated model are **not** "
+"identical to the priors; the likelihood (observed data) still influences "
+"the final estimates. The ROAS priors act as regularization, pulling the "
+"estimates toward experimentally validated values while still allowing the"
+" data to inform the posterior. This is where adding more experiments with"
+" **additional** likelihoods will help a lot (see {ref}`mmm_lift_test`)."
+msgstr ""
+"Tenga en cuenta que las distribuciones posteriores del ROAS en el modelo "
+"calibrado **no** son idénticas a los priors; la verosimilitud (los datos "
+"observados) todavía influye en las estimaciones finales. Los priors de ROAS "
+"actúan como regularización, acercando las estimaciones a valores validados "
+"experimentalmente y permitiendo, al mismo tiempo, que los datos informen la "
+"distribución posterior. Aquí es donde agregar más experimentos con "
+"verosimilitudes **adicionales** ayudará mucho (véase {ref}`mmm_lift_test`)."

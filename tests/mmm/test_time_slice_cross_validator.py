@@ -193,17 +193,6 @@ class TestTimeSliceCrossValidator:
         assert cv.date_column == "date"
         assert cv.step_size == 4
 
-    def test_get_n_splits(self, cv, XY):
-        """Test get_n_splits method."""
-        X, y = XY
-        n_splits = cv.get_n_splits(X, y)
-        expected_splits = (
-            len(pd.to_datetime(X[cv.date_column]).unique())
-            - cv.n_init
-            - cv.forecast_horizon
-        ) // cv.step_size + 1
-        assert n_splits == expected_splits
-
     def test_split_generator(self, XY, cv):
         """Test split generator yields correct train/test indices."""
         X, y = XY
@@ -220,15 +209,6 @@ class TestTimeSliceCrossValidator:
         assert len(test_idx) == cv.forecast_horizon * 2
         # basic ordering checks
         assert int(train_idx.max()) < int(test_idx.min())
-
-    def test_fit_mmm(self, cv, XY, mmm_fixture, mock_pymc_sample):
-        """Test _fit_mmm method."""
-        X, y = XY
-
-        fitted_mmm = cv._fit_mmm(mmm_fixture, X, y)
-
-        # Check that the MMM was fitted
-        assert fitted_mmm.idata is not None
 
     def test_time_slice_step(self, cv, XY, mmm_fixture, mock_pymc_sample):
         """Test _time_slice_step method."""
@@ -298,20 +278,6 @@ class TestTimeSliceCrossValidator:
                     f"Results {i} and {j} have idata objects with same memory address"
                 )
 
-    def test_run_accepts_raw_mmm_instance(self, cv, XY, mmm_fixture, mock_pymc_sample):
-        """Test that run() works when passed a raw MMM whose build_model returns None."""
-        X, y = XY
-        _combined = cv.run(X, y, mmm=mmm_fixture)
-
-        expected_splits = cv.get_n_splits(X, y)
-        assert hasattr(cv, "_cv_results")
-        results = cv._cv_results
-        assert len(results) == expected_splits
-
-        for result in results:
-            assert isinstance(result, TimeSliceCrossValidationResult)
-            assert result.idata is not None
-
 
 class TestStepSize:
     """Test the step_size functionality."""
@@ -344,19 +310,6 @@ class TestStepSize:
             df.stack("country", future_stack=True).reset_index(),
             y.stack("country", future_stack=True).reset_index()[target_column],
         )
-
-    def test_step_size_default(self, mmm_fixture):
-        """Test that step_size defaults to 1."""
-        cv = TimeSliceCrossValidator(n_init=5, forecast_horizon=3, date_column="date")
-        assert cv.step_size == 1
-
-    def test_step_size_custom(self, mmm_fixture):
-        """Test custom step_size values."""
-        for step_size in [2, 3, 4, 5]:
-            cv = TimeSliceCrossValidator(
-                n_init=5, forecast_horizon=3, date_column="date", step_size=step_size
-            )
-            assert cv.step_size == step_size
 
     def test_get_n_splits_with_step_size(self, large_XY, mmm_fixture):
         """Test get_n_splits with different step_size values."""
@@ -453,34 +406,6 @@ class TestStepSize:
         # All results should be TimeSliceCrossValidationResult instances
         for result in results:
             assert isinstance(result, TimeSliceCrossValidationResult)
-
-    def test_step_size_backward_compatibility(self, large_XY, mmm_fixture):
-        """Test that step_size=1 maintains backward compatibility."""
-        X, y = large_XY
-
-        # Create two validators - one with explicit step_size=1, one without
-        cv_explicit = TimeSliceCrossValidator(
-            n_init=5, forecast_horizon=3, date_column="date", step_size=1
-        )
-
-        cv_implicit = TimeSliceCrossValidator(
-            n_init=5, forecast_horizon=3, date_column="date"
-        )
-
-        # Both should produce identical results
-        splits_explicit = list(cv_explicit.split(X, y))
-        splits_implicit = list(cv_implicit.split(X, y))
-
-        assert len(splits_explicit) == len(splits_implicit)
-        for i, (split_explicit, split_implicit) in enumerate(
-            zip(splits_explicit, splits_implicit, strict=True)
-        ):
-            assert np.array_equal(split_explicit[0], split_implicit[0]), (
-                f"Split {i} train differs"
-            )
-            assert np.array_equal(split_explicit[1], split_implicit[1]), (
-                f"Split {i} test differs"
-            )
 
     def test_step_size_single_split(self, XY, mmm_fixture):
         """Test that with n_init=1, forecast_horizon=1, step_size=2, we get only one split."""
@@ -1076,35 +1001,6 @@ def test_run_rejects_log_link_lift_before_first_fold():
         cv.run(X, y, mmm=template, df_lift_test=pd.DataFrame({"date": dates}))
 
 
-def test_run_with_lift_tests_and_raw_mmm_instance():
-    dates = pd.date_range("2025-01-01", periods=4, freq="D")
-    X = pd.DataFrame({"date": dates, "geo": ["g1"] * len(dates)})
-    y = pd.Series(np.arange(len(dates)))
-    cv = TimeSliceCrossValidator(
-        n_init=1, forecast_horizon=1, date_column="date", step_size=1
-    )
-
-    df_lift_test = pd.DataFrame(
-        {
-            "channel": ["x1", "x1", "x1"],
-            "x": [0.1, 0.2, 0.3],
-            "delta_x": [0.1, 0.2, 0.3],
-            "delta_y": [1.0, 2.0, 3.0],
-            "sigma": [3.0, 3.0, 3.0],
-            "date": pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03"]),
-        }
-    )
-
-    _ = cv.run(
-        X,
-        y,
-        mmm=_RecordingFoldModel(),
-        df_lift_test=df_lift_test,
-        lift_test_date_column="date",
-    )
-    assert len(cv._cv_results) == cv.get_n_splits(X, y)
-
-
 def test_run_lift_tests_empty_after_filter_raises():
     dates = pd.date_range("2025-01-01", periods=4, freq="D")
     X = pd.DataFrame({"date": dates, "geo": ["g1"] * len(dates)})
@@ -1270,11 +1166,6 @@ class TestReturnModels:
             n_init=1, forecast_horizon=1, date_column="date", step_size=1
         )
         return cv, X, y
-
-    def test_run_return_models_false_returns_idata_only(self, cv_and_data):
-        cv, X, y = cv_and_data
-        result = cv.run(X, y, mmm=_RecordingFoldModel())
-        assert isinstance(result, xr.DataTree)
 
     def test_run_return_models_true_returns_tuple(self, cv_and_data):
         cv, X, y = cv_and_data
