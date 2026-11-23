@@ -1165,7 +1165,7 @@ def test_integrated_basis_in_event_effect():
     )
     X = np.stack([_weekly_labels(d).values for d in (0, 4)], axis=1)
     coords = {"week": np.arange(X.shape[0]), "event": ["a", "b"]}
-    with pm.Model(coords=coords) as model:
+    with pm.Model(coords=coords):
         X_data = pmd.Data("X", X, dims=("week", "event"))
         pmd.Deterministic("effect", effect.apply(X_data), dims=("week", "event"))
         prior = pm.sample_prior_predictive(draws=10, random_seed=1).prior
