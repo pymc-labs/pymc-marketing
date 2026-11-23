@@ -4211,7 +4211,9 @@ def _event_total_effect(
         effect.create_data(mmm)
         effect.create_effect(mmm)
 
-    fn = model.compile_fn(model["holiday_total_effect"], inputs=[model["holiday_effect_size"]])
+    fn = model.compile_fn(
+        model["holiday_total_effect"], inputs=[model["holiday_effect_size"]]
+    )
     return np.asarray(fn({"holiday_effect_size": effect_size}))
 
 
