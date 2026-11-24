@@ -63,7 +63,7 @@ import warnings
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, ClassVar, Literal
 
 import numpy as np
 import xarray as xr
@@ -125,16 +125,6 @@ rounds to within about one unit in the last place, but the accumulation across
 many chained operations can be several orders of magnitude larger than that
 one step; 100 is a generous margin for that accumulation without being so
 large that it could hide a real, small unattributed contribution.
-"""
-
-FOLD_ELEMENTS = 4_000_000
-"""Elements one slice of the largest node may hold while it is folded.
-
-Read by :meth:`ProbeStatistics.fold` and by the channel-mixing probes of
-:class:`SpendProbe`.  Smaller than
-:attr:`~pymc_marketing.mmm.counterfactual.CounterfactualEvaluator.MAX_BATCH_ELEMENTS`,
-which sizes a compiled call's output: here the evaluation already exists, and
-the slice only bounds the temporaries the fold builds from it.
 """
 
 _ABSENT = object()
@@ -769,7 +759,7 @@ def completeness_tolerance(
 
 
 def _sample_runs(n_samples: int, per_sample: int) -> list[slice]:
-    """Split the sample axis into runs that fit :data:`FOLD_ELEMENTS`.
+    """Split the sample axis into runs that fit :attr:`ProbeStatistics.FOLD_ELEMENTS`.
 
     Parameters
     ----------
@@ -784,7 +774,7 @@ def _sample_runs(n_samples: int, per_sample: int) -> list[slice]:
         Consecutive runs covering every sample once; a single sample larger than
         the budget is a run of its own.
     """
-    size = max(1, FOLD_ELEMENTS // max(per_sample, 1))
+    size = max(1, ProbeStatistics.FOLD_ELEMENTS // max(per_sample, 1))
     return _even_runs(n_samples, size)
 
 
@@ -827,6 +817,16 @@ class ProbeStatistics:
         Largest ``|value|`` of any compared node, baseline or probed.
     dtype : np.dtype or None
         The result type of the compared arrays, which sets the rounding floor.
+    """
+
+    FOLD_ELEMENTS: ClassVar[int] = 4_000_000
+    """Elements one slice of the largest node may hold while it is folded.
+
+    Also sizes the slices :meth:`SpendProbe.mixes_channels` folds its probes
+    over.  Smaller than
+    :attr:`~pymc_marketing.mmm.counterfactual.CounterfactualEvaluator.MAX_BATCH_ELEMENTS`,
+    which sizes a compiled call's output: here the evaluation already exists,
+    and the slice only bounds the temporaries the fold builds from it.
     """
 
     accounted: tuple[str, ...] = ()

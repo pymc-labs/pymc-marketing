@@ -84,6 +84,7 @@ from pymc_marketing.mmm.incrementality import (
 from pymc_marketing.mmm.link import LinkFunction
 from pymc_marketing.mmm.spend_reach import (
     LINEAR_PREDICTOR,
+    ProbeStatistics,
     SpendProbe,
     SpendReach,
     TemporalReach,
@@ -2525,7 +2526,7 @@ class TestMediatedMuEffects:
         whole_mixes = probed[0].probe.mixes_channels(
             non_date_dims=probed[0].evaluator.non_date_dims
         )
-        monkeypatch.setattr("pymc_marketing.mmm.spend_reach.FOLD_ELEMENTS", 1)
+        monkeypatch.setattr(ProbeStatistics, "FOLD_ELEMENTS", 1)
         sliced = incr.compute_incremental_contribution(frequency="all_time")
         sliced_mixes = probed[1].probe.mixes_channels(
             non_date_dims=probed[1].evaluator.non_date_dims

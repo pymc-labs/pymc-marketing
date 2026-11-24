@@ -1638,7 +1638,7 @@ class TestProbeStatistics:
                 {name: values[samples] for name, values in baseline.items()},
                 non_date_dims=self.non_date_dims,
             )
-        monkeypatch.setattr("pymc_marketing.mmm.spend_reach.FOLD_ELEMENTS", 1)
+        monkeypatch.setattr(ProbeStatistics, "FOLD_ELEMENTS", 1)
         one_at_a_time = ProbeStatistics.fold(
             probed,
             baseline,
@@ -1687,7 +1687,7 @@ class TestProbeStatistics:
                 accounted=(CHANNEL_CONTRIBUTION,),
                 non_date_dims=non_date_dims,
             )
-            monkeypatch.setattr("pymc_marketing.mmm.spend_reach.FOLD_ELEMENTS", 1)
+            monkeypatch.setattr(ProbeStatistics, "FOLD_ELEMENTS", 1)
             one_at_a_time = ProbeStatistics.fold(
                 probed,
                 baseline,
