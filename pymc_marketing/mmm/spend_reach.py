@@ -744,12 +744,18 @@ def completeness_tolerance(
     Returns
     -------
     float
-        ``max(COMPLETENESS_TOLERANCE * scale, safety * eps * magnitude)``.
+        ``max(COMPLETENESS_TOLERANCE * scale, safety * eps * magnitude)``, as a
+        Python float: :func:`numpy.allclose` rounds it to the dtype of its
+        second argument, the predictor, as
+        :meth:`ProbeStatistics.residual_within` does, and would not round a
+        ``np.float64`` to a float32 predictor.
     """
     eps = np.finfo(dtype if np.issubdtype(dtype, np.inexact) else np.float64).eps
-    return max(
-        SpendProbe.COMPLETENESS_TOLERANCE * scale,
-        COMPLETENESS_ACCUMULATION_SAFETY_FACTOR * eps * magnitude,
+    return float(
+        max(
+            SpendProbe.COMPLETENESS_TOLERANCE * scale,
+            COMPLETENESS_ACCUMULATION_SAFETY_FACTOR * eps * magnitude,
+        )
     )
 
 
@@ -817,9 +823,11 @@ class ProbeStatistics:
     FOLD_ELEMENTS: ClassVar[int] = 4_000_000
     """Elements one slice of the largest node may hold while it is folded.
 
-    Smaller than :attr:`CounterfactualEvaluator.MAX_BATCH_ELEMENTS`, which sizes
-    a compiled call's output: here the evaluation already exists, and the slice
-    only bounds the temporaries the fold builds from it.
+    Also sizes the slices :meth:`SpendProbe.mixes_channels` folds its probes
+    over.  Smaller than
+    :attr:`~pymc_marketing.mmm.counterfactual.CounterfactualEvaluator.MAX_BATCH_ELEMENTS`,
+    which sizes a compiled call's output: here the evaluation already exists,
+    and the slice only bounds the temporaries the fold builds from it.
     """
 
     accounted: tuple[str, ...] = ()
@@ -966,9 +974,12 @@ class ProbeStatistics:
         """Whether the largest residual is within *atol*, as :func:`numpy.allclose` decides it.
 
         ``np.allclose(accounted, expected, rtol=0.0, atol=atol)`` compares each
-        ``|accounted - expected|`` against ``atol`` cast to the predictor's dtype,
-        so *atol* is rounded to that dtype first.  Both sides are then exact in
-        float64, so comparing them there decides it the same way.
+        ``|accounted - expected|`` against *atol* rounded to the predictor's
+        dtype when *atol* is a Python float or int, or a NumPy floating scalar
+        no wider than that dtype.  Both sides are then exact in float64, so
+        comparing them there decides it the same way.  A ``np.float64`` *atol*
+        against a float32 predictor is not rounded, which is why
+        :meth:`tolerance` returns a Python float.
 
         Parameters
         ----------
@@ -1909,7 +1920,10 @@ class SpendProbe:
         Parameters
         ----------
         effects : sequence of ChannelDependentEffect
-            The effects being evaluated alongside ``channel_contribution``.
+            The effects being evaluated alongside ``channel_contribution``,
+            whose ``contribution_var`` names are the nodes of the baseline
+            other than ``channel_contribution``, the predictor and the
+            mediators, in the baseline's order.
         non_date_dims : mapping
             Per node, the dimensions its evaluation carries after ``sample`` and
             ``date``.  The terms are added by name: an effect may legitimately
