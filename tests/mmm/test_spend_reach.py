@@ -1777,6 +1777,32 @@ class TestProbeStatistics:
         assert stats.residual_within(atol)
         assert np.allclose(accounted, expected, rtol=0.0, atol=atol)
 
+    def test_a_float32_predictor_over_float64_nodes_gets_a_float32_floor(self):
+        """A float32 predictor rounds on float32's grid, whatever feeds it.
+
+        The float64 channel move is reproduced in full by the predictor, but
+        rounding the predictor near 1e6 to float32 leaves a residual of about
+        1e-2, far above the float64 floor of the nodes.
+        """
+        n_dates = 4
+        offset = 1e6
+        baseline = {CHANNEL_CONTRIBUTION: np.full((1, n_dates, 1), 1e4)}
+        probed = {CHANNEL_CONTRIBUTION: baseline[CHANNEL_CONTRIBUTION].copy()}
+        probed[CHANNEL_CONTRIBUTION][0, 1, 0] += 0.3
+        for values in (baseline, probed):
+            values[LINEAR_PREDICTOR] = (
+                values[CHANNEL_CONTRIBUTION].sum(-1) + offset
+            ).astype(np.float32)
+        stats = ProbeStatistics.fold(
+            probed,
+            baseline,
+            accounted=(CHANNEL_CONTRIBUTION,),
+            non_date_dims=FakeEvaluator.non_date_dims,
+        )
+
+        assert stats.max_residual > 1e-3
+        assert stats.accounting_gap() is None
+
     @pytest.mark.parametrize("with_predictor", [True, False])
     def test_one_probe_evaluation_alive_at_a_time(self, with_predictor):
         """No array of an earlier probe is alive while the next one is evaluated.
