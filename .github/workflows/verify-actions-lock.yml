@@ -22,8 +22,10 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
+      # --pin only accepts a release tag (gh resolves releases, not
+      # commits), but releases are immutable, so this cannot be swapped.
       - name: Install gh-actions-lock
-        run: gh extension install github/gh-actions-lock --pin d68b1a345a0aa02cf870cd0e0d78418d492d280d
+        run: gh extension install github/gh-actions-lock --pin v0.5.1
         env:
           GH_TOKEN: ${{ github.token }}
       - name: Verify actions lockfile
