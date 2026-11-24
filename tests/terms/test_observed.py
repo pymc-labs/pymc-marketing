@@ -16,7 +16,7 @@
 import pytensor.xtensor as ptx
 import pytest
 import xarray as xr
-from pymc_extras.prior import Prior
+from pymc_extras.prior import Prior, UnsupportedDistributionError
 
 from pymc_marketing.terms import (
     Data,
@@ -90,6 +90,18 @@ class TestObservedFactory:
         )
         assert set(eq.parameters) == {"n", "alpha", "beta"}
 
+    def test_name_and_dims_reach_the_equation(self) -> None:
+        eq = Observed(
+            "Binomial",
+            observed="converted",
+            name="converted_obs",
+            dims=("step", "variant"),
+            n="entered",
+            p=step_probability(),
+        )
+        assert eq.name == "converted_obs"
+        assert eq.dims == ("step", "variant")
+
     def test_prior_recipe_for_hyperpriors(self) -> None:
         likelihood = Prior("Binomial")
         eq = Observed(
@@ -102,12 +114,36 @@ class TestObservedFactory:
             Observed("Binomial", observed="converted", mu=1.0)
 
     def test_unknown_family_raises(self) -> None:
-        with pytest.raises(Exception, match="Nope"):
+        with pytest.raises(UnsupportedDistributionError, match="Nope"):
             Observed("Nope", observed="converted", n="entered", p=step_probability())
 
-    @pytest.mark.parametrize("observed", ["", None, 5])
+    def test_required_parameter_missing_raises(self) -> None:
+        with pytest.raises(ValueError, match="needs parameters \\['n'\\]"):
+            Observed("Binomial", observed="converted", p=step_probability())
+
+    def test_core_dims_rejected(self) -> None:
+        with pytest.raises(ValueError, match="has no parameters \\['core_dims'\\]"):
+            Observed("Dirichlet", observed="mix", a=1.0, core_dims="variant")
+
+    def test_transformed_prior_rejected(self) -> None:
+        likelihood = Prior("LogNormal", mu=Prior("Normal"), transform="log")
+        with pytest.raises(ValueError, match="transformed or noncentered"):
+            Observed(likelihood, observed="y", sigma=1.0)
+
+    def test_noncentered_prior_rejected(self) -> None:
+        likelihood = Prior("Normal", mu=0, sigma=Prior("HalfNormal"), centered=False)
+        with pytest.raises(ValueError, match="transformed or noncentered"):
+            Observed(
+                likelihood, observed="converted", n="entered", p=step_probability()
+            )
+
+    def test_empty_observed_raises_value_error(self) -> None:
+        with pytest.raises(ValueError, match="nonempty"):
+            Observed("Binomial", observed="", n="entered", p=step_probability())
+
+    @pytest.mark.parametrize("observed", [None, 5])
     def test_observed_must_be_a_name(self, observed) -> None:
-        with pytest.raises(TypeError, match="observed must be"):
+        with pytest.raises(TypeError, match="observed must be a dataset"):
             Observed("Binomial", observed=observed, n="entered", p=step_probability())
 
     def test_dist_type_error(self) -> None:
@@ -134,6 +170,51 @@ class TestObservedFit:
 
         future = funnel_dataset.copy()
         future["entered"] = xr.full_like(funnel_dataset["entered"], 20000.0)
-        future["converted"] = xr.zeros_like(funnel_dataset["converted"])
         predictive = scm.sample_posterior_predictive(future, random_seed=1)
         assert "converted" in predictive.data_vars
+        # the trials come from the new data, not from the training counts
+        assert float(predictive["converted"].mean()) > float(
+            funnel_dataset["entered"].max()
+        )
+
+    def test_beta_binomial_builds(self, funnel_dataset) -> None:
+        from pymc_marketing.experimental.terms import SCM
+
+        kappa = Parameter("kappa", Prior("Gamma", alpha=2, beta=0.1, dims="step"))
+        p = step_probability()
+        eq = Observed(
+            "BetaBinomial",
+            observed="converted",
+            n="entered",
+            alpha=kappa * p,
+            beta=kappa * (1 - p),
+        )
+        SCM(eq).build_model(funnel_dataset)
+
+    def test_chained_equations_build(self, funnel_dataset) -> None:
+        from pymc_marketing.experimental.terms import SCM
+
+        p = step_probability()
+        first = Observed(
+            "Binomial",
+            observed="signup",
+            name="signup_obs",
+            n="entered",
+            p=p,
+        )
+        second = Observed(
+            "Binomial",
+            observed="purchase",
+            name="purchase_obs",
+            n="signup",
+            p=p,
+        )
+        chain = xr.Dataset(
+            {
+                "entered": (("step", "variant"), [[1500.0, 1500.0]]),
+                "signup": (("step", "variant"), [[520.0, 600.0]]),
+                "purchase": (("step", "variant"), [[130.0, 190.0]]),
+            },
+            coords={"step": ["visit"], "variant": ["control", "treatment"]},
+        )
+        SCM(first, second).build_model(chain)

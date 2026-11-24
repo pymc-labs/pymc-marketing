@@ -39,7 +39,8 @@ families or observation layouts are separate equations sharing terms by identity
 
     import xarray as xr
     from pymc_extras.prior import Prior
-    from pymc_marketing.experimental.terms import SCM, Data, Equation
+    from pymc_marketing.experimental.terms import SCM
+from pymc_marketing.terms import Data, Equation
     from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
     from pymc_marketing.terms import Intercept, Parameter
 
@@ -88,14 +89,24 @@ import warnings
 from pymc_marketing.experimental.terms._optimizer import OptimizationResult, Problem
 from pymc_marketing.experimental.terms._scm import SCM
 from pymc_marketing.experimental.terms._terms import MediaTransform
-from pymc_marketing.terms import Data, Equation
 
-warnings.warn(
-    "Data and Equation moved to pymc_marketing.terms; import them from there. "
-    "The re-exports in pymc_marketing.experimental.terms are deprecated.",
-    DeprecationWarning,
-    stacklevel=2,
-)
+_MOVED = {"Data", "Equation"}
+
+
+def __getattr__(name: str):
+    """Warn only when the moved names are actually used."""
+    if name in _MOVED:
+        warnings.warn(
+            f"{name} moved to pymc_marketing.terms; import it from there. "
+            "The re-export in pymc_marketing.experimental.terms is deprecated.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        import pymc_marketing.terms
+
+        return getattr(pymc_marketing.terms, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     "SCM",

@@ -302,7 +302,6 @@ __all__ = [
     "Data",
     "Dot",
     "Equation",
-    "GraphTerm",
     "Intercept",
     "ModelTerm",
     "Named",
@@ -1508,6 +1507,5 @@ def collect_coords(*params: Any, ds: xr.Dataset) -> dict[str, Any]:
 from pymc_marketing.terms._graph import (  # noqa: E402
     Data,
     Equation,
-    GraphTerm,
 )
 from pymc_marketing.terms._observed import Observed  # noqa: E402

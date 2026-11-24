@@ -34,6 +34,22 @@
   utils
 ```
 
+## Observed equations
+
+`pymc_marketing.terms` hosts the observed-equation language: declare a likelihood
+statement whose parameters are model expressions or dataset variables, and fit
+or forecast it through `pymc_marketing.experimental.terms.SCM`.
+
+```{eval-rst}
+.. currentmodule:: pymc_marketing.terms
+.. autosummary::
+  :toctree: generated/
+
+  Data
+  Equation
+  Observed
+```
+
 ## Experimental graph-first terms
 
 `pymc_marketing.experimental.terms` provides graph-first Structural Causal Models (SCMs) and term-first optimization.
@@ -47,8 +63,6 @@ See the [term-first optimization guide](../guide/mmm/experimental_optimizer.md) 
   :toctree: generated/
 
   SCM
-  Data
-  Equation
   MediaTransform
   OptimizationResult
   Problem

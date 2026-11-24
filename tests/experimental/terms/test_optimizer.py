@@ -32,8 +32,6 @@ from pytensor.xtensor.type import XTensorVariable, as_xtensor
 
 from pymc_marketing.experimental.terms import (
     SCM,
-    Data,
-    Equation,
     MediaTransform,
     Problem,
 )
@@ -41,6 +39,8 @@ from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.components.adstock import NoAdstock
 from pymc_marketing.mmm.transformers import ConvMode
 from pymc_marketing.terms import (
+    Data,
+    Equation,
     ModelTerm,
     Named,
     Parameter,

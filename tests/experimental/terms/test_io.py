@@ -22,12 +22,20 @@ import pytest
 import xarray as xr
 from pymc_extras.prior import Prior
 
-from pymc_marketing.experimental.terms import SCM, Data, Equation
+from pymc_marketing.experimental.terms import SCM
 from pymc_marketing.experimental.terms._serialize import spec_from_dict, spec_to_dict
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation, YearlyFourier
 from pymc_marketing.serialization import SerializationError, serialization
 from pymc_marketing.special_priors import LaplacePrior
-from pymc_marketing.terms import Dot, Intercept, Parameter, Sum, Transform
+from pymc_marketing.terms import (
+    Data,
+    Dot,
+    Equation,
+    Intercept,
+    Parameter,
+    Sum,
+    Transform,
+)
 
 SAMPLE_KWARGS = {
     "draws": 30,
