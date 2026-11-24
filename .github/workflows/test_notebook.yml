@@ -28,6 +28,10 @@ on:
      - "!docs/source/notebooks/*/dev/**.ipynb"
      - "docs/source/guide/**.ipynb"
 
+permissions:
+  contents: read
+  actions: write
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -58,6 +62,8 @@ jobs:
           - split: "--exclude-dirs mmm clv bass customer_choice general"
     steps:
     - uses: actions/checkout@v7.0.1
+      with:
+        persist-credentials: false
 
     # Some MMM notebooks load a fitted posterior stored in Git LFS
     # (docs/source/notebooks/mmm/multidimensional_model.nc, 95 MB). Pull it

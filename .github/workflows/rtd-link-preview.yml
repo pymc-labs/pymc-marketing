@@ -1,6 +1,6 @@
 name: Read the Docs Pull Request Preview
 on:
-  pull_request_target:
+  pull_request_target: # zizmor: ignore[dangerous-triggers]
     types:
       - opened
 
@@ -11,6 +11,6 @@ jobs:
   documentation-links:
     runs-on: ubuntu-latest
     steps:
-      - uses: readthedocs/actions/preview@v1
+      - uses: readthedocs/actions/preview@v1.5
         with:
           project-slug: "pymc-marketing"

@@ -1,5 +1,8 @@
 # Security audit of GitHub Actions workflows with zizmor.
 # https://docs.zizmor.sh/
+#
+# Runs online audits, which the pre-commit hook does not: this adds
+# known-vulnerable-actions, impostor-commit and ref-confusion.
 
 name: zizmor
 
@@ -29,6 +32,9 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@v8.3.2
-      - name: Run zizmor
-        run: uvx zizmor@1.33.1 --no-online-audits .github/workflows
+      - uses: zizmorcore/zizmor-action@v0.9.2
+        with:
+          inputs: .github/workflows
+          online-audits: true
+          advanced-security: false
+          annotations: true

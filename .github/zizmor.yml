@@ -1,43 +1,14 @@
 # zizmor baseline configuration.
 #
-# These ignores cover findings that predate the adoption of zizmor
-# (November 2026). Each entry silences a rule for an entire file, so
-# prefer fixing the underlying workflow over extending this list.
-# Tracked follow-ups, in rough order of ease:
+# Keep this minimal: scope each ignore to the exact finding (file:line)
+# and delete the entry when the underlying workflow is fixed. Inline
+# `# zizmor: ignore[rule]` comments live in the workflows themselves.
 #
-#   1. artipacked: add `persist-credentials: false` to each checkout
-#   2. excessive-permissions: add least-privilege `permissions:` blocks
-#   3. template-injection: quote/interpolate untrusted input safely
-#   4. dangerous-triggers: audit the pull_request_target workflows by
-#      hand; these cannot be auto-fixed safely
-#
-# Remove the ignore entry for a rule once all of its files are clean.
+# Remaining entry: generate-test-durations.yml interpolates a
+# pull-request-number output from peter-evans/create-pull-request into
+# a run: script. Informational only: the output is a number produced by
+# a locked, trusted action, not attacker-controlled input.
 rules:
-  artipacked:
-    ignore:
-      - bot-prs.yml
-      - docs.yml
-      - generate-test-durations.yml
-      - pr-auto-label.yml
-      - pypi.yml
-      - test.yml
-      - test_notebook.yml
-      - validate-lockfile.yml
-  dangerous-triggers:
-    ignore:
-      - pr-auto-label.yml
-      - rtd-link-preview.yml
-  excessive-permissions:
-    ignore:
-      - broken-link-checker.yml
-      - docs.yml
-      - pypi.yml
-      - streamlit_url_health.yml
-      - test.yml
-      - test_notebook.yml
-      - uml.yml
-      - validate-lockfile.yml
   template-injection:
     ignore:
-      - generate-test-durations.yml
-      - pypi.yml
+      - generate-test-durations.yml:85

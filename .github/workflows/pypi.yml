@@ -7,6 +7,9 @@ on:
   release:
     types: [published]
 
+permissions:
+  contents: read
+
 jobs:
   changes:
     runs-on: ubuntu-latest
@@ -16,6 +19,8 @@ jobs:
       should_build: ${{ steps.filter.outputs.code }}
     steps:
       - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
       - uses: dorny/paths-filter@v4.0.3
         id: filter
         with:
@@ -34,6 +39,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-python@v7.1.0
         with:
           python-version: "3.12"
@@ -42,22 +48,28 @@ jobs:
           pip install build
           python -m build
       - name: Check the sdist installs and imports
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
         run: |
           mkdir -p test-sdist
           cd test-sdist
           python -m venv venv-sdist
           venv-sdist/bin/python -m pip install ../dist/pymc_marketing*.tar.gz
           echo "Checking import and version number (on release)"
-          venv-sdist/bin/python -c "import pymc_marketing as pmm; assert pmm.__version__ == '${{  github.ref_name }}' if '${{ github.ref_type }}' == 'tag' else pmm.__version__; print(pmm.__version__)"
+          venv-sdist/bin/python -c "import os, pymc_marketing as pmm; assert pmm.__version__ == os.environ['REF_NAME'] if os.environ['REF_TYPE'] == 'tag' else pmm.__version__; print(pmm.__version__)"
           cd ..
       - name: Check the bdist installs and imports
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
         run: |
           mkdir -p test-bdist
           cd test-bdist
           python -m venv venv-bdist
           venv-bdist/bin/python -m pip install ../dist/pymc_marketing*.whl
           echo "Checking import and version number (on release)"
-          venv-bdist/bin/python -c "import pymc_marketing as pmm; assert pmm.__version__ == '${{  github.ref_name }}' if '${{ github.ref_type }}' == 'tag' else pmm.__version__; print(pmm.__version__)"
+          venv-bdist/bin/python -c "import os, pymc_marketing as pmm; assert pmm.__version__ == os.environ['REF_NAME'] if os.environ['REF_TYPE'] == 'tag' else pmm.__version__; print(pmm.__version__)"
           cd ..
       - uses: actions/upload-artifact@v7.0.2
         with:
@@ -86,7 +98,7 @@ jobs:
         with:
           name: artifact
           path: dist
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: pypa/gh-action-pypi-publish@v1.14.3
         with:
           skip-existing: true
           repository-url: https://test.pypi.org/legacy/
@@ -94,11 +106,13 @@ jobs:
         with:
           python-version: "3.12"
       - name: Test pip install from test.pypi
+        env:
+          REF_NAME: ${{ github.ref_name }}
         run: |
           python -m venv venv-test-pypi
           venv-test-pypi/bin/python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple pymc-marketing
           echo "Checking import and version number"
-          venv-test-pypi/bin/python -c "import pymc_marketing; assert pymc_marketing.__version__ == '${{  github.ref_name }}'"
+          venv-test-pypi/bin/python -c "import os, pymc_marketing; assert pymc_marketing.__version__ == os.environ['REF_NAME']"
 
   publish:
     environment: release
@@ -113,4 +127,4 @@ jobs:
         with:
           name: artifact
           path: dist
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: pypa/gh-action-pypi-publish@v1.14.3
