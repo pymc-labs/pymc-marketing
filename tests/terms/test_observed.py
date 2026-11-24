@@ -116,7 +116,7 @@ class TestObservedFactory:
 
 
 class TestObservedFit:
-    def test_funnel_fit_and_predict(self, funnel_dataset) -> None:
+    def test_funnel_fit_and_predict(self, funnel_dataset, mock_pymc_sample) -> None:
         from pymc_marketing.experimental.terms import SCM
 
         equation = Observed(
@@ -126,7 +126,7 @@ class TestObservedFit:
             p=step_probability().named("p"),
         )
         scm = SCM(equation)
-        scm.fit(funnel_dataset, draws=50, tune=50, chains=1, random_seed=0)
+        scm.fit(funnel_dataset, random_seed=0)
         posterior = scm.idata["posterior"]
         assert "p" in posterior.data_vars
         assert "step_logit" in posterior.data_vars
@@ -135,5 +135,5 @@ class TestObservedFit:
         future = funnel_dataset.copy()
         future["entered"] = xr.full_like(funnel_dataset["entered"], 20000.0)
         future["converted"] = xr.zeros_like(funnel_dataset["converted"])
-        predictive = scm.sample_posterior_predictive(future)
+        predictive = scm.sample_posterior_predictive(future, random_seed=1)
         assert "converted" in predictive.data_vars
