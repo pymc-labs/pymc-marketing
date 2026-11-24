@@ -105,8 +105,8 @@ jobs:
               # The portable-target pins change compile flags and cache keys,
               # so they must be part of the version hash or new-style
               # compilations can never be published over old-style entries.
-              f.write(f"pytensor_flags={os.environ.get('PYTENSOR_FLAGS', '')}\n")
-              f.write(f"numba_cpu={os.environ.get('NUMBA_CPU_NAME', '')}\n")
+              f.write(f'pytensor_flags={os.environ.get("PYTENSOR_FLAGS", "")}\n')
+              f.write(f'numba_cpu={os.environ.get("NUMBA_CPU_NAME", "")}\n')
           "
           test -f .pytensor-cache-key || echo 'fallback=unknown' > .pytensor-cache-key
       - name: Restore PyTensor compile caches
