@@ -3,7 +3,11 @@ name: Generate Test Durations
 on:
   workflow_dispatch:  # Manual trigger
   schedule:
-    - cron: '0 0 * * 0'  # Weekly on Sunday at midnight UTC
+    - cron: '0 0 * * 0'  # Sunday at midnight UTC
+    - cron: '0 0 * * 3'  # Wednesday at midnight UTC
+    # Twice weekly: the repo's cache retention is 7 days (org limit), so a
+    # single failed run must not strand the compile-cache pool until the
+    # next week.
 
 permissions:
   contents: write
