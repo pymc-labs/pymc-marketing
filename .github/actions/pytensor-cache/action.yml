@@ -41,5 +41,5 @@ runs:
         echo "numba .nbc count after restore: $(find ~/.pytensor -name '*.nbc' 2>/dev/null | wc -l)"
         du -sh ~/.pytensor 2>/dev/null || true
         mkdir -p /tmp/pytensor-cache-stats
-        find ~/.pytensor -name '*.so' 2>/dev/null | wc -l > /tmp/pytensor-cache-stats/restore_so
-        find ~/.pytensor -name '*.nbc' 2>/dev/null | wc -l > /tmp/pytensor-cache-stats/restore_nbc
+        (find ~/.pytensor -name '*.so' 2>/dev/null || true) | wc -l > /tmp/pytensor-cache-stats/restore_so
+        (find ~/.pytensor -name '*.nbc' 2>/dev/null || true) | wc -l > /tmp/pytensor-cache-stats/restore_nbc

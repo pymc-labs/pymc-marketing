@@ -89,8 +89,8 @@ jobs:
                  --splitting-algorithm least_duration \
                  --durations-path .test_durations
           mkdir -p /tmp/pytensor-cache-stats
-          find ~/.pytensor -name '*.so' 2>/dev/null | wc -l > /tmp/pytensor-cache-stats/after_so
-          find ~/.pytensor -name '*.nbc' 2>/dev/null | wc -l > /tmp/pytensor-cache-stats/after_nbc
+          (find ~/.pytensor -name '*.so' 2>/dev/null || true) | wc -l > /tmp/pytensor-cache-stats/after_so
+          (find ~/.pytensor -name '*.nbc' 2>/dev/null || true) | wc -l > /tmp/pytensor-cache-stats/after_nbc
       - name: Report PyTensor cache hit rate
         run: |
           rso=$(cat /tmp/pytensor-cache-stats/restore_so)
