@@ -127,11 +127,11 @@ def test_run_sweep_takes_frozen_deterministics_from_the_posterior():
     """A latent path over ``date`` in the response is taken from its posterior draws.
 
     The path is a random walk built from plain PyTensor variables and wrapped as an
-    xtensor, as a latent path from a library outside ``pymc.dims`` is, and the sweep
-    cannot recompute it. Frozen, it keeps its posterior draws in every sweep, so the
-    swept response is the path summed over dates plus the swept saturation term.
-    The path's draws are not the cumulative sum of the steps' draws, so a recomputed
-    path would differ.
+    xtensor, as a latent path from a library outside ``pymc.dims`` is.  Unfrozen,
+    the sweep recomputes it from the steps' draws.  Frozen, it keeps its posterior
+    draws in every sweep, so the swept response is the path summed over dates plus
+    the swept saturation term.  The path's draws are not the cumulative sum of the
+    steps' draws, so the two results differ.
     """
     rng = np.random.default_rng(123)
     channel_data = rng.gamma(2.0, 1.0, size=(6, 4))
@@ -144,11 +144,12 @@ def test_run_sweep_takes_frozen_deterministics_from_the_posterior():
         )
         pmd.Deterministic("mu", path + contribution.sum("channel"))
     path_draws = rng.normal(0.0, 0.1, size=(1, 5, 6)).cumsum(axis=-1)
+    steps_draws = rng.normal(0.0, 0.1, size=(1, 5, 6))
     sample_dims = ["chain", "draw", "date"]
     idata = xr.DataTree.from_dict(
         {
             "/posterior": idata.posterior.to_dataset().assign(
-                path_steps=(sample_dims, rng.normal(0.0, 0.1, size=(1, 5, 6))),
+                path_steps=(sample_dims, steps_draws),
                 path=(sample_dims, path_draws),
             )
         }
@@ -159,16 +160,19 @@ def test_run_sweep_takes_frozen_deterministics_from_the_posterior():
         "var_names": "mu",
         "sweep_values": sweep_values,
     }
+    swept = sweep_values[:, None, None] * channel_data
+    saturation = (0.8 * swept / (swept + 1.2)).sum(axis=(1, 2))
 
-    with pytest.raises(AttributeError):
-        SensitivityAnalysis(model, idata).run_sweep(**sweep)
+    recomputed = SensitivityAnalysis(model, idata).run_sweep(**sweep)
+    np.testing.assert_allclose(
+        recomputed.transpose("sample", "sweep"),
+        steps_draws[0].cumsum(axis=-1).sum(axis=-1)[:, None] + saturation,
+    )
 
     results = SensitivityAnalysis(
         model, idata, frozen_deterministics=["path"]
     ).run_sweep(**sweep)
 
-    swept = sweep_values[:, None, None] * channel_data
-    saturation = (0.8 * swept / (swept + 1.2)).sum(axis=(1, 2))
     expected = path_draws[0].sum(axis=-1)[:, None] + saturation
     np.testing.assert_allclose(results.transpose("sample", "sweep"), expected)
 

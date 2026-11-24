@@ -29,6 +29,7 @@ from pymc_marketing.mmm.counterfactual import CounterfactualEvaluator
 from pymc_marketing.mmm.incrementality import kernel_trailing_lags
 from pymc_marketing.mmm.spend_reach import (
     CHANNEL_CONTRIBUTION,
+    COMPLETENESS_ACCUMULATION_SAFETY_FACTOR,
     LINEAR_PREDICTOR,
     ChannelDependentEffect,
     ProbeStatistics,
@@ -1735,6 +1736,46 @@ class TestProbeStatistics:
             passes and atol < float(residual)
             for atol, passes in zip(candidates, reference, strict=True)
         )
+
+    def test_the_tolerance_is_decided_as_allclose_for_float64_nodes(self):
+        """Float64 nodes feeding a float32 predictor get numpy.allclose's answer.
+
+        A float64 node of magnitude ``M`` sets the tolerance through
+        ``eps * M``, a quarter float32 ulp below the residual, so the tolerance
+        rounds up to the residual in float32.  ``allclose`` rounds a Python
+        float ``atol`` to the predictor's float32 and passes, as
+        ``residual_within`` does; a ``np.float64`` tolerance would not be
+        rounded and would refuse.
+        """
+        residual = np.float32(0.1)
+        target = float(residual) - float(np.spacing(residual)) / 4
+        magnitude = target / (
+            COMPLETENESS_ACCUMULATION_SAFETY_FACTOR * np.finfo(np.float64).eps
+        )
+        n_dates = 3
+        baseline = {
+            CHANNEL_CONTRIBUTION: np.zeros((1, n_dates, 1), dtype="float64"),
+            LINEAR_PREDICTOR: np.zeros((1, n_dates), dtype="float32"),
+        }
+        baseline[CHANNEL_CONTRIBUTION][0, 0, 0] = magnitude
+        probed = {name: values.copy() for name, values in baseline.items()}
+        probed[CHANNEL_CONTRIBUTION][0, 1, 0] = residual
+        stats = ProbeStatistics.fold(
+            probed,
+            baseline,
+            accounted=(CHANNEL_CONTRIBUTION,),
+            non_date_dims=FakeEvaluator.non_date_dims,
+        )
+        accounted = (probed[CHANNEL_CONTRIBUTION] - baseline[CHANNEL_CONTRIBUTION]).sum(
+            axis=-1
+        )
+        expected = probed[LINEAR_PREDICTOR] - baseline[LINEAR_PREDICTOR]
+        atol = stats.tolerance()
+
+        # The tolerance lies in the quarter ulp that rounds up to the residual.
+        assert atol < float(residual) <= float(np.float32(atol))
+        assert stats.residual_within(atol)
+        assert np.allclose(accounted, expected, rtol=0.0, atol=atol)
 
     @pytest.mark.parametrize("with_predictor", [True, False])
     def test_one_probe_evaluation_alive_at_a_time(self, with_predictor):
