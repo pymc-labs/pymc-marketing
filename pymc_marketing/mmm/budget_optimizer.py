@@ -294,10 +294,10 @@ from pymc_marketing.names.mmm import Attr, Dim, Var
 from pymc_marketing.pytensor_utils import (
     ConditionedModel,
     SharedPosterior,
+    deterministic_renames,
     extract_response_distribution,
     frozen_variables,
     merge_models,
-    refuse_frozen_deterministic_renames,
     reorder_to_model_coords,
 )
 from pymc_marketing.version import __version__
@@ -2059,11 +2059,21 @@ class BudgetOptimizer(BaseModel):
             self._variables.variable_slice(self.channel_data_var)
         )
 
-        # A frozen rename of another Deterministic would fail when the model is
-        # cloned below, with a message that does not say why.
-        refuse_frozen_deterministic_renames(
-            self.model, self.frozen_deterministics or ()
-        )
+        # A Deterministic that only renames another one makes the second clone
+        # below fail, frozen or not, with a message that does not say why.
+        if renames := deterministic_renames(self.model):
+            listing = ", ".join(
+                f"{rename!r} (renames {renamed!r})"
+                for rename, renamed in renames.items()
+            )
+            raise ValueError(
+                f"The model has Deterministics that only rename another "
+                f"Deterministic: {listing}.  When PyMC clones the model it keeps "
+                "only one of the two names (pymc-devs/pymc#8608), and the "
+                "optimization model clones it twice, so it cannot be built whether "
+                "the rename is frozen or not.  Write each rename as an expression, "
+                "such as 'Deterministic(name, other + 0)'."
+            )
 
         # The frozen model before the substitutions: every conditioned model
         # applies them to it itself, which keeps the decision vector an input
@@ -2163,6 +2173,8 @@ class BudgetOptimizer(BaseModel):
         the objective reads its variable another way: freezing the rename holds
         the variable at its posterior draws, which conditioning does for every
         free random variable anyway, so the allocation is the same as without it.
+        The same holds for a rename the objective does reach, which is refused all
+        the same: freezing the variable under its own name is refused too.
 
         Parameters
         ----------

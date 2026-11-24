@@ -2366,14 +2366,18 @@ def test_objective_that_does_not_read_a_frozen_rename_is_optimized():
     np.testing.assert_allclose(result.budgets, expected.budgets)
 
 
-def test_a_frozen_rename_of_a_deterministic_is_refused_before_cloning():
-    """Cloning would register ``path`` and ``walk`` on one variable."""
+@pytest.mark.parametrize(
+    "frozen", [pytest.param((), id="unfrozen"), pytest.param(("path",), id="frozen")]
+)
+def test_a_rename_of_a_deterministic_is_refused_before_cloning(frozen):
+    """Cloning registers ``path`` and ``walk`` on one variable, frozen or not."""
     with pytest.raises(
         ValueError,
-        match=r"frozen_deterministics includes 'path' \(with 'walk'\): one of each "
-        r"pair only renames the other Deterministic",
+        # BudgetOptimizer is a pydantic model, so the error arrives as a ValidationError.
+        match=r"The model has Deterministics that only rename another "
+        r"Deterministic: 'path' \(renames 'walk'\)",
     ):
-        _renamed_path_optimizer(path_renames_walk=True)
+        _renamed_path_optimizer(path_renames_walk=True, frozen=frozen)
 
 
 @pytest.mark.parametrize("renames", [1, 2], ids=["renamed", "chained"])
