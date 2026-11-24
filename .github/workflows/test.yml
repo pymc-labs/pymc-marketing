@@ -39,6 +39,14 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.should_test == 'true' }}
     runs-on: ubuntu-latest
+    env:
+      # Pin both compile caches to a portable target so cache keys do not
+      # embed the runner's CPU. GitHub's fleet is heterogeneous: with
+      # native CPU targeting, numba's cache key includes the host CPU name
+      # and pytensor's C key includes auto-detected march flags, so warm
+      # restores only hit on runners of the same CPU generation.
+      PYTENSOR_FLAGS: cxxflags=-march=x86-64
+      NUMBA_CPU_NAME: generic
     strategy:
       fail-fast: false
       matrix:
@@ -103,6 +111,8 @@ jobs:
             pytensor-${{ hashFiles('.pytensor-cache-key') }}-
       - name: Inspect restored PyTensor cache
         run: |
+          echo "PYTENSOR_FLAGS=$PYTENSOR_FLAGS"
+          echo "NUMBA_CPU_NAME=$NUMBA_CPU_NAME"
           echo "pytensor .so count after restore: $(find ~/.pytensor -name '*.so' 2>/dev/null | wc -l)"
           echo "numba .nbc count after restore: $(find ~/.pytensor -name '*.nbc' 2>/dev/null | wc -l)"
           du -sh ~/.pytensor 2>/dev/null || true
