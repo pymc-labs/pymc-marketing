@@ -99,14 +99,17 @@ jobs:
 
           import os
 
+          pflags = os.environ['PYTENSOR_FLAGS']
+          ncpu = os.environ['NUMBA_CPU_NAME']
+
           with open('.pytensor-cache-key', 'w') as f:
               for pkg in pkgs:
                   f.write(f'{pkg}={ver(pkg)}\n')
               # The portable-target pins change compile flags and cache keys,
               # so they must be part of the version hash or new-style
               # compilations can never be published over old-style entries.
-              f.write(f'pytensor_flags={os.environ.get("PYTENSOR_FLAGS", "")}\n')
-              f.write(f'numba_cpu={os.environ.get("NUMBA_CPU_NAME", "")}\n')
+              f.write(f'pytensor_flags={pflags}\n')
+              f.write(f'numba_cpu={ncpu}\n')
           "
           test -f .pytensor-cache-key || echo 'fallback=unknown' > .pytensor-cache-key
       - name: Restore PyTensor compile caches
