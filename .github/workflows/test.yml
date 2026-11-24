@@ -88,8 +88,26 @@ jobs:
                  --group ${{ matrix.group }} \
                  --splitting-algorithm least_duration \
                  --durations-path .test_durations
-          echo "pytensor .so count after tests: $(find ~/.pytensor -name '*.so' 2>/dev/null | wc -l)"
-          echo "numba .nbc count after tests: $(find ~/.pytensor -name '*.nbc' 2>/dev/null | wc -l)"
+          mkdir -p /tmp/pytensor-cache-stats
+          find ~/.pytensor -name '*.so' 2>/dev/null | wc -l > /tmp/pytensor-cache-stats/after_so
+          find ~/.pytensor -name '*.nbc' 2>/dev/null | wc -l > /tmp/pytensor-cache-stats/after_nbc
+      - name: Report PyTensor cache hit rate
+        run: |
+          rso=$(cat /tmp/pytensor-cache-stats/restore_so)
+          rnbc=$(cat /tmp/pytensor-cache-stats/restore_nbc)
+          aso=$(cat /tmp/pytensor-cache-stats/after_so)
+          anbc=$(cat /tmp/pytensor-cache-stats/after_nbc)
+          c_so=$((aso - rso)); c_nbc=$((anbc - rnbc))
+          pct_so=$(awk -v c="$c_so" -v t="$aso" 'BEGIN { printf "%.0f", (t > 0) ? 100 - 100 * c / t : 100 }')
+          pct_nbc=$(awk -v c="$c_nbc" -v t="$anbc" 'BEGIN { printf "%.0f", (t > 0) ? 100 - 100 * c / t : 100 }')
+          {
+            echo "### PyTensor cache hit rate: ${{ matrix.config.python-version }}, group ${{ matrix.group }}"
+            echo ""
+            echo "| cache | restored | compiled fresh | total after | hit rate |"
+            echo "|---|---:|---:|---:|---:|"
+            echo "| C modules (.so) | $rso | $c_so | $aso | ${pct_so}% |"
+            echo "| numba fragments (.nbc) | $rnbc | $c_nbc | $anbc | ${pct_nbc}% |"
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v7.1.1
         with:
