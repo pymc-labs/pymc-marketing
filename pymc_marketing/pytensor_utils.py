@@ -1007,7 +1007,9 @@ def extract_response_distribution(
     pt.TensorVariable or list of pt.TensorVariable
         The response distribution graph.  A list -- matching
         ``response_variable`` element-wise -- when a sequence was passed, a
-        single variable otherwise.
+        single variable otherwise.  A response declared with ``pymc`` rather
+        than ``pymc.dims`` comes back as a plain tensor with ``sample`` as its
+        first axis and no dim names.
 
     Examples
     --------
@@ -1079,16 +1081,36 @@ def extract_response_distribution(
             key=lambda var: order.get(var.name, len(order)),
         ):
             posterior_da = posterior[placeholder.name].astype(placeholder.dtype)
+            # A variable declared with pymc rather than pymc.dims is a plain
+            # tensor, and its replacement has to be one too.  A plain tensor is
+            # read by axis position, so the replacement is read with "sample"
+            # first and the variable's own axes in their declared order, whatever
+            # order the draws are stored in.
+            classic = not isinstance(placeholder, XTensorVariable)
+            declared = (
+                pymc_model.named_vars_to_dims.get(placeholder.name) if classic else None
+            )
+            if declared and set(posterior_da.dims) != {"sample", *declared}:
+                raise ValueError(
+                    f"The posterior draws of {placeholder.name!r} cannot be put in "
+                    f"the order its dims declare, {declared}: the posterior "
+                    f"stores them over {posterior_da.dims}."
+                )
             if shared_posterior is not None:
-                replace_dict[placeholder] = shared_posterior._get_or_create(
+                replacement = shared_posterior._get_or_create(
                     posterior_da, name=placeholder.name, dtype=placeholder.dtype
                 )
             else:
-                replace_dict[placeholder] = xtensor_constant(
+                replacement = xtensor_constant(
                     posterior_da.values,
                     name=placeholder.name,
                     dims=posterior_da.dims,
                 )
+            if declared:
+                # The stored order is the posterior's, or for a shared variable
+                # the order another extraction first bound it in.
+                replacement = replacement.transpose("sample", *declared)
+            replace_dict[placeholder] = replacement.values if classic else replacement
 
         # Vectorize across samples.  vectorize_graph moves the new batch
         # dimension to the front of every output and raises on one that did not
@@ -1098,6 +1120,16 @@ def extract_response_distribution(
             not replace_dict.keys().isdisjoint(ancestors([var]))
             for var in response_vars
         ]
+        # A plain tensor replacement brings "sample" in as an unnamed leading
+        # axis, which has to be named.  Naming it when no replacement is a plain
+        # tensor makes vectorize_graph fail, so only ask when one is.
+        new_tensor_dims = (
+            ("sample",)
+            if any(
+                not isinstance(new, XTensorVariable) for new in replace_dict.values()
+            )
+            else ()
+        )
         vectorized = iter(
             vectorize_graph(
                 [
@@ -1106,6 +1138,7 @@ def extract_response_distribution(
                     if reads
                 ],
                 replace=replace_dict,
+                new_tensor_dims=new_tensor_dims,
             )
         )
         response_distribution = [
@@ -1341,7 +1374,7 @@ class ConditionedModel:
             for name, var in self._posterior.data_vars.items()
         }
         self._shared_posterior = SharedPosterior()
-        self._cache: OrderedDict[tuple[str | Variable, ...], list[XTensorVariable]] = (
+        self._cache: OrderedDict[tuple[str | Variable, ...], list[Variable]] = (
             OrderedDict()
         )
 
@@ -1361,14 +1394,14 @@ class ConditionedModel:
         return self._shared_posterior
 
     @overload
-    def extract(self, response_vars: str | Variable) -> XTensorVariable: ...
+    def extract(self, response_vars: str | Variable) -> Variable: ...
 
     @overload
-    def extract(self, response_vars: Sequence[Variable]) -> list[XTensorVariable]: ...
+    def extract(self, response_vars: Sequence[Variable]) -> list[Variable]: ...
 
     def extract(
         self, response_vars: str | Variable | Sequence[str | Variable]
-    ) -> XTensorVariable | list[XTensorVariable]:
+    ) -> Variable | list[Variable]:
         """Return response graphs conditioned on the current posterior.
 
         Every extraction is cached by response names: a repeated call returns
@@ -1393,9 +1426,11 @@ class ConditionedModel:
 
         Returns
         -------
-        XTensorVariable or list of XTensorVariable
+        Variable or list of Variable
             A single graph when one variable was requested, a list otherwise,
-            matching ``extract_response_distribution``.
+            matching ``extract_response_distribution``: an xtensor for a
+            response declared with ``pymc.dims``, a plain tensor for one
+            declared with ``pymc``.
 
         Raises
         ------
@@ -1482,7 +1517,7 @@ class ConditionedModel:
             self._posterior = previous
             raise
 
-    def _extract(self, resolved: list[Variable]) -> list[XTensorVariable]:
+    def _extract(self, resolved: list[Variable]) -> list[Variable]:
         """Extract ``resolved`` conditioned on the variables they read.
 
         The posterior is narrowed to the read names, each validated and
@@ -1492,9 +1527,9 @@ class ConditionedModel:
         read_names = needed_posterior_names(
             self._model, resolved, self.frozen_deterministics
         )
-        # Every conditioned graph is an xtensor expression, so the sequence is safely narrowed.
+        # A sequence of responses always comes back as a list.
         return cast(
-            list[XTensorVariable],
+            list[Variable],
             extract_response_distribution(
                 pymc_model=self._model,
                 idata=self._read_posterior(read_names, self._posterior),
