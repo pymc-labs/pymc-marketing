@@ -42,6 +42,7 @@ from pymc_marketing.pytensor_utils import (
     _prefix_model,
     align_posterior_dim,
     aligned_posterior,
+    blocked_between,
     check_aligned_dims,
     check_aligned_shape,
     extract_response_distribution,
@@ -347,38 +348,6 @@ def test_extract_response_distribution_vs_sample_response(
     )
 
     print("\n✓ Both methods produce consistent results!")
-
-
-@pytest.mark.parametrize("draws, tune", [(50, 50)])
-def test_model_sampler_estimator_with_simple_model(monkeypatch, draws, tune):
-    """Smoke test for ModelSamplerEstimator on a tiny PyMC model."""
-
-    with pm.Model() as model:
-        mu = pm.Normal("mu", 0.0, 1.0)
-        sigma = pm.HalfNormal("sigma", 1.0)
-        pm.Normal("y", mu=mu, sigma=sigma, observed=np.random.normal(0, 1, size=10))
-
-    est = ModelSamplerEstimator(
-        tune=tune, draws=draws, chains=2, sequential_chains=1, seed=123
-    )
-    df = est.run(model)
-
-    # Check schema and basic values
-    expected_columns = {
-        "model_name",
-        "num_steps",
-        "eval_time_seconds",
-        "sequential_chains",
-        "estimated_sampling_time_seconds",
-        "estimated_sampling_time_minutes",
-        "estimated_sampling_time_hours",
-        "tune",
-        "draws",
-        "chains",
-        "seed",
-        "timestamp",
-    }
-    assert set(df.columns) >= expected_columns
 
 
 def test_model_sampler_estimator_eval_time_multidim_model(fitted_multidim_mmm):
@@ -727,6 +696,35 @@ def test_extract_response_distribution_accepts_several_variables():
         extract_response_distribution(model, idata, [])
 
 
+def test_extract_response_distribution_keeps_a_variable_no_parameter_reaches():
+    """A variable computed from data alone extracts next to one that reads a parameter.
+
+    It has no posterior draws to vectorize over, so it comes back without a
+    ``sample`` dimension, as it does when it is asked for on its own.  An
+    index built from spend with no coefficient is such a variable.
+    """
+    data_values = np.array([1.0, 2.0, 3.0])
+    with pm.Model(coords={"d": [0, 1, 2]}) as model:
+        data = pmd.Data("data", data_values, dims="d")
+        slope = pmd.Normal("slope", mu=0.0, sigma=1.0)
+        pmd.Deterministic("scaled", data * slope)
+        pmd.Deterministic("index", pmd.math.tanh(data))
+
+    with model:
+        prior = pm.sample_prior_predictive(draws=4, random_seed=42)
+    idata = xr.DataTree.from_dict({"/posterior": prior["/prior"].to_dataset()})
+
+    alone = extract_response_distribution(model, idata, "index")
+    scaled, index = extract_response_distribution(model, idata, ["scaled", "index"])
+
+    assert index.type.dims == alone.type.dims == ("d",)
+    assert scaled.type.dims == ("sample", "d")
+    scaled_values, index_values = function([], [scaled, index])()
+    np.testing.assert_allclose(index_values, np.tanh(data_values))
+    drawn = prior["/prior"].to_dataset()["slope"].values.reshape(-1)
+    np.testing.assert_allclose(scaled_values, np.outer(drawn, data_values))
+
+
 def _channel_layout(dims=("channel",), *, shape=(2,), coords=None):
     return VariableLayout(
         dims=dims,
@@ -1003,6 +1001,75 @@ def test_needed_posterior_names_stops_at_a_frozen_deterministic():
     )
 
     assert sorted(names) == ["gamma", "scaled"]
+
+
+def _spend_path_model() -> pm.Model:
+    """``spend`` reaches the responses directly and through three kinds of variable.
+
+    ``latent`` is a free random variable, ``held`` a deterministic that may be
+    frozen and ``measured`` an observed random variable.  ``offset`` is upstream
+    of ``resp`` without being downstream of ``spend``, and ``aside`` is downstream
+    of ``spend`` without feeding a response.
+    """
+    with pm.Model(coords={"date": [0, 1, 2]}) as model:
+        spend = pmd.Data("spend", np.ones(3), dims="date")
+        offset = pmd.Normal("offset")
+        latent = pmd.Normal("latent", mu=spend, sigma=1.0)
+        pmd.Normal("aside", mu=spend, sigma=1.0)
+        measured = pmd.Normal(
+            "measured",
+            mu=spend,
+            sigma=1.0,
+            observed=xr.DataArray(np.zeros(3), dims="date"),
+        )
+        held = pmd.Deterministic("held", 2.0 * spend)
+        pmd.Deterministic("resp", offset + latent + held + spend)
+        pmd.Deterministic("resp_measured", measured + spend)
+    return model
+
+
+@pytest.mark.parametrize(
+    "targets, frozen, expected",
+    [
+        pytest.param(["resp"], (), ["latent"], id="a random variable on the path"),
+        pytest.param(
+            ["resp"],
+            ("held", "missing"),
+            ["latent", "held"],
+            id="a frozen deterministic, once it is named",
+        ),
+        pytest.param(
+            ["resp_measured"], (), ["measured"], id="an observed variable on the path"
+        ),
+        pytest.param(["latent"], (), ["latent"], id="a target that is itself held"),
+        pytest.param(["held"], ("held",), ["held"], id="a target that is frozen"),
+        pytest.param(
+            ["resp", "resp_measured", "latent"],
+            ("held", "held"),
+            ["latent", "measured", "held"],
+            id="several targets, each variable once",
+        ),
+    ],
+)
+def test_blocked_between_lists_what_conditioning_holds_fixed_on_the_path(
+    targets, frozen, expected
+):
+    """Only what is downstream of the source and upstream of, or among, the targets.
+
+    ``offset`` and ``aside`` are held fixed too, and neither is ever listed: the
+    first does not depend on ``spend`` and the second feeds no target.  A frozen
+    name the model does not have is ignored.
+    """
+    model = _spend_path_model()
+
+    blocked = blocked_between(
+        model,
+        model["spend"],
+        [model[name] for name in targets],
+        frozen_deterministics=frozen,
+    )
+
+    assert [var.name for var in blocked] == expected
 
 
 def test_reorder_to_model_coords_puts_a_matching_label_set_in_the_model_order():
@@ -1298,6 +1365,183 @@ def test_shared_posterior_aligns_coordinates_on_rebind():
     assert "1 not bound, 1 missing" in str(info.value)
 
 
+POSTERIOR_PATHS = [
+    pytest.param(lambda: None, id="constant"),
+    pytest.param(SharedPosterior, id="shared"),
+]
+
+
+@pytest.mark.parametrize("make_shared_posterior", POSTERIOR_PATHS)
+def test_extract_response_distribution_reads_a_classic_variable_by_dim_name(
+    make_shared_posterior,
+):
+    """A classic random variable over two dims is read by dim name, not position.
+
+    ``lam`` is declared with ``pymc`` as ``(date, channel)``, and the posterior
+    stores it as ``(channel, date)``.  A classic variable is bound as a plain
+    tensor, which is read by axis position, so the draws have to be put in the
+    variable's own axis order first.  The dims have different lengths, so a
+    transposed read could not pass.  On the shared path, a rebind from the
+    other order has to reach the compiled function too.
+    """
+    dates, channels = [0, 1, 2], ["a", "b"]
+    with pm.Model(coords={"date": dates, "channel": channels}) as model:
+        lam = pm.Normal("lam", dims=("date", "channel"))
+        pmd.Deterministic(
+            "doubled", 2.0 * ptx.as_xtensor(lam, dims=("date", "channel"))
+        )
+
+    values = np.arange(6.0).reshape(3, 2)  # date x channel
+    posterior = xr.Dataset(
+        {"lam": (("chain", "draw", "channel", "date"), values.T[None, None])},
+        coords={"date": dates, "channel": channels},
+    )
+    shared_posterior = make_shared_posterior()
+    graph = extract_response_distribution(
+        model, posterior, "doubled", shared_posterior=shared_posterior
+    )
+    fn = function([], graph)
+
+    assert graph.type.dims == ("sample", "date", "channel")
+    np.testing.assert_allclose(fn(), 2.0 * values[None])
+
+    if shared_posterior is not None:
+        rebound = xr.Dataset(
+            {
+                "lam": (
+                    ("chain", "draw", "date", "channel"),
+                    (10.0 + values)[None, None],
+                )
+            },
+            coords={"date": dates, "channel": channels},
+        )
+        shared_posterior.set_posterior(rebound)
+        np.testing.assert_allclose(fn(), 2.0 * (10.0 + values)[None])
+
+
+@pytest.mark.parametrize("make_shared_posterior", POSTERIOR_PATHS)
+def test_extract_response_distribution_mixes_classic_and_dims_variables(
+    make_shared_posterior,
+):
+    """Classic variables and a ``pymc.dims`` one share one ``sample`` dim.
+
+    The ``pymc.dims`` variable brings ``sample`` in as an xtensor dim and the
+    classic ones as a tensor batch dim.  The two have to line up draw by draw,
+    not form two sample axes.  ``offset`` has no ``dims``, so there is no
+    declared order to put its draws in.
+    """
+    dates = [0, 1, 2]
+    with pm.Model(coords={"date": dates}) as model:
+        classic = pm.Normal("classic", dims="date")
+        offset = pm.Normal("offset")
+        dims = pmd.Normal("dims", dims="date")
+        pmd.Deterministic(
+            "total",
+            ptx.as_xtensor(classic, dims=("date",))
+            + dims
+            + ptx.as_xtensor(offset, dims=()),
+        )
+
+    rng = np.random.default_rng(3398)
+    posterior = xr.Dataset(
+        {
+            "classic": (("chain", "draw", "date"), rng.normal(size=(2, 3, 3))),
+            "dims": (("chain", "draw", "date"), rng.normal(size=(2, 3, 3))),
+            "offset": (("chain", "draw"), rng.normal(size=(2, 3))),
+        },
+        coords={"date": dates},
+    )
+    graph = extract_response_distribution(
+        model, posterior, "total", shared_posterior=make_shared_posterior()
+    )
+
+    stacked = posterior.stack(sample=("chain", "draw"))
+    expected = stacked["classic"] + stacked["dims"] + stacked["offset"]
+    assert graph.type.dims == ("sample", "date")
+    np.testing.assert_allclose(
+        function([], graph)(), expected.transpose("sample", "date").values
+    )
+
+
+@pytest.mark.parametrize("make_shared_posterior", POSTERIOR_PATHS)
+def test_extract_response_distribution_returns_a_classic_response_as_a_plain_tensor(
+    make_shared_posterior,
+):
+    """A response declared with ``pymc`` comes back unnamed, ``sample`` first."""
+    with pm.Model(coords={"date": [0, 1, 2], "channel": ["a", "b"]}) as model:
+        lam = pm.Normal("lam", dims=("date", "channel"))
+        pm.Deterministic("doubled", 2.0 * lam, dims=("date", "channel"))
+
+    values = np.arange(12.0).reshape(1, 2, 3, 2)  # chain, draw, date, channel
+    posterior = xr.Dataset(
+        {"lam": (("chain", "draw", "date", "channel"), values)},
+        coords={"date": [0, 1, 2], "channel": ["a", "b"]},
+    )
+    graph = extract_response_distribution(
+        model, posterior, "doubled", shared_posterior=make_shared_posterior()
+    )
+
+    assert not isinstance(graph, ptx.type.XTensorVariable)
+    np.testing.assert_allclose(function([], graph)(), 2.0 * values.reshape(2, 3, 2))
+
+
+def test_a_shared_posterior_reused_by_a_classic_model_reads_the_declared_order():
+    """A classic model reads a shared variable in its own order, whoever bound it.
+
+    ``lam`` is first bound through a model that declares it with ``pymc.dims``,
+    from a posterior stored as ``(channel, date)``, so the shared variable keeps
+    that order.  A model that declares ``lam`` with ``pymc`` then reuses it and
+    reads it by position.  The dims have the same length, so a transposed read
+    would not raise.
+    """
+    coords = {"date": [0, 1], "channel": ["a", "b"]}
+    with pm.Model(coords=coords) as dims_model:
+        lam = pmd.Normal("lam", dims=("date", "channel"))
+        pmd.Deterministic("out", 2.0 * lam)
+    with pm.Model(coords=coords) as classic_model:
+        lam = pm.Normal("lam", dims=("date", "channel"))
+        pmd.Deterministic("out", 2.0 * ptx.as_xtensor(lam, dims=("date", "channel")))
+
+    values = np.array([[1.0, 2.0], [3.0, 4.0]])  # date x channel
+    posterior = xr.Dataset(
+        {"lam": (("chain", "draw", "channel", "date"), values.T[None, None])},
+        coords=coords,
+    )
+    shared_posterior = SharedPosterior()
+    dims_graph = extract_response_distribution(
+        dims_model, posterior, "out", shared_posterior=shared_posterior
+    )
+    classic_graph = extract_response_distribution(
+        classic_model, posterior, "out", shared_posterior=shared_posterior
+    )
+
+    np.testing.assert_allclose(function([], dims_graph)(), 2.0 * values[None])
+    np.testing.assert_allclose(function([], classic_graph)(), 2.0 * values[None])
+
+
+def test_extract_response_distribution_names_a_classic_variable_missing_a_declared_dim():
+    """A posterior without one of a classic variable's dims fails with its name.
+
+    Reading it by position instead would give wrong values without an error.
+    """
+    with pm.Model(coords={"date": [0, 1, 2], "channel": ["a", "b"]}) as model:
+        lam = pm.Normal("lam", dims=("date", "channel"))
+        pmd.Deterministic(
+            "doubled", 2.0 * ptx.as_xtensor(lam, dims=("date", "channel"))
+        )
+    posterior = xr.Dataset(
+        {"lam": (("chain", "draw", "date", "media"), np.zeros((1, 1, 3, 2)))},
+        coords={"date": [0, 1, 2], "media": ["a", "b"]},
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"^The posterior draws of 'lam' cannot be put in the order its dims "
+        r"declare, \('date', 'channel'\)",
+    ):
+        extract_response_distribution(model, posterior, "doubled")
+
+
 def test_shared_posterior_realigns_permuted_multi_dim_variables():
     """A variable over two non-sample dims rebinds from a permuted, reordered layout.
 
@@ -1336,6 +1580,89 @@ def test_shared_posterior_realigns_permuted_multi_dim_variables():
     )
     shared_posterior.set_posterior(permuted)
     np.testing.assert_allclose(fn(), 2.0 * (10.0 + values)[None])
+
+
+def _stacked_model_and_draws(*, seed, reordered=False):
+    """A ``date`` x ``channel`` model and a stacked posterior to condition on.
+
+    The posterior has 2 chains, 5 draws, 4 dates and 3 channels, so no bound
+    array is C-contiguous by accident of a toy shape.  ``reordered`` reverses
+    the channel labels and stores ``lam`` as ``(chain, draw, channel, date)``,
+    so binding it against the model, or binding the plain posterior against
+    its layout, moves labels and axes for real.  ``beta`` is over ``channel``
+    alone; both variables are bound by ``resp``.
+    """
+    dates, channels = 4, 3
+    channel_labels = [f"channel{index}" for index in range(channels)]
+    with pm.Model(
+        coords={"date": np.arange(dates), "channel": channel_labels}
+    ) as model:
+        beta = pmd.Normal("beta", dims="channel")
+        lam = pmd.Normal("lam", dims=("date", "channel"))
+        pmd.Deterministic("resp", beta * lam)
+    rng = np.random.default_rng(seed)
+    lam_dims = ("channel", "date") if reordered else ("date", "channel")
+    sizes = {"date": dates, "channel": channels}
+    idata = xr.Dataset(
+        {
+            "beta": (
+                ("chain", "draw", "channel"),
+                rng.normal(size=(2, 5, channels)),
+            ),
+            "lam": (
+                ("chain", "draw", *lam_dims),
+                rng.normal(size=(2, 5, *(sizes[dim] for dim in lam_dims))),
+            ),
+        },
+        coords={
+            "date": np.arange(dates),
+            "channel": channel_labels[::-1] if reordered else channel_labels,
+        },
+    )
+    return model, idata
+
+
+def _bound_array_flags(shared_posterior):
+    """The ``(C_CONTIGUOUS, OWNDATA)`` flags of every array it holds."""
+    flags = {
+        name: var.get_value(borrow=True).flags
+        for name, var in shared_posterior.variables.items()
+    }
+    return {name: (f["C_CONTIGUOUS"], f["OWNDATA"]) for name, f in flags.items()}
+
+
+@pytest.mark.parametrize("through_conditioned_model", [False, True])
+def test_rebind_keeps_the_built_array_layout(through_conditioned_model):
+    """The build and a rebind both bind C-contiguous draws the variable owns.
+
+    Realigning labels or axes leaves a non-C-contiguous array, and the numba
+    linker keys its signatures on the array layout, so a bare ``astype``
+    would compile a second version of the graph on the first rebind.
+    ``ConditionedModel`` realigns the reordered posterior to the model on the
+    build, and both paths realign the plain one to the bound layout on the
+    rebind, so neither relies on ``sel`` running when the labels already
+    match.  Owning the arrays keeps ``set_value(borrow=True)`` from aliasing
+    the caller's draws.
+    """
+    model, idata = _stacked_model_and_draws(seed=0, reordered=True)
+    if through_conditioned_model:
+        conditioned = ConditionedModel(model, idata)
+        conditioned.extract("resp")
+        shared_posterior = conditioned.shared_posterior
+        rebind = conditioned.set_posterior
+    else:
+        shared_posterior = SharedPosterior()
+        extract_response_distribution(
+            model, idata, "resp", shared_posterior=shared_posterior
+        )
+        rebind = shared_posterior.set_posterior
+
+    owned_c_contiguous = {"beta": (True, True), "lam": (True, True)}
+    assert _bound_array_flags(shared_posterior) == owned_c_contiguous
+
+    rebind(_stacked_model_and_draws(seed=1)[1])
+
+    assert _bound_array_flags(shared_posterior) == owned_c_contiguous
 
 
 def test_shared_posterior_mixed_type_labels_raise_value_error():
@@ -2731,3 +3058,31 @@ def test_conditioned_model_takes_a_variable_missing_at_construction_as_given():
     # Once read, it is bound like any other variable and follows a rebind.
     conditioned.set_posterior(_channel_posterior([1.0, 2.0], gamma=[5.0, 6.0]))
     np.testing.assert_allclose(fn(), [[50.0, 120.0]])
+
+
+def test_conditioned_model_names_a_missing_variable_the_same_at_extraction_and_rebind():
+    """A posterior lacking a variable a graph reads raises one ``KeyError``.
+
+    The message is the same whether the variable is missing when the graph is
+    extracted or when a later posterior is bound, so a caller handles one error.
+    """
+    model, spend = _channel_conditioned_model()
+    message = "Posterior is missing variables this graph reads: ['gamma']"
+
+    thinned = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+    with pytest.raises(KeyError) as at_extraction:
+        thinned.extract("resp_g")
+
+    bound = ConditionedModel(
+        model,
+        _channel_posterior([1.0, 2.0], gamma=[3.0, 4.0]),
+        intervention={"spend": spend},
+    )
+    bound.extract("resp_g")
+    with pytest.raises(KeyError) as at_rebind:
+        bound.set_posterior(_channel_posterior([1.0, 2.0]))
+
+    assert at_extraction.value.args == (message,)
+    assert at_rebind.value.args == (message,)

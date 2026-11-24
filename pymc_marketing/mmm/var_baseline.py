@@ -39,6 +39,7 @@ from scipy.stats import halfnorm
 
 from pymc_marketing.mmm.additive_effect import MuEffect, safe_to_datetime
 from pymc_marketing.mmm.link import LinkFunction
+from pymc_marketing.names.mmm import DatasetVar, Dim, Var, effect_contribution_name
 from pymc_marketing.serialization import (
     DeserializationContext,
     SerializationError,
@@ -912,7 +913,7 @@ class VARBaselineEffect(MuEffect):
         centered = columns - means
         exog = centered[self.exog_names].to_numpy() if self.exog_names else None
 
-        target_scale = mmm.model["target_scale"]
+        target_scale = mmm.model[Var.TARGET_SCALE]
         target_scale_value = float(target_scale.get_value())
         if not target_scale_value > 0:
             raise ValueError(
@@ -943,9 +944,9 @@ class VARBaselineEffect(MuEffect):
                 latent_init_sigma=latent_init_sigma,
             )
 
-        baseline = ptx.as_xtensor(handles.latent[:, 0], dims=("date",))
+        baseline = ptx.as_xtensor(handles.latent[:, 0], dims=(Dim.DATE,))
         return pmd.Deterministic(
-            f"{self.prefix}_effect_contribution", baseline / target_scale
+            effect_contribution_name(self.prefix), baseline / target_scale
         )
 
     def set_data(  # type: ignore[override]
@@ -1228,7 +1229,7 @@ class VARBaselineEffect(MuEffect):
             endog_names=self.endog_names,
             exog=columns[self.exog_names].to_numpy() if self.exog_names else None,
             exog_names=self.exog_names or None,
-            index=safe_to_datetime(mmm.model.coords["date"], "date"),
+            index=safe_to_datetime(mmm.model.coords[Dim.DATE], Dim.DATE),
         )
 
     @property
@@ -1284,7 +1285,7 @@ class VARBaselineEffect(MuEffect):
                 "MMM stores naive dates; drop the time zone with "
                 ".dt.tz_localize(None)."
             )
-        mmm_dates = safe_to_datetime(mmm.model.coords["date"], "date")
+        mmm_dates = safe_to_datetime(mmm.model.coords[Dim.DATE], Dim.DATE)
 
         # Rows on other dates may repeat a date, which `get_indexer` refuses, so they
         # are dropped first.
@@ -1381,7 +1382,7 @@ class VARBaselineEffect(MuEffect):
             positive and finite, as for the all-zero target the MMM builds on when no
             ``y`` is given, ``U / sqrt(1 - baseline_own_lag_mean**2)`` instead.
         """
-        target_sd = float(np.std(mmm.xarray_dataset["_target"].to_numpy()))
+        target_sd = float(np.std(mmm.xarray_dataset[DatasetVar.TARGET].to_numpy()))
         # Data-derived and independent of U, the target's sd is on the order of the
         # baseline's marginal sd when the baseline is a component of the target. A
         # scale from U would leave out what the brand metrics pass into the baseline.
@@ -1416,7 +1417,7 @@ class VARBaselineEffect(MuEffect):
             ``baseline_innovation_sd`` is not set.
         """
         impulso = _import_impulso()
-        target = mmm.xarray_dataset["_target"].to_numpy()
+        target = mmm.xarray_dataset[DatasetVar.TARGET].to_numpy()
         (residual_sd,) = impulso.ar1_residual_sd(target[:, None])
         if residual_sd > 0:
             return float(residual_sd)

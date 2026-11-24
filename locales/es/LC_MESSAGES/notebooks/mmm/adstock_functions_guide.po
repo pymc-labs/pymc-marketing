@@ -1,0 +1,2919 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2026, PyMC Labs
+# This file is distributed under the same license as the PyMC-Marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyMC-Marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:10003
+#: 31c41fcb726546008ee0fdb89c6f9408
+msgid "Guide to Adstock Transformations in PyMC-Marketing"
+msgstr "Guía de las transformaciones de adstock en PyMC-Marketing"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:10005
+#: 3b053ff207444f9c8d84d4181a46c329
+msgid ""
+"This notebook provides a comprehensive overview of the different adstock "
+"transformations available in PyMC-Marketing. Adstock effects model the "
+"delayed and lagged impact of marketing spend on consumer behavior."
+msgstr ""
+"Este cuaderno ofrece una visión general completa de las distintas "
+"transformaciones de adstock disponibles en PyMC-Marketing. Los efectos de "
+"adstock modelan el impacto retardado y rezagado del gasto de marketing en el"
+" comportamiento del consumidor."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:20002
+#: 4a563ff25993412ab2b4db6aa26ff59e
+msgid "What is Adstock?"
+msgstr "¿Qué es el adstock?"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:20004
+#: f15fc7c938ef4944845c6dc9c238456b
+msgid ""
+"**Adstock** (also called the **carryover effect** or **lagged effect**) "
+"is a fundamental concept in marketing that models how advertising impact "
+"doesn't happen instantaneously. Instead, it **builds up over time and "
+"gradually decays**."
+msgstr ""
+"El **adstock** (también llamado **efecto de arrastre** o **efecto "
+"rezagado**) es un concepto fundamental en marketing que modela cómo el "
+"impacto de la publicidad no ocurre de forma instantánea. En cambio, **se "
+"acumula con el tiempo y decae gradualmente**."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:20006
+#: 77065f508de94d0b839a49076cf18735
+msgid "The Core Idea"
+msgstr "La idea central"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:20008
+#: 1549a43d7bb54bda8ba03e35e843090f
+msgid ""
+"When you run an advertising campaign, the effects don't just appear in "
+"the same week and then disappear completely. There are three major "
+"behaviors that we need to keep in mind:"
+msgstr ""
+"Cuando se ejecuta una campaña publicitaria, los efectos no aparecen "
+"simplemente en la misma semana para luego desaparecer por completo. Hay tres"
+" comportamientos principales que debemos tener en cuenta:"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:20010
+#: 3424c831d2664308a4dfeba6517b6ed4
+msgid ""
+"**Memory effect**: Consumers remember your ad after seeing it (think of "
+"that jingle from a TV commercial you saw years ago)"
+msgstr ""
+"**Efecto de memoria**: Los consumidores recuerdan su anuncio después de "
+"verlo (piense en ese jingle de un comercial de televisión que vio hace años)"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:20011
+#: 8cc50db20df945399226ebb1711b5da8
+msgid ""
+"**Delayed response**: It may take time for someone to act on your "
+"advertisement"
+msgstr ""
+"**Respuesta retardada**: Puede pasar tiempo hasta que alguien actúe a raíz "
+"de su anuncio"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:20012
+#: 6bdc63c1edf843a2aefec52d7dc457e5
+msgid "**Gradual decay**: The impact slowly fades over subsequent time periods"
+msgstr ""
+"**Decaimiento gradual**: El impacto se desvanece lentamente en los períodos "
+"siguientes"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:20014
+#: 7f183f4b9be54c2d98e68d49b0692a52
+msgid "Why Adstock Matters for MMMs"
+msgstr "Por qué el adstock es importante para los MMM"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:20016
+#: 00177fae012e44e0bf99b513fc0158cc
+msgid "Understanding adstock effects is crucial for:"
+msgstr "Comprender los efectos de adstock es crucial para:"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:20018
+#: dc4b21b2700b4ce3a2f3cd0b001b4b66
+msgid ""
+"**Budget Planning**: If a channel has long-lasting effects, you might "
+"advertise less frequently but still maintain impact"
+msgstr ""
+"**Planificación del presupuesto**: Si un canal tiene efectos de larga "
+"duración, es posible anunciarse con menos frecuencia y aun así mantener el "
+"impacto"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:20019
+#: 95112c532e9c42a283165818a28f1422
+msgid ""
+"**Attribution**: Correctly assigning sales to the marketing that caused "
+"them, even if there's a time lag"
+msgstr ""
+"**Atribución**: Asignar correctamente las ventas a las acciones de marketing"
+" que las causaron, incluso si existe un rezago temporal"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:20020
+#: 21721d119475430faf397b1490952a29
+msgid ""
+"**ROAS Calculation**: Ensuring you capture the full return, not just "
+"immediate effects"
+msgstr ""
+"**Cálculo del ROAS**: Garantizar que se capture el retorno completo, y no "
+"solo los efectos inmediatos"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:20021
+#: bbb3a417206740d091a733320347cb95
+msgid ""
+"**Channel Comparison**: Different channels have different decay patterns "
+"(e.g., TV ads vs. digital banner ads)"
+msgstr ""
+"**Comparación de canales**: Los distintos canales tienen distintos patrones "
+"de decaimiento (por ejemplo, los anuncios de TV frente a los banners "
+"digitales)"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:20023
+#: c462353d9680419db550c6888f7f43f8
+msgid "Mathematical Representation"
+msgstr "Representación matemática"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:20025
+#: a2314fe53c7143feaa0330d962a0f7ee
+msgid ""
+"The simplest form is **Geometric Adstock**, where the transformed value "
+"at time $t$ is:"
+msgstr ""
+"La forma más simple es el **adstock geométrico**, donde el valor "
+"transformado en el tiempo $t$ es:"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:20027
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:80011
+#: 0e7224a43a5b4f449f1b6597d7caef55 c529d84d952943cabb89209a27f9c3eb
+#, python-brace-format
+msgid ""
+"\n"
+"\\tilde{x}_t = x_t + \\alpha \\tilde{x}_{t-1}\n"
+msgstr ""
+"\n"
+"\\tilde{x}_t = x_t + \\alpha \\tilde{x}_{t-1}\n"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:20031
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:80015
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:240021
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:510015
+#: 6828637d5b9e4e39aacbb6eed5dbcaae 7fa8615236a74aa1bd04524a270c5913
+#: ac27c7e1383644d19375da7c0150750e acf25222066644648ae525c0505dfc12
+msgid "Where:"
+msgstr "Donde:"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:20032
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:80016
+#: 2381e10161dd44efaee9716ec057eb76 86b1d579efe44c90b38fa3522486b91c
+msgid "$x_t$ is the raw advertising spend at time $t$"
+msgstr "$x_t$ es el gasto publicitario sin procesar en el tiempo $t$"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:20033
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:80017
+#: 2224f6e526604ac0b63e4e270c4423c0 8df92db1d3a3451aa0557e50a4c4f901
+#, python-brace-format
+msgid "$\\tilde{x}_t$ is the transformed (adstocked) value"
+msgstr "$\\tilde{x}_t$ es el valor transformado (con adstock)"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:20034
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:80018
+#: 3532c3758dc4468bb009a0cfafaeb393 5bb6d2449c0d4678a6dfd0e0e275a0e9
+msgid ""
+"$\\alpha \\in [0, 1]$ is the **retention rate** (how much of the effect "
+"carries over)"
+msgstr ""
+"$\\alpha \\in [0, 1]$ es la **tasa de retención** (cuánto del efecto se "
+"arrastra)"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:20035
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:80019
+#: c63012397a084940af59038addc6af5a ef6e934d02c14f07ad8424a3315dea67
+msgid "Higher $\\alpha$ means slower decay (longer-lasting effects)"
+msgstr ""
+"Un $\\alpha$ mayor implica un decaimiento más lento (efectos más duraderos)"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:20037
+#: 0d0953acbe004161aeed182def8164d1
+msgid ""
+"This creates an exponential decay pattern where the effect of advertising"
+" in week 0 continues into weeks 1, 2, 3, etc., diminishing by factor "
+"$\\alpha$ each period."
+msgstr ""
+"Esto crea un patrón de decaimiento exponencial en el que el efecto de la "
+"publicidad de la semana 0 continúa en las semanas 1, 2, 3, etc., "
+"disminuyendo por un factor $\\alpha$ en cada período."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:20039
+#: 46168087ce6f4828848d6b04a37d2383
+msgid "Types of Adstock in PyMC-Marketing"
+msgstr "Tipos de adstock en PyMC-Marketing"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:20041
+#: 48ab27f3b1874bf4b0f399d9c1b590fa
+msgid ""
+"The library offers several adstock transformations to model different "
+"decay patterns:"
+msgstr ""
+"La biblioteca ofrece varias transformaciones de adstock para modelar "
+"distintos patrones de decaimiento:"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:20043
+#: d2e3b92fd0e44b96a5634a4fcd224ef2
+msgid ""
+"**Geometric Adstock**: Simple exponential decay (most common, good "
+"default choice)"
+msgstr ""
+"**Adstock geométrico**: Decaimiento exponencial simple (el más común, una "
+"buena opción predeterminada)"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:20044
+#: dbbe8294bf8f4d30823108803f8c9232
+msgid ""
+"**Delayed Adstock**: Adds a delay parameter, peak effect happens after "
+"$\\theta$ periods"
+msgstr ""
+"**Adstock con retardo**: Agrega un parámetro de retardo; el efecto máximo "
+"ocurre después de $\\theta$ períodos"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:20045
+#: 982f0ca2318e406a812d2f0a0e9817ed
+msgid ""
+"**Weibull PDF/CDF Adstock**: More flexible decay curves that can model "
+"peak-then-decay patterns"
+msgstr ""
+"**Adstock Weibull PDF/CDF**: Curvas de decaimiento más flexibles que pueden "
+"modelar patrones de pico seguido de decaimiento"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:20046
+#: a2beda0403234ed18b3a3252374b6eb2
+msgid "**Binomial Adstock**: Alternative flexible decay specification"
+msgstr ""
+"**Adstock binomial**: Especificación alternativa y flexible del decaimiento"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:20048
+#: 3799623d34ec475a84f44393ad2634cd
+msgid "Real-World Intuition"
+msgstr "Intuición en el mundo real"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:20050
+#: d903f5746e8a4a529b9611a80906b621
+msgid "Different advertising channels exhibit different decay patterns:"
+msgstr ""
+"Los distintos canales publicitarios presentan distintos patrones de "
+"decaimiento:"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:20052
+#: 293b92166d6f46648f10d1a015e625dc
+msgid ""
+"**Digital display ads**: Might have $\\alpha \\approx 0.2$ (fast decay, "
+"effects last 1-2 weeks)"
+msgstr ""
+"**Anuncios de display digital**: Podrían tener $\\alpha \\approx 0.2$ "
+"(decaimiento rápido, efectos de 1 a 2 semanas)"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:20053
+#: 1356bfebe31849fdb8720f45c16505cd
+msgid ""
+"**TV brand campaigns**: Might have $\\alpha \\approx 0.7$ (slow decay, "
+"effects last months)"
+msgstr ""
+"**Campañas de marca en TV**: Podrían tener $\\alpha \\approx 0.7$ "
+"(decaimiento lento, efectos de meses)"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:20054
+#: ac9f3f15d5024e7ab3f3bc6996eacee3
+msgid ""
+"**Billboard advertising**: Might have delayed peak if it takes time for "
+"brand awareness to convert to action"
+msgstr ""
+"**Publicidad en vallas publicitarias**: Podría tener un pico retardado si la"
+" conversión de la notoriedad de marca en acción lleva tiempo"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:20056
+#: 86893faf1bad446299be7630185c29f9
+msgid ""
+"The adstock transformation ensures that when you model sales as a "
+"function of marketing spend, you're capturing the full temporal dynamics "
+"of how advertising actually influences consumer behavior."
+msgstr ""
+"La transformación de adstock garantiza que, al modelar las ventas como "
+"función del gasto de marketing, se capture toda la dinámica temporal de cómo"
+" la publicidad influye realmente en el comportamiento del consumidor."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:30002
+#: 14f00845d1fb46fdb7d4f9afe4528079
+msgid "The Layout"
+msgstr "La estructura"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:30004
+#: 7104af364e4c451981f38b4088706a5e
+msgid "This guide has the following sections:"
+msgstr "Esta guía tiene las siguientes secciones:"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:30006
+#: 325d8732f9224751b8f196df8817e5ad
+msgid "**Geometric Adstock** — the workhorse, simplest and most widely used"
+msgstr ""
+"**Adstock geométrico** — el caballo de batalla, el más simple y el más "
+"utilizado"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:30007
+#: 028cd072cce44ac1b2a08210767ce135
+msgid "**Delayed Adstock** — adds a delay/lag parameter"
+msgstr "**Adstock con retardo** — agrega un parámetro de retardo o rezago"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:30008
+#: 1ceb81f553cd45a6813ca3020435ad56
+msgid "**Weibull CDF Adstock** — S-shaped curve, gradual build-up"
+msgstr "**Adstock Weibull CDF** — curva en forma de S, acumulación gradual"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:30009
+#: 54e33f95114b4fb99733e36274aa5bb1
+msgid "**Weibull PDF Adstock** — peak effect, then decay"
+msgstr "**Adstock Weibull PDF** — efecto máximo y luego decaimiento"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:30010
+#: e50165abf62041219cf394a348bc6cb7
+msgid "**Binomial Adstock** — flexible alternative parametrization"
+msgstr "**Adstock binomial** — parametrización alternativa y flexible"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:30011
+#: 2317b6130a53472787f4b6ae4a3ea086
+msgid "**Comparison** — visual comparison across all functions"
+msgstr "**Comparación** — comparación visual de todas las funciones"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:30013
+#: 8bff40684e744931b61f4cc0ad84656d
+msgid "Each section includes:"
+msgstr "Cada sección incluye:"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:30014
+#: e48fd878829e41ac9307e5eb0f9748e3
+msgid "When to use it"
+msgstr "Cuándo usarlo"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:30015
+#: 988db9d29ffe450ea603ff6d1396b248
+msgid "Mathematical formulation"
+msgstr "Formulación matemática"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:30016
+#: f81f8d7c19354eb8b923335f3207cc4b
+msgid "Parameter explanations"
+msgstr "Explicación de los parámetros"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:30017
+#: ed1c198d934743db99ed2a2b4ed4f867
+msgid "Visualizations with different parameter values"
+msgstr "Visualizaciones con distintos valores de los parámetros"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:60002
+#: 6cfba2df6cb24551af89f6b27cdb29b2
+msgid "Understanding the Data"
+msgstr "Comprender los datos"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:60004
+#: a7e3358d494f47e2a19a6c245b3ddb2b
+msgid "Let's visualize our marketing spend channels (`x1` and `x2`) over time:"
+msgstr ""
+"Vamos a visualizar nuestros canales de gasto de marketing (`x1` y `x2`) a lo"
+" largo del tiempo:"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:80004
+#: 40440eb0ccd7424189412a12c260e0b7
+msgid "1. Geometric Adstock"
+msgstr "1. Adstock geométrico"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:80006
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:240006
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:350006
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:430006
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:510006
+#: 15f78e43a7c740ae99dd4ab150df16c4 b48f66a0289445099ad3d746caa91a30
+#: f798fda5bc6443eb9e86b42985f2aba6 fd480abde70f42498a0b6dffac3b66e4
+#: fe88b254fb774c07ac606991f89deca8
+msgid "Overview"
+msgstr "Descripción general"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:80007
+#: f09fb5bdb4b8452a9bdeaee10d57b038
+msgid ""
+"Geometric adstock is the **simplest and most commonly used** adstock "
+"transformation. It models a **constant exponential decay** where the "
+"effect diminishes by a fixed proportion each time period."
+msgstr ""
+"El adstock geométrico es la transformación de adstock **más simple y más "
+"utilizada**. Modela un **decaimiento exponencial constante** en el que el "
+"efecto disminuye en una proporción fija en cada período de tiempo."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:80009
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:240009
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:350009
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:430009
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:510009
+#: 015176c4cff1475f885e4b24e2afc8f1 2adad1e5131d4c248f319ec95f69ada8
+#: b2a8b0e9f1644b51966ea3eb23205354 d9f8a88d3d124568af8a177a0edf8528
+#: e943760ec7584a3c835b28e3fde93016
+msgid "Mathematical Form"
+msgstr "Forma matemática"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:80021
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:240029
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:350034
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:430029
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:510023
+#: 253a7ee8ea5e442a843a442272980c3f 5e8a81b921cd42c5814c9298980ece75
+#: 7a50b377a33b41038c1f96414c666541 7db44f2ba8e84f009095470fa51d2660
+#: ecced39196194c34a1654ea337821503
+msgid "When to Use"
+msgstr "Cuándo usarlo"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:80022
+#: d2010d10c16741d8a9f493cf48c6ce69
+msgid "**Default choice** for most marketing mix modeling applications"
+msgstr ""
+"**Opción predeterminada** para la mayoría de las aplicaciones de modelado de"
+" mezcla de marketing"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:80023
+#: 9baf567915124e04a10369a4d5211b18
+msgid "When you expect a **simple, consistent decay** in advertising effect"
+msgstr ""
+"Cuando se espera un **decaimiento simple y constante** del efecto "
+"publicitario"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:80024
+#: 3c9d9e783a714e85be717a72f5a8bbf8
+msgid ""
+"**Digital advertising** (display ads, search ads) where effects typically"
+" fade uniformly"
+msgstr ""
+"**Publicidad digital** (anuncios display, anuncios de búsqueda) donde los "
+"efectos suelen desvanecerse de manera uniforme"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:80025
+#: bb577e91d31242dfa684ee59da5ba6f2
+msgid "When you have **limited data** or want model simplicity"
+msgstr ""
+"Cuando se dispone de **pocos datos** o se busca la simplicidad del modelo"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:80026
+#: 689fb74dd0384f29b87161582761047c
+msgid "**Awareness campaigns** where impact gradually declines"
+msgstr "**Campañas de notoriedad** donde el impacto disminuye gradualmente"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:80028
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:240036
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:350042
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:430037
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:510030
+#: 50442b1dd0fe4f5397e03fb6ac0dbe50 98d3b32677c543a2afa7130941de14c8
+#: ce1bdc6630ae47978401d6fd98904c90 cf6eed6708bf4ef9aa8babcb009fb126
+#: ed117a640838426183dd6deee0f47d76
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:80029
+#: f4ee2ac983ab48bab1044af4a77acf58
+msgid "`alpha`: Retention rate (0-1). Higher values = slower decay"
+msgstr ""
+"`alpha`: Tasa de retención (0-1). Valores más altos = decaimiento más lento"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:80030
+#: 2ce75f3e388d44feae45226fb5c9a329
+msgid "`l_max`: Maximum lag periods to consider"
+msgstr "`l_max`: Número máximo de períodos de rezago a considerar"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:90002
+#: dda3162f1ca0434997146956fedd0d05
+msgid "Generate Geometric Adstock Instance"
+msgstr "Generar una instancia de adstock geométrico"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:90004
+#: 6de7bed1d774403d9a11501287fadb88
+msgid ""
+"Here we create a Geometric Adstock instance to help explore different "
+"behaviors."
+msgstr ""
+"Aquí creamos una instancia de adstock geométrico para ayudar a explorar "
+"distintos comportamientos."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:90006
+#: 794b172e1220405a94d267a6fb2d3937
+msgid "We instantiate the `GeometricAdstock` transformer with two key parameters:"
+msgstr ""
+"Instanciamos el transformador `GeometricAdstock` con dos parámetros clave:"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:90007
+#: 4e82c05ecc5142918f67251540331147
+msgid ""
+"`l_max=12`: Maximum lag to consider (12 weeks). This defines how far back"
+" in time the adstock effect extends. For weekly data, 12 weeks (~3 "
+"months) is common."
+msgstr ""
+"`l_max=12`: Rezago máximo a considerar (12 semanas). Define cuán atrás en el"
+" tiempo se extiende el efecto del adstock. Para datos semanales, 12 semanas "
+"(~3 meses) es un valor común."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:90009
+#: 7c93363027974461ad0c3a5e9005b018
+msgid ""
+"`normalize=True`: Ensures the adstock weights sum to 1, making the "
+"transformation  interpretable as a weighted average of past spend values."
+msgstr ""
+"`normalize=True`: Garantiza que los pesos del adstock sumen 1, lo que hace "
+"que la transformación sea interpretable como un promedio ponderado de los "
+"valores de gasto pasados."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:90012
+#: 40066fe06b63461f97737553a563adee
+msgid ""
+"Before fitting a model, it's useful to visualize what the adstock "
+"transformation looks like under different parameter values:"
+msgstr ""
+"Antes de ajustar un modelo, resulta útil visualizar cómo se ve la "
+"transformación de adstock con distintos valores de los parámetros:"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:90014
+#: 5f6bb98020934d2686531ded0260186e
+msgid ""
+"`sample_prior()`: Generates random parameter values (alpha) from the "
+"prior distribution"
+msgstr ""
+"`sample_prior()`: Genera valores aleatorios del parámetro (alpha) a partir "
+"de la distribución previa"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:90015
+#: 3c8ef61a45a743e0a3714a5490707447
+msgid "`sample_curve()`: Uses those parameters to create the actual decay curve"
+msgstr ""
+"`sample_curve()`: Usa esos parámetros para crear la curva de decaimiento "
+"real"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:110002
+#: ae8bbca165464b05b5b28ef3801e88f4
+msgid ""
+"If you noticed when running the above cell, we print out the `geometric` "
+"object. This enables us to look into how we configured our Adstock "
+"effects. Let's dive into the priors!"
+msgstr ""
+"Si se dio cuenta al ejecutar la celda anterior, imprimimos el objeto "
+"`geometric`. Esto nos permite ver cómo configuramos nuestros efectos de "
+"adstock. ¡Vamos a profundizar en los priors!"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:110004
+#: ce7fa0169c684ca184b14a9baf4810bc
+msgid ""
+"**`priors`**: A dictionary specifying the prior distribution for the "
+"`alpha` parameter (retention rate). For example, `Prior(\"Beta\", "
+"alpha=1, beta=3)` creates a Beta(1,3) prior that favors lower alpha "
+"values (faster decay), which is often reasonable for marketing effects."
+msgstr ""
+"**`priors`**: Un diccionario que especifica la distribución previa del "
+"parámetro `alpha` (tasa de retención). Por ejemplo, `Prior(\"Beta\", "
+"alpha=1, beta=3)` crea un prior Beta(1,3) que favorece valores bajos de "
+"alpha (decaimiento más rápido), lo cual suele ser razonable para los efectos"
+" de marketing."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:110006
+#: ccc0974e20524c2ba0e8e58390dc49aa
+msgid ""
+"The alpha parameter ($\\alpha \\in [0, 1]$) controls the **retention "
+"rate**:"
+msgstr ""
+"El parámetro alpha ($\\alpha \\in [0, 1]$) controla la **tasa de "
+"retención**:"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:110007
+#: 0d43fb822f1b4535ba92546d26ff8cb4
+msgid "$\\alpha = 0$: No carryover effect (only immediate impact)"
+msgstr "$\\alpha = 0$: Sin efecto de arrastre (solo impacto inmediato)"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:110008
+#: 7340e8bf07294ae2aa49272586de1291
+msgid "$\\alpha = 0.5$: Moderate decay (effect halves each period)"
+msgstr ""
+"$\\alpha = 0.5$: Decaimiento moderado (el efecto se reduce a la mitad en "
+"cada período)"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:110009
+#: e5a31bdb069c4267878551a52cc54c2a
+msgid "$\\alpha = 0.9$: Very slow decay (long-lasting memory effect)"
+msgstr ""
+"$\\alpha = 0.9$: Decaimiento muy lento (efecto de memoria de larga duración)"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:120003
+#: 8fe5b957e1054f19b988de9c7755dc25
+msgid ""
+"We also allow you to choose when to transform the spend. Whether it's "
+"before or after the saturation transformation. See below!"
+msgstr ""
+"También le permitimos elegir cuándo transformar el gasto: antes o después de"
+" la transformación de saturación. ¡Véalo a continuación!"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:120004
+#: 87d0c6750b4c46aba10ae0499404a45c
+msgid ""
+"**`mode`**: Determines when the adstock transformation is applied in the "
+"model pipeline:"
+msgstr ""
+"**`mode`**: Determina cuándo se aplica la transformación de adstock en el "
+"flujo del modelo:"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:120005
+#: 5602990c227f44c082eb10991abb0bfa
+msgid "`'After'`: Apply adstock after saturation transformations (most common)"
+msgstr ""
+"`'After'`: Aplica el adstock después de las transformaciones de saturación "
+"(lo más común)"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:120006
+#: 77c15b4b6af640e3926f10343a1fd27f
+msgid "`'Before'`: Apply adstock before saturation transformations"
+msgstr ""
+"`'Before'`: Aplica el adstock antes de las transformaciones de saturación"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:130002
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:530002
+#: 36ecbbaeb30f4baaa0f739e7435a5842 e93d280fd9f84e0c8a0fb7561b075d17
+msgid "Decay Curves for Different Alpha Values"
+msgstr "Curvas de decaimiento para distintos valores de alpha"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:150002
+#: 6627a2c7483f468ea350664fa19785ab
+msgid "Key Takeaways from Geometric Adstock Decay Curves"
+msgstr ""
+"Conclusiones clave de las curvas de decaimiento del adstock geométrico"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:150004
+#: cdff5c3be8d841a7945e0b3d5b4d1a80
+msgid "Decay Speed & Duration"
+msgstr "Velocidad y duración del decaimiento"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:150005
+#: 5bc41ba30b404f9dafc8b1a03529f89b
+msgid "**α = 0.2**: Effect drops to ~20% after 1 period, nearly zero by week 5"
+msgstr ""
+"**α = 0.2**: El efecto cae a ~20% después de 1 período y es casi cero hacia "
+"la semana 5"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:150006
+#: 22c2789216a04f0e9079830d9f692011
+msgid "**α = 0.4**: Effect at ~40% after 1 period, reaches ~1% by week 8"
+msgstr ""
+"**α = 0.4**: El efecto está en ~40% después de 1 período y llega a ~1% hacia"
+" la semana 8"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:150007
+#: 2ef2f36b85c5449fb69cabec1fdb4546
+msgid "**α = 0.6**: Effect at ~60% after 1 period, still ~10% at week 5"
+msgstr ""
+"**α = 0.6**: El efecto está en ~60% después de 1 período y sigue en ~10% en "
+"la semana 5"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:150008
+#: 79fb78a322dd441bb3b4ad6efb65baae
+#, python-format
+msgid "**α = 0.8**: Effect at ~80% after 1 period, ~17% remains at week 8"
+msgstr ""
+"**α = 0.8**: El efecto está en ~80% después de 1 período y queda ~17% en la "
+"semana 8"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:150009
+#: 1c90bbef5fc741b8a8d0f22d4fa67d63
+#, python-format
+msgid "**α = 0.9**: Effect at ~90% after 1 period, ~35% remains at week 10"
+msgstr ""
+"**α = 0.9**: El efecto está en ~90% después de 1 período y queda ~35% en la "
+"semana 10"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:150011
+#: 0bd4283058254059a0b02b611bb22609
+msgid "Practical Implications"
+msgstr "Implicaciones prácticas"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:150012
+#: 43203fbd1f1b46e1914325359092c03d
+msgid "**Low α (0.2-0.4): Performance Marketing**"
+msgstr "**α bajo (0.2-0.4): Marketing de desempeño**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:150013
+#: 2f708d394b6e4696b48ec52f3d0bda8a
+msgid "Use for search ads, display ads, direct response campaigns"
+msgstr ""
+"Úselo para anuncios de búsqueda, anuncios display y campañas de respuesta "
+"directa"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:150014
+#: 5931b4cfe6dd4bd0a34863393303c967
+msgid "Spending $1 today has minimal impact beyond 1-2 weeks"
+msgstr "Gastar $1 hoy tiene un impacto mínimo más allá de 1-2 semanas"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:150015
+#: 4125537cda914704b9ceca2725af4b6f
+msgid "Requires consistent, frequent spend to maintain effects"
+msgstr "Requiere un gasto constante y frecuente para mantener los efectos"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:150016
+#: d2d9f93d31224ae88b154ae9112f2861
+msgid "Quick wins but no lasting memory"
+msgstr "Resultados rápidos, pero sin memoria duradera"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:150018
+#: 8e540f4cfc504e509b23a987bc9d839d
+msgid "**Medium α (0.5-0.7): Social & Video**"
+msgstr "**α medio (0.5-0.7): Redes sociales y video**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:150019
+#: a36e94814706458ba95e8bca021eed4b
+msgid "Common for social media, video ads, content marketing"
+msgstr ""
+"Habitual en redes sociales, anuncios de video y marketing de contenidos"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:150020
+#: 4100bab0bbe342f8a9c287b3b8817435
+msgid "Effects last 4-6 weeks with meaningful carryover"
+msgstr ""
+"Los efectos duran de 4 a 6 semanas con un efecto de arrastre significativo"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:150021
+#: 0b985aa0199042b889face903eea6b98
+msgid "Balanced between immediate impact and memory effects"
+msgstr "Equilibrio entre el impacto inmediato y los efectos de memoria"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:150022
+#: ba001f323b224f5ca431b83792c0b206
+msgid "Moderate persistence allows for less aggressive spending"
+msgstr "Una persistencia moderada permite un gasto menos agresivo"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:150024
+#: 8ef5b4bcc183419baa67da0200c7449f
+msgid "**High α (0.8-0.9): Brand & Traditional Media**"
+msgstr "**α alto (0.8-0.9): Marca y medios tradicionales**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:150025
+#: 58b8fe237d794c6a953c21b2edea002b
+msgid "Brand campaigns, TV, radio, out-of-home advertising"
+msgstr "Campañas de marca, TV, radio y publicidad exterior"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:150026
+#: cb35fcbb29f04e10a18365230d2a95df
+msgid "Effects persist for months with strong memory"
+msgstr "Los efectos persisten durante meses con una memoria fuerte"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:150027
+#: d5375518ffa249769a219e1314791a35
+msgid "Can maintain impact with less frequent spending"
+msgstr "Se puede mantener el impacto con un gasto menos frecuente"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:150028
+#: e1d67afef63c4c77823ebe993ae83bb7
+msgid "Long-term investment in brand awareness"
+msgstr "Inversión a largo plazo en la notoriedad de marca"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:160002
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:290002
+#: 812c6da9be384e87b831944a0dd57097 981e0a407fb542ad9c0c502a0930a62a
+msgid "Parametrizing by Half-Life"
+msgstr "Parametrización por vida media"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:160004
+#: 13fe655134f44f6ab7a90cd5c7cbc1c5
+msgid ""
+"$\\alpha$ is a retention rate: the share of the effect that survives one "
+"period. That is convenient mathematically, but awkward to discuss with "
+"stakeholders, who rarely have an intuition for what $\\alpha = 0.7$ buys "
+"them. The **half-life** — the number of periods until the effect has "
+"decayed by half — is easier to reason about."
+msgstr ""
+"$\\alpha$ es una tasa de retención: la proporción del efecto que sobrevive "
+"un período. Eso es conveniente matemáticamente, pero resulta incómodo de "
+"discutir con las partes interesadas, que rara vez tienen una intuición de lo"
+" que les aporta un $\\alpha = 0.7$. La **vida media** — el número de "
+"períodos hasta que el efecto ha decaído a la mitad — es más fácil de "
+"razonar."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:160006
+#: a8c39d6fe30942caaf93a17cce446d35
+msgid ""
+"The two are one-to-one. Since the weight at lag $t$ is $\\alpha^t$, a "
+"half-life $h$ corresponds to"
+msgstr ""
+"Ambas se corresponden una a una. Dado que el peso en el rezago $t$ es "
+"$\\alpha^t$, una vida media $h$ corresponde a"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:160008
+#: fce40a4327ca4fa5a34b78939e2c5598
+#, python-brace-format
+msgid "\\alpha = 0.5^{1 / h}"
+msgstr "\\alpha = 0.5^{1 / h}"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:160010
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:290018
+#: 02e168c65a374f10be5085cfc4a810ce e1d57ed7f71a4e98bfc37672397436a4
+msgid ""
+"Any positive half-life maps into $(0, 1)$, so the constraint on $\\alpha$"
+" is satisfied automatically. Pass `parametrization=\"halflife\"` to put a"
+" prior on the half-life instead:"
+msgstr ""
+"Cualquier vida media positiva se transforma en un valor dentro de $(0, 1)$, "
+"por lo que la restricción sobre $\\alpha$ se satisface automáticamente. Pase"
+" `parametrization=\"halflife\"` para colocar un prior sobre la vida media en"
+" su lugar:"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:160019
+#: 0defd73672f041d6b1457acbad7f92b7
+msgid ""
+"The sampled variable is then `adstock_halflife` rather than "
+"`adstock_alpha`."
+msgstr ""
+"La variable muestreada es entonces `adstock_halflife` en lugar de "
+"`adstock_alpha`."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:160021
+#: 37522f35024e4c23880e24c1eb5856b7
+msgid ""
+"The half-life means exactly what it says for any `l_max` and for either "
+"setting of `normalize`. Truncating the kernel drops later lags without "
+"touching earlier ones, and normalizing divides every weight by the same "
+"constant, so the ratio $w_h / w_0 = 0.5$ survives both. Each curve below "
+"crosses the dashed line at its own half-life."
+msgstr ""
+"La vida media significa exactamente lo que dice para cualquier `l_max` y "
+"para cualquier valor de `normalize`. Truncar el kernel elimina los rezagos "
+"posteriores sin afectar a los anteriores, y normalizar divide todos los "
+"pesos por la misma constante, de modo que la razón $w_h / w_0 = 0.5$ se "
+"conserva en ambos casos. Cada curva de abajo cruza la línea discontinua en "
+"su propia vida media."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:180002
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:310002
+#: e8b0c1b1cff64a1195f06ea5617fa7fc ecf472ccf4f0484f96dc06c7cdad6ca7
+msgid "Choosing a Prior on the Half-Life"
+msgstr "Elegir un prior para la vida media"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:180004
+#: ed33caa7dc484e8c9c0eb86187c6a188
+#, python-brace-format
+msgid ""
+"The default is `InverseGamma(2.6, 1)`, picked so that switching "
+"parametrization is a change of coordinates rather than a change of model."
+" Pushed through $\\alpha = 0.5^{1/h}$ it implies a median $\\alpha$ of "
+"0.207, against 0.206 for the default `Beta(1, 3)`. The tails are close "
+"too: the 5th and 95th percentiles of $\\alpha$ are 0.019 and 0.651, "
+"against 0.017 and 0.632 under `Beta(1, 3)`."
+msgstr ""
+"El valor predeterminado es `InverseGamma(2.6, 1)`, elegido para que cambiar "
+"de parametrización sea un cambio de coordenadas y no un cambio de modelo. Al"
+" transformarlo mediante $\\alpha = 0.5^{1/h}$, implica una mediana de "
+"$\\alpha$ de 0.207, frente a 0.206 del `Beta(1, 3)` predeterminado. Las "
+"colas también son cercanas: los percentiles 5 y 95 de $\\alpha$ son 0.019 y "
+"0.651, frente a 0.017 y 0.632 con `Beta(1, 3)`."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:180006
+#: c3b8fd5bef374b7a8883ffcf39f44c97
+msgid ""
+"Read as a half-life, the default is short: a median of 0.44 periods. A "
+"channel you expect to carry over for weeks needs a prior of its own."
+msgstr ""
+"Interpretado como una vida media, el valor predeterminado es corto: una "
+"mediana de 0.44 períodos. Un canal cuyo efecto de arrastre se espera que "
+"dure semanas necesita un prior propio."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:180008
+#: c6463afce43c48b5b22347a430ea7e21
+#, python-brace-format
+msgid ""
+"If you supply your own prior, keep its mass away from zero. The gradient "
+"$d\\alpha / dh = \\alpha \\ln(2) / h^2$ underflows to exactly zero for "
+"$h$ below roughly $10^{-3}$, which leaves the likelihood numerically flat"
+" there and gives the sampler nothing to climb. That rules out "
+"`HalfNormal`, `Exponential` and `Gamma` with a shape below one, natural "
+"as those are for a positive parameter."
+msgstr ""
+"Si proporciona su propio prior, mantenga su masa alejada de cero. El "
+"gradiente $d\\alpha / dh = \\alpha \\ln(2) / h^2$ se hace exactamente cero "
+"por underflow para $h$ por debajo de aproximadamente $10^{-3}$, lo que deja "
+"la verosimilitud numéricamente plana en esa zona y no le da al muestreador "
+"nada por donde subir. Eso descarta `HalfNormal`, `Exponential` y `Gamma` con"
+" un parámetro de forma menor que uno, por naturales que resulten para un "
+"parámetro positivo."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:190002
+#: 71ae7ef5d2f749aa9175220923369cb5
+msgid "Apply Geometric Adstock to Channel Data"
+msgstr "Aplicar el adstock geométrico a los datos de los canales"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:200002
+#: 34bf2fba0e6942f4b59bc88b70174666
+msgid ""
+"Now that we understand how geometric adstock decay curves work in theory,"
+" let's see what happens when we apply this transformation to **real "
+"marketing spend data**."
+msgstr ""
+"Ahora que entendemos cómo funcionan en teoría las curvas de decaimiento del "
+"adstock geométrico, veamos qué ocurre cuando aplicamos esta transformación a"
+" **datos reales de gasto de marketing**."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:200004
+#: cde8571921f04ffd89e8d49ed7b01256
+msgid "What We're Doing"
+msgstr "Qué estamos haciendo"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:200006
+#: bb77e82a79724cc8a25a2533e6b5f432
+#, python-format
+msgid ""
+"We'll take the raw weekly spend from our two marketing channels (`x1` and"
+" `x2`) and transform them using geometric adstock with **α = 0.5** "
+"(moderate decay). This represents a realistic scenario where advertising "
+"effects carry over for several weeks, roughly 50% of the impact remains "
+"after one week, 25% after two weeks, and so on."
+msgstr ""
+"Tomaremos el gasto semanal sin procesar de nuestros dos canales de marketing"
+" (`x1` y `x2`) y lo transformaremos con adstock geométrico con **α = 0.5** "
+"(decaimiento moderado). Esto representa un escenario realista en el que los "
+"efectos publicitarios se arrastran durante varias semanas: aproximadamente "
+"el 50% del impacto permanece después de una semana, el 25% después de dos "
+"semanas, y así sucesivamente."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:200008
+#: 3bc8f4bb777147d894ef6ff41b3bd20b
+msgid "Why This Matters"
+msgstr "Por qué esto es importante"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:200010
+#: 24c2b77d62fe47968c303522779449de
+msgid ""
+"Remember, in the raw data, a spike in spend only appears in that single "
+"week. But in reality, that advertising doesn't just create impact on the "
+"day it runs. It creates **memories** in consumers' minds that influence "
+"their behavior for weeks afterward. The adstock transformation adjusts "
+"our spend data to reflect this cumulative, lingering effect."
+msgstr ""
+"Recuerde que, en los datos sin procesar, un pico de gasto aparece únicamente"
+" en esa semana. Pero en la realidad, esa publicidad no solo genera impacto "
+"el día en que se emite. Crea **recuerdos** en la mente de los consumidores "
+"que influyen en su comportamiento durante las semanas posteriores. La "
+"transformación de adstock ajusta nuestros datos de gasto para reflejar este "
+"efecto acumulativo y persistente."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:200012
+#: 8e416e1d81c748a485355a3aece7620b
+msgid "What to Look For"
+msgstr "Qué observar"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:200014
+#: 3fec837194584d02a9e730be02559d86
+msgid "When we compare the original spend to the adstocked spend, you'll notice:"
+msgstr ""
+"Cuando comparamos el gasto original con el gasto con adstock, notaremos lo "
+"siguiente:"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:200016
+#: c4af4053c23d43008d92e2e9c25870d6
+msgid ""
+"**Smoothing**: The adstocked curves are smoother than the raw spend "
+"because each week's value incorporates carryover from previous weeks"
+msgstr ""
+"**Suavizado**: Las curvas con adstock son más suaves que el gasto sin "
+"procesar porque el valor de cada semana incorpora el efecto de arrastre de "
+"las semanas anteriores"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:200017
+#: 8d49b37f1766495b9c3e5c27211cc3f2
+msgid ""
+"**Elevated Baselines**: After periods of high spend, the adstocked values"
+" remain elevated even when spend drops to zero—this is the \"memory "
+"effect\""
+msgstr ""
+"**Líneas base elevadas**: Tras períodos de gasto alto, los valores con "
+"adstock se mantienen elevados incluso cuando el gasto baja a cero; este es "
+"el \"efecto de memoria\""
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:200018
+#: 334fc6b335224fdd8aba66d812ff7fb5
+msgid ""
+"**Delayed Peaks**: The peak adstocked values may occur slightly after the"
+" peak raw spend, as the full effect accumulates over time"
+msgstr ""
+"**Picos retardados**: Los picos de los valores con adstock pueden ocurrir "
+"ligeramente después del pico del gasto sin procesar, ya que el efecto "
+"completo se acumula con el tiempo"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:200019
+#: dd45448d69234a2ebdceb5f3306a63e3
+msgid ""
+"**Realistic Impact**: The adstocked spend represents what the *effective "
+"advertising pressure* looks like from a consumer's perspective"
+msgstr ""
+"**Impacto realista**: El gasto con adstock representa cómo se ve la *presión"
+" publicitaria efectiva* desde la perspectiva del consumidor"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:200021
+#: bc3a77215f85438a922eab2ee365aa0e
+msgid ""
+"This transformation is what we'll actually feed into our MMM model. "
+"Instead of assuming that $100 spent in week 5 only affects sales in week "
+"5, we're acknowledging that it affects sales in weeks 5, 6, 7... with "
+"diminishing impact."
+msgstr ""
+"Esta transformación es lo que realmente introduciremos en nuestro modelo "
+"MMM. En lugar de asumir que los $100 gastados en la semana 5 solo afectan "
+"las ventas de la semana 5, reconocemos que afectan las ventas de las semanas"
+" 5, 6, 7... con un impacto decreciente."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:210003
+#: 8d95b25d02154fc2873d25f575e5506b
+msgid ""
+"We will follow this process for each type of Adstock transformation "
+"throughout the notebook. The process will include exploring the different"
+" curve behaviors as well as transforming our media spend with those "
+"behaviors."
+msgstr ""
+"Seguiremos este proceso con cada tipo de transformación de adstock a lo "
+"largo del cuaderno. El proceso incluirá explorar los distintos "
+"comportamientos de las curvas, así como transformar nuestro gasto en medios "
+"con esos comportamientos."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:230002
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:340002
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:420002
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:500002
+#: 13afeff9d5684de3a5407516846b3707 658ea7f9c64f498791bcc4c5c6aaba2b
+#: cc39e7e8390346bbbe6ca0c63fbacde3 cd338d09a2ce4565b24f269417d6f754
+msgid "**Key Observations:**"
+msgstr "**Observaciones clave:**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:230003
+#: b4ec2d783caa414db4425f37c26dbab7
+msgid ""
+"The adstocked spend is **smoother** than the original, showing carryover "
+"effects"
+msgstr ""
+"El gasto con adstock es **más suave** que el original y muestra efectos de "
+"arrastre"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:230004
+#: 5ff471d0a72e48c8acc7438ea65f2dcd
+msgid "Peaks in spend create **lingering effects** in subsequent periods"
+msgstr ""
+"Los picos de gasto crean **efectos persistentes** en los períodos "
+"posteriores"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:230005
+#: b0061cfd743248bdb121b4a6ce84c881
+msgid ""
+"The transformation captures how today's advertising continues to "
+"influence tomorrow's sales"
+msgstr ""
+"La transformación captura cómo la publicidad de hoy sigue influyendo en las "
+"ventas de mañana"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:240004
+#: b4496e8ab70a4a249e0a2b3ea3be170c
+msgid "2. Delayed Adstock"
+msgstr "2. Adstock con retardo"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:240007
+#: 54451a64445e42b7892054ef6f5218ba
+msgid ""
+"Delayed adstock extends geometric adstock by adding a **delay parameter**"
+" ($\\theta$) that shifts when the peak effect occurs."
+msgstr ""
+"El adstock con retardo extiende el adstock geométrico al agregar un "
+"**parámetro de retardo** ($\\theta$) que desplaza el momento en que ocurre "
+"el efecto máximo."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:240011
+#: 7557c0b60e824226aa86530da433ece6
+msgid ""
+"Delayed geometric adstock builds on geometric adstock by adding in a "
+"delay $\\theta$ before the maximum adstock is observed (this happens at "
+"week 0 for the plain geometric decay)."
+msgstr ""
+"El adstock geométrico con retardo se basa en el adstock geométrico al añadir"
+" un retardo $\\theta$ antes de que se observe el adstock máximo (esto ocurre"
+" en la semana 0 en el decaimiento geométrico simple)."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:240013
+#: c308721755e64a7fa598a73f3fc62451
+#, python-brace-format
+msgid ""
+"It also adds a maximum duration for the carryover/adstock $L_{max}$, such"
+" that adstock after this point is 0."
+msgstr ""
+"También añade una duración máxima para el efecto de arrastre o adstock, "
+"$L_{max}$, de modo que el adstock más allá de ese punto es 0."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:240015
+#: 418ada8c260741fd9397bc1cec8079f6
+msgid "The delayed geometric adstock function takes the following form:"
+msgstr ""
+"La función de adstock geométrico con retardo tiene la siguiente forma:"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:240017
+#: ab7488fca5d84c409c9ebb88387348a3
+msgid ""
+"\n"
+"\\tilde{x}_t = \\sum_{i=0}^{L_{\\max}-1} \\left( \\alpha^{(i-\\theta)^2} "
+"\\cdot x_{t-i} \\right)\n"
+msgstr ""
+"\n"
+"\\tilde{x}_t = \\sum_{i=0}^{L_{\\max}-1} \\left( \\alpha^{(i-\\theta)^2} \\cdot x_{t-i} \\right)\n"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:240022
+#: 5272fdb5a2f24e8c934caffca11ef1d7
+#, python-brace-format
+msgid ""
+"$\\tilde{x}_t$ is the transformed value at time $t$ after applying the "
+"delayed adstock transformation"
+msgstr ""
+"$\\tilde{x}_t$ es el valor transformado en el tiempo $t$ tras aplicar la "
+"transformación de adstock con retardo"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:240023
+#: 2ed3829b8d1c4c5ea773a8e397e03605
+msgid "$\\alpha$ is the retention rate of the ad effect"
+msgstr "$\\alpha$ es la tasa de retención del efecto publicitario"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:240024
+#: 1f67d79a0ed6473f880060045828aa41
+msgid "$\\theta$ represents the delay before the peak effect occurs"
+msgstr "$\\theta$ representa el retardo antes de que ocurra el efecto máximo"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:240025
+#: 7a85e2d6593545fcb51716b5363abdc1
+#, python-brace-format
+msgid "$L_{max}$ is the maximum duration of the carryover effect"
+msgstr "$L_{max}$ es la duración máxima del efecto de arrastre"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:240027
+#: 1e81ab9586e84b11a00a7fd444cf86a6
+msgid ""
+"The exponent is squared, so the weights fall away from the peak at $i = "
+"\\theta$ symmetrically in both directions rather than decaying "
+"geometrically from it."
+msgstr ""
+"El exponente está elevado al cuadrado, de modo que los pesos se alejan del "
+"pico en $i = \\theta$ de forma simétrica en ambas direcciones, en lugar de "
+"decaer geométricamente a partir de él."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:240030
+#: cbaa721642e049a38cefe8936c36858e
+msgid "**Broadcast media** (TV, radio) where impact doesn't happen immediately"
+msgstr ""
+"**Medios masivos** (TV, radio) donde el impacto no ocurre de inmediato"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:240031
+#: f5b1b9087f754de8b147a668238b6105
+msgid "**Out-of-home advertising** (billboards) with gradual awareness build-up"
+msgstr ""
+"**Publicidad exterior** (vallas publicitarias) con una acumulación gradual "
+"de notoriedad"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:240032
+#: 0574efb26fd54be9a7b7ee1c7f113498
+msgid "**Awareness campaigns** where recognition takes time to develop"
+msgstr ""
+"**Campañas de notoriedad** donde el reconocimiento tarda en desarrollarse"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:240033
+#: 8cb33aaf98f0476e98a9fb231a9532fb
+msgid "When there's a **lag between exposure and action** (e.g., B2B marketing)"
+msgstr ""
+"Cuando hay un **rezago entre la exposición y la acción** (por ejemplo, en el"
+" marketing B2B)"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:240034
+#: 1e478ab50b834f80b52b2c080c1085cd
+msgid "**Brand campaigns** rather than performance marketing"
+msgstr "**Campañas de marca** en lugar de marketing de desempeño"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:240037
+#: e535cfda61ec441b9f272650389fb442
+msgid "`alpha`: Retention rate (0-1)"
+msgstr "`alpha`: Tasa de retención (0-1)"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:240038
+#: 286ae74c3bcc4db59bc72cb7f10634cf
+msgid "`theta`: Delay parameter (higher = more delay)"
+msgstr "`theta`: Parámetro de retardo (mayor = más retardo)"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:240039
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:350045
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:430040
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:510032
+#: 2ae2e61747ff4862826973b857347c0a 8684ed80878e48ffa0cf5b6aada1c798
+#: cfde76f9d7784cb587134318b11b5dd2 d6b7bd60e4574f29a5414e7f2084da81
+msgid "`l_max`: Maximum lag periods"
+msgstr "`l_max`: Número máximo de períodos de rezago"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:260002
+#: 1e67cdea4e624a268fa13ebf805673cc
+msgid "Decay Curves for Different Delay (θ) Values"
+msgstr "Curvas de decaimiento para distintos valores del retardo (θ)"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:280002
+#: 2f2a15a26a4842bdb88df264d667636b
+msgid "Key Takeaways from Delayed Adstock"
+msgstr "Conclusiones clave del adstock con retardo"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:280004
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390004
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470004
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550004
+#: 42cc063623ee4c479e5b5448cf86d0ea 9fa8ee0739fc4efeb69ec14f284c18d3
+#: a2c74762c5b14050a83f25d7e545b331 fe05fe845a5f47548cdc58c81e3779c8
+msgid "1. Decay Speed & Duration"
+msgstr "1. Velocidad y duración del decaimiento"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:280006
+#: 0e07a7e56575458ca2a82b95cff61915
+msgid "**Effect of Delay Parameter (θ):**"
+msgstr "**Efecto del parámetro de retardo (θ):**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:280007
+#: 7308327a6fa442ae93d072b055da7848
+msgid "**θ = 0**: No delay, identical to geometric adstock (immediate peak)"
+msgstr ""
+"**θ = 0**: Sin retardo, idéntico al adstock geométrico (pico inmediato)"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:280008
+#: a3629e6b03f44f928cdd6eb1dc9fa213
+msgid "**θ = 1**: Peak effect occurs 1 period after spend"
+msgstr "**θ = 1**: El efecto máximo ocurre 1 período después del gasto"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:280009
+#: 24496bf6531d44459c5d1081fe7c2ea3
+msgid "**θ = 2**: Peak effect occurs 2 periods after spend"
+msgstr "**θ = 2**: El efecto máximo ocurre 2 períodos después del gasto"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:280010
+#: b66aa6fd9e4b4a80ae12a42cd0abbfc6
+msgid ""
+"**θ = 3-4**: Peak effect occurs 3-4 periods after spend, creating "
+"significant lag"
+msgstr ""
+"**θ = 3-4**: El efecto máximo ocurre 3-4 períodos después del gasto, lo que "
+"crea un rezago significativo"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:280012
+#: 89eeadb5c01f4e9dacb64a80b9ac9702
+msgid "**Effect of Retention (α) with θ=2:**"
+msgstr "**Efecto de la retención (α) con θ=2:**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:280013
+#: d469bd696ff749289354836cc47ee57a
+msgid ""
+"**α = 0.3**: Fast decay after delayed peak, effects dissipate within 5-6 "
+"periods"
+msgstr ""
+"**α = 0.3**: Decaimiento rápido tras el pico retardado, los efectos se "
+"disipan en 5-6 períodos"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:280014
+#: ebfdeabc31e2427996f990d15d19aaf4
+msgid "**α = 0.5**: Moderate decay, effects last 7-8 periods after peak"
+msgstr ""
+"**α = 0.5**: Decaimiento moderado, los efectos duran 7-8 períodos después "
+"del pico"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:280015
+#: 56e73e5d8731428c8805d4d771043c95
+msgid ""
+"**α = 0.7**: Slow decay, effects persist 9-10 periods with sustained "
+"impact"
+msgstr ""
+"**α = 0.7**: Decaimiento lento, los efectos persisten 9-10 períodos con un "
+"impacto sostenido"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:280016
+#: 959623a07ef0451ca5cfc73d0dcca2b0
+msgid ""
+"**α = 0.9**: Very slow decay, effects remain strong even 10+ periods "
+"after peak"
+msgstr ""
+"**α = 0.9**: Decaimiento muy lento, los efectos siguen siendo fuertes "
+"incluso 10 o más períodos después del pico"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:280018
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390023
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470023
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550023
+#: 2c8106286f574984a9d5a116da23b06a 89f4e3ab91bb40eda9daca899a747d79
+#: d6a5b519ca794fb3923ad3cf833d0df8 f6abfaa91b4b4adc85ae569dd1c5fe8a
+msgid "2. Practical Implications"
+msgstr "2. Implicaciones prácticas"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:280020
+#: c85b55ba23ff42cc93819611514e37c5
+msgid "**Low θ (0-1): Slight Delay Channels**"
+msgstr "**θ bajo (0-1): Canales con retardo leve**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:280021
+#: 74408fc90b954784b01e2ecfced4cacd
+msgid "Online video ads where impact builds 1 week after viewing"
+msgstr ""
+"Anuncios de video en línea donde el impacto se acumula 1 semana después de "
+"verlos"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:280022
+#: 3200fbb8d16a4aa49fd79c2169079ec9
+msgid "Social media campaigns with next-day engagement"
+msgstr "Campañas en redes sociales con interacción al día siguiente"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:280023
+#: 4128fe4568ca4568a91f49f9fa397f19
+msgid "Email marketing with short consideration periods"
+msgstr "Marketing por correo electrónico con períodos de consideración cortos"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:280024
+#: 3a1aa613fe9c449293f1449310ccfa3b
+msgid "Quick response but not instantaneous"
+msgstr "Respuesta rápida, pero no instantánea"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:280026
+#: 5a883bef5c1d4964a746129d22c1f457
+msgid "**Medium θ (2-3): Moderate Delay Channels**"
+msgstr "**θ medio (2-3): Canales con retardo moderado**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:280027
+#: ec1adc125d4948758237396065229da9
+msgid "TV advertising where brand awareness converts to action after 2-3 weeks"
+msgstr ""
+"Publicidad en TV donde la notoriedad de marca se convierte en acción tras "
+"2-3 semanas"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:280028
+#: 67a53048ca694f409d71a64aec8e6e34
+msgid "Out-of-home (billboard) advertising with gradual recognition"
+msgstr "Publicidad exterior (vallas publicitarias) con reconocimiento gradual"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:280029
+#: 60bd8b005e704862a6f341ee522cc931
+msgid "B2B marketing with typical sales cycles"
+msgstr "Marketing B2B con ciclos de venta típicos"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:280030
+#: 41e6d73034d34cc8af586f8a3a1004c9
+msgid "Awareness campaigns that need time to penetrate"
+msgstr "Campañas de notoriedad que necesitan tiempo para calar"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:280032
+#: 1d1c9a80224e499d90012005f93a2dda
+msgid "**High θ (4+): Long Delay Channels**"
+msgstr "**θ alto (4+): Canales con retardo largo**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:280033
+#: 9d8bb31b53be4596a7166b0f922fef35
+msgid "Brand building campaigns with very long awareness-to-action cycles"
+msgstr ""
+"Campañas de construcción de marca con ciclos muy largos desde la notoriedad "
+"hasta la acción"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:280034
+#: c353e410c4aa4920a8808ad66f4971d3
+msgid "Educational content marketing"
+msgstr "Marketing de contenidos educativos"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:280035
+#: ab468b433007468e82331c373cb6ef14
+msgid "PR campaigns where sentiment shifts slowly"
+msgstr ""
+"Campañas de relaciones públicas donde el sentimiento cambia lentamente"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:280036
+#: 718dfa7821e54d13ad48a9ca940ef3ca
+msgid "Complex B2B sales with extended decision-making"
+msgstr "Ventas B2B complejas con procesos de decisión prolongados"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:280038
+#: 4dbbd0a733e9491180269ffac385ed8a
+msgid "**Combining θ and α:**"
+msgstr "**Combinación de θ y α:**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:280039
+#: 154342b4a271476bb4963b898e780bfc
+msgid ""
+"**High θ + Low α**: Sharp peak after delay, then rapid drop-off "
+"(promotional events)"
+msgstr ""
+"**θ alto + α bajo**: Pico marcado tras el retardo y luego una caída rápida "
+"(eventos promocionales)"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:280040
+#: 3b6590f5ddd743319bc54590f39b3807
+msgid ""
+"**High θ + High α**: Delayed peak with long-lasting sustained effects "
+"(traditional brand advertising)"
+msgstr ""
+"**θ alto + α alto**: Pico retardado con efectos sostenidos y de larga "
+"duración (publicidad de marca tradicional)"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:280041
+#: 194d52a8c962418fb5d468294cbaa437
+msgid ""
+"**Low θ + Low α**: Quick peak, quick fade (performance marketing with "
+"slight delay)"
+msgstr ""
+"**θ bajo + α bajo**: Pico rápido y desvanecimiento rápido (marketing de "
+"desempeño con un retardo leve)"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:290004
+#: 60ffa13b90b24036834cd4c2ef2138f6
+msgid ""
+"Delayed adstock separates *when* the effect peaks from *how wide* the "
+"response around that peak is. $\\theta$ answers the first question in "
+"time units and is easy to talk about. $\\alpha$ answers the second one as"
+" a retention rate, which is not: nobody has an intuition for how broad a "
+"response $\\alpha = 0.6$ implies once it is raised to $(\\ell - "
+"\\theta)^2$."
+msgstr ""
+"El adstock con retardo separa *cuándo* alcanza su pico el efecto de *qué tan"
+" ancha* es la respuesta alrededor de ese pico. $\\theta$ responde a la "
+"primera pregunta en unidades de tiempo y es fácil de comunicar. $\\alpha$ "
+"responde a la segunda como una tasa de retención, que no lo es: nadie tiene "
+"una intuición de qué tan amplia es la respuesta que implica un $\\alpha = "
+"0.6$ una vez elevado a $(\\ell - \\theta)^2$."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:290006
+#: adf4e5a83d304e8fb9d4af441252336e
+msgid ""
+"The **half-life** answers it in the same units as $\\theta$. It is the "
+"distance from the peak at which effectiveness is half of its peak value. "
+"Because the kernel depends on $(\\ell - \\theta)^2$ it is symmetric about"
+" $\\theta$, so a single number describes both sides:"
+msgstr ""
+"La **vida media** la responde en las mismas unidades que $\\theta$. Es la "
+"distancia al pico a la que la efectividad es la mitad de su valor máximo. "
+"Como el kernel depende de $(\\ell - \\theta)^2$, es simétrico respecto de "
+"$\\theta$, así que un solo número describe ambos lados:"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:290008
+#: 909941e318f5490594ec0e51f61feeed
+#, python-brace-format
+msgid "w_{\\theta - h} = w_{\\theta + h} = \\tfrac{1}{2} w_\\theta"
+msgstr "w_{\\theta - h} = w_{\\theta + h} = \\tfrac{1}{2} w_\\theta"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:290010
+#: 939a52928a7a4ef99a1445256937a7a9
+msgid ""
+"That is, $h$ is both the time over which effectiveness **rises** from "
+"half to its peak and the time over which it **decays** from the peak back"
+" to half."
+msgstr ""
+"Es decir, $h$ es tanto el tiempo durante el cual la efectividad **sube** "
+"desde la mitad hasta su pico como el tiempo durante el cual **decae** desde "
+"el pico hasta la mitad."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:290012
+#: c1870d16c4a241f8aeec98097bba1069
+msgid ""
+"This is a different reading from the geometric half-life in Section 1, "
+"which is a decay time measured from lag zero: there the effect only ever "
+"falls, whereas here it climbs to the peak over one half-life before "
+"falling away over the next."
+msgstr ""
+"Esta es una lectura distinta de la vida media geométrica de la Sección 1, "
+"que es un tiempo de decaimiento medido desde el rezago cero: allí el efecto "
+"solo desciende, mientras que aquí asciende hasta el pico a lo largo de una "
+"vida media antes de decaer durante la siguiente."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:290014
+#: 7feed4ea98504113bdbe3cd7f4d8ede3
+#, python-brace-format
+msgid ""
+"Setting $w_{\\theta + h} = \\tfrac{1}{2} w_\\theta$ in $w_\\ell = "
+"\\alpha^{(\\ell-\\theta)^2}$ gives $\\alpha^{h^2} = \\tfrac{1}{2}$, so "
+"the two parametrizations are one-to-one:"
+msgstr ""
+"Al establecer $w_{\\theta + h} = \\tfrac{1}{2} w_\\theta$ en $w_\\ell = "
+"\\alpha^{(\\ell-\\theta)^2}$ se obtiene $\\alpha^{h^2} = \\tfrac{1}{2}$, de "
+"modo que las dos parametrizaciones se corresponden una a una:"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:290016
+#: 1261330894df4098bef5bcd6e3f5db23
+msgid ""
+"\\alpha = 2^{-1 / h^{2}}, \\qquad w_\\ell = "
+"2^{-\\left(\\frac{\\ell-\\theta}{h}\\right)^{2}}"
+msgstr ""
+"\\alpha = 2^{-1 / h^{2}}, \\qquad w_\\ell = "
+"2^{-\\left(\\frac{\\ell-\\theta}{h}\\right)^{2}}"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:290027
+#: 3b61749b386f4c578a567d239796471c
+msgid ""
+"The sampled variable is then `adstock_halflife` rather than "
+"`adstock_alpha`. `theta` is untouched and keeps its own prior under "
+"either parametrization."
+msgstr ""
+"La variable muestreada es entonces `adstock_halflife` en lugar de "
+"`adstock_alpha`. `theta` no se modifica y conserva su propio prior en ambas "
+"parametrizaciones."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:290029
+#: cecc281b93cc4cfcbc25ff8ef669ece5
+msgid ""
+"As with geometric adstock, the half-life means exactly what it says for "
+"any `l_max` and for either setting of `normalize`, since normalizing "
+"divides every weight by the same constant and so leaves the ratio to the "
+"peak alone. With `theta=6` below, each curve passes through half its peak"
+" exactly $h$ periods either side of the peak."
+msgstr ""
+"Al igual que con el adstock geométrico, la vida media significa exactamente "
+"lo que dice para cualquier `l_max` y para cualquier valor de `normalize`, ya"
+" que normalizar divide todos los pesos por la misma constante y, por tanto, "
+"deja intacta la razón respecto del pico. Con `theta=6` más abajo, cada curva"
+" pasa por la mitad de su pico exactamente a $h$ períodos de distancia a cada"
+" lado del pico."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:310004
+#: 39e896f139964d72885ff4069c2585f3
+#, python-brace-format
+msgid ""
+"The default is `InverseGamma(9, 5.75)`, picked so that switching "
+"parametrization is a change of coordinates rather than a change of model."
+" Pushed through $\\alpha = 2^{-1/h^2}$ it implies a median $\\alpha$ of "
+"0.207, against 0.206 for the default `Beta(1, 3)`. The tails are close "
+"too: the 5th and 95th percentiles of $\\alpha$ are 0.013 and 0.630, "
+"against 0.017 and 0.632 under `Beta(1, 3)`."
+msgstr ""
+"El valor predeterminado es `InverseGamma(9, 5.75)`, elegido para que cambiar"
+" de parametrización sea un cambio de coordenadas y no un cambio de modelo. "
+"Al transformarlo mediante $\\alpha = 2^{-1/h^2}$, implica una mediana de "
+"$\\alpha$ de 0.207, frente a 0.206 del `Beta(1, 3)` predeterminado. Las "
+"colas también son cercanas: los percentiles 5 y 95 de $\\alpha$ son 0.013 y "
+"0.630, frente a 0.017 y 0.632 con `Beta(1, 3)`."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:310006
+#: 07cb1f5df3bb439b9b80ca54f8fde879
+msgid ""
+"Read as a half-life, the default is short: a median of 0.66 periods, "
+"meaning effectiveness has already halved before the next period. Any "
+"channel whose response is broader than that needs a prior of its own, and"
+" since the half-life is in periods you can set one directly. For weekly "
+"data, `LogNormal(log(3), 0.3)` says the effect takes roughly three weeks "
+"to move between half and peak effectiveness, with most of the mass "
+"between two and five weeks."
+msgstr ""
+"Interpretado como una vida media, el valor predeterminado es corto: una "
+"mediana de 0.66 períodos, lo que significa que la efectividad ya se ha "
+"reducido a la mitad antes del período siguiente. Cualquier canal cuya "
+"respuesta sea más amplia necesita un prior propio, y dado que la vida media "
+"está expresada en períodos, puede fijar uno directamente. Para datos "
+"semanales, `LogNormal(log(3), 0.3)` indica que el efecto tarda "
+"aproximadamente tres semanas en pasar de la mitad a la efectividad máxima, "
+"con la mayor parte de la masa entre dos y cinco semanas."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:310008
+#: 0aac53ba1b214d4eaef841ce9b2dda91
+msgid ""
+"Note that the kernel is only evaluated at integer lags. When $\\theta$ or"
+" $h$ is not a whole number there may be no lag sitting exactly on the "
+"peak or on either half-peak point; the interpretation above describes the"
+" underlying continuous kernel."
+msgstr ""
+"Tenga en cuenta que el kernel solo se evalúa en rezagos enteros. Cuando "
+"$\\theta$ o $h$ no son números enteros, puede que no haya ningún rezago "
+"situado exactamente sobre el pico ni sobre alguno de los dos puntos de medio"
+" pico; la interpretación anterior describe el kernel continuo subyacente."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:310010
+#: 7b8c5047212b4a81be2d6b69fc66962a
+msgid "Two constraints on a custom prior:"
+msgstr "Dos restricciones para un prior personalizado:"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:310012
+#: 59aebe1db3714b23a6509e8e7c64d6e5
+msgid ""
+"**It must have positive support.** The kernel depends on $h^2$, so a "
+"negative half-life produces exactly the same weights as its absolute "
+"value and the sign is not identified."
+msgstr ""
+"**Debe tener soporte positivo.** El kernel depende de $h^2$, por lo que una "
+"vida media negativa produce exactamente los mismos pesos que su valor "
+"absoluto y el signo no está identificado."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:310013
+#: 49a4f0c4633f47b88d3083c4645b2443
+msgid ""
+"**Keep its mass away from zero.** The gradient $d\\alpha / dh = 2 \\alpha"
+" \\ln(2) / h^3$ underflows to exactly zero for $h$ below roughly $0.03$, "
+"which leaves the likelihood numerically flat there and gives the sampler "
+"nothing to climb. That rules out `HalfNormal`, `Exponential` and `Gamma` "
+"with a shape below one, natural as those are for a positive parameter. "
+"`InverseGamma` and `LogNormal` both vanish at the origin and are safe."
+msgstr ""
+"**Mantenga su masa alejada de cero.** El gradiente $d\\alpha / dh = 2 "
+"\\alpha \\ln(2) / h^3$ se hace exactamente cero por underflow para $h$ por "
+"debajo de aproximadamente $0.03$, lo que deja la verosimilitud numéricamente"
+" plana en esa zona y no le da al muestreador nada por donde subir. Eso "
+"descarta `HalfNormal`, `Exponential` y `Gamma` con un parámetro de forma "
+"menor que uno, por naturales que resulten para un parámetro positivo. "
+"`InverseGamma` y `LogNormal` se anulan ambas en el origen y son seguras."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:320002
+#: 49e9ee9e1ac14b1abf790930069ba613
+msgid "Apply Delayed Adstock to Channel Data"
+msgstr "Aplicar el adstock con retardo a los datos de los canales"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:340003
+#: 65cab3ba9e784d65adcbfb59e76951bb
+msgid "The delay creates a **lag** between spend and its full effect"
+msgstr "El retardo crea un **rezago** entre el gasto y su efecto completo"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:340004
+#: e95bdd4e230f48b0b3e244fdfebb70f4
+msgid ""
+"Notice how effects are **shifted forward in time** compared to geometric "
+"adstock"
+msgstr ""
+"Observe cómo los efectos se **desplazan hacia adelante en el tiempo** en "
+"comparación con el adstock geométrico"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:340005
+#: bbd23a4a1d414e338ebb667502c65afe
+msgid "Useful when you expect marketing to take time to \"sink in\""
+msgstr "Es útil cuando se espera que el marketing tarde en \"calar\""
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:350004
+#: ea439b264a6b46dfa6066259381567d1
+msgid "3. Weibull CDF Adstock"
+msgstr "3. Adstock Weibull CDF"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:350007
+#: 47532276c17a4ad4a3ede5efbfbe897d
+msgid ""
+"Weibull CDF adstock uses the **cumulative distribution function**, "
+"creating an **S-shaped curve** where effects build up gradually."
+msgstr ""
+"El adstock Weibull CDF utiliza la **función de distribución acumulada**, que"
+" crea una **curva en forma de S** en la que los efectos se acumulan "
+"gradualmente."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:350011
+#: 3efe3e22b5e34f95899d60dbeeadf037
+msgid ""
+"The Weibull CDF is a function depending on two variables, $k$ (known as "
+"the **shape**) and $\\lambda$ (known as the **scale**).   The idea is "
+"closely related to geometric adstock but with one important difference : "
+"the rate of decay (what we called $\\alpha$ in the geometric adstock "
+"equation) is no longer fixed. Instead it's **time-dependent**."
+msgstr ""
+"La Weibull CDF es una función que depende de dos variables, $k$ (conocida "
+"como la **forma**) y $\\lambda$ (conocida como la **escala**).   La idea "
+"está estrechamente relacionada con el adstock geométrico, pero con una "
+"diferencia importante : la tasa de decaimiento (lo que llamamos $\\alpha$ en"
+" la ecuación del adstock geométrico) ya no es fija. En cambio, **depende del"
+" tiempo**."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:350014
+#: 04ba5d7bab694fa8a7e765e227c8256f
+msgid "**The Weibull CDF adstock function therefore takes the form :**"
+msgstr "**Por lo tanto, la función de adstock Weibull CDF tiene la forma :**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:350016
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:430017
+#: 0bcacf41a2434066a1b382b1112f538b 59c65d827bd94bf4a1264e1ce6e6905c
+#, python-brace-format
+msgid ""
+"\n"
+"\\tilde{x}_t = x_t + \\alpha_t \\tilde{x}_{t-1}\n"
+msgstr ""
+"\n"
+"\\tilde{x}_t = x_t + \\alpha_t \\tilde{x}_{t-1}\n"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:350020
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:430021
+#: 7767fdc13de541bc8ddeb556be61fcf2 f22cd353cb9c4987acbf52f4207444bd
+msgid "where $\\alpha_t$ is now a function of time $t$"
+msgstr "donde $\\alpha_t$ es ahora una función del tiempo $t$"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:350022
+#: c5db39fbcf914e09864ab8a947701bc7
+msgid ""
+"**The Weibull CDF is actually used to build the $\\alpha_t$'s, and it "
+"takes the form :**"
+msgstr ""
+"**En realidad, la Weibull CDF se usa para construir los $\\alpha_t$, y tiene"
+" la forma :**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:350024
+#: 5fd0b584f9c84b3fa22bb54ce412a920
+msgid ""
+"\n"
+"F_{k, \\lambda}(t) = 1 - e^{-(\\frac{t}{\\lambda})^k}\n"
+msgstr ""
+"\n"
+"F_{k, \\lambda}(t) = 1 - e^{-(\\frac{t}{\\lambda})^k}\n"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:350028
+#: 7222d363af2e4667814b1b334d5cf399
+msgid "Then, $\\alpha_t$ is computed as :"
+msgstr "Entonces, $\\alpha_t$ se calcula como :"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:350030
+#: a5efd1ddf0fa4365a22142c773c22984
+#, python-brace-format
+msgid ""
+"\n"
+"\\alpha_t = 1 - F_{k,\\lambda}(t)\n"
+msgstr ""
+"\n"
+"\\alpha_t = 1 - F_{k,\\lambda}(t)\n"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:350035
+#: 852a6182d9764b0c81192d34db0410cd
+msgid "**Brand building** campaigns with cumulative awareness"
+msgstr "**Construcción de marca** con campañas de notoriedad acumulativa"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:350036
+#: 9447651c73d9499cabff5a4e3bdab245
+msgid "**Long-term PR campaigns** where impact accumulates"
+msgstr ""
+"**Campañas de relaciones públicas a largo plazo** donde el impacto se "
+"acumula"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:350037
+#: 7379998d59134b4ca387d5902be919ea
+msgid "**Content marketing** that builds authority over time"
+msgstr "**Marketing de contenidos** que construye autoridad con el tiempo"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:350038
+#: e91a874621e94f55a6e5bfa52d08ad07
+msgid "**Educational campaigns** with gradual learning"
+msgstr "**Campañas educativas** con aprendizaje gradual"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:350039
+#: 1883989cea6349599aeb1883dee285a7
+msgid "When effects are **cumulative and slow-building**"
+msgstr "Cuando los efectos son **acumulativos y de construcción lenta**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:350040
+#: c05e9bc24ab94a4da8bf2740b260d3d8
+msgid "**Word-of-mouth marketing** that spreads gradually"
+msgstr "**Marketing boca a boca** que se propaga gradualmente"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:350043
+#: 9b2bf9004c3e4c8c83f2558169b5a58f
+msgid "`lam`: Scale parameter (λ)"
+msgstr "`lam`: Parámetro de escala (λ)"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:350044
+#: 97cf9bb1bf7f4f48ba1a136c9f89a623
+msgid "`k`: Shape parameter"
+msgstr "`k`: Parámetro de forma"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:370002
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:450002
+#: d8bcb1a3aab84623a3e1bf7c49cbfccb f5796fd2bc97401687732ce7f65e16cd
+msgid "Decay Curves for Different λ and k Values"
+msgstr "Curvas de decaimiento para distintos valores de λ y k"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390002
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470002
+#: 5c880566ecc84657888f8259b9d70ace bb576a1b6bc349b29c7398bcee226ae4
+msgid "Key Takeaways from Weibull CDF Adstock"
+msgstr "Conclusiones clave del adstock Weibull CDF"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390006
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470006
+#: 224caa221ed940d888ff1f8b74774fc6 db82557f30434a6c952c6a650fa1d40e
+msgid "**Effect of Scale Parameter (λ) with k=2:**"
+msgstr "**Efecto del parámetro de escala (λ) con k=2:**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390007
+#: b38b484278ce4a5f91fcf9692a7525f7
+msgid "**λ = 0.5**: Rapid S-curve buildup, reaches 90%+ effect by period 1-2"
+msgstr ""
+"**λ = 0.5**: Acumulación rápida en forma de S, alcanza más del 90% del "
+"efecto hacia el período 1-2"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390008
+#: 72ea9589175e4689afdc1ef645135c9f
+msgid "**λ = 1**: Moderate buildup, reaches plateau around period 3-4"
+msgstr ""
+"**λ = 1**: Acumulación moderada, alcanza la meseta alrededor del período 3-4"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390009
+#: 28b31b1c5954486f897b6b1129f42c89
+msgid "**λ = 2**: Gradual buildup, reaches plateau around period 5-6"
+msgstr ""
+"**λ = 2**: Acumulación gradual, alcanza la meseta alrededor del período 5-6"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390010
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470010
+#: 386ebc02f866468491fdbc85404381cd 528c394f30874e8e82d0eefb52b9c3cb
+msgid "**λ = 3-4**: Very slow buildup, takes 10+ periods to reach plateau"
+msgstr ""
+"**λ = 3-4**: Acumulación muy lenta, tarda más de 10 períodos en alcanzar la "
+"meseta"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390012
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470012
+#: 405db0cee05c43bc9a1bcf7230ece3d8 939f7a39d37f417086a8a20fe26d8837
+msgid "**Effect of Shape Parameter (k) with λ=2:**"
+msgstr "**Efecto del parámetro de forma (k) con λ=2:**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390013
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470013
+#: 6a98b7084f024ab0afecb8bfcca26da7 cb1cd1c3ed3f493181a6186e05b6ac42
+msgid "**k = 0.5**: Extremely gradual S-curve, very slow initial buildup"
+msgstr ""
+"**k = 0.5**: Curva en S extremadamente gradual, acumulación inicial muy "
+"lenta"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390014
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470014
+#: 837f898abb8e4baea5efa90b5e6d3a96 e062b4d6e8564f028928ab420d788fc8
+msgid "**k = 1**: Linear-like buildup (exponential distribution)"
+msgstr "**k = 1**: Acumulación casi lineal (distribución exponencial)"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390015
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470015
+#: 57dde711fbcf4ca68dfe843b1564f0f5 cb764a349ed7488a97b2af0d74fc2ff9
+msgid "**k = 2**: Classic S-shaped curve with inflection point"
+msgstr "**k = 2**: Curva clásica en forma de S con punto de inflexión"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390016
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470016
+#: 8493155cd5aa408e908a9a0e5cea3c1c cd75d9e132ac4a4e97381df712167bf7
+msgid "**k = 3-4**: Steeper S-curve, faster transition from buildup to plateau"
+msgstr ""
+"**k = 3-4**: Curva en S más empinada, transición más rápida de la "
+"acumulación a la meseta"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390018
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470018
+#: 08db58b34cc549af84a6891772e2478e 5f48fd9e9c9242f5af8a3d145532f4f4
+msgid "**Cumulative Nature:**"
+msgstr "**Naturaleza acumulativa:**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390019
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470019
+#: 0721b8bef9ea4e59b6b91e40cda6662c bf0b56e9eddb4ff3bef5a36880e27656
+msgid "Effects **accumulate** over time rather than decay"
+msgstr "Los efectos se **acumulan** con el tiempo en lugar de decaer"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390020
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470020
+#: 5c094d1081c9403ca2e15aac94b9bf42 75132c75c4644f1f9894018d57af098c
+msgid "Creates a **saturating effect** where impact plateaus"
+msgstr ""
+"Crea un **efecto de saturación** en el que el impacto alcanza una meseta"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390021
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470021
+#: 9764174fb3c845fda125cc9f35f6d0d8 cf660690dcf84d24b501eba90fe8167e
+#, python-format
+msgid "Later periods maintain near-100% of cumulative effect"
+msgstr ""
+"Los períodos posteriores mantienen cerca del 100% del efecto acumulado"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390025
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470025
+#: 2a1dc40e6059477da188816a706d379d bea1fc3e8ad145428fe75349a8ff3d53
+msgid "**Low λ (0.5-1): Fast Buildup Channels**"
+msgstr "**λ bajo (0.5-1): Canales de acumulación rápida**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390026
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470026
+#: 0925e9aebe564731879ebf48182d32f0 351e4752053c411b92384e6d933041b0
+msgid "Word-of-mouth campaigns that quickly reach saturation"
+msgstr "Campañas de boca a boca que alcanzan la saturación rápidamente"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390027
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470027
+#: 1475850bedaf4def991f1fe2deaf63b1 45cf60770b534524a6ac3a98d767545c
+msgid "Viral content with rapid but capped spread"
+msgstr "Contenido viral con una propagación rápida pero limitada"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390028
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470028
+#: a90f0458838f4874beb57344cf4fe82f be0cc4f706fe4341a588c2ef161cff94
+msgid "Network effects that accelerate quickly"
+msgstr "Efectos de red que se aceleran rápidamente"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390029
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470029
+#: 0f29557063a5452b8463cc957a70a925 8363ae5e79484495a5ef940909db70ed
+msgid "Local market awareness that saturates fast"
+msgstr "Notoriedad en mercados locales que se satura rápido"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390031
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470031
+#: 3197eb6888704b439a95554c32979006 ed9629bb60f849dfa629244ed3999612
+msgid "**Medium λ (2-3): Gradual Buildup Channels**"
+msgstr "**λ medio (2-3): Canales de acumulación gradual**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390032
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470032
+#: 029aa3da07b84b4b8ecd0f8b583b6d08 3c5b12519b5b490f84cb1931b89c292a
+msgid "Content marketing building authority over months"
+msgstr "Marketing de contenidos que construye autoridad a lo largo de meses"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390033
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470033
+#: 54fdf8082ac34735812c2eb30b91718e a295aba90a924b89a510278ba4fbcb3b
+msgid "SEO efforts with cumulative ranking improvements"
+msgstr "Esfuerzos de SEO con mejoras acumulativas en el posicionamiento"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390034
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470034
+#: 4392b803530349099871239a578bb677 ee71459f752046cb89788940f01ae7d7
+msgid "Brand awareness campaigns in new markets"
+msgstr "Campañas de notoriedad de marca en mercados nuevos"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390035
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470035
+#: 6114025f92a349af9d93e4c617c9baee 6f7ad3f1a3094e81b0f7b35b125bafc7
+msgid "PR campaigns gradually building reputation"
+msgstr ""
+"Campañas de relaciones públicas que construyen reputación gradualmente"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390036
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470036
+#: 01139b03cd1e48159b8656372a058f05 e04825f597b2427eb804e93e3611dde1
+msgid "Podcast advertising with growing listener base"
+msgstr "Publicidad en pódcast con una audiencia en crecimiento"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390038
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470038
+#: ac86ffac58fd4853851a1c8e030d5f5d b51021efc23c44eabaaba0774d12df8b
+msgid "**High λ (4+): Very Slow Buildup Channels**"
+msgstr "**λ alto (4+): Canales de acumulación muy lenta**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390039
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470039
+#: bfae6f232fee4fec8cadaf7710ac9632 e99cd44b7acd4da2bc17f8446e64ca3f
+msgid "Long-term brand equity building"
+msgstr "Construcción de valor de marca a largo plazo"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390040
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470040
+#: af5fec169caa400fa1a91a4c245df858 f34187a697ff4f49ae5d0169057c68b2
+msgid "Educational initiatives with slow adoption"
+msgstr "Iniciativas educativas con adopción lenta"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390041
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470041
+#: 0fa4b17afa374cd3b357163236fcb1bd ec444c50f42d4501b2d500e8436c60a8
+msgid "Category creation marketing"
+msgstr "Marketing de creación de categoría"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390042
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470042
+#: 4c50fdb7438640afaba841197ab407e0 514bc88389644e738f8140745d98f203
+msgid "Institutional reputation building"
+msgstr "Construcción de reputación institucional"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390044
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470044
+#: 0eb8921e5e374fc19a8702b30a08c7b2 48e7fd3bf3794240819a730f3fd449b2
+msgid "**Shape Parameter (k) Implications:**"
+msgstr "**Implicaciones del parámetro de forma (k):**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390045
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470045
+#: 7f5415ec5c2d4f6fb93f0d1844cf0773 ae8e7db799924ba58b71376fe18a6d1d
+msgid "**Low k**: Use when awareness builds very gradually at first"
+msgstr ""
+"**k bajo**: Úselo cuando la notoriedad se construye de forma muy gradual al "
+"principio"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390046
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470046
+#: bf586b8676974a36bbbc334580d94ace f28bb55dc34d4b1698d49add617648f1
+msgid ""
+"**High k**: Use when there's a tipping point where awareness accelerates "
+"then plateaus"
+msgstr ""
+"**k alto**: Úselo cuando hay un punto de quiebre en el que la notoriedad se "
+"acelera y luego alcanza una meseta"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:390047
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470047
+#: 4a1847b8dcb64770bfa47ebf67cf99e4 eb323f2dee3c4b95adeb1e7779513e14
+msgid "**k ≈ 2**: Good default for most cumulative brand-building scenarios"
+msgstr ""
+"**k ≈ 2**: Una buena opción predeterminada para la mayoría de los escenarios"
+" acumulativos de construcción de marca"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:400002
+#: 33211977a60c4816a9a07130dbf5430d
+msgid "Apply Weibull CDF Adstock to Channel Data"
+msgstr "Aplicar el adstock Weibull CDF a los datos de los canales"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:420003
+#: 5c96d7f449114d61a9ff05d3cc9c8f6d
+msgid "Weibull CDF shows **gradual buildup** of marketing effects"
+msgstr ""
+"La Weibull CDF muestra una **acumulación gradual** de los efectos del "
+"marketing"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:420004
+#: e85f2613e1d54940a76b4c1eb9afda3f
+msgid "Effects **accumulate** rather than immediately peak"
+msgstr ""
+"Los efectos se **acumulan** en lugar de alcanzar el máximo de inmediato"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:420005
+#: 8390dccda36a4f8d98921c8aeae83500
+msgid "Particularly useful for long-term brand building"
+msgstr ""
+"Resulta particularmente útil para la construcción de marca a largo plazo"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:430004
+#: 1faf873205894bf98d28729100d7e680
+msgid "4. Weibull PDF Adstock"
+msgstr "4. Adstock Weibull PDF"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:430007
+#: b8c6978e1c4e44fca5f59ef9be7f30ce
+msgid ""
+"Weibull PDF adstock uses the **probability density function** of the "
+"Weibull distribution, creating a **peak effect followed by decay**."
+msgstr ""
+"El adstock Weibull PDF utiliza la **función de densidad de probabilidad** de"
+" la distribución de Weibull, que crea un **efecto máximo seguido de "
+"decaimiento**."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:430011
+#: 203fe9feacf44fa59879fb0caa5066e8
+msgid ""
+"The Weibull PDF is a function depending on two variables, $k$ (shape) and"
+" $\\lambda$ (scale) and the same remarks for Weibull CDF apply to Weibull"
+" PDF."
+msgstr ""
+"La Weibull PDF es una función que depende de dos variables, $k$ (forma) y "
+"$\\lambda$ (escala), y las mismas observaciones hechas para la Weibull CDF "
+"se aplican a la Weibull PDF."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:430013
+#: c4f377e52f8e4165b6af0a3893f85d4c
+msgid ""
+"The key difference is that Weibull PDF allows for lagged effects to be "
+"taken into account - the **time delay effect**."
+msgstr ""
+"La diferencia clave es que la Weibull PDF permite tener en cuenta efectos "
+"rezagados: el **efecto de retardo temporal**."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:430015
+#: 2be3dcaf5740414993f9c4d3e448fff7
+msgid "**The Weibull PDF adstock function therefore takes the form :**"
+msgstr "**Por lo tanto, la función de adstock Weibull PDF tiene la forma :**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:430023
+#: 9cd5f9501088465eb8009100ccb1fcf5
+msgid ""
+"**The Weibull PDF is actually used to build the $\\alpha_t$'s, and it "
+"takes the form :**"
+msgstr ""
+"**En realidad, la Weibull PDF se usa para construir los $\\alpha_t$, y tiene"
+" la forma :**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:430025
+#: 71054a7c939a41bf872342e7b8c9695d
+msgid ""
+"\n"
+"G_{k,\\lambda}(t) = \\frac{k}{\\lambda}\\Big(\\frac{t}{\\lambda} "
+"\\Big)^{k-1}e^{-(\\frac{t}{\\lambda})^k}\n"
+msgstr ""
+"\n"
+"G_{k,\\lambda}(t) = \\frac{k}{\\lambda}\\Big(\\frac{t}{\\lambda} \\Big)^{k-1}e^{-(\\frac{t}{\\lambda})^k}\n"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:430030
+#: 55a51fb474bb400683bd5d0af1f671c3
+msgid "**Product launches** where interest peaks then declines"
+msgstr ""
+"**Lanzamientos de productos** donde el interés alcanza su pico y luego "
+"declina"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:430031
+#: 18a88e1666d845079ad38a281e9cb1cd
+msgid "**Promotional campaigns** with initial excitement that fades"
+msgstr "**Campañas promocionales** con un entusiasmo inicial que se desvanece"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:430032
+#: 23ef5e7b5540499d9b7f23aff70bdc98
+msgid "**Event-driven marketing** (sales, holidays)"
+msgstr "**Marketing basado en eventos** (rebajas, festivos)"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:430033
+#: 9f05a84954b240efa6cd348743aea61f
+msgid "**Influencer marketing** where buzz builds then dissipates"
+msgstr ""
+"**Marketing de influencers** donde el entusiasmo se acumula y luego se "
+"disipa"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:430034
+#: dc5429151df24ccf98f307e82dc4594a
+msgid ""
+"When you expect **maximum impact is not immediate** but occurs after some"
+" delay"
+msgstr ""
+"Cuando se espera que el **impacto máximo no sea inmediato**, sino que ocurra"
+" tras cierto retardo"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:430035
+#: c22200fc9eff457c9eb2f3f82c79d18a
+msgid "**Viral content** that peaks before declining"
+msgstr "**Contenido viral** que alcanza su pico antes de declinar"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:430038
+#: 6c24dfebfd2f4d3d8b1069f7c8329adf
+msgid "`lam`: Scale parameter (λ) - controls peak timing"
+msgstr "`lam`: Parámetro de escala (λ) - controla el momento del pico"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:430039
+#: 6566d5b556ad4436b26f95010224fc29
+msgid "`k`: Shape parameter - controls curve shape"
+msgstr "`k`: Parámetro de forma - controla la forma de la curva"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470007
+#: 0afb21b803c84e98bbde8c906121278a
+msgid "**λ = 0.5**: Rapid S-curve buildup, reaches 90%+ effect by period 2-3"
+msgstr ""
+"**λ = 0.5**: Acumulación rápida en forma de S, alcanza más del 90% del "
+"efecto hacia el período 2-3"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470008
+#: 05ddf23bd13d48e2adcb89957b75a95c
+msgid "**λ = 1**: Moderate buildup, reaches plateau around period 4-5"
+msgstr ""
+"**λ = 1**: Acumulación moderada, alcanza la meseta alrededor del período 4-5"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:470009
+#: eeabea04fd41476dade6aa9176405c0e
+msgid "**λ = 2**: Gradual buildup, reaches plateau around period 7-8"
+msgstr ""
+"**λ = 2**: Acumulación gradual, alcanza la meseta alrededor del período 7-8"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:480002
+#: ebd7d17eff5e431abf6a43b72171fd08
+msgid "Apply Weibull PDF Adstock to Channel Data"
+msgstr "Aplicar el adstock Weibull PDF a los datos de los canales"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:500003
+#: b3f1e21b1b444f6aa3f9dda658b54e62
+msgid "The Weibull PDF creates a **peak effect** after the spend"
+msgstr "La Weibull PDF crea un **efecto máximo** después del gasto"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:500004
+#: 9941179e38474224a8fedc5ac4d331d3
+msgid "Useful for modeling campaigns where impact **builds before declining**"
+msgstr ""
+"Es útil para modelar campañas donde el impacto **se acumula antes de "
+"declinar**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:500005
+#: 4505c7a6e99a4e3dbb86f8e6342809c0
+msgid "Different from geometric where effect is immediate"
+msgstr "A diferencia del geométrico, donde el efecto es inmediato"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:510004
+#: ca9c5ce06a9c4ae38cf626b908324a98
+msgid "5. Binomial Adstock"
+msgstr "5. Adstock binomial"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:510007
+#: 6921c27428624515ac76c9903f15524a
+msgid ""
+"Binomial adstock provides a **flexible decay curve** based on the "
+"binomial distribution."
+msgstr ""
+"El adstock binomial proporciona una **curva de decaimiento flexible** basada"
+" en la distribución binomial."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:510011
+#: 097db57dd6a44fb09a39ee314f007d53
+msgid ""
+"Binomial adstock assumes that the effect of one unit of spend at time $t$"
+" is given by:"
+msgstr ""
+"El adstock binomial supone que el efecto de una unidad de gasto en el tiempo"
+" $t$ está dado por:"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:510013
+#: 871b4f8d58ff42858a18bbd8247a0ef9
+msgid ""
+"f(t) = \\left(1 - \\frac{t}{L + 1} \\right)^{\\left(\\frac{1}{\\alpha} - "
+"1\\right)}"
+msgstr "f(t) = \\left(1 - \\frac{t}{L + 1} \\right)^{\\left(\\frac{1}{\\alpha} - 1\\right)}"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:510016
+#: 07faea5efa22448aa4130cd818b3bae1
+msgid "$t$ is the time since the advertising spend ($0 \\le t \\le L + 1$)"
+msgstr ""
+"$t$ es el tiempo transcurrido desde el gasto publicitario ($0 \\le t \\le L "
+"+ 1$)"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:510017
+#: f2b1810b4a394245b89a16c85868827d
+msgid "$L$ is `l_max`, the maximum duration of carryover effect"
+msgstr "$L$ es `l_max`, la duración máxima del efecto de arrastre"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:510018
+#: 279154aba2bd4539b9ee3a1ca2e4247c
+msgid "$\\alpha \\in (0, 1)$ is the shape parameter controlling the decay curve"
+msgstr ""
+"$\\alpha \\in (0, 1)$ es el parámetro de forma que controla la curva de "
+"decaimiento"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:510019
+#: 8ec2f64ef1fb407e84b9bdec1b7842d4
+msgid "Notice that $f(L + 1) = 0$"
+msgstr "Observe que $f(L + 1) = 0$"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:510021
+#: 7b6e78da32444fb2807ec02fe0afaa95
+msgid ""
+"The binomial adstock transformation provides more flexible decay shapes "
+"compared to geometric adstock. The $\\alpha$ parameter controls both the "
+"shape and the decay rate, allowing for convex and concave decay patterns."
+msgstr ""
+"La transformación de adstock binomial ofrece formas de decaimiento más "
+"flexibles que el adstock geométrico. El parámetro $\\alpha$ controla tanto "
+"la forma como la tasa de decaimiento, lo que permite patrones de decaimiento"
+" convexos y cóncavos."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:510024
+#: 6af6179b8151459eb0c38271b2b50237
+msgid "When you need **more flexible decay shapes** than geometric"
+msgstr ""
+"Cuando se necesitan **formas de decaimiento más flexibles** que la "
+"geométrica"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:510025
+#: 94a3ddc83974488f97b1b71adc95b7ed
+msgid "**Social media advertising** with variable decay patterns"
+msgstr ""
+"**Publicidad en redes sociales** con patrones de decaimiento variables"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:510026
+#: 34fda99e5b2c43c38a059cab29e8b114
+msgid "**Email marketing** where engagement varies over time"
+msgstr ""
+"**Marketing por correo electrónico** donde la interacción varía con el "
+"tiempo"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:510027
+#: 59a079618db34a359e83b92cdd39d458
+msgid "When geometric adstock is **too restrictive**"
+msgstr "Cuando el adstock geométrico es **demasiado restrictivo**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:510028
+#: 684906890726438595a1f6ceb426f245
+msgid "When you want decay to be **data-driven** rather than assumed"
+msgstr ""
+"Cuando se desea que el decaimiento esté **guiado por los datos** en lugar de"
+" asumido"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:510031
+#: 072197c431304523bd577e14e12602f1
+msgid "`alpha`: Shape parameter controlling decay curve"
+msgstr "`alpha`: Parámetro de forma que controla la curva de decaimiento"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550002
+#: e93c82ee49c34a4c8ff41790d1ccfd48
+msgid "Key Takeaways from Binomial Adstock"
+msgstr "Conclusiones clave del adstock binomial"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550006
+#: 01e7893319d2444ba26cb210386e8507
+msgid "**Effect of Alpha Parameter:**"
+msgstr "**Efecto del parámetro alpha:**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550007
+#: fe7a0a6479104abbae92ccdaa22b9e0b
+msgid ""
+"**α = 0.1**: Extremely steep, convex decay – effect drops to near-zero by"
+" period 2-3"
+msgstr ""
+"**α = 0.1**: Decaimiento convexo extremadamente pronunciado, el efecto cae a"
+" casi cero hacia el período 2-3"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550008
+#: d307dd2a7f35412cb18fadb31de2ad0f
+msgid "**α = 0.3**: Steep convex decay, most effect gone by period 4-5"
+msgstr ""
+"**α = 0.3**: Decaimiento convexo pronunciado, la mayor parte del efecto "
+"desaparece hacia el período 4-5"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550009
+#: c28ffb56a4c741808b614518665ab081
+msgid "**α = 0.5**: Moderate convex decay, effects last ~6-7 periods"
+msgstr ""
+"**α = 0.5**: Decaimiento convexo moderado, los efectos duran ~6-7 períodos"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550010
+#: d06e08600c9d46f9a5df90a4546707a0
+msgid "**α = 0.7**: Gentle, more linear decay, effects last ~8-9 periods"
+msgstr ""
+"**α = 0.7**: Decaimiento suave y más lineal, los efectos duran ~8-9 períodos"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550011
+#: c32daa2740d04b6dbd76b22fc00e51e6
+msgid "**α = 0.9**: Very gentle, nearly linear decay, effects persist 10+ periods"
+msgstr ""
+"**α = 0.9**: Decaimiento muy suave y casi lineal, los efectos persisten 10 o"
+" más períodos"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550013
+#: 538771384fa944a0bf96f08370db998b
+msgid "**Decay Shape Characteristics:**"
+msgstr "**Características de la forma del decaimiento:**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550014
+#: 2e9d3f16914e4b4caeb9fa61cea4657c
+msgid ""
+"**Low α (0.1-0.3)**: Strong convex curvature (rapid initial decay, then "
+"slower)"
+msgstr ""
+"**α bajo (0.1-0.3)**: Fuerte curvatura convexa (decaimiento inicial rápido y"
+" luego más lento)"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550015
+#: f53f7ba2286c4d8185edcecb1b3b3974
+msgid "**Medium α (0.4-0.6)**: Moderate curvature, balanced decay"
+msgstr "**α medio (0.4-0.6)**: Curvatura moderada, decaimiento equilibrado"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550016
+#: 9d796190bb3e4cc2ba7fedce3407ba95
+msgid "**High α (0.7-0.9)**: Near-linear or slightly concave decay"
+msgstr "**α alto (0.7-0.9)**: Decaimiento casi lineal o ligeramente cóncavo"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550018
+#: e9ba68830fa940918061114992db86b9
+msgid "**Unique Feature:**"
+msgstr "**Característica distintiva:**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550019
+#: ffc15a261a32464eb440a9e21ba3fb70
+msgid "Unlike geometric adstock, binomial allows **convex decay patterns**"
+msgstr ""
+"A diferencia del adstock geométrico, el binomial permite **patrones de "
+"decaimiento convexos**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550020
+#: cb48a74610e046cdb44ea299b2e9f16d
+msgid "Effect decreases faster initially, then tapers off more gently"
+msgstr ""
+"El efecto disminuye más rápido al principio y luego se atenúa de forma más "
+"gradual"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550021
+#: 57b0ff7fdd9c4743b8cb92d6fababbb1
+msgid "Provides middle ground between geometric and Weibull patterns"
+msgstr ""
+"Ofrece un punto intermedio entre los patrones geométricos y los de Weibull"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550025
+#: 65ea67c6cc5843168eb88a1864fbb762
+msgid "**Low α (0.1-0.3): Rapid Initial Impact Channels**"
+msgstr "**α bajo (0.1-0.3): Canales de impacto inicial rápido**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550026
+#: 0d8b0d96c40948b4b880c306c7288ae8
+msgid "Push notifications with immediate but short-lived response"
+msgstr ""
+"Notificaciones push con una respuesta inmediata pero de corta duración"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550027
+#: 8a34404bc02e4969856d40453ae22f7f
+msgid "Flash sales where urgency drives immediate action"
+msgstr "Ventas flash donde la urgencia impulsa la acción inmediata"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550028
+#: d982d2df06a84adda70b9e061595f6d9
+msgid "Time-sensitive alerts or announcements"
+msgstr "Alertas o anuncios sensibles al tiempo"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550029
+#: fa425aa8a2bd44498e4e7dcc2c778e7c
+msgid "Mobile app install campaigns with quick drop-off"
+msgstr "Campañas de instalación de aplicaciones móviles con una caída rápida"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550030
+#: 4aebe553b0274d39a922e44b5484053a
+msgid "Social media ads with high initial engagement, fast fatigue"
+msgstr ""
+"Anuncios en redes sociales con alta interacción inicial y fatiga rápida"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550032
+#: ada9d7fb5f91483a9359c660203f10a3
+msgid "**Medium α (0.4-0.6): Balanced Decay Channels**"
+msgstr "**α medio (0.4-0.6): Canales de decaimiento equilibrado**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550033
+#: efe059aa6da845a1ae6bf8280b6ce29c
+msgid "Standard social media advertising"
+msgstr "Publicidad estándar en redes sociales"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550034
+#: 43dc496724e94974a6c8d7266e198dce
+msgid "Display advertising with moderate frequency"
+msgstr "Publicidad display con frecuencia moderada"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550035
+#: 56a4486a48cf48b6a02d753e214dcc9d
+msgid "Email campaigns with follow-up sequences"
+msgstr "Campañas de correo electrónico con secuencias de seguimiento"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550036
+#: b6e9f1dcb48a4035b836f20416cf4a8e
+msgid "Retargeting campaigns"
+msgstr "Campañas de retargeting"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550037
+#: f65d4e56482f4516ae2135388937a44f
+msgid "Video ads with moderate recall"
+msgstr "Anuncios de video con recuerdo moderado"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550039
+#: ad3445b58a004161aed10e9af3a2a61b
+msgid "**High α (0.7-0.9): Sustained Effect Channels**"
+msgstr "**α alto (0.7-0.9): Canales de efecto sostenido**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550040
+#: 00b04427cf554dd4bc69c64b609fe45c
+msgid "Content marketing with evergreen value"
+msgstr "Marketing de contenidos con valor perenne"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550041
+#: df65ebcc04a04fbfb85dbeec89f2ea36
+msgid "SEO-driven traffic with sustained visibility"
+msgstr "Tráfico impulsado por SEO con visibilidad sostenida"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550042
+#: 0d376600b6c34166b2e7d4fbeca2c2c3
+msgid "Community building initiatives"
+msgstr "Iniciativas de construcción de comunidad"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550043
+#: 9daceb0163a340f682f3452b9cd525b1
+msgid "Brand partnerships with long-term presence"
+msgstr "Alianzas de marca con presencia a largo plazo"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550044
+#: baaf952447f04a94a27f29779e947c14
+msgid "Educational content with lasting utility"
+msgstr "Contenido educativo con utilidad duradera"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550046
+#: 9e66c7b1a4e44921b0002e4337fa7373
+msgid "**When to Use Binomial vs. Geometric:**"
+msgstr "**Cuándo usar el binomial frente al geométrico:**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550047
+#: dcc730ed7eea4d2399109b02f41c1e36
+msgid ""
+"**Use Binomial** when you expect initial effect to be stronger than "
+"geometric suggests"
+msgstr ""
+"**Use el binomial** cuando espere que el efecto inicial sea más fuerte de lo"
+" que sugiere el geométrico"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550048
+#: 1fdef3a6eedd4587b9b51cb39bfe6902
+msgid ""
+"**Use Binomial** for channels with quick initial response but lingering "
+"secondary effects"
+msgstr ""
+"**Use el binomial** para canales con una respuesta inicial rápida pero "
+"efectos secundarios persistentes"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550049
+#: ddc55490a85a4de18d5c7d23d4141137
+msgid ""
+"**Use Binomial** when geometric adstock is too rigid and Weibull too "
+"complex"
+msgstr ""
+"**Use el binomial** cuando el adstock geométrico es demasiado rígido y el "
+"Weibull demasiado complejo"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:550050
+#: c1d808d1754a4ab48d1e08c0c181e620
+msgid "**Use Binomial** as a flexible alternative for model comparison/selection"
+msgstr ""
+"**Use el binomial** como alternativa flexible para la comparación o "
+"selección de modelos"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:560002
+#: 960d0d7c8a60480cadc3881bb8f8cd93
+msgid "Apply Binomial Adstock to Channel Data"
+msgstr "Aplicar el adstock binomial a los datos de los canales"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:580004
+#: b4ad674170f9494c9a48ad2d28ee4d2e
+msgid "6. Comparison Across All Adstock Functions"
+msgstr "6. Comparación de todas las funciones de adstock"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:580006
+#: 1536c51377e24621b57021b525b17ed2
+msgid ""
+"Let's compare all adstock functions side-by-side to understand their "
+"differences:"
+msgstr ""
+"Vamos a comparar todas las funciones de adstock una al lado de otra para "
+"entender sus diferencias:"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:590002
+#: fff216793055498397297cddb9a5c2de
+msgid "Decay Curve Comparison"
+msgstr "Comparación de las curvas de decaimiento"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:610002
+#: b1a428c379c94801b46c1a357f3d7037
+msgid "Transformed Time Series Comparison"
+msgstr "Comparación de las series de tiempo transformadas"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:610004
+#: 7bd05f9b63cb4a1c9e4d2ed070bede7f
+msgid ""
+"Now let's compare how each adstock transformation affects the **actual "
+"channel spend data** over time. This shows the real-world impact of "
+"choosing different adstock functions on your marketing data."
+msgstr ""
+"Ahora comparemos cómo afecta cada transformación de adstock a los **datos "
+"reales de gasto de los canales** a lo largo del tiempo. Esto muestra el "
+"impacto real de elegir distintas funciones de adstock sobre sus datos de "
+"marketing."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630002
+#: 269011207caa4e209a7706d3b973f991
+msgid "**Key Observations from Transformed Time Series:**"
+msgstr "**Observaciones clave de las series de tiempo transformadas:**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630005
+#: 080b22f2080346b6be34be34668149db
+msgid "This is an **interactive plot**! You can:"
+msgstr "¡Este es un **gráfico interactivo**! Usted puede:"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630006
+#: 1adbad18ce4c465bb4a792b4b5b14c15
+msgid "**Click on legend items** to show/hide specific adstock transformations"
+msgstr ""
+"**Hacer clic en los elementos de la leyenda** para mostrar u ocultar "
+"transformaciones de adstock específicas"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630007
+#: 17a0e208068d46768fa98e50959d6e5a
+msgid "**Double-click** a legend item to isolate that transformation"
+msgstr ""
+"**Hacer doble clic** en un elemento de la leyenda para aislar esa "
+"transformación"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630008
+#: 6b54a506e93041d9befdb231acd28e52
+msgid "**Hover** over the lines to see exact values"
+msgstr "**Pasar el cursor** sobre las líneas para ver los valores exactos"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630009
+#: 794a13e9494b42c190e0fe279879b70f
+msgid "**Zoom and pan** to explore specific time periods"
+msgstr "**Acercar y desplazar** para explorar períodos de tiempo específicos"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630012
+#: b4119eca0dbf494fa3b16496633aa38e
+msgid ""
+"**Smoothing Effects**: All adstock transformations smooth the original "
+"spend data, but to different degrees"
+msgstr ""
+"**Efectos de suavizado**: Todas las transformaciones de adstock suavizan los"
+" datos originales de gasto, pero en distinta medida"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630013
+#: 1445b9c270994f37b2062b86de5dfd72
+msgid ""
+"**Geometric** and **Binomial** create moderate smoothing with clear "
+"carryover effects"
+msgstr ""
+"**Geométrico** y **binomial** generan un suavizado moderado con efectos de "
+"arrastre claros"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630014
+#: b58bb0ecad71407b941d6b1c8ecb7b1f
+msgid "**Delayed** shows shifted peaks reflecting the time lag (θ=2)"
+msgstr ""
+"**Con retardo** muestra picos desplazados que reflejan el rezago temporal "
+"(θ=2)"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630015
+#: 9b6c756d21fe43f2b4860f8bcb0bf6cf
+msgid "**Weibull CDF** shows the most gradual buildup and sustained elevation"
+msgstr ""
+"**Weibull CDF** muestra la acumulación más gradual y una elevación sostenida"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630016
+#: 0ac51a403ab843389e2414e6b3c05436
+msgid "**Weibull PDF** creates peaks that are delayed and slightly amplified"
+msgstr "**Weibull PDF** crea picos retardados y ligeramente amplificados"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630018
+#: 4adef199ca9540baa4582db0873e899d
+msgid ""
+"**Baseline Elevation**: After periods of high spend, some transformations"
+" maintain elevated baselines:"
+msgstr ""
+"**Elevación de la línea base**: Tras períodos de gasto alto, algunas "
+"transformaciones mantienen líneas base elevadas:"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630019
+#: 211be865100f4ade87d05c2947a64346
+msgid ""
+"**Weibull CDF** maintains the highest sustained levels (cumulative "
+"S-shaped effect)"
+msgstr ""
+"**Weibull CDF** mantiene los niveles sostenidos más altos (efecto "
+"acumulativo en forma de S)"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630020
+#: ada04a66e6694dee90999f492e1c4acd
+msgid "**Delayed** shows elevated levels but with a time shift"
+msgstr ""
+"**Con retardo** muestra niveles elevados pero con un desplazamiento temporal"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630021
+#: b93522532d8642358c9b2261703bbb10
+msgid "**Geometric** and **Binomial** show moderate baseline elevation"
+msgstr ""
+"**Geométrico** y **binomial** muestran una elevación moderada de la línea "
+"base"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630023
+#: 539ef123a01a4ca99d4323a7f0ae499c
+msgid "**Peak Timing**:"
+msgstr "**Momento del pico**:"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630024
+#: 75ffe6630392407c97ce552224e9cd69
+msgid ""
+"**Geometric** and **Binomial**: Peaks align closely with original spend "
+"peaks"
+msgstr ""
+"**Geométrico** y **binomial**: Los picos se alinean estrechamente con los "
+"picos del gasto original"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630025
+#: 7499755f56354f4ebb3bff2eacd7cf08
+msgid ""
+"**Delayed**: Peaks occur 2 weeks after original spend peaks (reflecting "
+"θ=2)"
+msgstr ""
+"**Con retardo**: Los picos ocurren 2 semanas después de los picos del gasto "
+"original (reflejando θ=2)"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630026
+#: fa893746676b4220a3b9640c0f032af4
+msgid "**Weibull PDF**: Peaks are slightly delayed and smoothed"
+msgstr "**Weibull PDF**: Los picos están ligeramente retardados y suavizados"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630027
+#: 1f80f7c2239c4aeda1161701b91f2ba5
+msgid "**Weibull CDF**: No sharp peaks, just gradual increases"
+msgstr "**Weibull CDF**: Sin picos marcados, solo aumentos graduales"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630029
+#: c9b111b8efcb49a29fbbb9828fe49984
+msgid ""
+"**Practical Impact**: The choice of adstock function significantly "
+"affects:"
+msgstr ""
+"**Impacto práctico**: La elección de la función de adstock afecta "
+"significativamente:"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630030
+#: 67ba912a28404e269af35eb06e518339
+msgid "How much \"credit\" is given to past marketing spend"
+msgstr "Cuánto \"crédito\" se asigna al gasto de marketing pasado"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630031
+#: a28e06ad781146cd9da17b71b2cdf17a
+msgid "When the maximum effect is attributed to occur"
+msgstr "Cuándo se atribuye que ocurre el efecto máximo"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630032
+#: b252c3ac49034a218902f812aa5fee7e
+msgid "How long the marketing effects persist in the model"
+msgstr "Cuánto tiempo persisten los efectos del marketing en el modelo"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630034
+#: 495b2b87c32948a5836613b204d86bd0
+msgid ""
+"This visualization demonstrates why understanding adstock transformations"
+" is crucial for accurate MMM modeling - different transformations can "
+"lead to substantially different attribution patterns and ROAS estimates."
+msgstr ""
+"Esta visualización demuestra por qué comprender las transformaciones de "
+"adstock es crucial para un modelado MMM preciso: transformaciones distintas "
+"pueden conducir a patrones de atribución y estimaciones de ROAS "
+"sustancialmente diferentes."
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:640004
+#: fdc1273e15534cf1a3c7ef2ae9adfe0e
+msgid "Summary: Which Adstock Function Should You Use?"
+msgstr "Resumen: ¿qué función de adstock debería usar?"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:640006
+#: 8d99601497f0471ca940bd8ca788ecc7
+msgid "Decision Guide"
+msgstr "Guía de decisión"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630004
+#: 412a6ca424b540c89e0c21ae8ec00e73
+msgid "**Adstock Type**"
+msgstr "**Tipo de adstock**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630004
+#: a9df2f93a0ab48e692262a49db580174
+msgid "**Best For**"
+msgstr "**Ideal para**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630004
+#: 22cdfcba6807414d88b8fa543f2da1e5
+msgid "**Key Characteristics**"
+msgstr "**Características clave**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630004
+#: 035a93a3e2864a04b68a3834de1e9c68
+msgid "**Geometric**"
+msgstr "**Geométrico**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630004
+#: 227bc6789b704bb1836396bef6947431
+msgid "Digital ads, search, display, most use cases"
+msgstr "Anuncios digitales, búsqueda, display, la mayoría de los casos de uso"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630004
+#: 481bda7208a64af8ab35c76bf3b1b935
+msgid "Simple exponential decay, immediate effect"
+msgstr "Decaimiento exponencial simple, efecto inmediato"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630004
+#: bd862e338cf54dccbe555868bb02a561
+msgid "**Delayed**"
+msgstr "**Con retardo**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630004
+#: 6a1e7b6a2f5d472db151190cdc75df54
+msgid "TV, radio, OOH, B2B marketing"
+msgstr "TV, radio, publicidad exterior, marketing B2B"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630004
+#: 90c299de9f9d4576b7df041b20059672
+msgid "Delayed peak with exponential decay"
+msgstr "Pico retardado con decaimiento exponencial"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630004
+#: 3518ea62d74648199ada68ca14eba7b1
+msgid "**Binomial**"
+msgstr "**Binomial**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630004
+#: 198bd9fd3c02491d86a1cc71bf2d6b19
+msgid "Social media, email, flexible modeling"
+msgstr "Redes sociales, correo electrónico, modelado flexible"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630004
+#: c50e35a2e17246b8a8251ca6c71a89af
+msgid "Versatile decay shapes, data-driven"
+msgstr "Formas de decaimiento versátiles, guiadas por los datos"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630004
+#: eae999338de04ee9b278b38b14ad0cfa
+msgid "**Weibull PDF**"
+msgstr "**Weibull PDF**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630004
+#: 3990f90299bf4df0bbf74b4531ad42d4
+msgid "Product launches, promotions, events"
+msgstr "Lanzamientos de productos, promociones, eventos"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630004
+#: 18d1aa3efe2543df8e8f532783dc4ef6
+msgid "Peak effect after delay, then decay"
+msgstr "Efecto máximo tras un retardo y luego decaimiento"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630004
+#: c8713b3319ad4845a83dfc001a624321
+msgid "**Weibull CDF**"
+msgstr "**Weibull CDF**"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630004
+#: 1c7549cba27347c38873f4c97da18d79
+msgid "Brand building, PR, content marketing"
+msgstr "Construcción de marca, relaciones públicas, marketing de contenidos"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:630004
+#: 63b5b5eaf43f44b69617652a677991a2
+msgid "Gradual S-shaped buildup, cumulative effects"
+msgstr "Acumulación gradual en forma de S, efectos acumulativos"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:640016
+#: be170f7e4a3946fdb46f55144c62e6a9
+msgid "General Recommendations"
+msgstr "Recomendaciones generales"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:640018
+#: 784a654ce1c843bea48f5c0b0106409d
+msgid ""
+"**Start with Geometric**: It's the most widely used and works well for "
+"most channels"
+msgstr ""
+"**Comience con el geométrico**: Es el más utilizado y funciona bien para la "
+"mayoría de los canales"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:640019
+#: 02485d8961b9427daffd14d378928cdd
+msgid ""
+"**Use Delayed for Traditional Media**: TV and radio often have delayed "
+"effects"
+msgstr ""
+"**Use el adstock con retardo para los medios tradicionales**: La TV y la "
+"radio suelen tener efectos retardados"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:640020
+#: 601f651fb6a24ff4bd360d34b5271d72
+msgid ""
+"**Try Weibull PDF for Campaigns**: Product launches and promotions "
+"benefit from peak modeling"
+msgstr ""
+"**Pruebe el Weibull PDF para las campañas**: Los lanzamientos de productos y"
+" las promociones se benefician de modelar el pico"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:640021
+#: d7845ec50bec4884a127da2b0bc46177
+msgid ""
+"**Consider Weibull CDF for Brand Building**: Long-term effects accumulate"
+" gradually"
+msgstr ""
+"**Considere el Weibull CDF para la construcción de marca**: Los efectos a "
+"largo plazo se acumulan gradualmente"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:640022
+#: bc32694b7bac40e5a073b01980405966
+msgid ""
+"**Let the Data Decide**: Compare model fit across different adstock "
+"functions"
+msgstr ""
+"**Deje que los datos decidan**: Compare el ajuste del modelo entre distintas"
+" funciones de adstock"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:640024
+#: 6e23e85e33864b3ea6e7f9bfe7111b56
+msgid "Model Selection Tips"
+msgstr "Consejos para la selección de modelos"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:640026
+#: b973ec95e26348ecb55854592f8226fb
+msgid "**Run multiple models** with different adstock functions"
+msgstr "**Ejecute varios modelos** con distintas funciones de adstock"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:640027
+#: 1024619cd9284c498e18b475c2bad8c6
+msgid "**Check posterior predictive** plots for each adstock type"
+msgstr ""
+"**Revise los gráficos predictivos posteriores** de cada tipo de adstock"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:640028
+#: ef8b4d389db0416f829ccdb310f5f55d
+msgid "**Consider business knowledge** about your marketing channels"
+msgstr ""
+"**Considere el conocimiento del negocio** sobre sus canales de marketing"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:640029
+#: f893b12c107e4da5815c3bff0073c448
+msgid "**Test sensitivity** to different parameter priors"
+msgstr "**Pruebe la sensibilidad** a distintos priors de los parámetros"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:640031
+#: 6fe62b407ef04fb68c5ced08e1a24b4d
+msgid ""
+"Remember: The \"best\" adstock function depends on your specific "
+"marketing channels, business context, and data!"
+msgstr ""
+"¡Recuerde: la \"mejor\" función de adstock depende de sus canales de "
+"marketing específicos, del contexto de su negocio y de sus datos!"
+
+#: ../source/notebooks/mmm/adstock_functions_guide.ipynb:640033
+#: 26c4cdc5075c4c79a6f27824f55fa6ad
+msgid "Happy modeling! 🚀"
+msgstr "¡Feliz modelado! 🚀"

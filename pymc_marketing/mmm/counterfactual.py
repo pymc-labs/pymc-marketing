@@ -63,7 +63,8 @@ from __future__ import annotations
 
 import math
 from collections.abc import Generator, Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from functools import cached_property
 from itertools import pairwise
 from typing import Literal, NamedTuple
 
@@ -74,14 +75,16 @@ import xarray as xr
 from pandas.tseries.offsets import BaseOffset
 from pymc.model.core import Model
 from pytensor import function
+from pytensor.compile import Function
 from pytensor.compile.sharedvalue import SharedVariable, shared
 from pytensor.graph.basic import Variable
-from pytensor.graph.traversal import ancestors
+from pytensor.graph.traversal import ancestors, graph_inputs, io_toposort
 from pytensor.xtensor.basic import XTensorFromTensor
-from pytensor.xtensor.type import XTensorVariable
+from pytensor.xtensor.type import XTensorType, XTensorVariable
 from pytensor.xtensor.vectorization import vectorize_graph
 
 from pymc_marketing.mmm.transformers import ConvMode
+from pymc_marketing.names.mmm import Dim, Var
 from pymc_marketing.pytensor_utils import ConditionedModel, SharedPosterior
 
 __all__ = [
@@ -213,6 +216,37 @@ def find_named_node(
     return found[0] if found else None
 
 
+def _contiguous_run(mask: np.ndarray) -> slice:
+    """Return the slice that selects the same positions as *mask*.
+
+    Parameters
+    ----------
+    mask : np.ndarray
+        One-dimensional boolean mask.
+
+    Returns
+    -------
+    slice
+        From the first selected position to one past the last; ``slice(0, 0)``
+        when nothing is selected.
+
+    Raises
+    ------
+    ValueError
+        If the selected positions are not one contiguous run.
+    """
+    positions = np.flatnonzero(mask)
+    if positions.size == 0:
+        return slice(0, 0)
+    start, stop = int(positions[0]), int(positions[-1]) + 1
+    if stop - start != positions.size:
+        raise ValueError(
+            "The window's evaluation dates are not one contiguous run of its "
+            "dates, so they cannot be read as a slice."
+        )
+    return slice(start, stop)
+
+
 @dataclass(frozen=True)
 class PeriodWindow:
     """The stretch of fitted dates one period is evaluated over.
@@ -221,8 +255,8 @@ class PeriodWindow:
     The *window* is what the graph is handed, wide enough on both sides that the
     perturbation's whole effect is computed correctly.  The *evaluation dates* are
     the subset whose differences are summed into the increment.  Both are recorded
-    here, in the two forms the rest of the code needs them in -- a mask over the
-    full date axis, for slicing a full-axis baseline, and the dates themselves,
+    here, in the two forms the rest of the code needs them in -- positions on the
+    full date axis, for reading a full-axis baseline, and the dates themselves,
     for labelling coordinates -- so that no caller has to recompute either from
     ``l_max`` and a frequency offset and hope it lands on the same answer.
 
@@ -296,22 +330,35 @@ class PeriodWindow:
         """How many fitted dates fall in the window."""
         return len(self.actual_dates)
 
-    def eval_mask(self, max_window: int) -> np.ndarray:
-        """Positions in the padded window that enter the sum.
+    @cached_property
+    def eval_slice(self) -> slice:
+        """The dates of :attr:`in_eval`, as a slice of the full date axis.
 
-        Parameters
-        ----------
-        max_window : int
-            Padded window length every period is stacked to.
+        On a sorted axis the evaluation dates are one run, and reading them
+        through a slice gives a view of a full-axis array where the mask would
+        copy it.  Derived from :attr:`in_eval` rather than stored beside it, so
+        the two cannot disagree.
 
-        Returns
-        -------
-        np.ndarray
-            Boolean mask of length *max_window*.
+        Raises
+        ------
+        ValueError
+            If the evaluation dates are not one contiguous run.
         """
-        mask = np.zeros(max_window, dtype=bool)
-        mask[np.flatnonzero(self.in_eval[self.in_window])] = True
-        return mask
+        return _contiguous_run(self.in_eval)
+
+    @cached_property
+    def window_eval_slice(self) -> slice:
+        """The same dates, as a slice of the padded window.
+
+        For reading a counterfactual evaluated on the window, whose dates sit
+        at the start of the padded axis.
+
+        Raises
+        ------
+        ValueError
+            If the evaluation dates are not one contiguous run of the window.
+        """
+        return _contiguous_run(self.in_eval[self.in_window])
 
     def offsets_within(self, first: pd.Timestamp, last: pd.Timestamp) -> np.ndarray:
         """Positions inside the window of the dates in ``[first, last]``.
@@ -332,6 +379,15 @@ class PeriodWindow:
             return np.array([], dtype=int)
         selected = (self.actual_dates >= first) & (self.actual_dates <= last)
         return np.where(selected)[0]
+
+    @property
+    def target_offsets(self) -> np.ndarray:
+        """Positions inside the window of the period's own fitted dates, the ones its counterfactual intervenes on.
+
+        Empty for a period that holds no fitted date, such as a weekly period between two monthly dates: every
+        scenario of that period is the factual intervention target.
+        """
+        return self.offsets_within(self.start, self.end)
 
 
 @dataclass(frozen=True)
@@ -356,7 +412,10 @@ class EvaluationWindows:
     caused by a date-reducing node rather than adstock kernel mass, and including
     them would make periods overlap in a quantity callers read as a decomposition.
     For ``Before`` and ``Overlap``, however, dates before the period contain real
-    leading kernel mass and are included in the sum.
+    leading kernel mass and are included in the sum.  Dates after the period are
+    summed under every mode: an effect with a forward adstock of its own keeps
+    moving after a ``Before`` period, and where nothing moves the summands are
+    zero.
 
     Parameters
     ----------
@@ -405,7 +464,9 @@ class EvaluationWindows:
             surrounding context.
         full_axis : bool, default=False
             Evaluate every period on the complete fitted date axis, for an
-            effect whose value depends on the whole series.  Expressed as a
+            effect whose value depends on the whole series, or for a graph in
+            which a date-indexed posterior variable that is not cut to windows
+            meets a windowed ``date`` axis.  Expressed as a
             window spanning every date rather than as a separate code path, so
             scenario building, input cutting and period aggregation stay
             identical: each period still perturbs only its own dates and still
@@ -417,18 +478,31 @@ class EvaluationWindows:
         -------
         EvaluationWindows
             The windows, and the length they stack to.
+
+        Raises
+        ------
+        ValueError
+            If *dates* is not sorted in increasing order, or if *mode* is not
+            ``ConvMode.After`` and the periods are evaluated on a window with
+            carryover.
         """
+        if not dates.is_monotonic_increasing:
+            raise ValueError("The fitted dates must be sorted in increasing order.")
         windows: list[PeriodWindow] = []
         for start, end in periods:
             if full_axis:
                 in_window = np.ones(len(dates), dtype=bool)
                 # Full-axis mode is selected when the probe cannot bound some
-                # node's reach. Summing to the applicable axis boundary costs
+                # node's reach, the adstock is not ``After``, or an uncut
+                # date-indexed posterior variable meets a windowed date axis.
+                # Summing to the applicable axis boundary costs
                 # nothing in correctness: outside the perturbation's reach the
                 # baseline and counterfactual are the same computation on the
                 # same inputs, so the extra summands are exactly zero. ``After``
                 # retains forward-only attribution; non-``After`` modes include
-                # the leading side because it contains adstock kernel mass.
+                # the leading side because it contains adstock kernel mass. Every
+                # mode includes the trailing side: a ``Before`` model can hold an
+                # effect whose own adstock carries forward.
             else:
                 # Carry enough context on both sides for every convolution mode;
                 # the mode-aware evaluation mask decides what is summed.
@@ -440,20 +514,18 @@ class EvaluationWindows:
                 eval_start, eval_end = start, end
             elif full_axis:
                 eval_start = start if mode == ConvMode.After else dates[0]
-                eval_end = end if mode == ConvMode.Before else dates[-1]
+                eval_end = dates[-1]
             elif mode == ConvMode.After:
                 eval_start = start
                 eval_end = end + l_max * freq_offset
-            elif mode == ConvMode.Before:
-                # SpendProbe currently sends any graph that moves before its
-                # probe date through full-axis evaluation, so this bounded path
-                # defines the correct contract but is not yet used by the public
-                # incrementality API. A future reach refinement can enable it.
-                eval_start = start - l_max * freq_offset
-                eval_end = end
-            elif mode == ConvMode.Overlap:
-                eval_start = start - ((l_max - 1) // 2) * freq_offset
-                eval_end = end + (l_max // 2) * freq_offset
+            elif mode in (ConvMode.Before, ConvMode.Overlap):
+                raise ValueError(
+                    f"A windowed evaluation with carryover needs ConvMode.After, "
+                    f"got {mode}.  The window would end the sum at most "
+                    "l_max // 2 dates past the period and cut the forward "
+                    "carryover of an effect with its own adstock; pass "
+                    "full_axis=True."
+                )
             else:  # pragma: no cover
                 raise ValueError(
                     f"Wrong Mode: {mode}, expected one of {', '.join(ConvMode)}"
@@ -539,6 +611,7 @@ class EvaluationWindows:
         channel_axis: int | None,
         n_channels: int,
         estimand: Estimand,
+        factual_rows: bool = False,
     ) -> CounterfactualScenarios:
         """Build the perturbed spend arrays that have to be evaluated.
 
@@ -576,6 +649,13 @@ class EvaluationWindows:
             Which scenarios are going to be read.  Only those get built: the
             difference is a factor of ``n_channels`` in every downstream cost for
             a mediated model asked for the joint number.
+        factual_rows : bool, default=False
+            Also build, per period, one row holding actual spend on the
+            period's window.  For a request that compares each perturbed row
+            with the unperturbed evaluation of the same window, which the
+            full-axis baseline is not: a term with memory of its own takes
+            another value on a window.  The rows go after the perturbed ones,
+            whose positions and keys do not change.
 
         Returns
         -------
@@ -599,7 +679,7 @@ class EvaluationWindows:
         rows: dict[_ScenarioKey, int] = {}
 
         for period_idx, window in enumerate(self.windows):
-            target_offsets = window.offsets_within(window.start, window.end)
+            target_offsets = window.target_offsets
 
             perturbed: list[int | None] = (
                 [None] if separable or estimand == "joint" else list(range(n_channels))
@@ -622,10 +702,18 @@ class EvaluationWindows:
                 for channel in range(n_channels):
                     rows[(period_idx, channel)] = joint_row
 
+        factual: dict[int, int] = {}
+        if factual_rows:
+            for period_idx in range(len(self.windows)):
+                factual[period_idx] = len(spend)
+                spend.append(windowed[period_idx])
+                period_index.append(period_idx)
+
         return CounterfactualScenarios(
             spend=np.stack(spend, axis=0),
             period_index=np.asarray(period_index, dtype=int),
             rows=rows,
+            factual_rows=factual,
         )
 
 
@@ -704,6 +792,10 @@ class CounterfactualScenarios:
         the scenario axis.
     rows : dict
         Maps a ``_ScenarioKey`` to a row of :attr:`spend`.
+    factual_rows : mapping, optional
+        Maps a period to the row of :attr:`spend` that holds actual spend on
+        the period's window.  Empty unless
+        :meth:`EvaluationWindows.build_scenarios` was asked for them.
 
     See Also
     --------
@@ -713,6 +805,7 @@ class CounterfactualScenarios:
     spend: np.ndarray
     period_index: np.ndarray
     rows: dict[_ScenarioKey, int]
+    factual_rows: Mapping[int, int] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -864,7 +957,9 @@ class CounterfactualEvaluator:
     ValueError
         If the intervention target does not exist, is a random variable, is
         frozen, is not of a floating dtype, or lacks a leading ``date``
-        dimension; if no response variable depends on the target; if a
+        dimension; if no response variable depends on the target; if a response
+        variable reads neither the target nor any other date-indexed input, so
+        that no scenario reaches it; if a
         discovered date-indexed input, data or frozen deterministic, does not
         span the fitted date axis; if a response variable has no name (an
         anonymous node such as a raw arithmetic expression, unless ``.name``
@@ -875,8 +970,8 @@ class CounterfactualEvaluator:
         fitting.
     """
 
-    CHANNEL_DATA = "channel_data"
-    TIME_INDEX = "time_index"
+    CHANNEL_DATA = Var.CHANNEL_DATA
+    TIME_INDEX = Var.TIME_INDEX
     BATCH_DIM = "__batch__"
     """Dimension the scenario axis is carried on through the vectorized graph."""
 
@@ -973,7 +1068,22 @@ class CounterfactualEvaluator:
             )
             for var in self._response_requested
         ]
-        return self._conditioned.extract(resolved)
+        graphs = self._conditioned.extract(resolved)
+        # A response declared with pymc rather than pymc.dims comes back as a
+        # plain tensor, with no dim names to find its sample and date axes by.
+        classic = [
+            name
+            for name, graph in zip(self.response_vars, graphs, strict=True)
+            if not isinstance(graph, XTensorVariable)
+        ]
+        if classic:
+            raise ValueError(
+                f"The response variables {classic} are not pymc.dims variables.  "
+                "A counterfactual evaluation requires responses with named "
+                "dimensions, for example ones built with "
+                "pmd.Deterministic(..., dims=(...))."
+            )
+        return [graph for graph in graphs if isinstance(graph, XTensorVariable)]
 
     def _build(self) -> None:
         """Extract the graphs and compile the batched evaluator for the binding.
@@ -1052,7 +1162,7 @@ class CounterfactualEvaluator:
         ):
             values = np.asarray(data.eval())
             dims = tuple(do_model.named_vars_to_dims[data.name])
-            date_axis = dims.index("date")
+            date_axis = dims.index(Dim.DATE)
             if values.shape[date_axis] != len(self._dates):
                 raise ValueError(
                     f"Date-indexed data variable {data.name!r} has "
@@ -1091,7 +1201,7 @@ class CounterfactualEvaluator:
         )
         for name, (frozen, source) in frozen_paths.items():
             dims = tuple(frozen.type.dims)
-            date_axis = dims.index("date")
+            date_axis = dims.index(Dim.DATE)
             values = source.get_value(borrow=True)
             if values.shape[date_axis] != len(self._dates):
                 raise ValueError(
@@ -1124,18 +1234,85 @@ class CounterfactualEvaluator:
                 )
             )
 
+        # Any other posterior variable with a date dim, such as a free random
+        # variable, is bound to its draws over the full fitted axis and is not
+        # cut to a window.  Where its date axis meets a windowed one, a window
+        # shorter than the fitted axis either fails on the shape or, when the
+        # padded length happens to equal the fitted one, reads the wrong dates.
+        # Record those variables per response: a windowed evaluation of a
+        # response refuses them, and Incrementality evaluates on the full date
+        # axis when a response it reads on windows has one.
+        shared_posterior = self._conditioned.shared_posterior
+        # A variable declared with pymc without dims= is stored with generated
+        # axis names, so the check below cannot see a date axis among them, and
+        # a windowed evaluation would read it at the wrong dates without an
+        # error.
+        undeclared = [
+            name
+            for name, source in shared_posterior.variables.items()
+            if source in graph_ancestors
+            and not isinstance(do_model[name], XTensorVariable)
+            and do_model[name].ndim > 0
+            and not do_model.named_vars_to_dims.get(name)
+        ]
+        if undeclared:
+            raise ValueError(
+                f"The posterior variables {undeclared} are declared with pymc and "
+                "have axes but no dims, so the evaluation cannot tell whether one "
+                f"of them is {Dim.DATE!r}.  Pass dims= to the pymc distribution."
+            )
+        posterior_dims = shared_posterior.dims
+        uncut = {
+            name: source
+            for name, source in shared_posterior.variables.items()
+            if name not in frozen_paths
+            and source in graph_ancestors
+            and Dim.DATE in posterior_dims[name]
+        }
+        self._uncut_by_response: dict[str, tuple[str, ...]] = {
+            name: tuple(
+                self._colliding_date_paths([graph], uncut, windowed=replace.keys())
+            )
+            for name, graph in zip(self.response_vars, graphs, strict=True)
+        }
+
+        # A response that reads none of the inputs replaced above has no
+        # scenario axis: it has one value whatever a scenario sets or a window
+        # cuts, and vectorizing it fails on a batch dimension that is not
+        # there.  Say which response instead.
+        unreached = [
+            name
+            for name, graph in zip(self.response_vars, graphs, strict=True)
+            if replace.keys().isdisjoint(ancestors([graph]))
+        ]
+        if unreached:
+            raise ValueError(
+                f"The response variables {unreached} read neither the "
+                f"intervention target {self.intervention_target!r} nor any "
+                "other date-indexed input once the posterior is conditioned "
+                "on, so no counterfactual scenario reaches them.  Either they "
+                "do not depend on the target at all, or a random variable or "
+                "a frozen deterministic lies between the target and them and "
+                "is held at its posterior values."
+            )
+
         # Canonical output layout, so that a caller adding two nodes together
         # does not have to reconcile the axis order each of them happens to
         # carry.  Transposing inside the graph rather than on the results keeps
         # it a view where the backend can make it one.
         outputs = [
-            out.transpose(self.BATCH_DIM, "sample", "date", *self.non_date_dims[name])
+            out.transpose(self.BATCH_DIM, "sample", Dim.DATE, *self.non_date_dims[name])
             for name, out in zip(
                 self.response_vars,
                 vectorize_graph(graphs, replace=replace),
                 strict=True,
             )
         ]
+        # Kept to compile a function over some of the responses; see
+        # _function_for.
+        self._func_inputs = func_inputs
+        self._outputs = dict(zip(self.response_vars, outputs, strict=True))
+        self._subset_evaluators: dict[tuple[str, ...], Function] = {}
         self._evaluator = function(func_inputs, outputs)
 
     def _watched_source_buffers(self, graph_ancestors: set) -> dict[str, np.ndarray]:
@@ -1325,6 +1502,76 @@ class CounterfactualEvaluator:
         """Names of the auxiliary date-indexed inputs discovered in the graph."""
         return tuple(aux.name for aux in self._aux)
 
+    def uncut_date_paths(self, outputs: Iterable[str] | None = None) -> tuple[str, ...]:
+        """Name the uncut date-indexed posterior variables that meet a windowed ``date`` axis.
+
+        Parameters
+        ----------
+        outputs : iterable of str, optional
+            Response variables whose graphs to look in; all of them by default.
+
+        Returns
+        -------
+        tuple of str
+            Posterior variables with a ``date`` dimension that are not cut to
+            windows and whose ``date`` axis meets a windowed one in the graph
+            of a response in *outputs*, so that a window shorter than the
+            fitted dates would read them at the wrong dates.  Each name once,
+            in the order of the responses.  Only a dimension named ``date``
+            is recognized: a variable over the fitted dates declared under
+            another dimension name is not listed, and can be read at the wrong
+            dates.
+
+        Raises
+        ------
+        ValueError
+            If a name in *outputs* is not a response variable.
+        """
+        return tuple(
+            dict.fromkeys(
+                path
+                for name in self._selected_outputs(outputs)
+                for path in self._uncut_by_response[name]
+            )
+        )
+
+    def _selected_outputs(self, outputs: Iterable[str] | None) -> tuple[str, ...]:
+        """Check *outputs* against the response variables and put them in their order."""
+        if outputs is None:
+            return self.response_vars
+        selected = set(outputs)
+        unknown = sorted(selected.difference(self.response_vars))
+        if unknown:
+            raise ValueError(
+                f"{unknown} are not response variables of this evaluator, which "
+                f"evaluates {list(self.response_vars)}."
+            )
+        return tuple(name for name in self.response_vars if name in selected)
+
+    def _function_for(
+        self, outputs: tuple[str, ...]
+    ) -> tuple[Function, tuple[str, ...]]:
+        """Pick the compiled function that evaluates *outputs*, and the names it returns.
+
+        The function over every response serves whenever the responses left
+        out carry no uncut date path: computing them costs little, and nothing
+        in them fails on a window.  A response left out that carries one cannot
+        be computed on a window shorter than the fitted dates, so *outputs* get
+        a function of their own, compiled on first use and kept.
+        """
+        left_out = [name for name in self.response_vars if name not in outputs]
+        if not self.uncut_date_paths(left_out):
+            return self._evaluator, self.response_vars
+        subset = self._subset_evaluators.get(outputs)
+        if subset is None:
+            subset = self._subset_evaluators[outputs] = function(
+                self._func_inputs,
+                [self._outputs[name] for name in outputs],
+                # Inputs only the responses left out read are still passed.
+                on_unused_input="ignore",
+            )
+        return subset, outputs
+
     @property
     def channel_dtype(self) -> str:
         """Alias of :attr:`target_dtype` under the default spend target."""
@@ -1436,7 +1683,7 @@ class CounterfactualEvaluator:
                 f"of float type, got {target_var.dtype}"
             )
         dims = getattr(target_var.type, "dims", None)
-        if not dims or dims[0] != "date":
+        if not dims or dims[0] != Dim.DATE:
             raise ValueError(
                 f"Intervention target {target!r} must carry a leading 'date' "
                 f"dimension, got dims {dims}.  Windowed evaluation cuts the "
@@ -1559,7 +1806,7 @@ class CounterfactualEvaluator:
         tuple of str
             The remaining dimensions, in the graph's own order.
         """
-        return tuple(d for d in graph.type.dims if d not in ("sample", "date"))
+        return tuple(d for d in graph.type.dims if d not in ("sample", Dim.DATE))
 
     @staticmethod
     def _batched(variable, name: str):
@@ -1639,7 +1886,7 @@ class CounterfactualEvaluator:
             for data in pymc_model.data_vars
             if data in graph_ancestors
             and data.name not in handled
-            and "date" in pymc_model.named_vars_to_dims.get(data.name, ())
+            and Dim.DATE in pymc_model.named_vars_to_dims.get(data.name, ())
         ]
 
     @staticmethod
@@ -1685,8 +1932,64 @@ class CounterfactualEvaluator:
         return {
             name: (views[name], sources[name])
             for name in frozen_deterministics
-            if name in views and "date" in views[name].type.dims
+            if name in views and Dim.DATE in views[name].type.dims
         }
+
+    @staticmethod
+    def _colliding_date_paths(
+        graphs: Sequence[Variable],
+        uncut: Mapping[str, SharedVariable],
+        windowed: Iterable[Variable],
+    ) -> list[str]:
+        """Find the uncut date paths whose ``date`` axis meets a windowed one.
+
+        A variable carries a path's ``date`` axis from the path down to the
+        first node that drops ``date`` from its dims, such as a reduction over
+        it.  A plain tensor node does not show its dims, so it is taken to keep
+        ``date``: a reduction on plain tensors is seen only once its result is
+        an xtensor without ``date``, and one that meets a windowed input while
+        still a plain tensor collides.  A path collides where an
+        operation reads it together with a variable carrying a windowed
+        ``date`` axis.  A path reduced over ``date`` first never collides, and
+        it evaluates on any window.
+
+        Parameters
+        ----------
+        graphs : sequence of Variable
+            The response graphs, before vectorization.
+        uncut : mapping of str to SharedVariable
+            Posterior variables with a ``date`` dim that are not cut to
+            windows, by name.
+        windowed : iterable of Variable
+            The inputs cut to windows.
+
+        Returns
+        -------
+        list of str
+            The names in *uncut* that collide, in the order of *uncut*.
+        """
+
+        def carries_date(var: Variable) -> bool:
+            return not isinstance(var.type, XTensorType) or Dim.DATE in var.type.dims
+
+        origins: dict[Variable, set[str]] = {
+            source: {name} for name, source in uncut.items()
+        }
+        windowed_vars = {var for var in windowed if carries_date(var)}
+        colliding: set[str] = set()
+        for node in io_toposort(list(graph_inputs(graphs)), list(graphs)):
+            reached = set().union(*(origins.get(var, ()) for var in node.inputs))
+            meets_window = any(var in windowed_vars for var in node.inputs)
+            if reached and meets_window:
+                colliding |= reached
+            for out in node.outputs:
+                if not carries_date(out):
+                    continue
+                if reached:
+                    origins[out] = reached
+                if meets_window:
+                    windowed_vars.add(out)
+        return [name for name in uncut if name in colliding]
 
     def _frozen_inputs(self) -> list[DateIndexedInput]:
         """Return the frozen date paths, holding the draws bound now.
@@ -1753,8 +2056,9 @@ class CounterfactualEvaluator:
         *,
         windows: EvaluationWindows,
         batch_size: int | None = None,
+        outputs: Sequence[str] | None = None,
     ) -> dict[str, np.ndarray]:
-        """Evaluate every node on all counterfactual scenarios.
+        """Evaluate every node, or those in *outputs*, on all counterfactual scenarios.
 
         The eager form of :meth:`iter_counterfactual`: one block holding every
         posterior sample, so the whole result is in memory at once.
@@ -1781,11 +2085,15 @@ class CounterfactualEvaluator:
             Scenarios per evaluation.  Defaults to whatever keeps a batch's
             outputs under :attr:`MAX_BATCH_ELEMENTS`, and is exposed so a test
             can pin one batch against many.
+        outputs : sequence of str, optional
+            Response variables to evaluate, all of them by default.  A response
+            left out is not computed when it reads an uncut date path (see
+            :meth:`uncut_date_paths`), so it cannot refuse the windows.
 
         Returns
         -------
         dict
-            Per response variable, an array of shape
+            Per response variable in *outputs*, an array of shape
             ``(n_scenarios, n_samples, max_window, *non_date_dims)``.
 
         Raises
@@ -1794,16 +2102,21 @@ class CounterfactualEvaluator:
             On every call, if a value in *expected_aux_values* disagrees with
             the source model's current state, so a ``pm.set_data`` after
             construction fails here rather than being evaluated silently.
-            An in-place mutation of a borrowed buffer is not detected.
+            An in-place mutation of a borrowed buffer is not detected.  Also
+            if a window is shorter than the fitted dates while a date-indexed
+            posterior variable that is not cut to windows meets a windowed
+            ``date`` axis in the graph of a response in *outputs*; the message
+            names it.  Also if a name in *outputs* is not a response variable.
         RuntimeError
             While an iteration of :meth:`iter_counterfactual` is paused on a
             block of its own.
         """
-        args = self._counterfactual_args(scenarios, windows)
+        selected = self._selected_outputs(outputs)
+        args = self._counterfactual_args(scenarios, windows, selected)
         if batch_size is None:
             batch_size = self._batch_size(len(scenarios.spend), windows.max_window)
         return self._evaluate_scenarios(
-            [*args, *self._frozen_args(scenarios, windows)], batch_size
+            [*args, *self._frozen_args(scenarios, windows)], batch_size, selected
         )
 
     def iter_counterfactual(
@@ -1812,8 +2125,9 @@ class CounterfactualEvaluator:
         *,
         windows: EvaluationWindows,
         max_elements: int | None = None,
+        outputs: Sequence[str] | None = None,
     ) -> Generator[CounterfactualBlock, None, None]:
-        """Evaluate every node on all scenarios, one block of samples at a time.
+        """Evaluate every node, or those in *outputs*, on all scenarios, a block of samples at a time.
 
         Draws are independent, so a block of them gives the values it would
         with the rest, up to rounding: the compiled graph may round differently
@@ -1843,6 +2157,8 @@ class CounterfactualEvaluator:
             Output elements one block may hold.  Defaults to
             :attr:`MAX_BATCH_ELEMENTS`, and is exposed so a test can force a
             split.
+        outputs : sequence of str, optional
+            Response variables to evaluate, as in :meth:`evaluate_counterfactual`.
 
         Returns
         -------
@@ -1854,12 +2170,17 @@ class CounterfactualEvaluator:
         ValueError
             At the call rather than at the first block, if a value in
             *expected_aux_values* disagrees with the source model's current
-            state.
+            state, or if a window is shorter than the fitted dates while a
+            date-indexed posterior variable that is not cut to windows meets a
+            windowed ``date`` axis in the graph of a response in *outputs*; the
+            message names it.  Also if a name in *outputs* is not a response
+            variable.
         RuntimeError
             At the call, while another iteration is paused on a block of its
             own.
         """
-        args = self._counterfactual_args(scenarios, windows)
+        selected = self._selected_outputs(outputs)
+        args = self._counterfactual_args(scenarios, windows, selected)
         if max_elements is None:
             max_elements = self.MAX_BATCH_ELEMENTS
         blocks = self._sample_blocks(
@@ -1876,6 +2197,7 @@ class CounterfactualEvaluator:
             scenarios=scenarios,
             windows=windows,
             max_elements=max_elements,
+            outputs=selected,
         )
 
     def _iter_blocks(
@@ -1887,6 +2209,7 @@ class CounterfactualEvaluator:
         scenarios: CounterfactualScenarios,
         windows: EvaluationWindows,
         max_elements: int,
+        outputs: tuple[str, ...],
     ) -> Generator[CounterfactualBlock, None, None]:
         """Rebind to each block of *posterior* and evaluate it; restore *posterior* after.
 
@@ -1918,6 +2241,7 @@ class CounterfactualEvaluator:
                         self._batch_size(
                             len(args[0]), windows.max_window, max_elements=max_elements
                         ),
+                        outputs,
                     ),
                 )
         finally:
@@ -1926,7 +2250,10 @@ class CounterfactualEvaluator:
                 self._bound_to_block = False
 
     def _counterfactual_args(
-        self, scenarios: CounterfactualScenarios, windows: EvaluationWindows
+        self,
+        scenarios: CounterfactualScenarios,
+        windows: EvaluationWindows,
+        outputs: tuple[str, ...],
     ) -> list[np.ndarray]:
         """Check the evaluator and the source model, then lay out the inputs per scenario.
 
@@ -1937,11 +2264,50 @@ class CounterfactualEvaluator:
         """
         self._refuse_while_bound_to_block()
         self._check_expected_aux_values()
+        self._refuse_uncut_date_paths(windows, outputs)
         args: list[np.ndarray] = [scenarios.spend]
         if self.time_dtype is not None:
             args.append(windows.time_index(self.time_dtype)[scenarios.period_index])
         args.extend(aux.cut(windows)[scenarios.period_index] for aux in self._aux)
         return args
+
+    def _refuse_uncut_date_paths(
+        self, windows: EvaluationWindows, outputs: tuple[str, ...]
+    ) -> None:
+        """Refuse windows shorter than the fitted dates if an uncut date path meets them.
+
+        Parameters
+        ----------
+        windows : EvaluationWindows
+            The windows the evaluation runs on.
+        outputs : tuple of str
+            The response variables evaluated.
+
+        Raises
+        ------
+        ValueError
+            If a window does not span the fitted dates and the graph of a
+            response in *outputs* has an uncut date path, see
+            :meth:`_colliding_date_paths`.
+        """
+        paths = self.uncut_date_paths(outputs)
+        if not paths or all(
+            window.n_actual == len(self._dates) for window in windows.windows
+        ):
+            return
+        listing = ", ".join(repr(name) for name in paths)
+        raise ValueError(
+            "Posterior variables not cut to windows meet a windowed 'date' axis "
+            f"in the graph: {listing}.  Each holds its draws over all fitted "
+            "dates, so a window shorter than the fitted dates would read it at "
+            "the wrong dates.  Evaluate on windows that span the fitted dates, "
+            "or list in 'frozen_deterministics' a date-indexed Deterministic of "
+            "each variable's own path, taken before it meets the windowed axis, "
+            "such as the cumulative sum of a random walk's steps.  Listing the "
+            "variable itself is enough only when the graph reads it date by "
+            "date up to that point: a sum, cumulative sum or mean over 'date' "
+            "on the way would be taken within each window."
+        )
 
     def _frozen_args(
         self, scenarios: CounterfactualScenarios, windows: EvaluationWindows
@@ -1953,21 +2319,23 @@ class CounterfactualEvaluator:
         ]
 
     def _evaluate_scenarios(
-        self, args: list[np.ndarray], batch_size: int
+        self, args: list[np.ndarray], batch_size: int, outputs: tuple[str, ...]
     ) -> dict[str, np.ndarray]:
-        """Evaluate every scenario on the bound posterior, *batch_size* at a time."""
+        """Evaluate *outputs* for every scenario on the bound posterior, *batch_size* at a time."""
         self._sync_sample_markers()
+        compiled, names = self._function_for(outputs)
+        position = {name: idx for idx, name in enumerate(names)}
         n_scenarios = len(args[0])
         batches = [
-            self._evaluator(*(arg[start : start + batch_size] for arg in args))
+            compiled(*(arg[start : start + batch_size] for arg in args))
             for start in range(0, n_scenarios, batch_size)
         ]
         if len(batches) == 1:
             # Nothing to join, so no copy.
-            return dict(zip(self.response_vars, batches[0], strict=True))
+            return {name: batches[0][position[name]] for name in outputs}
         return {
-            name: np.concatenate([batch[idx] for batch in batches], axis=0)
-            for idx, name in enumerate(self.response_vars)
+            name: np.concatenate([batch[position[name]] for batch in batches], axis=0)
+            for name in outputs
         }
 
     def _sample_blocks(

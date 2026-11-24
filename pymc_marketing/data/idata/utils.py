@@ -25,6 +25,7 @@ import xarray as xr
 from numpy.random import Generator, RandomState
 
 from pymc_marketing.data.idata.schema import Frequency
+from pymc_marketing.names.mmm import Attr, Dim
 
 _MOVED_TO_IO = ("idata_to_zarr", "idata_from_zarr")
 
@@ -69,12 +70,12 @@ def filter_idata_by_dates(
     if start_date is None and end_date is None:
         return idata
 
-    date_slice = {"date": slice(start_date, end_date)}
+    date_slice = {Dim.DATE: slice(start_date, end_date)}
 
     filtered_groups = {}
     for name, child in idata.children.items():
         ds = child.dataset
-        if "date" in ds.dims:
+        if Dim.DATE in ds.dims:
             ds = ds.sel(**date_slice)
         filtered_groups[name] = ds
 
@@ -190,16 +191,16 @@ def _aggregate_over_time[XarrayT: (xr.Dataset, xr.DataArray)](
     xr.Dataset or xr.DataArray
         Aggregated object, of the same type as ``data``.
     """
-    if period == "original" or "date" not in data.dims:
+    if period == "original" or Dim.DATE not in data.dims:
         return data
 
     reducible = (
         data if period == "all_time" else data.resample(date=_PERIOD_RULES[period])
     )
     if method == "sum":
-        return reducible.sum(dim="date")
+        return reducible.sum(dim=Dim.DATE)
     if method == "mean":
-        return reducible.mean(dim="date")
+        return reducible.mean(dim=Dim.DATE)
     raise ValueError(f"Unknown aggregation method: {method}")
 
 
@@ -236,7 +237,7 @@ def broadcast_over_date(variable: xr.DataArray, date: xr.DataArray) -> xr.DataAr
         intercept.dims  # ("chain", "draw", "date", ...)
     """
     return variable.expand_dims(date=date).transpose(
-        *[d for d in ("chain", "draw") if d in variable.dims], "date", ...
+        *[d for d in ("chain", "draw") if d in variable.dims], Dim.DATE, ...
     )
 
 
@@ -274,14 +275,14 @@ def sum_contributions_over_time(
     xr.Dataset
         The contributions of each period.
     """
-    if period == "original" or "date" not in contributions.dims:
+    if period == "original" or Dim.DATE not in contributions.dims:
         return contributions
 
-    date = contributions["date"]
+    date = contributions[Dim.DATE]
     per_date = contributions.map(
         lambda component: (
             component
-            if "date" in component.dims
+            if Dim.DATE in component.dims
             else broadcast_over_date(component, date)
         )
     )
@@ -339,7 +340,7 @@ def aggregate_idata_time(
             if path != "/"
         }
     )
-    result.attrs = {**idata.attrs, "time_aggregation": period}
+    result.attrs = {**idata.attrs, Attr.TIME_AGGREGATION: period}
     return result
 
 

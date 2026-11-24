@@ -40,6 +40,7 @@ from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.plotting.cv import MMMCVPlotSuite
 from pymc_marketing.mmm.summary.cv import MMMCVSummaryFactory
 from pymc_marketing.mmm.types import MMMBuilder
+from pymc_marketing.names.mmm import Dim, Group, Var, original_scale_name
 from pymc_marketing.serialization import serialization
 
 
@@ -88,7 +89,7 @@ def _add_original_scale_predictions(idata: xr.DataTree, output_var: str) -> None
     output_var : str
         Name of the observed variable (``MMM.output_var``).
     """
-    name = f"{output_var}_original_scale"
+    name = original_scale_name(output_var)
     pp = None
     target_scale = None
     if isinstance(idata, xr.DataTree):
@@ -98,7 +99,7 @@ def _add_original_scale_predictions(idata: xr.DataTree, output_var: str) -> None
             return
         if "posterior_predictive_constant_data" in idata.children:
             target_scale = idata["posterior_predictive_constant_data"].dataset.get(
-                "target_scale"
+                Var.TARGET_SCALE
             )
 
     if not isinstance(idata, xr.DataTree):
@@ -364,8 +365,8 @@ class TimeSliceCrossValidator:
             meta_arr[i] = m
 
         ds_meta = xr.Dataset(
-            {"metadata": ("cv", meta_arr)},
-            coords={"cv": cv_coord},
+            {Var.METADATA: (Dim.CV, meta_arr)},
+            coords={Dim.CV: cv_coord},
         )
 
         # persist on instance for convenience
@@ -415,7 +416,7 @@ class TimeSliceCrossValidator:
 
             combined_kwargs: dict = {}
             # Ensure we pass a concrete list[str] into pd.Index to satisfy type checkers
-            cv_coord = pd.Index([str(n) for n in model_names], name="cv")
+            cv_coord = pd.Index([str(n) for n in model_names], name=Dim.CV)
 
             for group in groups:
                 # collect available datasets for this group
@@ -441,17 +442,17 @@ class TimeSliceCrossValidator:
                     # if concat fails, try to align then concat without coords
                     combined_ds = xr.concat(
                         [
-                            d.dataset.assign_coords({"cv": [n]})
+                            d.dataset.assign_coords({Dim.CV: [n]})
                             for d, n in zip(ds_list, model_names, strict=False)
                         ],
-                        dim="cv",
+                        dim=Dim.CV,
                     )
 
                 combined_kwargs[group] = combined_ds
 
             # Build a cv_metadata Dataset that stores per-fold metadata
             ds_meta = self._create_metadata(cv_coord)
-            combined_kwargs["cv_metadata"] = ds_meta
+            combined_kwargs[Group.CV_METADATA] = ds_meta
 
             if combined_kwargs:
                 cv_idata = xr.DataTree.from_dict(
@@ -654,7 +655,7 @@ class TimeSliceCrossValidator:
         )
         if mmm.idata is not None:
             _add_original_scale_predictions(
-                mmm.idata, output_var=getattr(mmm, "output_var", "y")
+                mmm.idata, output_var=getattr(mmm, "output_var", Var.Y)
             )
 
         return TimeSliceCrossValidationResult(

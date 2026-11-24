@@ -190,6 +190,8 @@ from pymc_marketing.mmm.fourier import (
     YearlyFourier,
     generate_fourier_modes,
 )
+from pymc_marketing.names import Key
+from pymc_marketing.names.mmm import DatasetVar, Dim, Var
 from pymc_marketing.serialization import serialization
 
 __all__ = ["BudgetModelEffect", "exogeneity_summary", "lift_test_design"]
@@ -280,7 +282,11 @@ def lift_test_design(
     dims = tuple(dim_coords)
     dates = pd.DatetimeIndex(pd.to_datetime(np.asarray(dates)))
 
-    coords: dict[str, Any] = {"date": dates, **dim_coords, "channel": list(channels)}
+    coords: dict[str, Any] = {
+        Dim.DATE: dates,
+        **dim_coords,
+        Dim.CHANNEL: list(channels),
+    }
     shape = tuple(len(v) for v in coords.values())
     shift = xr.DataArray(np.zeros(shape), dims=tuple(coords), coords=coords)
     holdout = xr.DataArray(
@@ -302,7 +308,7 @@ def lift_test_design(
             raise ValueError(
                 f"Row {idx}: channel {row['channel']!r} is not one of {list(channels)}."
             )
-        cell: dict[str, Any] = {"channel": row["channel"]}
+        cell: dict[str, Any] = {Dim.CHANNEL: row["channel"]}
         for dim in dims:
             if row[dim] not in list(dim_coords[dim]):
                 raise ValueError(
@@ -320,7 +326,7 @@ def lift_test_design(
             )
         window_dates = dates[in_window]
 
-        target = {**cell, "date": window_dates}
+        target = {**cell, Dim.DATE: window_dates}
         if touched.loc[target].any():
             raise ValueError(
                 f"Row {idx}: design window overlaps an earlier row on {cell}."
@@ -371,7 +377,7 @@ def _has_sales_trend(mmm: Model) -> bool:
 
 def _date_first(values: xr.DataArray, dims: tuple[str, ...]) -> xr.DataArray:
     """Order ``values`` as the model does: ``date``, then any of ``dims`` it has."""
-    return values.transpose("date", *[d for d in dims if d in values.dims])
+    return values.transpose(Dim.DATE, *[d for d in dims if d in values.dims])
 
 
 def _time_index(
@@ -408,15 +414,17 @@ class _TrainingData:
 
     @property
     def dates(self) -> pd.DatetimeIndex:
-        return pd.DatetimeIndex(self.spend.coords["date"].values)
+        return pd.DatetimeIndex(self.spend.coords[Dim.DATE].values)
 
     @property
     def dims(self) -> tuple[str, ...]:
-        return tuple(str(d) for d in self.spend.dims if d not in ("date", "channel"))
+        return tuple(
+            str(d) for d in self.spend.dims if d not in (Dim.DATE, Dim.CHANNEL)
+        )
 
     @property
     def channels(self) -> list[str]:
-        return list(self.spend.coords["channel"].values)
+        return list(self.spend.coords[Dim.CHANNEL].values)
 
 
 class BudgetModelEffect(MuEffect):
@@ -624,7 +632,7 @@ class BudgetModelEffect(MuEffect):
         ch = self.channel_dim
         return {
             "spend_intercept": Prior("Normal", mu=0.5, sigma=0.5, dims=(*dims, ch)),
-            "spend_control": Prior("Normal", mu=0, sigma=0.2, dims=("control", ch)),
+            "spend_control": Prior("Normal", mu=0, sigma=0.2, dims=(Dim.CONTROL, ch)),
             "spend_fourier": Prior(
                 "Normal", mu=0, sigma=0.2, dims=(self.fourier_dim, ch)
             ),
@@ -643,7 +651,7 @@ class BudgetModelEffect(MuEffect):
         user_dims = getattr(user, "dims", None) or ()
         user_dims = (user_dims,) if isinstance(user_dims, str) else tuple(user_dims)
         extra = {
-            "spend_control": {"control"},
+            "spend_control": {Dim.CONTROL},
             "spend_fourier": {self.fourier_dim},
             "gamma_lag": {self.lag_dim},
         }
@@ -663,23 +671,25 @@ class BudgetModelEffect(MuEffect):
         built, so the warning is not repeated on every prediction.
         """
         dataset = mmm.xarray_dataset
-        all_channels = list(dataset["_channel"].coords["channel"].values)
+        all_channels = list(dataset[DatasetVar.CHANNEL].coords[Dim.CHANNEL].values)
         channels = all_channels if self.channels is None else list(self.channels)
         unknown = sorted(set(channels) - set(all_channels))
         if unknown:
             raise ValueError(f"Unknown channels in BudgetModelEffect: {unknown}.")
         spend = (
-            dataset["_channel"]
+            dataset[DatasetVar.CHANNEL]
             .sel(channel=channels)
-            .transpose("date", *mmm.dims, "channel")
+            .transpose(Dim.DATE, *mmm.dims, Dim.CHANNEL)
             .astype(float)
         )
         shift, holdout = self._design_for(spend, warn=warn)
-        spend_scale = abs((spend - shift).where(~holdout, 0.0)).max("date")
+        spend_scale = abs((spend - shift).where(~holdout, 0.0)).max(Dim.DATE)
 
         control_stats = None
-        if self.use_controls and "_control" in dataset:
-            control_stats = _standardise_stats(dataset["_control"], keep="control")
+        if self.use_controls and DatasetVar.CONTROL in dataset:
+            control_stats = _standardise_stats(
+                dataset[DatasetVar.CONTROL], keep=Dim.CONTROL
+            )
         instrument_stats = {}
         for name in self.instruments:
             values = self._instrument(mmm, name)
@@ -711,8 +721,8 @@ class BudgetModelEffect(MuEffect):
         if self.design is None:
             zeros = xr.zeros_like(spend)
             return zeros, zeros.astype(bool)
-        dates = pd.DatetimeIndex(spend.coords["date"].values)
-        channels = list(spend.coords["channel"].values)
+        dates = pd.DatetimeIndex(spend.coords[Dim.DATE].values)
+        channels = list(spend.coords[Dim.CHANNEL].values)
         in_window = [
             bool(((dates >= start) & (dates <= end)).any())
             for start, end in zip(
@@ -731,7 +741,7 @@ class BudgetModelEffect(MuEffect):
         dim_coords = {
             d: list(spend.coords[d].values)
             for d in spend.dims
-            if d not in ("date", "channel")
+            if d not in (Dim.DATE, Dim.CHANNEL)
         }
         shift, holdout = lift_test_design(
             self.design[keep], dates=dates, channels=channels, dim_coords=dim_coords
@@ -758,7 +768,7 @@ class BudgetModelEffect(MuEffect):
                 "chosen": (spend - shift) / spend_scale,
                 "active": (~holdout).astype(float),
             }
-        ).rename({"channel": self.channel_dim})
+        ).rename({Dim.CHANNEL: self.channel_dim})
 
     def _instrument(self, mmm: Model, name: str) -> xr.DataArray:
         """Return an instrument from the training data, checked against the model dims."""
@@ -768,13 +778,13 @@ class BudgetModelEffect(MuEffect):
                 "column of X."
             )
         values = mmm.xarray_dataset[name]
-        if "date" not in values.dims:
+        if Dim.DATE not in values.dims:
             raise ValueError(f"Instrument {name!r} must have a 'date' dim.")
-        extra = sorted(set(values.dims) - {"date", *mmm.dims})
+        extra = sorted(set(values.dims) - {Dim.DATE, *mmm.dims})
         if extra:
             raise ValueError(
                 f"Instrument {name!r} has dims {extra} beyond the model's "
-                f"{('date', *mmm.dims)}. Aggregate it before passing it."
+                f"{(Dim.DATE, *mmm.dims)}. Aggregate it before passing it."
             )
         return _date_first(values, mmm.dims)
 
@@ -789,7 +799,9 @@ class BudgetModelEffect(MuEffect):
                 f"design has columns {extra} the effect does not use. The design is "
                 "saved with the model, so drop them."
             )
-        mmm_channels = set(mmm.xarray_dataset["_channel"].coords["channel"].values)
+        mmm_channels = set(
+            mmm.xarray_dataset[DatasetVar.CHANNEL].coords[Dim.CHANNEL].values
+        )
         unknown = sorted(set(self.design["channel"]) - mmm_channels)
         if unknown:
             raise ValueError(f"design has channels {unknown} the MMM does not have.")
@@ -807,7 +819,7 @@ class BudgetModelEffect(MuEffect):
                 UserWarning,
                 stacklevel=3,
             )
-        zero_share = (data.spend.where(~data.holdout) == 0).mean("date")
+        zero_share = (data.spend.where(~data.holdout) == 0).mean(Dim.DATE)
         flighted = [
             str(channel)
             for channel in data.channels
@@ -880,7 +892,7 @@ class BudgetModelEffect(MuEffect):
             pmd.Data(
                 f"{p}_lag_operator",
                 self._lag_operator(n_dates),
-                dims=(self.lag_dim, "date", self.source_date_dim),
+                dims=(self.lag_dim, Dim.DATE, self.source_date_dim),
             )
         if data.fourier_order > 0:
             model.add_coord(
@@ -888,9 +900,9 @@ class BudgetModelEffect(MuEffect):
                 [f"sin_{k}" for k in range(1, data.fourier_order + 1)]
                 + [f"cos_{k}" for k in range(1, data.fourier_order + 1)],
             )
-            pmd.Data(f"{p}_dayofyear", data.dates.dayofyear.to_numpy(), dims="date")
+            pmd.Data(f"{p}_dayofyear", data.dates.dayofyear.to_numpy(), dims=Dim.DATE)
         if self.trend:
-            pmd.Data(f"{p}_time", _time_index(data.dates, data.dates), dims="date")
+            pmd.Data(f"{p}_time", _time_index(data.dates, data.dates), dims=Dim.DATE)
 
         # An instrument may already be registered by another effect that reads it.
         for name in self.instruments:
@@ -940,13 +952,13 @@ class BudgetModelEffect(MuEffect):
 
         # The spend equation's mean m_{c,t}.
         spend_mu = prior("spend_intercept", f"{p}_spend_intercept")
-        if data.control_stats is not None and "control_data" in model.named_vars:
+        if data.control_stats is not None and Var.CONTROL_DATA in model.named_vars:
             mean, std = data.control_stats
-            z = (model["control_data"] - as_xtensor(mean.values, dims=mean.dims)) / (
+            z = (model[Var.CONTROL_DATA] - as_xtensor(mean.values, dims=mean.dims)) / (
                 as_xtensor(std.values, dims=std.dims)
             )
             coef = prior("spend_control", f"{p}_spend_control_coef")
-            spend_mu = spend_mu + (z * coef).sum(dim="control")
+            spend_mu = spend_mu + (z * coef).sum(dim=Dim.CONTROL)
         if data.fourier_order > 0:
             modes = generate_fourier_modes(
                 periods=model[f"{p}_dayofyear"] / DAYS_IN_YEAR,
@@ -965,7 +977,7 @@ class BudgetModelEffect(MuEffect):
         # An intercept-only equation has no date dim until broadcast against spend.
         spend_mu, _ = ptx.broadcast(spend_mu, chosen)
         spend_mu = pmd.Deterministic(
-            f"{p}_spend_mu", spend_mu.transpose("date", *dims, ch)
+            f"{p}_spend_mu", spend_mu.transpose(Dim.DATE, *dims, ch)
         )
 
         # The spend likelihood. Masked cells see observed 0 ~ Normal(0, 1): a
@@ -980,7 +992,8 @@ class BudgetModelEffect(MuEffect):
 
         # The control function sum_l gamma_l v_{t-l}.
         surprise = pmd.Deterministic(
-            f"{p}_surprise", (active * (chosen - spend_mu)).transpose("date", *dims, ch)
+            f"{p}_surprise",
+            (active * (chosen - spend_mu)).transpose(Dim.DATE, *dims, ch),
         )
         control_function = surprise * prior("gamma", f"{p}_gamma")
         if self.surprise_lags > 0:
@@ -988,7 +1001,7 @@ class BudgetModelEffect(MuEffect):
             # Shift with a lag operator, one lag at a time: slicing and
             # concatenating along date, or reducing over a length-one lag dim,
             # produced graphs PyTensor failed to differentiate.
-            source = surprise.rename({"date": self.source_date_dim})
+            source = surprise.rename({Dim.DATE: self.source_date_dim})
             operator = model[f"{p}_lag_operator"]
             for k in range(self.surprise_lags):
                 lagged = ptx.dot(
@@ -1002,7 +1015,7 @@ class BudgetModelEffect(MuEffect):
 
         return pmd.Deterministic(
             self.contribution_var_name,
-            control_function.sum(dim=ch).transpose("date", *dims),
+            control_function.sum(dim=ch).transpose(Dim.DATE, *dims),
         )
 
     def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset | None) -> None:
@@ -1038,7 +1051,7 @@ class BudgetModelEffect(MuEffect):
                 "with this effect before predicting."
             )
         data = self._training_data(mmm)
-        new_dates = _get_datetime_coords(model.coords["date"], "date")
+        new_dates = _get_datetime_coords(model.coords[Dim.DATE], Dim.DATE)
         # Factual inputs on training dates; missing (NaN) on new dates.
         inputs = self._surprise_inputs(
             data.spend, data.shift, data.holdout, data.spend_scale
@@ -1091,16 +1104,16 @@ class BudgetModelEffect(MuEffect):
         training: designed changes are subtracted and designed holdouts
         masked, so a test in a held-out fold is not scored as a surprise.
         """
-        if X is None or "_channel" not in X.data_vars:
+        if X is None or DatasetVar.CHANNEL not in X.data_vars:
             raise ValueError(
                 "surprise_out_of_sample='observed' reads spend on new dates from the "
                 "prediction data, but it has no channel spend."
             )
         spend = (
-            X["_channel"]
+            X[DatasetVar.CHANNEL]
             .sel(channel=data.channels)
             .reindex(date=new_dates)
-            .transpose("date", *data.dims, "channel")
+            .transpose(Dim.DATE, *data.dims, Dim.CHANNEL)
             .astype(float)
         )
         shift, holdout = self._design_for(spend)
@@ -1254,7 +1267,7 @@ def _prior_from_dict(value: dict[str, Any] | None) -> VariableFactory | None:
 
     if value is None:
         return None
-    if "__type__" in value:
+    if Key.TYPE in value:
         return serialization.deserialize(value)
     return deserialize(value)
 
@@ -1324,7 +1337,7 @@ def exogeneity_summary(
         raise RuntimeError(f"No posterior for {name!r}; fit the model first.")
 
     data = effect._training_data(mmm)
-    rename = {"channel": effect.channel_dim}
+    rename = {Dim.CHANNEL: effect.channel_dim}
     sample_dims = ("chain", "draw")
 
     # Stack the contemporaneous coefficient (lag 0) with any lagged ones.
@@ -1337,7 +1350,7 @@ def exogeneity_summary(
         prior_sds.append(effect._prior_sd(mmm, "gamma_lag"))
     gamma = xr.concat(gammas, dim="lag")
     tail = (1 - interval_prob) / 2
-    per_unit = gamma * mmm.scalers["_target"] / data.spend_scale.rename(rename)
+    per_unit = gamma * mmm.scalers[DatasetVar.TARGET] / data.spend_scale.rename(rename)
 
     summary = xr.Dataset(
         {
@@ -1354,7 +1367,7 @@ def exogeneity_summary(
     )
     summary["contraction"] = 1 - summary["posterior_sd"] / summary["prior_sd"]
     # A gamma shared across a dim is informed by a design anywhere along it.
-    identified = ((data.shift != 0) | data.holdout).any("date").rename(rename)
+    identified = ((data.shift != 0) | data.holdout).any(Dim.DATE).rename(rename)
     pooled = [d for d in identified.dims if d not in gamma.dims]
     if pooled:
         identified = identified.any(pooled)
@@ -1365,7 +1378,7 @@ def exogeneity_summary(
 
     df = summary.to_dataframe().reset_index()
     df = df[[*order, *[c for c in df.columns if c not in order]]]
-    df = df.rename(columns={effect.channel_dim: "channel"})
+    df = df.rename(columns={effect.channel_dim: Dim.CHANNEL})
 
     def _note(row: pd.Series) -> str:
         notes = []

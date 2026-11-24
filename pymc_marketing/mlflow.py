@@ -240,6 +240,7 @@ from pymc_marketing.data.idata.io import (
 )
 from pymc_marketing.mmm import MMM
 from pymc_marketing.mmm.evaluation import compute_summary_metrics
+from pymc_marketing.names.mmm import Attr
 from pymc_marketing.version import __version__
 
 logger = logging.getLogger(__name__)
@@ -424,18 +425,6 @@ def create_log_callback(
         callback = _take_every(n=take_every)(callback)
 
     return callback
-
-
-def _log_and_remove_artifact(path: str | Path) -> None:
-    """Log an artifact to MLflow and then remove the local file.
-
-    Parameters
-    ----------
-    path : str | Path
-        Path to the artifact file to log and remove.
-    """
-    mlflow.log_artifact(str(path))
-    os.remove(path)
 
 
 def _idata_artifact_name(idata_format: IdataFormat | str) -> str:
@@ -697,6 +686,14 @@ def _attach_run_id(idata: xr.DataTree) -> None:
     idata.attrs["mlflow_run_id"] = run.info.run_id
 
 
+def _artifact_file_name(path: str | Path) -> str:
+    """Return the file name in ``path``, which a logger uses as the artifact name."""
+    name = Path(path).name
+    if name in ("", "..") or str(path).endswith(("/", os.sep)):
+        raise ValueError(f"path must end in a file name; got {str(path)!r}.")
+    return name
+
+
 def log_arviz_summary(
     idata: xr.DataTree,
     path: str | Path,
@@ -705,25 +702,34 @@ def log_arviz_summary(
 ) -> None:
     """Log the ArviZ summary as an artifact on MLflow.
 
-    Automatically removes the file after logging.
+    The HTML file is written to a temporary directory that is removed afterwards,
+    also when the upload fails, so nothing is left in the working directory.
 
     Parameters
     ----------
     idata : xr.DataTree
         The DataTree object returned by the sampling method.
     path : str | Path
-        The path to save the summary as HTML.
+        File name of the logged artifact, such as ``"summary.html"``. Any directory
+        part is ignored.
     var_names : list[str], optional
         The names of the variables to include in the summary. Default is
         all the variables in the DataTree object.
     summary_kwargs : dict
         Additional keyword arguments to pass to `az.summary`.
 
+    Raises
+    ------
+    ValueError
+        If ``path`` does not end in a file name.
+
     """
+    name = _artifact_file_name(path)
     df_summary = az.summary(idata, var_names=var_names, **summary_kwargs)
-    df_summary.to_html(path)
-    mlflow.log_artifact(str(path))
-    os.remove(path)
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir) / name
+        df_summary.to_html(tmp_path)
+        mlflow.log_artifact(str(tmp_path))
 
 
 def log_metadata(model: Model, idata: xr.DataTree) -> None:
@@ -767,16 +773,25 @@ def log_metadata(model: Model, idata: xr.DataTree) -> None:
 def log_model_graph(model: Model, path: str | Path) -> None:
     """Log the model graph PDF as artifact on MLflow.
 
-    Automatically removes the file after logging.
+    The graph is rendered in a temporary directory that is removed afterwards, also
+    when rendering or the upload fails, so nothing is left in the working directory.
 
     Parameters
     ----------
     model : Model
         The PyMC model object.
     path : str | Path
-        The path to save the model graph
+        Name of the logged artifact without the ``.pdf`` extension, which Graphviz
+        appends: ``"model_graph"`` is logged as ``model_graph.pdf``. Any directory
+        part is ignored.
+
+    Raises
+    ------
+    ValueError
+        If ``path`` does not end in a file name.
 
     """
+    name = _artifact_file_name(path)
     try:
         graph = pm.model_to_graphviz(model)
     except ImportError as e:
@@ -792,15 +807,17 @@ def log_model_graph(model: Model, path: str | Path) -> None:
         logger.info(msg)
         return None
 
-    try:
-        saved_path = graph.render(path)
-    except Exception as e:
-        msg = f"Unable to render the model graph. {e}"
-        logger.info(msg)
-        return None
-    else:
-        _log_and_remove_artifact(saved_path)
-        os.remove(path)
+    # `graph.render` writes the DOT source before it invokes `dot`, so a render
+    # that raises would leave the source file behind. Rendering in a temporary
+    # directory avoids that, for both the source and the PDF.
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        try:
+            saved_path = graph.render(Path(tmp_dir) / name)
+        except Exception as e:
+            msg = f"Unable to render the model graph. {e}"
+            logger.info(msg)
+            return None
+        mlflow.log_artifact(saved_path)
 
 
 def _get_random_variable_name(rv) -> str:
@@ -1385,7 +1402,7 @@ def log_mmm_configuration(mmm: MMM) -> None:
     attrs = mmm.create_idata_attrs()
     calibrations = {
         name: attrs.pop(name, None)
-        for name in ("lift_test_calibrations", "cost_per_target_calibrations")
+        for name in (Attr.LIFT_TEST_CALIBRATIONS, Attr.COST_PER_TARGET_CALIBRATIONS)
     }
     mlflow.log_params(attrs)
     for name, records in calibrations.items():

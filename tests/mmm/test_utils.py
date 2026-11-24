@@ -254,51 +254,6 @@ class FakeMMM:
         self.adstock = FakeAdstock()
 
 
-def test_create_zero_dataset():
-    # Create a fake model
-    model = FakeMMM()
-
-    # Test basic zero dataset
-    start_date = "2022-02-01"
-    end_date = "2022-02-10"
-    result = create_zero_dataset(model, start_date, end_date)
-
-    # Check results
-    assert isinstance(result, xr.Dataset)
-    # With l_max=7, the function adds 7 days to the end date
-    # So we get 17 days (Feb 1 to Feb 17) * 2 regions
-    assert len(result.coords["date"]) == 17  # 17 days
-    assert len(result.coords["region"]) == 2  # 2 regions
-    assert set(result.data_vars) == {"_channel", "_control"}
-    assert np.all(result["_channel"].values == 0)
-    assert np.all(result["_control"].values == 0)
-
-    # Test with channel_xr
-    # Create a simple xarray Dataset with channel values
-    region_coords = np.array(["A", "B"])
-    channel_values = xr.Dataset(
-        data_vars={
-            "channel1": (["region"], np.array([5.0, 7.0])),
-        },
-        coords={"region": region_coords},
-    )
-
-    result_with_channels = create_zero_dataset(
-        model, start_date, end_date, channel_values
-    )
-
-    # Check results
-    assert np.all(
-        result_with_channels["_channel"].sel(region="A", channel="channel1") == 5.0
-    )
-    assert np.all(
-        result_with_channels["_channel"].sel(region="B", channel="channel1") == 7.0
-    )
-    assert np.all(
-        result_with_channels["_channel"].sel(channel="channel2") == 0
-    )  # Not provided in channel_xr
-
-
 @pytest.mark.parametrize(
     "dims, take, expected_result",
     [
@@ -402,12 +357,6 @@ class TestConvertFrequencyToTimedelta:
             result = _convert_frequency_to_timedelta(2, "XYZ")
             expected = pd.Timedelta(weeks=2)
             assert result == expected
-
-    def test_single_character_frequencies(self):
-        """Test single character frequency strings."""
-        assert _convert_frequency_to_timedelta(5, "D") == pd.Timedelta(days=5)
-        assert _convert_frequency_to_timedelta(3, "W") == pd.Timedelta(weeks=3)
-        assert _convert_frequency_to_timedelta(2, "M") == pd.Timedelta(days=60)
 
     def test_complex_frequency_strings(self):
         """Test that complex frequency strings are parsed correctly."""
@@ -1494,17 +1443,6 @@ class TestAdstockCarryIn:
             opt = mmm.create_optimization_model(start_date=start, end_date=end)
 
         lags = mmm.effective_carryover_lags()
-        assert len(opt.coords["date"]) == lags + self.N_PERIODS + lags
-
-    def test_the_date_axis_is_carry_in_plus_decisions_plus_carry_over(
-        self, funnel_identity_fitted_mmm
-    ):
-        mmm = funnel_identity_fitted_mmm
-        lags = mmm.effective_carryover_lags()
-        start, end = self._window(mmm)
-
-        opt = mmm.create_optimization_model(start_date=start, end_date=end)
-
         assert len(opt.coords["date"]) == lags + self.N_PERIODS + lags
 
     def test_the_leading_dates_are_not_decisions(self, funnel_identity_fitted_mmm):

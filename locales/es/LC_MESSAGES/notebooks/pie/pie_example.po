@@ -1,0 +1,1041 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2026, PyMC Labs
+# This file is distributed under the same license as the PyMC-Marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyMC-Marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../source/notebooks/pie/pie_example.ipynb:10003
+#: ea1d08383efe4932a95e8649b34c1b50
+msgid "Predicted Incrementality by Experimentation (PIE)"
+msgstr "Incrementalidad predicha mediante experimentación (PIE)"
+
+#: ../source/notebooks/pie/pie_example.ipynb:10005
+#: a9a23d238fa64b1fb9345ec0e0ea3226
+msgid ""
+"Randomised controlled trials (RCTs) such as geo experiments and ghost-ad "
+"holdouts are the gold standard for measuring the incrementality of an ad "
+"campaign. However, they are also expensive and slow, so even experiment-"
+"focussed advertisers experiment on only a fraction of their campaigns. "
+"Often, the remaining campaigns are measured by attribution proxies such "
+"as last-click conversions, which measure proximity to intent, not "
+"causation."
+msgstr ""
+"Los ensayos controlados aleatorizados (RCT, por sus siglas en inglés), como "
+"los experimentos geográficos (geo experiments) y los holdouts de anuncios "
+"fantasma (ghost-ad), son el estándar de oro para medir la incrementalidad de"
+" una campaña publicitaria. Sin embargo, también son costosos y lentos, por "
+"lo que incluso los anunciantes centrados en la experimentación experimentan "
+"solo con una fracción de sus campañas. A menudo, las campañas restantes se "
+"miden mediante proxies de atribución, como las conversiones de último clic, "
+"que miden la cercanía a la intención y no la causalidad."
+
+#: ../source/notebooks/pie/pie_example.ipynb:10007
+#: d04621ec85ad47c7b0c4afbd8e9c7f8d
+msgid ""
+"Predicted Incrementality by Experimentation (PIE), introduced by [Gordon,"
+" Moakler & Zettelmeyer (2026)](https://www.nber.org/papers/w35044), "
+"stretches the measured fraction across the whole portfolio. The PIE "
+"approach first fits a supervised model on the corpus of campaigns that "
+"did run an RCT to learn the map from observable campaign features $x_i$ "
+"to experimentally measured incrementality $\\tau_i$,"
+msgstr ""
+"La incrementalidad predicha mediante experimentación (PIE), introducida por "
+"[Gordon, Moakler & Zettelmeyer (2026)](https://www.nber.org/papers/w35044), "
+"extiende la fracción medida a todo el portafolio. El enfoque PIE primero "
+"ajusta un modelo supervisado sobre el corpus de campañas que sí ejecutaron "
+"un RCT para aprender la correspondencia entre las características "
+"observables de la campaña $x_i$ y la incrementalidad medida "
+"experimentalmente $\\tau_i$,"
+
+#: ../source/notebooks/pie/pie_example.ipynb:10009
+#: 2c048c1292ae4f2fa9de47c1d0477049
+#, python-brace-format
+msgid ""
+"\\tau_i = f(x_i) + \\varepsilon_i, \\qquad \\varepsilon_i \\sim "
+"\\mathrm{Normal}(0, \\sigma)."
+msgstr ""
+"\\tau_i = f(x_i) + \\varepsilon_i, \\qquad \\varepsilon_i \\sim "
+"\\mathrm{Normal}(0, \\sigma)."
+
+#: ../source/notebooks/pie/pie_example.ipynb:10011
+#: b14be92fcad14781b704e6561b1dcc4e
+#, python-brace-format
+msgid ""
+"Once the model's parameters have been inferred from the observed RCT "
+"measurements, incrementality is predicted for those campaigns that never "
+"ran an experiment. {class}`~pymc_marketing.pie.PIEModel` implements this "
+"idea with Bayesian Additive Regression Trees (BART). This means that $f$ "
+"is sampled rather than point-estimated and every prediction is a full "
+"posterior, thus allowing us to fully capture the uncertainty innate to "
+"the PIE predictions."
+msgstr ""
+"Una vez que los parámetros del modelo han sido inferidos a partir de las "
+"mediciones de RCT observadas, se predice la incrementalidad de aquellas "
+"campañas que nunca ejecutaron un experimento. "
+"{class}`~pymc_marketing.pie.PIEModel` implementa esta idea con árboles de "
+"regresión aditivos bayesianos (BART, por sus siglas en inglés). Esto "
+"significa que $f$ se muestrea en lugar de estimarse puntualmente y cada "
+"predicción es una distribución posterior completa, lo que nos permite "
+"capturar plenamente la incertidumbre inherente a las predicciones de PIE."
+
+#: ../source/notebooks/pie/pie_example.ipynb:10013
+#: 1d02944421a24a49babac190f8161807
+msgid ""
+"In this notebook we build a simulated world in which the truth is known "
+"and use it to expose the internals of PIE via"
+msgstr ""
+"En este cuaderno construimos un mundo simulado en el que se conoce la verdad"
+" y lo usamos para exponer el funcionamiento interno de PIE mediante"
+
+#: ../source/notebooks/pie/pie_example.ipynb:10015
+#: 40161101daf44a25804021a3c7591046
+msgid ""
+"We simulate a corpus of 1,000 RCT-measured campaigns whose last-click "
+"metrics are systematically misleading"
+msgstr ""
+"Simulamos un corpus de 1,000 campañas medidas con RCT cuyas métricas de "
+"último clic son sistemáticamente engañosas"
+
+#: ../source/notebooks/pie/pie_example.ipynb:10016
+#: ea49e90e9e0d4304afb237a32abbfb10
+msgid "Fit `PIEModel` on the corpus"
+msgstr "Ajustar `PIEModel` con el corpus"
+
+#: ../source/notebooks/pie/pie_example.ipynb:10017
+#: 97af37c10d6344258a907e8ad0975224
+msgid ""
+"Inspect the model to learn which features drive incrementality and how "
+"predicted incrementality saturates with budget"
+msgstr ""
+"Inspeccionar el modelo para conocer qué características impulsan la "
+"incrementalidad y cómo la incrementalidad predicha se satura con el "
+"presupuesto"
+
+#: ../source/notebooks/pie/pie_example.ipynb:10018
+#: c34a92bd18b94f3588825daf35053e52
+msgid ""
+"Predict incrementality for 300 campaigns that never ran an experiment, "
+"scoring the predictions against the simulated truth."
+msgstr ""
+"Predecir la incrementalidad de 300 campañas que nunca ejecutaron un "
+"experimento, evaluando las predicciones frente a la verdad simulada."
+
+#: ../source/notebooks/pie/pie_example.ipynb:10019
+#: c3b42335652642928bc2697985054b92
+msgid ""
+"Pick 60 campaigns to scale up. Choosing by last-click sends the budget to"
+" the least incremental campaigns in the portfolio, while choosing by "
+"PIE's predictions identifies almost all of the campaigns with the highest"
+" true incrementality."
+msgstr ""
+"Elegir 60 campañas para escalar. Elegir según el último clic dirige el "
+"presupuesto a las campañas menos incrementales del portafolio, mientras que "
+"elegir según las predicciones de PIE identifica a casi todas las campañas "
+"con mayor incrementalidad real."
+
+#: ../source/notebooks/pie/pie_example.ipynb:10022
+#: 8895226e6c554b159fecaa6f225f2c7a
+msgid ""
+"The `pymc_marketing.pie` module is **alpha**: the API and defaults may "
+"change, and several components of the paper are not yet implemented. The "
+"differences are summarised at the end of this notebook."
+msgstr ""
+"El módulo `pymc_marketing.pie` está en versión **alfa**: la API y los "
+"valores predeterminados pueden cambiar, y varios componentes del artículo "
+"aún no están implementados. Las diferencias se resumen al final de este "
+"cuaderno."
+
+#: ../source/notebooks/pie/pie_example.ipynb:20002
+#: de8736ee93a94f5891c44189dfcd34a0
+msgid "Prepare Notebook"
+msgstr "Preparar el cuaderno"
+
+#: ../source/notebooks/pie/pie_example.ipynb:40002
+#: 4f0154c0b88744e4a7a4cc6df82d9816
+msgid "Simulating a Corpus of Experiments"
+msgstr "Simulación de un corpus de experimentos"
+
+#: ../source/notebooks/pie/pie_example.ipynb:40004
+#: fb277281d9ad4aaa94c5df05dde79d34
+msgid ""
+"[Gordon, Moakler & Zettelmeyer "
+"(2026)](https://www.nber.org/papers/w35044) train a PIE model on 2,226 "
+"real RCTs run on Meta. Those data are proprietary, so we simulate a "
+"corpus that shares their key structural features, one where we know the "
+"true incrementality of every campaign. Of course, in practice, no "
+"practitioner ever has access to the true incrementality; however, for the"
+" purposes of this notebook, knowing the true incrementality gives a way "
+"to assess the PIE model's quality. Throughout, incrementality is measured"
+" in incremental conversions per dollar of spend."
+msgstr ""
+"[Gordon, Moakler & Zettelmeyer (2026)](https://www.nber.org/papers/w35044) "
+"entrenan un modelo PIE con 2,226 RCT reales ejecutados en Meta. Esos datos "
+"son propietarios, por lo que simulamos un corpus que comparte sus "
+"principales características estructurales, uno en el que conocemos la "
+"incrementalidad real de cada campaña. Por supuesto, en la práctica ningún "
+"profesional tiene acceso a la incrementalidad real; sin embargo, para los "
+"fines de este cuaderno, conocer la incrementalidad real permite evaluar la "
+"calidad del modelo PIE. A lo largo del cuaderno, la incrementalidad se mide "
+"en conversiones incrementales por dólar de gasto."
+
+#: ../source/notebooks/pie/pie_example.ipynb:40006
+#: 74a57e1a33674b6387631eb2f05db664
+msgid ""
+"Each campaign carries the features used as the running example in the "
+"`PIEModel` docstring:"
+msgstr ""
+"Cada campaña incluye las características utilizadas como ejemplo en el "
+"docstring de `PIEModel`:"
+
+#: ../source/notebooks/pie/pie_example.ipynb:10021
+#: 865e349da7ae43bc89b0508b65fd4af1
+msgid "Feature"
+msgstr "Característica"
+
+#: ../source/notebooks/pie/pie_example.ipynb:10021
+#: 28bdd905c4474eacb4e6d727361ff231
+msgid "Values"
+msgstr "Valores"
+
+#: ../source/notebooks/pie/pie_example.ipynb:10021
+#: df1a279111844ef88ed409dd8144424a
+msgid "Known…"
+msgstr "Se conoce…"
+
+#: ../source/notebooks/pie/pie_example.ipynb:10021
+#: bc2f4938799347e286f5458fe1c2a220
+msgid "`objective`"
+msgstr "`objective`"
+
+#: ../source/notebooks/pie/pie_example.ipynb:10021
+#: a033c2e0e26f47eba0b36d558244c963
+msgid "conversions / traffic / awareness"
+msgstr "conversions / traffic / awareness"
+
+#: ../source/notebooks/pie/pie_example.ipynb:10021
+#: 135e3bc29bd0407f8545eb74966d9b70 341f8986f46346749d451b513016e07b
+#: c1c81600fd664ecab57599c02088829c cc721a23208d4f7292a85f89c2d75998
+msgid "before launch (*pre-determined*)"
+msgstr "antes del lanzamiento (*predeterminadas*)"
+
+#: ../source/notebooks/pie/pie_example.ipynb:10021
+#: 5775193f7dce40d594632751c1466118
+msgid "`vertical`"
+msgstr "`vertical`"
+
+#: ../source/notebooks/pie/pie_example.ipynb:10021
+#: ee627f5eea6d4f1babeb274265a61011
+msgid "retail / travel / finance / cpg / tech"
+msgstr "retail / travel / finance / cpg / tech"
+
+#: ../source/notebooks/pie/pie_example.ipynb:10021
+#: a70c5f23db884d7eb58d89e42dd5c4bf
+msgid "`audience_type`"
+msgstr "`audience_type`"
+
+#: ../source/notebooks/pie/pie_example.ipynb:10021
+#: 3f844f5e30704b7ca63dc40f17b9c1d7
+msgid "prospecting / retargeting"
+msgstr "prospecting / retargeting"
+
+#: ../source/notebooks/pie/pie_example.ipynb:10021
+#: c1ecd9fdd2464a0fa15a88f9939d145f
+msgid "`budget`"
+msgstr "`budget`"
+
+#: ../source/notebooks/pie/pie_example.ipynb:10021
+#: 95a12f22b2c1414bb0aa4c322ad3d688
+msgid "dollars"
+msgstr "dólares"
+
+#: ../source/notebooks/pie/pie_example.ipynb:10021
+#: c13e785cc69e492daa2dc1421361f127
+msgid "`exposure_rate`"
+msgstr "`exposure_rate`"
+
+#: ../source/notebooks/pie/pie_example.ipynb:10021
+#: e51ccd51217c44109a7d7ac4e7413663
+msgid "share of the target audience reached"
+msgstr "proporción de la audiencia objetivo alcanzada"
+
+#: ../source/notebooks/pie/pie_example.ipynb:10021
+#: 6dd3d33ad9674e32aa8e51240ea25d72 c5a4f2acb5404023a919bfbd17fa4466
+#: d543ef0183484a8a9f7725d0f8a630d1
+msgid "after the campaign (*post-determined*)"
+msgstr "después de la campaña (*posdeterminadas*)"
+
+#: ../source/notebooks/pie/pie_example.ipynb:10021
+#: 73d80e4c52cd4c48833aa7fda93cb5ab
+msgid "`ctr`"
+msgstr "`ctr`"
+
+#: ../source/notebooks/pie/pie_example.ipynb:10021
+#: d5aac272d9a247b0b248b880996d0f4c
+msgid "click-through rate"
+msgstr "tasa de clics"
+
+#: ../source/notebooks/pie/pie_example.ipynb:10021
+#: 33b49ecdce314e7a8c0a10521ba02301
+msgid "`last_click_conversions_per_dollar`"
+msgstr "`last_click_conversions_per_dollar`"
+
+#: ../source/notebooks/pie/pie_example.ipynb:10021
+#: eccbcf45afce479e910ef283bee99a97
+msgid "attribution proxy"
+msgstr "proxy de atribución"
+
+#: ../source/notebooks/pie/pie_example.ipynb:40018
+#: 825ad4e05b9f4f2bb4437d2092bb5325
+msgid "The ground-truth incrementality function is non-linear with interactions:"
+msgstr "La función de incrementalidad real es no lineal y con interacciones:"
+
+#: ../source/notebooks/pie/pie_example.ipynb:40020
+#: fe9d5af641de40a1a0f86c292865b81a
+msgid ""
+"Audience type is the dominant driver. Prospecting campaigns reach people "
+"who would not otherwise have converted, while retargeting campaigns reach"
+" people already close to converting, so their incremental effect is "
+"small."
+msgstr ""
+"El tipo de audiencia es el principal factor determinante. Las campañas de "
+"prospección llegan a personas que de otro modo no habrían convertido, "
+"mientras que las campañas de retargeting llegan a personas que ya están "
+"cerca de convertir, por lo que su efecto incremental es pequeño."
+
+#: ../source/notebooks/pie/pie_example.ipynb:40021
+#: 65ddf58a4c7e4a85bfcaf5918928aa99
+msgid ""
+"Incrementality saturates with budget. Above roughly \\$25k, each "
+"additional dollar of spend reaches a less receptive audience and produces"
+" fewer incremental conversions."
+msgstr ""
+"La incrementalidad se satura con el presupuesto. Por encima de "
+"aproximadamente \\$25k, cada dólar adicional de gasto llega a una audiencia "
+"menos receptiva y produce menos conversiones incrementales."
+
+#: ../source/notebooks/pie/pie_example.ipynb:40022
+#: 24aa3c2b85e8428990b60473360147e5
+msgid ""
+"A higher exposure rate raises incrementality for both audience types, but"
+" the effect is about four times stronger for prospecting campaigns than "
+"for retargeting campaigns."
+msgstr ""
+"Una mayor tasa de exposición aumenta la incrementalidad en ambos tipos de "
+"audiencia, pero el efecto es unas cuatro veces más fuerte en las campañas de"
+" prospección que en las de retargeting."
+
+#: ../source/notebooks/pie/pie_example.ipynb:40023
+#: c969e52fd0ba41919a10c8f211fe85ee
+msgid ""
+"The campaign objective scales incrementality up or down, and the industry"
+" vertical adds a small offset."
+msgstr ""
+"El objetivo de la campaña escala la incrementalidad hacia arriba o hacia "
+"abajo, y el vertical de la industria añade un pequeño desplazamiento."
+
+#: ../source/notebooks/pie/pie_example.ipynb:40025
+#: 63ec7dd6eef347ff96c149af6785b777
+msgid ""
+"Within this simulation we also incorporate the problem central to this "
+"notebook - the last-click proxy rewards the wrong campaigns. Last-click "
+"attribution credits a conversion to the last ad the customer clicked "
+"before buying. Retargeting campaigns target people who are already likely"
+" to buy, so a retargeting ad is often that last click, and the campaign "
+"gets credit for a purchase that would have happened anyway. In the "
+"simulation, each campaign's last-click conversions per dollar are "
+"$0.4\\,\\tau$, plus a constant and additive noise. The $0.4\\,\\tau$ term"
+" means the metric partly tracks true incrementality. The constant is 0.9 "
+"for retargeting campaigns and 0.05 for prospecting campaigns, and "
+"represents the conversions that are credited to the campaign but would "
+"have happened anyway. `ctr` has no causal effect on incrementality; "
+"however, we include it to check that the model learns to ignore an "
+"irrelevant feature."
+msgstr ""
+"Dentro de esta simulación también incorporamos el problema central de este "
+"cuaderno - el proxy de último clic premia a las campañas equivocadas. La "
+"atribución por último clic asigna el crédito de una conversión al último "
+"anuncio en el que el cliente hizo clic antes de comprar. Las campañas de "
+"retargeting se dirigen a personas que ya tienen probabilidad de comprar, por"
+" lo que un anuncio de retargeting suele ser ese último clic, y la campaña "
+"recibe el crédito por una compra que habría ocurrido de todos modos. En la "
+"simulación, las conversiones de último clic por dólar de cada campaña son "
+"$0.4\\,\\tau$, más una constante y ruido aditivo. El término $0.4\\,\\tau$ "
+"significa que la métrica sigue en parte la incrementalidad real. La "
+"constante es 0.9 para las campañas de retargeting y 0.05 para las de "
+"prospección, y representa las conversiones que se atribuyen a la campaña "
+"pero que habrían ocurrido de todos modos. `ctr` no tiene efecto causal sobre"
+" la incrementalidad; sin embargo, lo incluimos para comprobar que el modelo "
+"aprende a ignorar una característica irrelevante."
+
+#: ../source/notebooks/pie/pie_example.ipynb:40027
+#: 4b2bd0213a3a420ea4a6800ec7bcf991
+msgid ""
+"Finally, in practice, any one RCT gives a noisy estimate of $\\hat{\\tau}"
+" = \\tau + \\mathrm{Normal}(0, 0.3^2)$. For the purpose of this notebook,"
+" we set the measurement noise term $\\sigma_{\\mathrm{RCT}}$ as 0.3."
+msgstr ""
+"Finalmente, en la práctica, cualquier RCT individual da una estimación "
+"ruidosa $\\hat{\\tau} = \\tau + \\mathrm{Normal}(0, 0.3^2)$. Para los fines "
+"de este cuaderno, fijamos el término de ruido de medición "
+"$\\sigma_{\\mathrm{RCT}}$ en 0.3."
+
+#: ../source/notebooks/pie/pie_example.ipynb:60002
+#: 3e15d59767b84dd9a8087977d06395ce
+msgid ""
+"We generate the corpus of 1,000 measured campaigns and a further 300 "
+"campaigns that never ran an experiment. For the measured campaigns we "
+"observe only the noisy RCT reading `y_rct`; the true values `tau_rct` and"
+" `tau_new` exist purely because this is a simulation, and we will use "
+"them only to evaluate the model. We also draw `y_new_hypothetical` (the "
+"readings RCTs would have produced on the unmeasured campaigns) for a "
+"comparison later on."
+msgstr ""
+"Generamos el corpus de 1,000 campañas medidas y otras 300 campañas que nunca"
+" ejecutaron un experimento. Para las campañas medidas observamos únicamente "
+"la lectura ruidosa del RCT `y_rct`; los valores reales `tau_rct` y `tau_new`"
+" existen solo porque esto es una simulación, y los usaremos únicamente para "
+"evaluar el modelo. También generamos `y_new_hypothetical` (las lecturas que "
+"habrían producido los RCT en las campañas no medidas) para una comparación "
+"posterior."
+
+#: ../source/notebooks/pie/pie_example.ipynb:80002
+#: d03c0712a13f40eb9c3e33e0f1e71da6
+msgid "Comparing Last-Click Against True Incrementality"
+msgstr "Comparación del último clic frente a la incrementalidad real"
+
+#: ../source/notebooks/pie/pie_example.ipynb:80004
+#: 37951adc5486455082555f1e3b4c9874
+msgid ""
+"Before fitting any model, it is useful to plot the simulated corpus. The "
+"left panel below shows that prospecting campaigns have much higher true "
+"incrementality than retargeting campaigns. The right panel plots each "
+"campaign's last-click metric against its true incrementality, and shows "
+"that last-click ranks the two groups in the opposite order. This reversal"
+" happens because the conversions that are falsely credited to retargeting"
+" campaigns are larger than the $0.4\\,\\tau$ component of the metric that"
+" tracks true incrementality."
+msgstr ""
+"Antes de ajustar cualquier modelo, es útil trazar el corpus simulado. El "
+"panel izquierdo de abajo muestra que las campañas de prospección tienen una "
+"incrementalidad real mucho mayor que las de retargeting. El panel derecho "
+"traza la métrica de último clic de cada campaña frente a su incrementalidad "
+"real, y muestra que el último clic ordena los dos grupos en el orden "
+"opuesto. Esta inversión ocurre porque las conversiones que se atribuyen "
+"falsamente a las campañas de retargeting son mayores que el componente "
+"$0.4\\,\\tau$ de la métrica que sigue la incrementalidad real."
+
+#: ../source/notebooks/pie/pie_example.ipynb:110002
+#: 1b7a4a7ae6f044f89a457e15bf68153e
+msgid ""
+"Across the whole corpus, the last-click metric is negatively rank-"
+"correlated with true incrementality, which means that a marketer who "
+"sorts campaigns by last-click will place many of the least incremental "
+"campaigns at the top. Within each audience type, however, the correlation"
+" is positive, so last-click does contain useful information once the "
+"audience type is known. A supervised model can combine last-click with "
+"audience type and make use of this information, whereas a single ranking "
+"over all campaigns cannot."
+msgstr ""
+"En todo el corpus, la métrica de último clic tiene una correlación de rangos"
+" negativa con la incrementalidad real, lo que significa que un profesional "
+"de marketing que ordene las campañas por último clic colocará muchas de las "
+"campañas menos incrementales en los primeros lugares. Sin embargo, dentro de"
+" cada tipo de audiencia la correlación es positiva, por lo que el último "
+"clic sí contiene información útil una vez que se conoce el tipo de "
+"audiencia. Un modelo supervisado puede combinar el último clic con el tipo "
+"de audiencia y aprovechar esta información, mientras que un único ranking "
+"sobre todas las campañas no puede."
+
+#: ../source/notebooks/pie/pie_example.ipynb:120002
+#: b6abe7f748b4412b9c68b36a5a7e605e
+msgid "Fit the Model"
+msgstr "Ajuste del modelo"
+
+#: ../source/notebooks/pie/pie_example.ipynb:120004
+#: 8f927eb4c9e44d31a38f84a38f651c72
+msgid ""
+"`PIEModel` takes the feature list split into pre-determined and post-"
+"determined groups. In this alpha release the split is recorded but has no"
+" effect on the model, and both groups are passed to BART in the same way."
+" Future versions will use the split to control which features are "
+"required at prediction time, for example when scoring a campaign before "
+"launch, at which point the post-determined features do not exist yet."
+msgstr ""
+"`PIEModel` recibe la lista de características dividida en grupos "
+"predeterminadas y posdeterminadas. En esta versión alfa la división se "
+"registra pero no tiene efecto sobre el modelo, y ambos grupos se pasan a "
+"BART de la misma manera. Las versiones futuras usarán la división para "
+"controlar qué características son obligatorias en el momento de la "
+"predicción, por ejemplo al evaluar una campaña antes de su lanzamiento, "
+"momento en el que las características posdeterminadas aún no existen."
+
+#: ../source/notebooks/pie/pie_example.ipynb:120006
+#: c32c864f59f54ee59453a801a7f442fa
+msgid ""
+"We keep the default model configuration, which uses an ensemble of 200 "
+"trees and a HalfNormal prior on the noise, and the default sampler "
+"assignment, which uses PGBART for the trees and NUTS for $\\sigma$. "
+"Categorical columns are label-encoded internally and split with one-hot "
+"rules, so that a tree splits on conditions such as \"vertical is retail "
+"or not\" rather than on numeric thresholds over an arbitrary alphabetical"
+" encoding."
+msgstr ""
+"Mantenemos la configuración predeterminada del modelo, que usa un ensamble "
+"de 200 árboles y un prior HalfNormal para el ruido, y la asignación "
+"predeterminada de muestreadores, que usa PGBART para los árboles y NUTS para"
+" $\\sigma$. Las columnas categóricas se codifican internamente con etiquetas"
+" y se dividen con reglas one-hot, de modo que un árbol divide según "
+"condiciones como \"vertical es retail o no\" en lugar de umbrales numéricos "
+"sobre una codificación alfabética arbitraria."
+
+#: ../source/notebooks/pie/pie_example.ipynb:140002
+#: e9015f8b32c94c0984e2fb51b5909f7a
+msgid "Sampling Diagnostics"
+msgstr "Diagnósticos del muestreo"
+
+#: ../source/notebooks/pie/pie_example.ipynb:140004
+#: 085c2f12987647d88431fb166fa86797
+#, python-brace-format
+msgid ""
+"A BART ensemble has no small set of interpretable parameters whose traces"
+" can be inspected directly, so convergence checking concentrates on the "
+"parametric part of the model, which here is the noise scale $\\sigma$. "
+"The sampler also prints warnings about $\\hat{R}$ and effective sample "
+"size, and below we explain how those warnings should be interpreted for a"
+" tree-based model."
+msgstr ""
+"Un ensamble BART no tiene un conjunto pequeño de parámetros interpretables "
+"cuyas trazas puedan inspeccionarse directamente, por lo que la comprobación "
+"de la convergencia se concentra en la parte paramétrica del modelo, que aquí"
+" es la escala del ruido $\\sigma$. El muestreador también imprime "
+"advertencias sobre $\\hat{R}$ y el tamaño de muestra efectivo, y a "
+"continuación explicamos cómo deben interpretarse esas advertencias en un "
+"modelo basado en árboles."
+
+#: ../source/notebooks/pie/pie_example.ipynb:170002
+#: fd5e233f32634808ac7406145ebdacb9
+#, python-brace-format
+msgid ""
+"The diagnostics for $\\sigma$ are acceptable, with a bulk effective "
+"sample size in the hundreds and $\\hat{R} < 1.01$. The tree ensemble "
+"requires more care. Each campaign's fitted value $f(x_i)$ is itself an "
+"MCMC quantity, and the warning printed by pymc after sampling is caused "
+"by the slowest-mixing of these fitted values, shown below."
+msgstr ""
+"Los diagnósticos de $\\sigma$ son aceptables, con un tamaño de muestra "
+"efectivo bulk de cientos y $\\hat{R} < 1.01$. El ensamble de árboles "
+"requiere más cuidado. El valor ajustado $f(x_i)$ de cada campaña es en sí "
+"mismo una cantidad de MCMC, y la advertencia que imprime pymc tras el "
+"muestreo la causan los valores ajustados de mezcla más lenta, que se "
+"muestran a continuación."
+
+#: ../source/notebooks/pie/pie_example.ipynb:190002
+#: a6b08b5431f7484387e460ef9d748ddc
+msgid ""
+"A small number of fitted values mix an order of magnitude more slowly "
+"than the rest. For a tree ensemble this is somewhat expected as a BART "
+"posterior is a distribution over collections of trees, and two "
+"collections with different tree structures can represent nearly identical"
+" functions. For campaigns that lie close to a decision boundary, "
+"different chains can settle on different but functionally equivalent tree"
+" structures, which lowers the effective sample size of those campaigns' "
+"fitted values without making the predictions less reliable. Every "
+"quantity used in this notebook, such as a prediction, a ranking, or an "
+"average, combines the whole ensemble, so these combined quantities are "
+"the ones that need to be checked, which we do below."
+msgstr ""
+"Un pequeño número de valores ajustados se mezclan un orden de magnitud más "
+"lentamente que el resto. En un ensamble de árboles esto es en cierta medida "
+"esperable, ya que una distribución posterior de BART es una distribución "
+"sobre colecciones de árboles, y dos colecciones con estructuras de árbol "
+"distintas pueden representar funciones casi idénticas. Para las campañas que"
+" se encuentran cerca de un límite de decisión, distintas cadenas pueden "
+"asentarse en estructuras de árbol diferentes pero funcionalmente "
+"equivalentes, lo que reduce el tamaño de muestra efectivo de los valores "
+"ajustados de esas campañas sin hacer que las predicciones sean menos "
+"fiables. Toda cantidad utilizada en este cuaderno, como una predicción, un "
+"ranking o un promedio, combina el ensamble completo, por lo que estas "
+"cantidades combinadas son las que hay que comprobar, algo que hacemos a "
+"continuación."
+
+#: ../source/notebooks/pie/pie_example.ipynb:210002
+#: c02c87fbfc98409bac403db18b753bb1
+msgid ""
+"The ensemble-level diagnostics are good, and the four chains agree about "
+"every fitted value to within less than a tenth of a conversion per "
+"dollar, which is small enough that we should feel comfortable that the "
+"imperfections are tolerable."
+msgstr ""
+"Los diagnósticos a nivel de ensamble son buenos, y las cuatro cadenas "
+"coinciden en cada valor ajustado con una diferencia de menos de una décima "
+"de conversión por dólar, lo que es lo bastante pequeño como para sentirnos "
+"tranquilos de que las imperfecciones son tolerables."
+
+#: ../source/notebooks/pie/pie_example.ipynb:210004
+#: abee83b4ac08418f8e5b03d341fb04dc
+msgid ""
+"As a final check, we map $\\sigma$ back to the original scale. `PIEModel`"
+" standardises the target internally by dividing by its maximum absolute "
+"value, so if the model has captured the structure in the data, the "
+"rescaled $\\sigma$ should match the simulated RCT measurement noise of "
+"0.3."
+msgstr ""
+"Como comprobación final, volvemos a llevar $\\sigma$ a la escala original. "
+"`PIEModel` estandariza internamente la variable objetivo dividiéndola por su"
+" valor absoluto máximo, por lo que, si el modelo ha capturado la estructura "
+"de los datos, el $\\sigma$ reescalado debería coincidir con el ruido de "
+"medición del RCT simulado de 0.3."
+
+#: ../source/notebooks/pie/pie_example.ipynb:230002
+#: 5e7073365a5c478280d9114906d4768a
+msgid ""
+"Beyond convergence, we can check that the fitted model reproduces the "
+"data it was trained on. If the fit is good, the model's in-sample "
+"posterior predictive draws should recover the distribution of the "
+"observed RCT readings `y_rct`. Because `sample_posterior_predictive` "
+"returns draws on the original incrementality scale while the stored "
+"`observed_data` is held internally on a rescaled axis, we assemble a "
+"small comparison object on the original scale before overlaying the two "
+"densities."
+msgstr ""
+"Más allá de la convergencia, podemos comprobar que el modelo ajustado "
+"reproduce los datos con los que se entrenó. Si el ajuste es bueno, las "
+"muestras predictivas posteriores dentro de muestra del modelo deberían "
+"recuperar la distribución de las lecturas de RCT observadas `y_rct`. Dado "
+"que `sample_posterior_predictive` devuelve muestras en la escala original de"
+" incrementalidad, mientras que los `observed_data` almacenados se mantienen "
+"internamente en un eje reescalado, armamos un pequeño objeto de comparación "
+"en la escala original antes de superponer las dos densidades."
+
+#: ../source/notebooks/pie/pie_example.ipynb:250002
+#: ba780cb4b1d4485fbf11959be09fbbfe
+msgid "Understanding Incrementality Drivers"
+msgstr "Comprensión de los factores de la incrementalidad"
+
+#: ../source/notebooks/pie/pie_example.ipynb:250004
+#: d3b9c3c81e3c421a8ac3e4501198baa4
+msgid ""
+"Before making predictions, we check which features the model relies on. "
+"`pymc_bart.compute_variable_importance` measures how much of the full "
+"ensemble's predictive $R^2$ is retained by submodels that are restricted "
+"to subsets of the features, where features are added in order of how "
+"often the trees split on them."
+msgstr ""
+"Antes de hacer predicciones, comprobamos en qué características se apoya el "
+"modelo. `pymc_bart.compute_variable_importance` mide qué parte del $R^2$ "
+"predictivo del ensamble completo se conserva en submodelos restringidos a "
+"subconjuntos de las características, donde las características se añaden en "
+"el orden de la frecuencia con que los árboles se dividen según ellas."
+
+#: ../source/notebooks/pie/pie_example.ipynb:270002
+#: 80db6d72b31847808f7757af79645807
+msgid ""
+"The most important features are the ones that the true incrementality "
+"function actually uses, namely audience type, exposure rate, last-click, "
+"and budget. `ctr`, which has no causal effect in the simulation, "
+"contributes essentially nothing."
+msgstr ""
+"Las características más importantes son las que la función de "
+"incrementalidad real efectivamente utiliza, a saber, el tipo de audiencia, "
+"la tasa de exposición, el último clic y el presupuesto. `ctr`, que no tiene "
+"efecto causal en la simulación, no contribuye prácticamente en nada."
+
+#: ../source/notebooks/pie/pie_example.ipynb:270004
+#: 6d94137283b34d55ab280127eb471ad6
+msgid ""
+"The high importance of `last_click_conversions_per_dollar` does not "
+"contradict the earlier finding that last-click is a misleading ranking "
+"metric, because importance measures predictive value rather than causal "
+"effect. Last-click is informative once audience type is known, since a "
+"high value means something different for a retargeting campaign than for "
+"a prospecting campaign. The model combines last-click with audience type,"
+" and this combination is what corrects the bias in the raw metric."
+msgstr ""
+"La alta importancia de `last_click_conversions_per_dollar` no contradice el "
+"hallazgo anterior de que el último clic es una métrica de ranking engañosa, "
+"porque la importancia mide el valor predictivo y no el efecto causal. El "
+"último clic es informativo una vez que se conoce el tipo de audiencia, ya "
+"que un valor alto significa algo distinto para una campaña de retargeting "
+"que para una de prospección. El modelo combina el último clic con el tipo de"
+" audiencia, y esta combinación es lo que corrige el sesgo de la métrica sin "
+"procesar."
+
+#: ../source/notebooks/pie/pie_example.ipynb:270006
+#: 8a082be78bf14d58a5244594febe8c0d
+msgid "Counterfactual: Incrementality vs Budget"
+msgstr "Contrafactual: incrementalidad frente al presupuesto"
+
+#: ../source/notebooks/pie/pie_example.ipynb:270008
+#: 44f5e42f5afd41c4baf62cca83b7a6f6
+msgid ""
+"Because the model predicts incrementality from campaign features, we can "
+"ask questions that no single experiment answers, such as how a campaign's"
+" incrementality would change at a different budget. Below we construct a "
+"reference campaign with the conversions objective in the retail vertical,"
+" and predict its incrementality across a range of budgets for both "
+"audience types, holding all other features fixed."
+msgstr ""
+"Dado que el modelo predice la incrementalidad a partir de las "
+"características de la campaña, podemos plantear preguntas que ningún "
+"experimento individual responde, como la forma en que cambiaría la "
+"incrementalidad de una campaña con un presupuesto distinto. A continuación "
+"construimos una campaña de referencia con el objetivo de conversiones en el "
+"vertical retail, y predecimos su incrementalidad en un rango de presupuestos"
+" para ambos tipos de audiencia, manteniendo fijas todas las demás "
+"características."
+
+#: ../source/notebooks/pie/pie_example.ipynb:270010
+#: 2da9ad1a62ce46459d1eefec9e2f6af3
+msgid ""
+"One complication is that a counterfactual campaign has no post-determined"
+" features, because those only exist after a campaign runs. We set them to"
+" values consistent with the simulation. This situation is what the pre-"
+"determined versus post-determined distinction in the API is reserved for."
+" The paper's solution, which is to predict from pre-determined features "
+"only, is not yet implemented in the alpha."
+msgstr ""
+"Una complicación es que una campaña contrafactual no tiene características "
+"posdeterminadas, porque estas solo existen después de que se ejecuta una "
+"campaña. Las fijamos en valores consistentes con la simulación. Esta "
+"situación es para la que está reservada en la API la distinción entre "
+"predeterminadas y posdeterminadas. La solución del artículo, que consiste en"
+" predecir únicamente a partir de las características predeterminadas, aún no"
+" está implementada en la versión alfa."
+
+#: ../source/notebooks/pie/pie_example.ipynb:290002
+#: ac70c51909ec4090b2cf0a3bb3f11100
+msgid ""
+"The posterior mean tracks the true saturation curve for both audience "
+"types, and the persistent gap between prospecting and retargeting "
+"campaigns matches the audience effect in the data-generating process. The"
+" shaded bands are predictive intervals, which include the RCT measurement"
+" noise. They therefore describe the range of results that a geo test run "
+"at that budget would plausibly report, and not only the uncertainty about"
+" the function $f$."
+msgstr ""
+"La media posterior sigue la verdadera curva de saturación para ambos tipos "
+"de audiencia, y la brecha persistente entre las campañas de prospección y de"
+" retargeting coincide con el efecto de la audiencia en el proceso generador "
+"de datos. Las bandas sombreadas son intervalos predictivos, que incluyen el "
+"ruido de medición del RCT. Por lo tanto, describen el rango de resultados "
+"que una prueba geográfica ejecutada con ese presupuesto reportaría "
+"plausiblemente, y no solo la incertidumbre sobre la función $f$."
+
+#: ../source/notebooks/pie/pie_example.ipynb:300002
+#: b49a12b391a84327a98baab92b13c2de
+msgid "Predicting the Unmeasured Campaigns"
+msgstr "Predicción de las campañas no medidas"
+
+#: ../source/notebooks/pie/pie_example.ipynb:300004
+#: 46bb29916af74976b88e9861d44c563d
+msgid ""
+"We now predict incrementality for the 300 campaigns that never ran an "
+"experiment."
+msgstr ""
+"Ahora predecimos la incrementalidad de las 300 campañas que nunca ejecutaron"
+" un experimento."
+
+#: ../source/notebooks/pie/pie_example.ipynb:320002
+#: ea02b6cf565a48059eae07ad57ebce9c
+msgid "Scoring Against the Truth"
+msgstr "Evaluación frente a la verdad"
+
+#: ../source/notebooks/pie/pie_example.ipynb:320004
+#: 8ba3d274dc6d4e5887b7c62eeec07241
+msgid ""
+"The plot below compares the model's predictions with the true "
+"incrementality of each campaign. This comparison is only possible in a "
+"simulation, because true incrementality is never observed in practice."
+msgstr ""
+"El gráfico siguiente compara las predicciones del modelo con la "
+"incrementalidad real de cada campaña. Esta comparación solo es posible en "
+"una simulación, porque la incrementalidad real nunca se observa en la "
+"práctica."
+
+#: ../source/notebooks/pie/pie_example.ipynb:350002
+#: 1c5032838c5a4a0db4b691c313121b8b
+#, python-format
+msgid ""
+"Coverage above the nominal 94% is expected rather than a problem. The "
+"predictive interval describes what an RCT would report, which is the true"
+" incrementality plus measurement noise, so the interval is wider than "
+"what is needed to cover the noise-free truth."
+msgstr ""
+"Una cobertura superior al 94% nominal es lo esperado y no un problema. El "
+"intervalo predictivo describe lo que reportaría un RCT, que es la "
+"incrementalidad real más el ruido de medición, por lo que el intervalo es "
+"más ancho de lo necesario para cubrir la verdad sin ruido."
+
+#: ../source/notebooks/pie/pie_example.ipynb:350004
+#: 9f305a8f403e4538ad110dd956684647
+msgid "What You Could Measure in Practice"
+msgstr "Lo que se podría medir en la práctica"
+
+#: ../source/notebooks/pie/pie_example.ipynb:350006
+#: a36b0a1472f5426a803176dd50644a87
+msgid ""
+"On real data the true incrementality is not available, so the best "
+"possible validation is to hold out some measured campaigns and score the "
+"predictions against their noisy RCT readings. This is what the paper "
+"does. Because we simulated the data, we can quantify how much this "
+"approach understates the model's accuracy."
+msgstr ""
+"Con datos reales no se dispone de la incrementalidad real, por lo que la "
+"mejor validación posible es apartar algunas campañas medidas (holdout) y "
+"evaluar las predicciones frente a sus lecturas de RCT ruidosas. Esto es lo "
+"que hace el artículo. Como simulamos los datos, podemos cuantificar en qué "
+"medida este enfoque subestima la precisión del modelo."
+
+#: ../source/notebooks/pie/pie_example.ipynb:370002
+#: 9f05a280515647f286d357d39407f6d6
+msgid ""
+"The two numbers agree because holdout error decomposes as "
+"$\\text{RMSE}^2_{\\text{holdout}} \\approx \\text{RMSE}^2_{\\text{truth}}"
+" + \\sigma_{\\mathrm{RCT}}^2$. On real data, a substantial share of "
+"holdout error is therefore irreducible experiment noise rather than model"
+" error, and holdout RMSE should not be interpreted as the distance "
+"between the predictions and the truth."
+msgstr ""
+"Los dos números coinciden porque el error de holdout se descompone como "
+"$\\text{RMSE}^2_{\\text{holdout}} \\approx \\text{RMSE}^2_{\\text{truth}} + "
+"\\sigma_{\\mathrm{RCT}}^2$. Con datos reales, una parte sustancial del error"
+" de holdout es, por lo tanto, ruido experimental irreducible y no error del "
+"modelo, y el RMSE de holdout no debe interpretarse como la distancia entre "
+"las predicciones y la verdad."
+
+#: ../source/notebooks/pie/pie_example.ipynb:380002
+#: 8d87d0c33e4846d6bab26141a7c26915
+msgid "Selecting Campaigns to Scale Up"
+msgstr "Selección de campañas para escalar"
+
+#: ../source/notebooks/pie/pie_example.ipynb:380004
+#: 36135b5bd13440008e022df8f20ba64d
+msgid ""
+"Suppose next quarter's plan is to scale up 60 of the 300 unmeasured "
+"campaigns. We compare three ways of choosing the 60 campaigns. The first "
+"ranks campaigns by the last-click metric, the second ranks them by PIE's "
+"posterior mean prediction, and the third ranks them by true "
+"incrementality. The third rule is impossible to apply in practice and "
+"serves as the best-case benchmark."
+msgstr ""
+"Supongamos que el plan del próximo trimestre es escalar 60 de las 300 "
+"campañas no medidas. Comparamos tres formas de elegir las 60 campañas. La "
+"primera ordena las campañas según la métrica de último clic, la segunda las "
+"ordena según la predicción de la media posterior de PIE, y la tercera las "
+"ordena según la incrementalidad real. La tercera regla es imposible de "
+"aplicar en la práctica y sirve como referencia del mejor caso."
+
+#: ../source/notebooks/pie/pie_example.ipynb:410002
+#: 4dd157c9f19a4888b051921a53226fbb
+msgid ""
+"Selecting by last-click performs worse than selecting at random, because "
+"it concentrates the budget on retargeting campaigns, whose last-click "
+"numbers mostly reflect conversions that would have happened anyway. "
+"Selecting by PIE's predictions recovers most of the campaigns with the "
+"highest true incrementality, even though last-click is one of the model's"
+" inputs. The model learned that the meaning of last-click depends on "
+"audience type, so the feature did not need to be removed."
+msgstr ""
+"Seleccionar por último clic funciona peor que seleccionar al azar, porque "
+"concentra el presupuesto en campañas de retargeting, cuyas cifras de último "
+"clic reflejan en su mayoría conversiones que habrían ocurrido de todos "
+"modos. Seleccionar según las predicciones de PIE recupera la mayoría de las "
+"campañas con mayor incrementalidad real, aunque el último clic es una de las"
+" entradas del modelo. El modelo aprendió que el significado del último clic "
+"depende del tipo de audiencia, por lo que no fue necesario eliminar esa "
+"característica."
+
+#: ../source/notebooks/pie/pie_example.ipynb:410005
+#: 262f66ba51b844139341d2c6ada7ad49
+msgid ""
+"On real data one caveat applies to this comparison. Post-determined "
+"features and the RCT's incrementality estimate are computed from the same"
+" campaign data, which can create a mechanical correlation between them. "
+"The paper removes this correlation with within-campaign sample splitting "
+"(§4.2), which this alpha does not implement. The simulation is not "
+"affected because the measurement noise is drawn independently of every "
+"feature, but on real data this comparison should only be trusted when "
+"sample splitting is in place."
+msgstr ""
+"Con datos reales, esta comparación tiene una salvedad. Las características "
+"posdeterminadas y la estimación de incrementalidad del RCT se calculan a "
+"partir de los mismos datos de campaña, lo que puede crear una correlación "
+"mecánica entre ellas. El artículo elimina esta correlación mediante la "
+"división de muestras dentro de cada campaña (§4.2), que esta versión alfa no"
+" implementa. La simulación no se ve afectada porque el ruido de medición se "
+"genera de forma independiente de cada característica, pero con datos reales "
+"esta comparación solo debería considerarse fiable cuando se aplique la "
+"división de muestras."
+
+#: ../source/notebooks/pie/pie_example.ipynb:420003
+#: d1ac0609127a4c5d87b7c99f8c792013
+msgid "What the Alpha Does Not Yet Implement"
+msgstr "Lo que la versión alfa aún no implementa"
+
+#: ../source/notebooks/pie/pie_example.ipynb:420005
+#: 103da822a7ce426b8a19d0506ab30b1a
+msgid ""
+"`PIEModel` implements the paper's core approach with the following "
+"deviations:"
+msgstr ""
+"`PIEModel` implementa el enfoque central del artículo con las siguientes "
+"diferencias:"
+
+#: ../source/notebooks/pie/pie_example.ipynb:420007
+#: bdabd5266d594265961a0f062a9df708
+msgid ""
+"**BART instead of a random forest:** a deliberate change. Because the "
+"ensemble is sampled, predictions carry posterior uncertainty without the "
+"need for bootstrap approximations."
+msgstr ""
+"**BART en lugar de un bosque aleatorio:** un cambio deliberado. Como el "
+"ensamble se muestrea, las predicciones incorporan incertidumbre posterior "
+"sin necesidad de aproximaciones por bootstrap."
+
+#: ../source/notebooks/pie/pie_example.ipynb:420008
+#: 628eb6bbe2b4428f8fdc8bd25fa47b9d
+msgid ""
+"**No decision-theoretic layer (paper §6):** the paper turns predictions "
+"into go/no-go decisions with explicit Type I/II error trade-offs. In this"
+" release that analysis must be done manually, as in the selection "
+"exercise above."
+msgstr ""
+"**Sin capa de teoría de la decisión (artículo, §6):** el artículo convierte "
+"las predicciones en decisiones de proceder o no proceder (go/no-go) con "
+"compensaciones explícitas entre errores de tipo I y II. En esta versión ese "
+"análisis debe hacerse manualmente, como en el ejercicio de selección "
+"anterior."
+
+#: ../source/notebooks/pie/pie_example.ipynb:420009
+#: 0d4a0121aca44612b00d18193941a1e5
+msgid ""
+"**No within-campaign sample splitting (paper §4.2):** needed on real data"
+" to remove the mechanical correlation between post-determined features "
+"and the RCT estimate, as described in the note above."
+msgstr ""
+"**Sin división de muestras dentro de la campaña (artículo, §4.2):** "
+"necesaria con datos reales para eliminar la correlación mecánica entre las "
+"características posdeterminadas y la estimación del RCT, como se describe en"
+" la nota anterior."
+
+#: ../source/notebooks/pie/pie_example.ipynb:420010
+#: f189cfafce5f404281af684129f5904a
+msgid ""
+"**No extrapolation / cold-start diagnostics (paper §5.3):** predictions "
+"for campaigns far outside the corpus's feature support are "
+"extrapolations, and the model does not yet warn when that happens."
+msgstr ""
+"**Sin diagnósticos de extrapolación / arranque en frío (artículo, §5.3):** "
+"las predicciones para campañas muy alejadas del soporte de características "
+"del corpus son extrapolaciones, y el modelo aún no advierte cuando eso "
+"ocurre."
+
+#: ../source/notebooks/pie/pie_example.ipynb:420011
+#: 48ca604293b9441298a88bb8d3f75122
+msgid ""
+"**No measurement-error layer:** each RCT's standard error could enter the"
+" likelihood as $y_{\\text{obs}} \\sim \\mathrm{Normal}(y_{\\text{true}}, "
+"\\mathrm{se}_{\\text{rct}})$. Currently a single $\\sigma$ is shared "
+"across the corpus."
+msgstr ""
+"**Sin capa de error de medición:** el error estándar de cada RCT podría "
+"entrar en la verosimilitud como $y_{\\text{obs}} \\sim "
+"\\mathrm{Normal}(y_{\\text{true}}, \\mathrm{se}_{\\text{rct}})$. Actualmente"
+" se comparte un único $\\sigma$ en todo el corpus."
+
+#: ../source/notebooks/pie/pie_example.ipynb:420013
+#: 821e07c66b674dcc90dbb6d9275e89e7
+#, python-brace-format
+msgid ""
+"See the {class}`~pymc_marketing.pie.PIEModel` docstring for the "
+"authoritative list."
+msgstr ""
+"Consulte el docstring de {class}`~pymc_marketing.pie.PIEModel` para ver la "
+"lista de referencia."
+
+#: ../source/notebooks/pie/pie_example.ipynb:430002
+#: 13b6e1e5621e44d88df65d2a06cabc19
+msgid "Appendix: Configuring the Model"
+msgstr "Apéndice: configuración del modelo"
+
+#: ../source/notebooks/pie/pie_example.ipynb:430004
+#: 0a4eb50ba63c434d8f33ec9e43ebf0e1
+msgid ""
+"`model_config` overrides the defaults returned by "
+"`PIEModel.default_model_config`:"
+msgstr ""
+"`model_config` sobrescribe los valores predeterminados devueltos por "
+"`PIEModel.default_model_config`:"
+
+#: ../source/notebooks/pie/pie_example.ipynb:430006
+#: 175b919e4769407db1571743a42864aa
+msgid ""
+"`\"bart\"`: `m` (number of trees), `alpha`/`beta` (tree-depth prior), and"
+" optionally `response` (`\"constant\"`, `\"linear\"`, or `\"mix\"`; the "
+"latter two fit linear leaves, which can help on smooth surfaces)."
+msgstr ""
+"`\"bart\"`: `m` (número de árboles), `alpha`/`beta` (prior de la profundidad"
+" de los árboles), y opcionalmente `response` (`\"constant\"`, `\"linear\"` o"
+" `\"mix\"`; las dos últimas ajustan hojas lineales, lo que puede ayudar en "
+"superficies suaves)."
+
+#: ../source/notebooks/pie/pie_example.ipynb:430007
+#: 677da608f65c40c4adb04c60291c2bbf
+msgid "`\"sigma\"`: a `pymc_extras.prior.Prior` for the noise scale."
+msgstr "`\"sigma\"`: un `pymc_extras.prior.Prior` para la escala del ruido."
+
+#: ../source/notebooks/pie/pie_example.ipynb:430008
+#: 5d20a72d8cac47098106566a6a518e96
+msgid ""
+"`\"categorical_split\"`: `\"onehot\"` (default) or `\"continuous\"` for "
+"label-encoded categorical columns."
+msgstr ""
+"`\"categorical_split\"`: `\"onehot\"` (predeterminado) o `\"continuous\"` "
+"para columnas categóricas codificadas con etiquetas."
+
+#: ../source/notebooks/pie/pie_example.ipynb:430010
+#: c7ccdf0a5a9c4d60872c998f353e3cc3
+msgid ""
+"One caveat is that top-level keys merge with the defaults while nested "
+"dicts are replaced wholesale, so a partial `\"bart\"` override must "
+"restate every required key (`m`, `alpha`, `beta`). As a quick sensitivity"
+" check, here is a lighter 50-tree ensemble on the same corpus:"
+msgstr ""
+"Una salvedad es que las claves de nivel superior se combinan con los valores"
+" predeterminados mientras que los diccionarios anidados se reemplazan por "
+"completo, por lo que una sobrescritura parcial de `\"bart\"` debe volver a "
+"indicar todas las claves requeridas (`m`, `alpha`, `beta`). Como "
+"comprobación rápida de sensibilidad, aquí tenemos un ensamble más ligero de "
+"50 árboles sobre el mismo corpus:"
+
+#: ../source/notebooks/pie/pie_example.ipynb:450002
+#: 5462a91a041140a1856b84ea2241140a
+msgid ""
+"On a response surface as simple as this simulation, an ensemble with a "
+"quarter of the trees performs comparably to the default at a fraction of "
+"the sampling time. The smaller ensemble is useful for fast iteration, "
+"while the default is a safer choice when the shape of the response "
+"surface is unknown."
+msgstr ""
+"En una superficie de respuesta tan simple como esta simulación, un ensamble "
+"con una cuarta parte de los árboles rinde de forma comparable al "
+"predeterminado en una fracción del tiempo de muestreo. El ensamble más "
+"pequeño es útil para iterar rápido, mientras que el predeterminado es una "
+"opción más segura cuando se desconoce la forma de la superficie de "
+"respuesta."

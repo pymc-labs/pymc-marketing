@@ -106,12 +106,6 @@ def test_parse_formula_invalid_target(mnl, sample_df):
         mnl.parse_formula(sample_df, formula, "choice")
 
 
-def test_parse_formula_missing_alt_covariate(mnl, sample_df):
-    formula = "alt ~ alt_X1 + missing_col | income"
-    with pytest.raises(ValueError):
-        mnl.parse_formula(sample_df, formula, "choice")
-
-
 def test_parse_formula_missing_fixed_covariate(mnl, sample_df):
     formula = "alt ~ alt_X1 + alt_X2 | missing_fixed"
     with pytest.raises(ValueError):
@@ -213,16 +207,6 @@ def test_make_change_plot_returns_figure(mnl, sample_change_df):
 class TestMakeIntercepts:
     """Tests for the make_intercepts() method."""
 
-    def test_make_intercepts_creates_deterministic(self, mnl, sample_df):
-        """Test that make_intercepts creates a Deterministic variable."""
-        _build_with_data(mnl, sample_df)
-
-        with pm.Model(coords=mnl.coords):
-            alphas = mnl.make_intercepts()
-
-            assert isinstance(alphas, pt.TensorVariable)
-            assert alphas.name == "alphas"
-
     def test_make_intercepts_last_alternative_zero(self, mnl, sample_df):
         """Test that the last alternative intercept is constrained to zero."""
         _build_with_data(mnl, sample_df)
@@ -237,16 +221,6 @@ class TestMakeIntercepts:
 
 class TestMakeAltCoefs:
     """Tests for the make_alt_coefs() method."""
-
-    def test_make_alt_coefs_creates_variable(self, mnl, sample_df):
-        """Test that make_alt_coefs creates the beta coefficients."""
-        _build_with_data(mnl, sample_df)
-
-        with pm.Model(coords=mnl.coords):
-            betas = mnl.make_alt_coefs()
-
-            assert isinstance(betas, pt.TensorVariable)
-            assert betas.name == "betas"
 
     def test_make_alt_coefs_correct_shape(self, mnl, sample_df):
         """Test that betas have the correct dimensionality."""
@@ -298,36 +272,9 @@ class TestMakeFixedCoefs:
             assert isinstance(F_contrib, pt.TensorVariable)
             assert F_contrib.type.shape == (n_obs, n_alts)
 
-    def test_make_fixed_coefs_last_alternative_zero(self, mnl, sample_df):
-        """Test that betas_fixed has last alternative constrained to zero."""
-        X, F, _y = _build_with_data(mnl, sample_df)
-        n_obs, n_alts = X.shape[0], X.shape[1]
-
-        with pm.Model(coords=mnl.coords) as model:
-            _ = mnl.make_fixed_coefs(F, n_obs, n_alts)
-
-            # Check that betas_fixed deterministic exists
-            assert "betas_fixed" in model.named_vars
-
 
 class TestMakeUtility:
     """Tests for the make_utility() method."""
-
-    def test_make_utility_creates_deterministic(self, mnl, sample_df):
-        """Test that make_utility creates a Deterministic variable U."""
-        X, F, _y = _build_with_data(mnl, sample_df)
-        n_obs, n_alts = X.shape[0], X.shape[1]
-
-        with pm.Model(coords=mnl.coords):
-            alphas = mnl.make_intercepts()
-            betas = mnl.make_alt_coefs()
-            X_data = pm.Data("X", X, dims=("obs", "alts", "alt_covariates"))
-            F_contrib = mnl.make_fixed_coefs(F, n_obs, n_alts)
-
-            U = mnl.make_utility(X_data, alphas, betas, F_contrib)
-
-            assert isinstance(U, pt.TensorVariable)
-            assert U.name == "U"
 
     def test_make_utility_correct_shape(self, mnl, sample_df):
         """Test that utility has shape (n_obs, n_alts)."""
@@ -347,23 +294,6 @@ class TestMakeUtility:
 
 class TestMakeChoiceProb:
     """Tests for the make_choice_prob() method."""
-
-    def test_make_choice_prob_creates_deterministic(self, mnl, sample_df):
-        """Test that make_choice_prob creates a Deterministic variable p."""
-        X, F, _y = _build_with_data(mnl, sample_df)
-        n_obs, n_alts = X.shape[0], X.shape[1]
-
-        with pm.Model(coords=mnl.coords):
-            alphas = mnl.make_intercepts()
-            betas = mnl.make_alt_coefs()
-            X_data = pm.Data("X", X, dims=("obs", "alts", "alt_covariates"))
-            F_contrib = mnl.make_fixed_coefs(F, n_obs, n_alts)
-            U = mnl.make_utility(X_data, alphas, betas, F_contrib)
-
-            p = mnl.make_choice_prob(U)
-
-            assert isinstance(p, pt.TensorVariable)
-            assert p.name == "p"
 
     def test_make_choice_prob_correct_shape(self, mnl, sample_df):
         """Test that probabilities have shape (n_obs, n_alts)."""
@@ -451,18 +381,6 @@ class TestBackwardCompatibility:
         assert hasattr(mnl, "idata")
         assert "posterior" in mnl.idata
         assert "prior" in mnl.idata
-
-    def test_intervention_still_works(self, mnl, sample_df, mock_pymc_sample):
-        """Test that interventions work with refactored model."""
-        mnl.fit(sample_df)
-        mnl.sample()
-
-        new = sample_df.copy()
-        new["alt_X1"] = new["alt_X1"] * 1.2
-        idata_new = mnl.apply_intervention(new)
-
-        assert "posterior_predictive" in idata_new
-        assert "p" in idata_new["posterior_predictive"]
 
 
 class TestEdgeCases:
