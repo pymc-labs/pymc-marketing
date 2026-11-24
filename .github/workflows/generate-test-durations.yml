@@ -31,37 +31,10 @@ jobs:
         run: |
           sudo apt-get install graphviz graphviz-dev
           uv pip install -e .[test]
-      - name: Compute PyTensor cache key
-        run: |
-          uv run --no-sync python -c "
-          import os
-          import importlib.metadata as md
-
-          pkgs = ['pytensor', 'numba', 'llvmlite', 'numpy', 'scipy']
-
-          def ver(pkg):
-              try:
-                  return md.version(pkg)
-              except Exception:
-                  return 'missing'
-
-          pflags = os.environ['PYTENSOR_FLAGS']
-          ncpu = os.environ['NUMBA_CPU_NAME']
-
-          with open('.pytensor-cache-key', 'w') as f:
-              for pkg in pkgs:
-                  f.write(f'{pkg}={ver(pkg)}\n')
-              f.write(f'pytensor_flags={pflags}\n')
-              f.write(f'numba_cpu={ncpu}\n')
-          "
-          test -f .pytensor-cache-key || echo 'fallback=unknown' > .pytensor-cache-key
-      - name: Restore PyTensor compile caches
-        uses: actions/cache@v4
+      - name: PyTensor compile cache
+        uses: ./.github/actions/pytensor-cache
         with:
-          path: ~/.pytensor
-          key: pytensor-${{ hashFiles('.pytensor-cache-key') }}-${{ github.run_id }}-durations
-          restore-keys: |
-            pytensor-${{ hashFiles('.pytensor-cache-key') }}-
+          save-suffix: durations
       - name: Run all tests with duration tracking
         # --run-slow: record real timings for slow-marked tests instead of
         # their skip times (test_slow groups balance on this file)

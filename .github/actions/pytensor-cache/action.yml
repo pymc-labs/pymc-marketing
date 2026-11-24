@@ -1,0 +1,42 @@
+name: PyTensor compile cache
+description: >-
+  Restore and save PyTensor compile caches (C compiledir and numba file
+  cache) under a version-derived key. The job must set the portable-target
+  pins (PYTENSOR_FLAGS=cxxflags=-march=x86-64 and NUMBA_CPU_NAME=generic)
+  so cache keys do not embed the runner's CPU: numba keys include the host
+  CPU name and pytensor's C keys include auto-detected march flags, and
+  GitHub's runner fleet is heterogeneous.
+
+inputs:
+  save-suffix:
+    description: >-
+      Suffix appended to the save key to distinguish publishers within a
+      run, e.g. "group1" for a matrix leg or "durations" for the durations
+      job. Different suffixes let multiple jobs publish without racing;
+      restores use the version-scoped prefix and pick the newest snapshot.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Compute PyTensor cache key
+      shell: bash
+      run: |
+        uv run --no-sync python "$GITHUB_ACTION_PATH/compute_key.py"
+        test -f .pytensor-cache-key || echo 'fallback=unknown' > .pytensor-cache-key
+
+    - name: Restore PyTensor compile caches
+      uses: actions/cache@v4
+      with:
+        path: ~/.pytensor
+        key: pytensor-${{ hashFiles('.pytensor-cache-key') }}-${{ github.run_id }}-${{ inputs.save-suffix }}
+        restore-keys: pytensor-${{ hashFiles('.pytensor-cache-key') }}-
+
+    - name: Inspect PyTensor cache
+      shell: bash
+      run: |
+        echo "PYTENSOR_FLAGS=$PYTENSOR_FLAGS"
+        echo "NUMBA_CPU_NAME=$NUMBA_CPU_NAME"
+        echo "pytensor .so count after restore: $(find ~/.pytensor -name '*.so' 2>/dev/null | wc -l)"
+        echo "numba .nbc count after restore: $(find ~/.pytensor -name '*.nbc' 2>/dev/null | wc -l)"
+        du -sh ~/.pytensor 2>/dev/null || true

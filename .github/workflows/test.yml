@@ -77,55 +77,10 @@ jobs:
         run: |
           OLDEST=$(grep '"pymc>=' pyproject.toml | head -1 | sed 's/.*>=//' | sed 's/[",].*//')
           uv run --no-sync --frozen python -c "import pymc; assert pymc.__version__ == '${OLDEST}', pymc.__version__"
-      - name: Compute PyTensor cache key
-        run: |
-          # Python version is intentionally not recorded: the numba cache
-          # suffixes cache files with the interpreter version and the C
-          # compiledir embeds it in its directory name, so entries
-          # self-select at load time.
-          uv run --no-sync python -c "
-          import importlib.metadata as md
-
-          # pymc is deliberately not keyed: its version does not participate
-          # in compilation cache keys, and keying it would split pools when
-          # the oldest-pymc matrix pin is real.
-          pkgs = ['pytensor', 'numba', 'llvmlite', 'numpy', 'scipy']
-
-          def ver(pkg):
-              try:
-                  return md.version(pkg)
-              except Exception:
-                  return 'missing'
-
-          import os
-
-          pflags = os.environ['PYTENSOR_FLAGS']
-          ncpu = os.environ['NUMBA_CPU_NAME']
-
-          with open('.pytensor-cache-key', 'w') as f:
-              for pkg in pkgs:
-                  f.write(f'{pkg}={ver(pkg)}\n')
-              # The portable-target pins change compile flags and cache keys,
-              # so they must be part of the version hash or new-style
-              # compilations can never be published over old-style entries.
-              f.write(f'pytensor_flags={pflags}\n')
-              f.write(f'numba_cpu={ncpu}\n')
-          "
-          test -f .pytensor-cache-key || echo 'fallback=unknown' > .pytensor-cache-key
-      - name: Restore PyTensor compile caches
-        uses: actions/cache@v4
+      - name: PyTensor compile cache
+        uses: ./.github/actions/pytensor-cache
         with:
-          path: ~/.pytensor
-          key: pytensor-${{ hashFiles('.pytensor-cache-key') }}-${{ github.run_id }}-group${{ matrix.group }}
-          restore-keys: |
-            pytensor-${{ hashFiles('.pytensor-cache-key') }}-
-      - name: Inspect restored PyTensor cache
-        run: |
-          echo "PYTENSOR_FLAGS=$PYTENSOR_FLAGS"
-          echo "NUMBA_CPU_NAME=$NUMBA_CPU_NAME"
-          echo "pytensor .so count after restore: $(find ~/.pytensor -name '*.so' 2>/dev/null | wc -l)"
-          echo "numba .nbc count after restore: $(find ~/.pytensor -name '*.nbc' 2>/dev/null | wc -l)"
-          du -sh ~/.pytensor 2>/dev/null || true
+          save-suffix: group${{ matrix.group }}
       - name: Run tests
         run: |
           echo "pytensor .so count before tests: $(find ~/.pytensor -name '*.so' 2>/dev/null | wc -l)"
