@@ -98,12 +98,20 @@ jobs:
           key: pytensor-${{ hashFiles('.pytensor-cache-key') }}-${{ github.run_id }}-group${{ matrix.group }}
           restore-keys: |
             pytensor-${{ hashFiles('.pytensor-cache-key') }}-
+      - name: Inspect restored PyTensor cache
+        run: |
+          echo "pytensor .so count after restore: $(find ~/.pytensor -name '*.so' 2>/dev/null | wc -l)"
+          echo "numba .nbc count after restore: $(find ~/.pytensor -name '*.nbc' 2>/dev/null | wc -l)"
+          du -sh ~/.pytensor 2>/dev/null || true
       - name: Run tests
         run: |
+          echo "pytensor .so count before tests: $(find ~/.pytensor -name '*.so' 2>/dev/null | wc -l)"
           uv run --no-sync --frozen pytest --splits 6 \
                  --group ${{ matrix.group }} \
                  --splitting-algorithm least_duration \
                  --durations-path .test_durations
+          echo "pytensor .so count after tests: $(find ~/.pytensor -name '*.so' 2>/dev/null | wc -l)"
+          echo "numba .nbc count after tests: $(find ~/.pytensor -name '*.nbc' 2>/dev/null | wc -l)"
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v7.1.1
         with:
