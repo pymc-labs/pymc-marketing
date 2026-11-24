@@ -47,7 +47,7 @@ jobs:
       # and pytensor's C key includes auto-detected march flags, so warm
       # restores only hit on runners of the same CPU generation.
       PYTENSOR_FLAGS: >-
-        cxxflags=-march=x86-64,compiledir_format=compiledir-%(platform)s-%(python_version)s-%(python_bitwidth)s
+        cxxflags=-march=x86-64,compiledir_format=compiledir-%(python_version)s-%(python_bitwidth)s
       NUMBA_CPU_NAME: generic
     strategy:
       fail-fast: false
