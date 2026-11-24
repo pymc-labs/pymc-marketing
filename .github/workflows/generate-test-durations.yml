@@ -15,7 +15,8 @@ jobs:
     env:
       # Match the test job's portable-target pins so this job shares the
       # same cache pool (keys must not embed the runner's CPU).
-      PYTENSOR_FLAGS: cxxflags=-march=x86-64
+      PYTENSOR_FLAGS: >-
+        cxxflags=-march=x86-64,compiledir_format=compiledir-%(platform)s-%(python_version)s-%(python_bitwidth)s
       NUMBA_CPU_NAME: generic
     steps:
       - uses: actions/checkout@v7.0.1

@@ -31,6 +31,7 @@ jobs:
           filters: |
             code:
               - ".github/workflows/test.yml"
+              - ".github/actions/pytensor-cache/**"
               - "pyproject.toml"
               - "tests/**.py"
               - "pymc_marketing/**"
@@ -45,7 +46,8 @@ jobs:
       # native CPU targeting, numba's cache key includes the host CPU name
       # and pytensor's C key includes auto-detected march flags, so warm
       # restores only hit on runners of the same CPU generation.
-      PYTENSOR_FLAGS: cxxflags=-march=x86-64
+      PYTENSOR_FLAGS: >-
+        cxxflags=-march=x86-64,compiledir_format=compiledir-%(platform)s-%(python_version)s-%(python_bitwidth)s
       NUMBA_CPU_NAME: generic
     strategy:
       fail-fast: false
@@ -80,18 +82,21 @@ jobs:
       - name: PyTensor compile cache
         uses: ./.github/actions/pytensor-cache
         with:
-          save-suffix: group${{ matrix.group }}
+          save-suffix: ${{ matrix.config.oldest-pymc && 'oldest' || 'latest' }}-group${{ matrix.group }}
       - name: Run tests
         run: |
-          echo "pytensor .so count before tests: $(find ~/.pytensor -name '*.so' 2>/dev/null | wc -l)"
           uv run --no-sync --frozen pytest --splits 6 \
                  --group ${{ matrix.group }} \
                  --splitting-algorithm least_duration \
                  --durations-path .test_durations
+      - name: Collect PyTensor cache counts
+        if: always()
+        run: |
           mkdir -p /tmp/pytensor-cache-stats
           (find ~/.pytensor -name '*.so' 2>/dev/null || true) | wc -l > /tmp/pytensor-cache-stats/after_so
           (find ~/.pytensor -name '*.nbc' 2>/dev/null || true) | wc -l > /tmp/pytensor-cache-stats/after_nbc
       - name: Report PyTensor cache hit rate
+        if: always()
         run: |
           rso=$(cat /tmp/pytensor-cache-stats/restore_so)
           rnbc=$(cat /tmp/pytensor-cache-stats/restore_nbc)

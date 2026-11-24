@@ -23,14 +23,15 @@ runs:
       shell: bash
       run: |
         uv run --no-sync python "$GITHUB_ACTION_PATH/compute_key.py"
-        test -f .pytensor-cache-key || echo 'fallback=unknown' > .pytensor-cache-key
 
     - name: Restore PyTensor compile caches
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: ~/.pytensor
-        key: pytensor-${{ hashFiles('.pytensor-cache-key') }}-${{ github.run_id }}-${{ inputs.save-suffix }}
-        restore-keys: pytensor-${{ hashFiles('.pytensor-cache-key') }}-
+        key: pytensor-${{ hashFiles('.pytensor-cache-key') }}-${{ inputs.save-suffix }}-${{ github.run_id }}
+        restore-keys: |
+          pytensor-${{ hashFiles('.pytensor-cache-key') }}-${{ inputs.save-suffix }}-
+          pytensor-${{ hashFiles('.pytensor-cache-key') }}-
 
     - name: Inspect PyTensor cache
       shell: bash
@@ -40,6 +41,7 @@ runs:
         echo "pytensor .so count after restore: $(find ~/.pytensor -name '*.so' 2>/dev/null | wc -l)"
         echo "numba .nbc count after restore: $(find ~/.pytensor -name '*.nbc' 2>/dev/null | wc -l)"
         du -sh ~/.pytensor 2>/dev/null || true
+        ls ~/.pytensor 2>/dev/null || true
         mkdir -p /tmp/pytensor-cache-stats
         (find ~/.pytensor -name '*.so' 2>/dev/null || true) | wc -l > /tmp/pytensor-cache-stats/restore_so
         (find ~/.pytensor -name '*.nbc' 2>/dev/null || true) | wc -l > /tmp/pytensor-cache-stats/restore_nbc
