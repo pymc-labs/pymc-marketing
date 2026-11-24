@@ -15,6 +15,7 @@ inputs:
       every test slice, and under actions/cache's newest-wins restore rule
       the most complete newest entry is what maximizes hit rate. Test jobs
       restore-only.
+    type: boolean
     default: false
 
   lineage:
@@ -33,7 +34,7 @@ runs:
 
     - name: Restore PyTensor compile caches (restore-only)
       id: restore
-      if: ${{ inputs.publish == false }}
+      if: ${{ inputs.publish != true }}
       uses: actions/cache/restore@v6
       with:
         path: ~/.pytensor
@@ -47,7 +48,7 @@ runs:
       # does not stay cold until the publishing job succeeds. Partial
       # restores (prefix hit) stay silent: the publisher's full-suite
       # snapshot is the proper cover for the delta.
-      if: ${{ inputs.publish == false && steps.restore.outputs.cache-matched-key == '' }}
+      if: ${{ inputs.publish != true && steps.restore.outputs.cache-matched-key == '' }}
       uses: actions/cache/save@v6
       with:
         path: ~/.pytensor
