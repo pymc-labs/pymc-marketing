@@ -8,13 +8,20 @@ description: >-
   GitHub's runner fleet is heterogeneous.
 
 inputs:
-  save-suffix:
+  publish:
     description: >-
-      Suffix appended to the save key to distinguish publishers within a
-      run, e.g. "group1" for a matrix leg or "durations" for the durations
-      job. Different suffixes let multiple jobs publish without racing;
-      restores use the version-scoped prefix and pick the newest snapshot.
-    required: true
+      Whether this job publishes a snapshot. Only the durations job (which
+      runs the full suite) should publish: its snapshot is a superset of
+      every test slice, and under actions/cache's newest-wins restore rule
+      the most complete newest entry is what maximizes hit rate. Test jobs
+      restore-only.
+    default: false
+
+  lineage:
+    description: >-
+      Label for the publishing job's save key, e.g. "durations". Unused by
+      restore-only consumers.
+    default: durations
 
 runs:
   using: composite
@@ -26,7 +33,7 @@ runs:
 
     - name: Restore PyTensor compile caches (restore-only)
       id: restore
-      if: ${{ inputs.publish == 'false' }}
+      if: ${{ inputs.publish == false }}
       uses: actions/cache/restore@v6
       with:
         path: ~/.pytensor
@@ -40,14 +47,14 @@ runs:
       # does not stay cold until the publishing job succeeds. Partial
       # restores (prefix hit) stay silent: the publisher's full-suite
       # snapshot is the proper cover for the delta.
-      if: ${{ inputs.publish == 'false' && steps.restore.outputs.cache-matched-key == '' }}
+      if: ${{ inputs.publish == false && steps.restore.outputs.cache-matched-key == '' }}
       uses: actions/cache/save@v6
       with:
         path: ~/.pytensor
         key: pytensor-${{ hashFiles('.pytensor-cache-key') }}-bootstrap-${{ github.run_id }}-${{ runner.name }}
 
     - name: Restore and save PyTensor compile caches
-      if: ${{ inputs.publish == 'true' }}
+      if: ${{ inputs.publish == true }}
       uses: actions/cache@v6
       with:
         path: ~/.pytensor
