@@ -12,6 +12,11 @@ permissions:
 jobs:
   generate-durations:
     runs-on: ubuntu-latest
+    env:
+      # Match the test job's portable-target pins so this job shares the
+      # same cache pool (keys must not embed the runner's CPU).
+      PYTENSOR_FLAGS: cxxflags=-march=x86-64
+      NUMBA_CPU_NAME: generic
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -26,13 +31,44 @@ jobs:
         run: |
           sudo apt-get install graphviz graphviz-dev
           uv pip install -e .[test]
+      - name: Compute PyTensor cache key
+        run: |
+          uv run --no-sync python -c "
+          import os
+          import importlib.metadata as md
+
+          pkgs = ['pytensor', 'numba', 'llvmlite', 'numpy', 'scipy']
+
+          def ver(pkg):
+              try:
+                  return md.version(pkg)
+              except Exception:
+                  return 'missing'
+
+          pflags = os.environ['PYTENSOR_FLAGS']
+          ncpu = os.environ['NUMBA_CPU_NAME']
+
+          with open('.pytensor-cache-key', 'w') as f:
+              for pkg in pkgs:
+                  f.write(f'{pkg}={ver(pkg)}\n')
+              f.write(f'pytensor_flags={pflags}\n')
+              f.write(f'numba_cpu={ncpu}\n')
+          "
+          test -f .pytensor-cache-key || echo 'fallback=unknown' > .pytensor-cache-key
+      - name: Restore PyTensor compile caches
+        uses: actions/cache@v4
+        with:
+          path: ~/.pytensor
+          key: pytensor-${{ hashFiles('.pytensor-cache-key') }}-${{ github.run_id }}-durations
+          restore-keys: |
+            pytensor-${{ hashFiles('.pytensor-cache-key') }}-
       - name: Run all tests with duration tracking
         # --run-slow: record real timings for slow-marked tests instead of
         # their skip times (test_slow groups balance on this file)
         # --clean-durations: replace the whole file each run instead of
         # merging, so deleted tests cannot persist as phantom entries
         run: |
-          uv run pytest --store-durations --durations-path .test_durations --clean-durations --run-slow -v
+          uv run --no-sync pytest --store-durations --durations-path .test_durations --clean-durations --run-slow -v
         continue-on-error: true  # Generate durations even if some tests fail
       - name: Guard against truncated durations file
         # continue-on-error is intentional above, but a hard pytest crash
