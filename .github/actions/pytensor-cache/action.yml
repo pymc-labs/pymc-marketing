@@ -24,13 +24,22 @@ runs:
       run: |
         uv run --no-sync python "$GITHUB_ACTION_PATH/compute_key.py"
 
-    - name: Restore PyTensor compile caches
+    - name: Restore PyTensor compile caches (restore-only)
+      if: ${{ inputs.publish == 'false' }}
+      uses: actions/cache/restore@v6
+      with:
+        path: ~/.pytensor
+        key: pytensor-${{ hashFiles('.pytensor-cache-key') }}-restore-${{ github.run_id }}
+        restore-keys: |
+          pytensor-${{ hashFiles('.pytensor-cache-key') }}-
+
+    - name: Restore and save PyTensor compile caches
+      if: ${{ inputs.publish == 'true' }}
       uses: actions/cache@v6
       with:
         path: ~/.pytensor
-        key: pytensor-${{ hashFiles('.pytensor-cache-key') }}-${{ inputs.save-suffix }}-${{ github.run_id }}
+        key: pytensor-${{ hashFiles('.pytensor-cache-key') }}-${{ inputs.lineage }}-${{ github.run_id }}
         restore-keys: |
-          pytensor-${{ hashFiles('.pytensor-cache-key') }}-${{ inputs.save-suffix }}-
           pytensor-${{ hashFiles('.pytensor-cache-key') }}-
 
     - name: Inspect PyTensor cache

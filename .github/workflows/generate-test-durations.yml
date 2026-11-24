@@ -35,7 +35,8 @@ jobs:
       - name: PyTensor compile cache
         uses: ./.github/actions/pytensor-cache
         with:
-          save-suffix: durations
+          publish: true
+          lineage: durations
       - name: Run all tests with duration tracking
         # --run-slow: record real timings for slow-marked tests instead of
         # their skip times (test_slow groups balance on this file)
