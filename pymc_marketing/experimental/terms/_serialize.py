@@ -36,6 +36,7 @@ import pandas as pd
 import xarray as xr
 from pymc_extras.prior import Prior, VariableFactory
 
+from pymc_marketing.experimental.terms._latent import LatentState, LatentStateSpace
 from pymc_marketing.mmm.components.base import Transformation
 from pymc_marketing.mmm.fourier import FourierBase
 from pymc_marketing.names import Key
@@ -71,10 +72,27 @@ for _key, _term in (
     ("pymc_marketing.terms.Data", Data),
     ("pymc_marketing.terms.Equation", Equation),
     ("pymc_marketing.terms.MediaTransform", MediaTransform),
+    ("pymc_marketing.experimental.terms.LatentStateSpace", LatentStateSpace),
+    ("pymc_marketing.experimental.terms.LatentState", LatentState),
 ):
     serialization.register(
         _key, _term, serializer=_standalone, deserializer=_standalone
     )
+
+_STATESPACE_MODULE = "pymc_extras.statespace"
+
+
+def _statespace_class(name: str) -> type:
+    """Resolve a saved statespace model class, only from ``pymc_extras.statespace``."""
+    import pymc_extras.statespace as statespace
+    from pymc_extras.statespace.core import PyMCStateSpace
+
+    cls = getattr(statespace, name, None)
+    if not (isinstance(cls, type) and issubclass(cls, PyMCStateSpace)):
+        raise SerializationError(
+            f"{name!r} is not a model class of {_STATESPACE_MODULE}."
+        )
+    return cls
 
 
 def _node_fields(term: Any) -> dict[str, Any]:
@@ -196,6 +214,12 @@ class _Writer:
             if not all(isinstance(key, str) for key in value):
                 raise SerializationError("Saved mappings need string keys.")
             return {"$map": {key: self.value(item) for key, item in value.items()}}
+        if isinstance(value, type) and value.__module__.startswith(_STATESPACE_MODULE):
+            if _statespace_class(value.__name__) is not value:
+                raise SerializationError(
+                    f"Save statespace models exported by {_STATESPACE_MODULE}; got {value!r}."
+                )
+            return {"$statespace": value.__name__}
         if callable(value) and not isinstance(value, type):
             return {"$func": _func_name(value)}
         raise SerializationError(f"Cannot save a value of type {type(value).__name__}.")
@@ -268,21 +292,29 @@ class _Reader:
             return {key: self.value(item) for key, item in payload.items()}
         if tag == "$func":
             return _resolve_func(payload)
+        if tag == "$statespace":
+            return _statespace_class(payload)
         raise SerializationError(f"Unrecognized saved value tag {tag!r}.")
 
 
-def spec_to_dict(roots: Sequence[Equation]) -> dict[str, Any]:
+def spec_to_dict(
+    roots: Sequence[Equation], marginalize: Sequence[Any] = ()
+) -> dict[str, Any]:
     """Serialize equations to a JSON-safe node table, sharing terms by identity.
 
     Parameters
     ----------
     roots : sequence of Equation
         Observed equations of one model, in declaration order.
+    marginalize : sequence of LatentStateSpace, optional
+        Latents the model integrates out, stored as references to the same nodes
+        the equations use.
 
     Returns
     -------
     dict
-        ``{"format", "roots", "nodes"}``, JSON-serializable.
+        ``{"format", "roots", "nodes"}`` plus ``"marginalize"`` when given,
+        JSON-serializable.
 
     Raises
     ------
@@ -290,11 +322,14 @@ def spec_to_dict(roots: Sequence[Equation]) -> dict[str, Any]:
         If a term or value cannot be saved, for example a ``Transform`` of a lambda.
     """
     writer = _Writer()
-    return {
+    spec: dict[str, Any] = {
         "format": FORMAT,
         "roots": [writer.node(root)["$ref"] for root in roots],
-        "nodes": writer.nodes,
     }
+    if marginalize:
+        spec["marginalize"] = [writer.node(latent)["$ref"] for latent in marginalize]
+    spec["nodes"] = writer.nodes
+    return spec
 
 
 def spec_from_dict(data: Mapping[str, Any]) -> tuple[Equation, ...]:
@@ -315,6 +350,29 @@ def spec_from_dict(data: Mapping[str, Any]) -> tuple[Equation, ...]:
     SerializationError
         If the format is unknown or a node is invalid.
     """
+    return read_spec(data)[0]
+
+
+def read_spec(
+    data: Mapping[str, Any],
+) -> tuple[tuple[Equation, ...], tuple[Any, ...]]:
+    """Rebuild equations and marginalized latents from ``spec_to_dict`` output.
+
+    Parameters
+    ----------
+    data : mapping
+        Saved node table.
+
+    Returns
+    -------
+    tuple
+        Root equations and the latents to marginalize, sharing nodes.
+
+    Raises
+    ------
+    SerializationError
+        If the format is unknown or a node is invalid.
+    """
     if data.get("format") != FORMAT:
         raise SerializationError(
             f"Unsupported saved model format {data.get('format')!r}; expected {FORMAT!r}."
@@ -323,4 +381,9 @@ def spec_from_dict(data: Mapping[str, Any]) -> tuple[Equation, ...]:
     roots = tuple(reader.node(identifier) for identifier in data["roots"])
     if not all(isinstance(root, Equation) for root in roots):
         raise SerializationError("Saved model roots must be equations.")
-    return roots
+    marginalize = tuple(
+        reader.node(identifier) for identifier in data.get("marginalize", ())
+    )
+    if not all(isinstance(latent, LatentStateSpace) for latent in marginalize):
+        raise SerializationError("Saved marginalized nodes must be latents.")
+    return roots, marginalize

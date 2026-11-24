@@ -28,7 +28,7 @@ import pytensor
 import xarray as xr
 import zarr
 
-from pymc_marketing.experimental.terms._serialize import spec_from_dict, spec_to_dict
+from pymc_marketing.experimental.terms._serialize import read_spec, spec_to_dict
 from pymc_marketing.names import Group
 from pymc_marketing.names.mmm import Dim
 from pymc_marketing.terms._data import validate_dataset
@@ -111,9 +111,10 @@ class SCM:
         # scm.sample_posterior_predictive(future)
     """
 
-    def __init__(self, *equations: Equation) -> None:
+    def __init__(self, *equations: Equation, marginalize: Sequence[Any] = ()) -> None:
         self._roots = tuple({id(root): root for root in equations}.values())
         self._validate_roots()
+        self._marginalize = tuple(marginalize)
         self.model: pm.Model | None = None
         self.idata: xr.DataTree | None = None
         self._context: BuildContext | None = None
@@ -138,8 +139,10 @@ class SCM:
             raise ValueError("Equation names must be distinct.")
 
     def _key(self) -> Any:
-        return specification_key(self._roots), tuple(
-            id(node) for node in walk(self._roots)
+        return (
+            specification_key(self._roots),
+            tuple(id(node) for node in walk(self._roots)),
+            tuple(id(latent) for latent in self._marginalize),
         )
 
     def _new_model(
@@ -149,6 +152,7 @@ class SCM:
         prediction: bool = False,
         condition_on: Sequence[str] = (),
         history_length: int = 0,
+        simulate_latents: bool = False,
     ) -> tuple[pm.Model, BuildContext]:
         model = pm.Model(coords={dim: data.coords[dim].values for dim in data.dims})
         with model:
@@ -159,12 +163,31 @@ class SCM:
                 condition_on=condition_on,
                 history_length=history_length,
             )
+            if self._marginalize:
+                from pymc_marketing.experimental.terms._latent import (
+                    plan_marginalization,
+                )
+                from pymc_marketing.experimental.terms._latent import (
+                    simulate_latents as draw_latents_forward,
+                )
+
+                # Validated in both modes, so a prior predictive check refuses what
+                # training would refuse
+                plan = plan_marginalization(
+                    [node for node in walk(self._roots) if isinstance(node, Equation)],
+                    self._marginalize,
+                )
+                if simulate_latents:
+                    # Prior predictive draws marginalized latents forward instead
+                    draw_latents_forward(context, self._marginalize)
+                else:
+                    context.equation_builders.update(plan)
             for root in self._roots:
                 context.build(root)
         return model, context
 
     def _training_model(
-        self, data: xr.Dataset
+        self, data: xr.Dataset, *, simulate_latents: bool = False
     ) -> tuple[xr.Dataset, pm.Model, BuildContext]:
         self._validate_roots()
         data = validate_dataset(data).copy(deep=True)
@@ -177,7 +200,7 @@ class SCM:
                 raise ValueError(
                     f"Training data are missing observations {node.observed!r}."
                 )
-        model, context = self._new_model(data)
+        model, context = self._new_model(data, simulate_latents=simulate_latents)
         return data, model, context
 
     def build_model(self, data: xr.Dataset) -> pm.Model:
@@ -232,12 +255,18 @@ class SCM:
         xarray.DataTree
             ``prior``, ``prior_predictive``, and ``observed_data`` groups. Nothing is
             stored on this object, and an existing fit is left untouched.
+
+        Notes
+        -----
+        Marginalized latents are drawn forward from the prior here rather than
+        filtered, so the draws never depend on the observations. Their state paths
+        are in the ``prior`` group as ``{latent}_latent``.
         """
         if conflicts := {"model", "return_inferencedata"} & kwargs.keys():
             raise ValueError(
                 f"Prior predictive sampling manages these arguments: {sorted(conflicts)}."
             )
-        _, model, _ = self._training_model(data)
+        _, model, _ = self._training_model(data, simulate_latents=True)
         result = pm.sample_prior_predictive(
             draws=draws, model=model, var_names=var_names, **kwargs
         )
@@ -315,7 +344,7 @@ class SCM:
             }
         )
         tree.attrs = {
-            "spec": spec_to_dict(self._roots),
+            "spec": spec_to_dict(self._roots, self._marginalize),
             "versions": _versions(),
             "logp_check": _logp_check(
                 cast(pm.Model, self.model), idata["posterior"].to_dataset()
@@ -365,7 +394,8 @@ class SCM:
         )
         if "spec" not in tree.attrs or Group.FIT_DATA not in tree.children:
             raise ValueError(f"{str(path)!r} is not a model saved by SCM.save.")
-        scm = cls(*spec_from_dict(tree.attrs["spec"]))
+        roots, marginalize = read_spec(tree.attrs["spec"])
+        scm = cls(*roots, marginalize=marginalize)
         model = scm.build_model(_native_strings(tree[Group.FIT_DATA].to_dataset()))
         scm.idata = xr.DataTree.from_dict(
             {
