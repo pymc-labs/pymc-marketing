@@ -33,7 +33,6 @@ import xarray as xr
 from pymc_extras.prior import Prior, VariableFactory
 from pytensor.graph.basic import Variable
 
-from pymc_marketing.experimental.terms._data import _align_labels, _dates
 from pymc_marketing.mmm.components.base import Transformation
 from pymc_marketing.mmm.fourier import FourierBase
 from pymc_marketing.mmm.link import LinkFunction, get_link_spec
@@ -49,6 +48,7 @@ from pymc_marketing.terms import (
     get_coords,
     register_data,
 )
+from pymc_marketing.terms._data import _align_labels, _dates
 
 if TYPE_CHECKING:
     from pymc_marketing.experimental.terms._terms import MediaTransform

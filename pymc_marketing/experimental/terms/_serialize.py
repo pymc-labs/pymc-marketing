@@ -36,7 +36,6 @@ import pandas as pd
 import xarray as xr
 from pymc_extras.prior import Prior, VariableFactory
 
-from pymc_marketing.experimental.terms._graph import Data, Equation, GraphTerm
 from pymc_marketing.experimental.terms._terms import MediaTransform
 from pymc_marketing.mmm.components.base import Transformation
 from pymc_marketing.mmm.fourier import FourierBase
@@ -55,6 +54,7 @@ from pymc_marketing.terms import (
     _resolve_func,
     _serialize_child,
 )
+from pymc_marketing.terms._graph import Data, Equation, GraphTerm
 
 FORMAT = "pymc_marketing.experimental.SCM/1"
 
@@ -68,6 +68,17 @@ def _standalone(*_: Any) -> Any:
 for _graph_term in (Data, Equation, MediaTransform):
     serialization.register(
         _graph_term, serializer=_standalone, deserializer=_standalone
+    )
+
+# Data and Equation moved to pymc_marketing.terms; saved models written before
+# the move carry their old module path under ``__type__``. Register the old
+# paths as read aliases so older stores keep loading.
+for _moved_key, _moved_cls in (
+    ("pymc_marketing.experimental.terms._graph.Data", Data),
+    ("pymc_marketing.experimental.terms._graph.Equation", Equation),
+):
+    serialization.register(
+        _moved_key, _moved_cls, serializer=_standalone, deserializer=_standalone
     )
 
 

@@ -24,17 +24,17 @@ import xarray as xr
 from pymc_extras.prior import VariableFactory
 from pytensor.xtensor.type import XTensorVariable
 
-from pymc_marketing.experimental.terms._data import _dates
-from pymc_marketing.experimental.terms._graph import (
-    BuildContext,
-    GraphTerm,
-    _dimensions,
-)
 from pymc_marketing.mmm.components.adstock import AdstockTransformation, NoAdstock
 from pymc_marketing.mmm.components.base import Transformation
 from pymc_marketing.mmm.fourier import FourierBase
 from pymc_marketing.mmm.transformers import ConvMode
 from pymc_marketing.names.mmm import Dim
+from pymc_marketing.terms._data import _dates
+from pymc_marketing.terms._graph import (
+    BuildContext,
+    GraphTerm,
+    _dimensions,
+)
 
 
 class MediaTransform(GraphTerm):

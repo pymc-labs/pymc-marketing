@@ -83,10 +83,19 @@ Measured history and carryover rows are explicit and fixed; outputs exclude hist
 while allocations contain only decided rows.
 """
 
-from pymc_marketing.experimental.terms._graph import Data, Equation
+import warnings
+
 from pymc_marketing.experimental.terms._optimizer import OptimizationResult, Problem
 from pymc_marketing.experimental.terms._scm import SCM
 from pymc_marketing.experimental.terms._terms import MediaTransform
+from pymc_marketing.terms import Data, Equation
+
+warnings.warn(
+    "Data and Equation moved to pymc_marketing.terms; import them from there. "
+    "The re-exports in pymc_marketing.experimental.terms are deprecated.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 __all__ = [
     "SCM",

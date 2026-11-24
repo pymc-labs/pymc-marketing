@@ -22,8 +22,7 @@ import xarray as xr
 from numpy.testing import assert_allclose
 from pymc_extras.prior import Prior
 
-from pymc_marketing.experimental.terms import Data, MediaTransform
-from pymc_marketing.experimental.terms._graph import BuildContext, total_lookback
+from pymc_marketing.experimental.terms import MediaTransform
 from pymc_marketing.mmm import (
     GeometricAdstock,
     LogisticSaturation,
@@ -32,7 +31,8 @@ from pymc_marketing.mmm import (
     YearlyFourier,
 )
 from pymc_marketing.mmm.transformers import ConvMode
-from pymc_marketing.terms import Parameter
+from pymc_marketing.terms import Data, Parameter
+from pymc_marketing.terms._graph import BuildContext, total_lookback
 
 DATES = pd.date_range("2025-01-06", periods=5, freq="W-MON")
 CHANNELS = ["radio", "tv"]
