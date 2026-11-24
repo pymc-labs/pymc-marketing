@@ -78,7 +78,10 @@ jobs:
           uv run --no-sync python -c "
           import importlib.metadata as md
 
-          pkgs = ['pytensor', 'numba', 'llvmlite', 'numpy', 'scipy', 'pymc']
+          # pymc is deliberately not keyed: its version does not participate
+          # in compilation cache keys, and keying it would split pools when
+          # the oldest-pymc matrix pin is real.
+          pkgs = ['pytensor', 'numba', 'llvmlite', 'numpy', 'scipy']
 
           def ver(pkg):
               try:
