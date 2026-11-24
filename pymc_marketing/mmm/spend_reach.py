@@ -745,9 +745,10 @@ def completeness_tolerance(
     -------
     float
         ``max(COMPLETENESS_TOLERANCE * scale, safety * eps * magnitude)``, as a
-        Python float: :func:`numpy.allclose` rounds a Python float ``atol`` to
-        the compared dtype but not a ``np.float64`` one, and
-        :meth:`ProbeStatistics.residual_within` always rounds it.
+        Python float: :func:`numpy.allclose` rounds it to the dtype of its
+        second argument, the predictor, as
+        :meth:`ProbeStatistics.residual_within` does, and would not round a
+        ``np.float64`` to a float32 predictor.
     """
     eps = np.finfo(dtype if np.issubdtype(dtype, np.inexact) else np.float64).eps
     return float(
@@ -973,13 +974,12 @@ class ProbeStatistics:
         """Whether the largest residual is within *atol*, as :func:`numpy.allclose` decides it.
 
         ``np.allclose(accounted, expected, rtol=0.0, atol=atol)`` compares each
-        ``|accounted - expected|`` against ``atol`` cast to the predictor's dtype,
-        so *atol* is rounded to that dtype first.  Both sides are then exact in
-        float64, so comparing them there decides it the same way.  Under NEP 50
-        ``allclose`` rounds a Python float or a ``np.float32`` *atol*, not a
-        ``np.float64`` one, so the answers can differ for a ``np.float64``
-        *atol* against a float32 predictor; :meth:`tolerance` returns a Python
-        float.
+        ``|accounted - expected|`` against *atol* rounded to the predictor's
+        dtype when *atol* is a Python float or int, or a NumPy floating scalar
+        no wider than that dtype.  Both sides are then exact in float64, so
+        comparing them there decides it the same way.  A ``np.float64`` *atol*
+        against a float32 predictor is not rounded, which is why
+        :meth:`tolerance` returns a Python float.
 
         Parameters
         ----------
