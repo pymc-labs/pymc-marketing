@@ -25,9 +25,9 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v8.3.2
       - name: Set up Python
-        run: uv python install 3.13
+        run: uv python install 3.14
       - name: Set up environment
-        run: uv venv --python 3.13
+        run: uv venv --python 3.14
       - name: Install dependencies
         run: |
           sudo apt-get install graphviz graphviz-dev
@@ -49,8 +49,8 @@ jobs:
         # (segfault/OOM) would skip sessionfinish and leave a partial file;
         # refuse to open the PR if that happened
         run: |
-          collected=$(uv run pytest --collect-only -q 2>/dev/null | grep -o "[0-9]* tests collected" | cut -d' ' -f1)
-          stored=$(python -c "import json; print(len(json.load(open('.test_durations'))))")
+          collected=$(uv run --no-sync pytest --collect-only -q 2>/dev/null | grep -o "[0-9]* tests collected" | cut -d' ' -f1)
+          stored=$(uv run --no-sync python -c "import json; print(len(json.load(open('.test_durations'))))")
           echo "collected=${collected} stored=${stored}"
           if [ -z "${collected}" ] || [ "${stored}" -lt "${collected}" ]; then
             echo "::error::Durations file is truncated (${stored} stored < ${collected} collected); not opening PR"
