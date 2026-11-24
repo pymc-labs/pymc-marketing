@@ -33,7 +33,7 @@ from xarray import DataArray
 
 import pymc_marketing.mmm.budget_optimizer as budget_optimizer_module
 import pymc_marketing.mmm.price_schedule as price_schedule_module
-from pymc_marketing.mmm import MMM
+from pymc_marketing.mmm import MMM, WindowLayout
 from pymc_marketing.mmm.additive_effect import MuEffect
 from pymc_marketing.mmm.budget_optimizer import (
     BudgetOptimizationResult,
@@ -2107,6 +2107,54 @@ class TestDateAxisMustMatchTheBlocks:
             assert block in message
         assert f"adstock_periods ({lags})" in message
         assert "create_optimization_model" in message
+        assert "mmm.window_layout(" in message
+
+    def test_window_layout_counts_the_history_the_model_has(
+        self, funnel_identity_fitted_mmm
+    ):
+        """A window that opens near the start of training has a short carry-in.
+
+        ``create_optimization_model`` can only prepend the history the training
+        data holds, so taking ``effective_carryover_lags()`` for the carry-in
+        miscounts it. ``window_layout`` reads it off the model's date axis, and
+        the optimizer accepts the three blocks it returns.
+        """
+        mmm = funnel_identity_fitted_mmm
+        dates = pd.DatetimeIndex(mmm.xarray_dataset.coords["date"].values)
+        lags = mmm.effective_carryover_lags()
+        # Two weeks of history before the window, fewer than a full carry-in.
+        assert lags > 2
+        start = dates[2]
+        model = mmm.create_optimization_model(start, dates[-(lags + 1)])
+
+        layout = mmm.window_layout(model, start)
+
+        assert layout == WindowLayout(
+            carry_in=2, decisions=len(dates) - 2 - lags, carry_over=lags
+        )
+        optimizer = BudgetOptimizer(
+            model=model,
+            idata=mmm.idata,
+            num_periods=layout.decisions,
+            carry_in_periods=layout.carry_in,
+            adstock_periods=layout.carry_over,
+            frozen_deterministics=mmm.frozen_deterministics,
+            response_variable="total_media_contribution_original_scale",
+        )
+        assert optimizer.num_periods == layout.decisions
+
+    def test_the_private_window_layout_name_warns(self, funnel_identity_fitted_mmm):
+        """The private name released up to 1.5.0 still works, with a warning."""
+        mmm = funnel_identity_fitted_mmm
+        dates = pd.DatetimeIndex(mmm.xarray_dataset.coords["date"].values)
+        start = dates[2]
+        model = mmm.create_optimization_model(
+            start, dates[-(mmm.effective_carryover_lags() + 1)]
+        )
+
+        with pytest.warns(FutureWarning, match=r"MMM\.window_layout"):
+            layout = mmm._window_layout(model, start)
+        assert layout == mmm.window_layout(model, start)
 
     def test_a_model_with_no_coordinate_values_is_measured_from_the_tensor(self):
         """Dims declared without coords leave ``model.coords[date]`` as ``None``.

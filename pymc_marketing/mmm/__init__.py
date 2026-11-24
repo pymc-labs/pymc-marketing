@@ -76,6 +76,7 @@ from pymc_marketing.mmm.media_transformation import (
 from pymc_marketing.mmm.mmm import (
     MMM,
     BudgetOptimizerWrapper,
+    WindowLayout,
 )
 from pymc_marketing.mmm.optimization_variables import (
     OptimizationVariable,
@@ -165,6 +166,7 @@ __all__ = [
     "WeeklyFourier",
     "WeibullCDFAdstock",
     "WeibullPDFAdstock",
+    "WindowLayout",
     "YearlyFourier",
     "approx_hsgp_hyperparams",
     "create_complexity_penalizing_prior",

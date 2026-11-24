@@ -546,15 +546,28 @@ Not the accessor's own name, which the stored cache would shadow.
 """
 
 
-class _WindowLayout(NamedTuple):
+class WindowLayout(NamedTuple):
     """The three blocks an optimization model's date axis divides into.
 
-    Only ``decisions`` is optimized.  ``carry_in`` holds spend already made
-    before the window, so the adstock does not start cold, and ``carry_over``
-    the zero-spend periods that catch the tail the decisions produce after the
-    window closes.  The three must together cover the axis exactly; that is the
-    invariant :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer`
-    re-checks for callers who set the three numbers by hand.
+    Returned by :meth:`MMM.window_layout`.  Only ``decisions`` is optimized.
+    ``carry_in`` holds spend already made before the window, so the adstock
+    does not start cold, and ``carry_over`` the zero-spend periods that catch
+    the tail the decisions produce after the window closes.  The three must
+    together cover the axis exactly; that is the invariant
+    :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer` re-checks for
+    callers who set the three numbers by hand.
+
+    Attributes
+    ----------
+    carry_in : int
+        Leading periods before the window's start date, held at the model's
+        own channel data.  ``BudgetOptimizer``'s ``carry_in_periods``.
+    decisions : int
+        Periods whose spend is optimized.  ``BudgetOptimizer``'s
+        ``num_periods``.
+    carry_over : int
+        Trailing zero-spend periods, :meth:`MMM.effective_carryover_lags`
+        long.  ``BudgetOptimizer``'s ``adstock_periods``.
     """
 
     carry_in: int
@@ -3535,12 +3548,12 @@ class MMM(RegressionModelBuilder):
                 declared = max(declared, int(lags))
         return int(getattr(self.adstock, "l_max", 0)) + declared
 
-    def _window_layout(
+    def window_layout(
         self,
         pymc_model: pm.Model,
         start_date: str | pd.Timestamp,
         date_dim: str = "date",
-    ) -> _WindowLayout:
+    ) -> WindowLayout:
         """Split an optimization model's date axis into its three blocks.
 
         Only the date axis is read off *pymc_model*; the carry-over comes from
@@ -3553,9 +3566,13 @@ class MMM(RegressionModelBuilder):
         Derived in one place so the three numbers cannot drift apart: the
         leading dates are whatever
         :func:`~pymc_marketing.mmm.utils.create_zero_dataset` was able to
-        prepend -- it clips against the training index, so asking is the only
-        way to know -- and the trailing block is
+        prepend -- it clips against the training index, and prepends none when
+        a gap separates the window from the training dates, so asking is the
+        only way to know -- and the trailing block is
         :meth:`effective_carryover_lags`, leaving the decisions in between.
+        :meth:`budget_optimizer` sets ``BudgetOptimizer``'s three period counts
+        from it; call it to build a ``BudgetOptimizer`` on the same window
+        yourself.
 
         Parameters
         ----------
@@ -3568,7 +3585,7 @@ class MMM(RegressionModelBuilder):
 
         Returns
         -------
-        _WindowLayout
+        WindowLayout
             Carry-in, decision and carry-over period counts.
 
         Raises
@@ -3576,6 +3593,26 @@ class MMM(RegressionModelBuilder):
         ValueError
             If the model has no *date_dim* coordinate, or the window leaves no
             room for a decision once both flanking blocks are taken out.
+
+        Examples
+        --------
+        Build by hand the optimizer :meth:`budget_optimizer` builds:
+
+        .. code-block:: python
+
+            from pymc_marketing.mmm import BudgetOptimizer
+
+            model = mmm.create_optimization_model("2025-01-06", "2025-03-31")
+            layout = mmm.window_layout(model, "2025-01-06")
+            optimizer = BudgetOptimizer(
+                model=model,
+                idata=mmm.idata,
+                num_periods=layout.decisions,
+                carry_in_periods=layout.carry_in,
+                adstock_periods=layout.carry_over,
+                frozen_deterministics=mmm.frozen_deterministics,
+                response_variable="total_media_contribution_original_scale",
+            )
         """
         if date_dim not in pymc_model.coords:
             raise ValueError(
@@ -3597,9 +3634,24 @@ class MMM(RegressionModelBuilder):
                 f"periods, which does not exceed the carry-over of {carry_over} "
                 "periods. Widen the window between start_date and end_date."
             )
-        return _WindowLayout(
+        return WindowLayout(
             carry_in=carry_in, decisions=decisions, carry_over=carry_over
         )
+
+    def _window_layout(
+        self,
+        pymc_model: pm.Model,
+        start_date: str | pd.Timestamp,
+        date_dim: str = Dim.DATE,
+    ) -> WindowLayout:
+        """Warn that this name is deprecated, then call :meth:`window_layout`."""
+        warnings.warn(
+            "MMM._window_layout is deprecated and will be removed in a future "
+            "release; use MMM.window_layout.",
+            FutureWarning,
+            stacklevel=2,
+        )
+        return self.window_layout(pymc_model, start_date, date_dim=date_dim)
 
     def _window_dates_after_training(
         self, window_controls: xr.DataArray
@@ -3706,7 +3758,8 @@ class MMM(RegressionModelBuilder):
         and can be passed directly to :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer`.
 
         The date axis is the carry-in dates before ``start_date``, the plan
-        dates, and the carry-over dates after ``end_date``.  On every date the
+        dates, and the carry-over dates after ``end_date``;
+        :meth:`window_layout` counts the three.  On every date the
         training data covers, the controls take their observed values.  On the
         dates after it they are 0 unless *control_data* gives their planned
         values.
@@ -3870,9 +3923,9 @@ class MMM(RegressionModelBuilder):
         """Create a :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer` for a future window.
 
         This is the recommended entry point for budget optimization with the
-        multidimensional MMM.  It handles building the optimization model,
-        computing ``num_periods`` and pulling ``adstock_periods`` from the fitted
-        adstock.  When ``budgets_to_optimize`` is not supplied,
+        multidimensional MMM.  It handles building the optimization model and
+        setting ``num_periods``, ``carry_in_periods`` and ``adstock_periods``
+        from :meth:`window_layout`.  When ``budgets_to_optimize`` is not supplied,
         :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer` auto-detects
         the optimizable cells from the posterior.
 
@@ -3923,7 +3976,7 @@ class MMM(RegressionModelBuilder):
         # Honour a caller-supplied date_dim rather than assuming "date": this is
         # the method that feeds BudgetOptimizer's configurable date_dim field.
         date_dim = kwargs.get("date_dim", "date")
-        layout = self._window_layout(pymc_model, start_date, date_dim=date_dim)
+        layout = self.window_layout(pymc_model, start_date, date_dim=date_dim)
 
         # budgets_to_optimize is intentionally passed through untouched. When it is
         # None, BudgetOptimizer auto-detects the optimizable cells from the posterior;
