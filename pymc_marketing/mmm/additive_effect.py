@@ -819,10 +819,12 @@ class MuEffect(SerializableBaseModel, ABC):
         ``Deterministic(name, rv)``, or a chain of them, is frozen as the variable
         itself, so it holds every read of the variable: incrementality refuses it
         when the graph also reads the variable without going through the rename.
-        A deterministic that only renames another deterministic cannot be frozen,
-        and neither can the one it renames: when PyMC clones the model it keeps
-        only one of the two names (pymc-devs/pymc#8608). Write such a rename as an
-        expression, such as ``Deterministic(name, other + 0)``. Only a dimension
+        When PyMC clones the model, it keeps only one of the two names of a
+        deterministic that only renames another deterministic
+        (pymc-devs/pymc#8608). Incrementality refuses to freeze either name of
+        such a pair, and the budget optimizer refuses such a model whether the
+        rename is frozen or not. Write such a rename as an expression, such as
+        ``Deterministic(name, other + 0)``. Only a dimension
         named ``date`` counts: incrementality does not notice a variable over the
         fitted dates declared under another dimension name and can read it at the
         wrong dates, so declare such a variable over ``date`` or list its path

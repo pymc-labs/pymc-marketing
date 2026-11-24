@@ -45,12 +45,14 @@ from pymc_marketing.pytensor_utils import (
     blocked_between,
     check_aligned_dims,
     check_aligned_shape,
+    deterministic_renames,
     extract_response_distribution,
     frozen_renames_read_elsewhere,
     frozen_variables,
     merge_models,
     needed_posterior_names,
     non_sample_dims,
+    reached_frozen_names,
     refuse_frozen_deterministic_renames,
     reorder_to_model_coords,
     transpose_to_model_dims,
@@ -1095,13 +1097,27 @@ def test_conditioned_model_lists_a_renaming_deterministic_as_its_variable():
 
 
 def _two_reader_model() -> pm.Model:
-    """``resp`` reads ``level`` through ``renamed`` and through its cumulative sum."""
+    """``resp`` reads ``level`` through ``renamed`` and through its cumulative sum.
+
+    ``one_reader`` reads it only through ``renamed``, and ``direct`` only without it.
+    """
     with pm.Model(coords={"date": range(4)}) as model:
         level = pmd.Normal("level", dims="date")
         renamed = pmd.Deterministic("renamed", level)
         pmd.Deterministic("one_reader", renamed * 2)
         pmd.Deterministic("resp", renamed + level.cumsum("date"))
+        pmd.Deterministic("direct", level.cumsum("date"))
     return model
+
+
+def test_reached_frozen_names_leaves_out_a_rename_no_response_reads():
+    """A frozen rename counts only where the responses read the rename itself."""
+    model = _two_reader_model()
+    frozen = ["renamed", "level", "missing", "renamed"]
+
+    assert reached_frozen_names(model, [model["direct"]], frozen) == ["level"]
+    assert reached_frozen_names(model, [model["one_reader"]], frozen) == ["renamed"]
+    assert reached_frozen_names(model, [model["resp"]], frozen) == ["renamed", "level"]
 
 
 def test_frozen_renames_read_elsewhere_lists_a_variable_read_another_way():
@@ -1143,6 +1159,12 @@ def test_a_frozen_rename_of_a_deterministic_is_refused(name):
         ValueError, match=rf"frozen_deterministics includes {name!r} \(with '"
     ):
         refuse_frozen_deterministic_renames(model, [name])
+
+
+def test_deterministic_renames_lists_a_rename_but_not_an_expression():
+    """``path`` only renames ``walk``; ``expr`` computes ``walk + 0``."""
+    assert deterministic_renames(_deterministic_rename_model()) == {"path": "walk"}
+    assert deterministic_renames(_renaming_model()) == {}
 
 
 def test_a_refusal_names_every_rename_of_a_frozen_deterministic():

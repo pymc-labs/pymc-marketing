@@ -3433,7 +3433,10 @@ class _ScaledByDateLevelEffect(_ZeroEffect):
     ``renames``, the variable reaches spend through that many Deterministics that
     only rename it, and the last of them is the one frozen.  With
     ``second_reader``, the cumulative sum of the free variable reaches spend too,
-    without going through the renames.  With ``classic``, the variable is declared with ``pymc`` and wrapped with
+    without going through the renames.  With ``renames_unread``, only a
+    ``report`` Deterministic reads the renames, and spend reads the free variable
+    directly.  With ``classic``, the renames are ``pm.Deterministic`` on the
+    variable before ``as_xtensor``.  With ``classic``, the variable is declared with ``pymc`` and wrapped with
     ``as_xtensor``, over ``dims="date"`` or, without ``classic_dims``, over a bare
     ``shape``.  With ``classic_contribution``, the contribution is registered with
     ``pm.Deterministic``.  With ``scalar``, the variable is one value for every date,
@@ -3445,6 +3448,7 @@ class _ScaledByDateLevelEffect(_ZeroEffect):
     freeze: bool = False
     renames: int = 0
     second_reader: bool = False
+    renames_unread: bool = False
     classic: bool = False
     classic_dims: bool = True
     classic_contribution: bool = False
@@ -3481,6 +3485,10 @@ class _ScaledByDateLevelEffect(_ZeroEffect):
             )
         elif self.classic and self.classic_dims:
             draws = pm.Normal(name, mu=1.0, sigma=0.5, dims="date")
+            for index in range(1, self.renames + 1):
+                draws = pm.Deterministic(
+                    f"{self.prefix}_rename_{index}", draws, dims="date"
+                )
             level = as_xtensor(draws, dims=("date",))
         elif self.classic:
             n_dates = mmm.model.dim_lengths["date"]
@@ -3491,8 +3499,12 @@ class _ScaledByDateLevelEffect(_ZeroEffect):
         free = level
         if self.walk:
             level = pmd.Deterministic(f"{self.prefix}_walk", level.cumsum("date"))
-        for index in range(1, self.renames + 1):
-            level = pmd.Deterministic(f"{self.prefix}_rename_{index}", level)
+        if not self.classic:
+            for index in range(1, self.renames + 1):
+                level = pmd.Deterministic(f"{self.prefix}_rename_{index}", level)
+        if self.renames_unread:
+            pmd.Deterministic(f"{self.prefix}_report", level * 2)
+            level = free
         if self.second_reader:
             level = level + free.cumsum("date")
         contribution = mmm.model["channel_contribution"].sum("channel")
@@ -3624,6 +3636,60 @@ def test_monthly_incrementality_refuses_a_frozen_rename_of_a_deterministic(
         r"'scaled_walk'\): one of each pair only renames the other Deterministic",
     ):
         mmm.incrementality.compute_incremental_contribution(frequency="monthly")
+
+
+def test_monthly_incrementality_on_a_frozen_rename_no_response_reads(
+    fit_mmm_with_effect,
+):
+    """A frozen rename that only a report reads is left out of the evaluation.
+
+    On the evaluator's clone it would stand for every read of the variable, so it
+    would cut the read that scales spend to the windows.
+    """
+    unfrozen = fit_mmm_with_effect(
+        _ScaledByDateLevelEffect(renames=1, renames_unread=True)
+    )
+    frozen = fit_mmm_with_effect(
+        _ScaledByDateLevelEffect(freeze=True, renames=1, renames_unread=True)
+    )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        expected = unfrozen.incrementality.compute_incremental_contribution(
+            frequency="monthly"
+        )
+        actual = frozen.incrementality.compute_incremental_contribution(
+            frequency="monthly"
+        )
+
+    np.testing.assert_allclose(actual, expected.transpose(*actual.dims))
+
+
+def test_monthly_incrementality_on_a_frozen_classic_rename(fit_mmm_with_effect):
+    """A ``pm.Deterministic`` renaming a ``pymc`` variable stands for that variable.
+
+    Frozen, it is cut to each window, and the increments are those of the variable
+    evaluated on the full date axis.
+    """
+    unfrozen = fit_mmm_with_effect(_ScaledByDateLevelEffect(classic=True, renames=1))
+    frozen = fit_mmm_with_effect(
+        _ScaledByDateLevelEffect(classic=True, renames=1, freeze=True)
+    )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        expected = unfrozen.incrementality.compute_incremental_contribution(
+            frequency="monthly"
+        )
+        actual = frozen.incrementality.compute_incremental_contribution(
+            frequency="monthly"
+        )
+        split = frozen.incrementality.split_incremental_contribution_over_time(
+            frequency="monthly"
+        )
+
+    np.testing.assert_allclose(actual, expected.transpose(*actual.dims))
+    assert json.loads(split.attrs["assumptions"])["evaluation"] == "window"
 
 
 @pytest.mark.parametrize(

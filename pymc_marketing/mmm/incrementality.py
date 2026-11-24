@@ -378,6 +378,7 @@ from pymc_marketing.names.mmm import Dim, IncrementalityResult, Var
 from pymc_marketing.pytensor_utils import (
     frozen_renames_read_elsewhere,
     needed_posterior_names,
+    reached_frozen_names,
     refuse_frozen_deterministic_renames,
     reorder_to_model_coords,
     transpose_to_model_dims,
@@ -5450,6 +5451,34 @@ class Incrementality:
         """
         return constant_data_fingerprint(self.idata)
 
+    def _evaluator_frozen(
+        self, response_vars: Sequence[str | Variable]
+    ) -> tuple[str, ...]:
+        """Return the frozen deterministics the evaluator's responses read.
+
+        An unread frozen name changes nothing in the graphs, except a Deterministic
+        that only renames a free random variable: on the evaluator's clone it would
+        hold every read of the variable.  See
+        :func:`~pymc_marketing.pytensor_utils.reached_frozen_names`.
+
+        Parameters
+        ----------
+        response_vars : sequence of str or Variable
+            Responses the evaluator is built for.
+
+        Returns
+        -------
+        tuple of str
+            The names, in the order of the MMM's ``frozen_deterministics``.
+        """
+        model = self.model.model
+        resolved = [
+            model[var] if isinstance(var, str) else var for var in response_vars
+        ]
+        return tuple(
+            reached_frozen_names(model, resolved, self.model.frozen_deterministics)
+        )
+
     def _evaluator_cache_key(
         self, response_vars: Sequence[str | Variable]
     ) -> EvaluatorCacheKey:
@@ -5488,7 +5517,7 @@ class Incrementality:
             response_vars=cast(tuple[str, ...], names),
             intervention_target=Var.CHANNEL_DATA,
             intervention_mode="replace",
-            frozen_deterministics=tuple(self.model.frozen_deterministics),
+            frozen_deterministics=self._evaluator_frozen(response_vars),
             dates=tuple(self.data.dates),
             data_fingerprint=self._data_fingerprint,
         )
@@ -5706,8 +5735,8 @@ class Incrementality:
             every read of the variable to the evaluation windows.
         """
         model = self.model.model
-        frozen = self.model.frozen_deterministics
-        refuse_frozen_deterministic_renames(model, frozen)
+        refuse_frozen_deterministic_renames(model, self.model.frozen_deterministics)
+        frozen = self._evaluator_frozen(response_vars)
         resolved = [
             model[var] if isinstance(var, str) else var for var in response_vars
         ]
@@ -5848,7 +5877,7 @@ class Incrementality:
             pymc_model=posterior_predictive_model,
             posterior=posterior_for_evaluator,
             response_vars=response_vars,
-            frozen_deterministics=self.model.frozen_deterministics,
+            frozen_deterministics=list(self._evaluator_frozen(response_vars)),
             dates=dates,
             expected_aux_values=(
                 self.idata.constant_data

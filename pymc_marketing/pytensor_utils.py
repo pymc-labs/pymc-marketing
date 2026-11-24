@@ -56,12 +56,14 @@ __all__ = [
     "blocked_between",
     "check_aligned_dims",
     "check_aligned_shape",
+    "deterministic_renames",
     "extract_response_distribution",
     "frozen_renames_read_elsewhere",
     "frozen_variables",
     "merge_models",
     "needed_posterior_names",
     "non_sample_dims",
+    "reached_frozen_names",
     "refuse_frozen_deterministic_renames",
     "reorder_to_model_coords",
     "transpose_to_model_dims",
@@ -540,7 +542,7 @@ def frozen_variables(
     the name to the random variable gives the same answer on the source model
     and on a clone.  Any other name stands for its own variable, including a
     Deterministic that only renames another Deterministic, see
-    :func:`refuse_frozen_deterministic_renames`.
+    :func:`deterministic_renames`.
 
     Parameters
     ----------
@@ -572,18 +574,54 @@ def frozen_variables(
     return held
 
 
+def deterministic_renames(pymc_model: Model) -> dict[str, str]:
+    """Return each Deterministic that only renames another Deterministic.
+
+    When PyMC clones a model, ``model_from_fgraph`` adds a view only for a variable
+    in ``model.basic_RVs``, so a Deterministic that only renames any other model
+    variable is registered on the same variable as it, under whichever name comes
+    last (pymc-devs/pymc#8608).  The clone keeps only one of the two names: a
+    posterior sampled on a clone lacks the other, a graph of a clone can read a
+    name its source model never froze, and cloning the clone again fails on the
+    name.  Only renames of a Deterministic are returned: a rename of a data
+    variable is merged the same way but is not checked, and a chain of renames
+    that ends at a free random variable is resolved by :func:`frozen_variables`.
+
+    Parameters
+    ----------
+    pymc_model : pm.Model
+        The source model.
+
+    Returns
+    -------
+    dict of str to str
+        Each such rename, by name, with the name of the Deterministic it renames,
+        in model order.
+    """
+    deterministics = set(pymc_model.deterministics)
+    candidates = [
+        det
+        for det in pymc_model.deterministics
+        if det.owner is not None
+        and isinstance(det.owner.op, ViewOp)
+        and det.owner.inputs[0] in deterministics
+    ]
+    held = frozen_variables(pymc_model, [det.name for det in candidates])
+    return {
+        det.name: det.owner.inputs[0].name
+        for det in candidates
+        if held[det.name] is det
+    }
+
+
 def refuse_frozen_deterministic_renames(
     pymc_model: Model, frozen_deterministics: Sequence[str]
 ) -> None:
     """Refuse a frozen name that a Deterministic rename pairs with another Deterministic.
 
-    When PyMC clones a model, a Deterministic that only renames another
-    Deterministic is registered on the same variable as it, under whichever name
-    comes last (pymc-devs/pymc#8608).  The clone then keeps only one of the two
-    names, so a posterior sampled on a clone lacks the other, and a graph of a
-    clone can read a name its source model never froze.  Freezing either name of
-    such a pair cannot work until PyMC keeps both.  A chain of renames that ends
-    at a free random variable is not a pair: see :func:`frozen_variables`.
+    A clone keeps only one of the two names of such a pair (see
+    :func:`deterministic_renames`), so freezing either of them cannot work until
+    PyMC keeps both.
 
     Parameters
     ----------
@@ -598,19 +636,13 @@ def refuse_frozen_deterministic_renames(
         If a frozen name is in such a pair, naming it and every other name it
         pairs with.
     """
-    deterministics = set(pymc_model.deterministics)
-    pairs: dict[str, list[str]] = {}
-    for det in pymc_model.deterministics:
-        if (
-            det.owner is not None
-            and isinstance(det.owner.op, ViewOp)
-            and det.owner.inputs[0] in deterministics
-            and frozen_variables(pymc_model, [det.name])[det.name] is det
-        ):
-            target = det.owner.inputs[0]
-            pairs.setdefault(det.name, []).append(target.name)
-            pairs.setdefault(target.name, []).append(det.name)
-    paired = {name: pairs[name] for name in frozen_deterministics if name in pairs}
+    partners: dict[str, list[str]] = {}
+    for rename, renamed in deterministic_renames(pymc_model).items():
+        partners.setdefault(rename, []).append(renamed)
+        partners.setdefault(renamed, []).append(rename)
+    paired = {
+        name: partners[name] for name in frozen_deterministics if name in partners
+    }
     if paired:
         listing = ", ".join(
             f"{name!r} (with {', '.join(map(repr, others))})"
@@ -621,7 +653,8 @@ def refuse_frozen_deterministic_renames(
             "renames the other Deterministic.  When PyMC clones the model it keeps "
             "only one of the two names (pymc-devs/pymc#8608), so neither can be "
             "frozen.  Write the rename as an expression, such as "
-            "'Deterministic(name, other + 0)', or remove it."
+            "'Deterministic(name, other + 0)', or remove it from "
+            "frozen_deterministics."
         )
 
 
@@ -667,6 +700,46 @@ def frozen_renames_read_elsewhere(
         if var in ancestors(response_vars, blockers=blockers):
             shared[name] = var.name
     return shared
+
+
+def reached_frozen_names(
+    pymc_model: Model,
+    response_vars: Sequence[Variable],
+    frozen_deterministics: Sequence[str],
+) -> list[str]:
+    """Return the frozen names whose own variable the responses read.
+
+    The walk stops at every frozen name and at every free random variable, as
+    conditioning does: a graph reads their posterior draws, not what is behind
+    them.  A frozen name the responses do not read changes nothing in their
+    graphs, except a Deterministic that only renames a free random variable,
+    which on a clone stands for every read of the variable (see
+    :func:`frozen_variables`).  Leaving the unread names out keeps such a rename
+    from holding reads that never went through it.
+
+    Parameters
+    ----------
+    pymc_model : pm.Model
+        The source model ``response_vars`` belong to.
+    response_vars : sequence of Variable
+        The response graphs to traverse.
+    frozen_deterministics : sequence of str
+        Names held at their posterior values; a name the model does not have is
+        left out, and a repeated one is listed once.
+
+    Returns
+    -------
+    list of str
+        The frozen names the responses read, in the order given.
+    """
+    declared = [
+        name
+        for name in dict.fromkeys(frozen_deterministics)
+        if name in pymc_model.named_vars
+    ]
+    blockers = set(pymc_model.free_RVs) | {pymc_model[name] for name in declared}
+    reached = set(ancestors(response_vars, blockers=blockers))
+    return [name for name in declared if pymc_model[name] in reached]
 
 
 def needed_posterior_names(
