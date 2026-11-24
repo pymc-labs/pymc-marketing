@@ -3552,7 +3552,7 @@ class MMM(RegressionModelBuilder):
         self,
         pymc_model: pm.Model,
         start_date: str | pd.Timestamp,
-        date_dim: str = "date",
+        date_dim: str = Dim.DATE,
     ) -> WindowLayout:
         """Split an optimization model's date axis into its three blocks.
 

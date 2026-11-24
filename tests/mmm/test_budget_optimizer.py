@@ -2143,6 +2143,42 @@ class TestDateAxisMustMatchTheBlocks:
         )
         assert optimizer.num_periods == layout.decisions
 
+    def test_window_layout_counts_no_history_after_a_gap(
+        self, funnel_identity_fitted_mmm
+    ):
+        """A window that does not follow the training dates gets no carry-in.
+
+        The last training dates are not the spend just before such a window, so
+        ``create_optimization_model`` prepends none and the adstock starts cold.
+        ``window_layout`` counts a carry-in of 0 where taking
+        ``effective_carryover_lags()`` would count a full one.
+        """
+        mmm = funnel_identity_fitted_mmm
+        lags = mmm.effective_carryover_lags()
+        training_end = pd.Timestamp(mmm.xarray_dataset.coords["date"].values[-1])
+        # Three weeks between the last training date and the window.
+        start = training_end + pd.Timedelta(weeks=3)
+        with pytest.warns(UserWarning, match="not contiguous"):
+            model = mmm.create_optimization_model(
+                start, start + pd.Timedelta(weeks=self.N_PERIODS - 1)
+            )
+
+        layout = mmm.window_layout(model, start)
+
+        assert layout == WindowLayout(
+            carry_in=0, decisions=self.N_PERIODS, carry_over=lags
+        )
+        optimizer = BudgetOptimizer(
+            model=model,
+            idata=mmm.idata,
+            num_periods=layout.decisions,
+            carry_in_periods=layout.carry_in,
+            adstock_periods=layout.carry_over,
+            frozen_deterministics=mmm.frozen_deterministics,
+            response_variable="total_media_contribution_original_scale",
+        )
+        assert optimizer.num_periods == layout.decisions
+
     def test_the_private_window_layout_name_warns(self, funnel_identity_fitted_mmm):
         """The private name released up to 1.5.0 still works, with a warning."""
         mmm = funnel_identity_fitted_mmm
