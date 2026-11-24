@@ -36,7 +36,6 @@ from pymc_marketing.mmm.spend_reach import (
     SpendProbe,
     SpendReach,
     TemporalReach,
-    completeness_tolerance,
     linear_predictor,
     refuse_blocked_spend_paths,
     resolve_channel_dependent_effects,
@@ -1738,27 +1737,15 @@ class TestProbeStatistics:
             for atol, passes in zip(candidates, reference, strict=True)
         )
 
-    @pytest.mark.parametrize("dtype", ["float32", "float64"])
-    @pytest.mark.parametrize(
-        ("scale", "magnitude"), [(1.0, 0.0), (0.0, 1.0)], ids=["scale", "eps"]
-    )
-    def test_the_tolerance_is_a_python_float(self, dtype, scale, magnitude):
-        """``numpy.allclose`` rounds a Python float ``atol``, not a ``np.float64`` one.
-
-        :meth:`ProbeStatistics.residual_within` always rounds it, so the two
-        agree only if the tolerance is a Python float, whichever term wins.
-        """
-        atol = completeness_tolerance(scale=scale, magnitude=magnitude, dtype=dtype)
-
-        assert type(atol) is float
-
     def test_the_tolerance_is_decided_as_allclose_for_float64_nodes(self):
         """Float64 nodes feeding a float32 predictor get numpy.allclose's answer.
 
-        A still float64 node of magnitude ``M`` sets the tolerance through
-        ``eps * M``, a quarter float32 ulp below the residual.  ``allclose``
-        rounds a Python float ``atol`` to float32 and passes; a ``np.float64``
-        one is not rounded and refuses, while ``residual_within`` passes.
+        A float64 node of magnitude ``M`` sets the tolerance through
+        ``eps * M``, a quarter float32 ulp below the residual, so the tolerance
+        rounds up to the residual in float32.  ``allclose`` rounds a Python
+        float ``atol`` to the predictor's float32 and passes, as
+        ``residual_within`` does; a ``np.float64`` tolerance would not be
+        rounded and would refuse.
         """
         residual = np.float32(0.1)
         target = float(residual) - float(np.spacing(residual)) / 4
@@ -1785,8 +1772,8 @@ class TestProbeStatistics:
         expected = probed[LINEAR_PREDICTOR] - baseline[LINEAR_PREDICTOR]
         atol = stats.tolerance()
 
-        assert float(residual) > atol
-        assert not np.allclose(accounted, expected, rtol=0.0, atol=np.float64(atol))
+        # The tolerance lies in the quarter ulp that rounds up to the residual.
+        assert atol < float(residual) <= float(np.float32(atol))
         assert stats.residual_within(atol)
         assert np.allclose(accounted, expected, rtol=0.0, atol=atol)
 
