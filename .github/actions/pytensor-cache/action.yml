@@ -35,7 +35,7 @@ runs:
     - name: Restore PyTensor compile caches (restore-only)
       id: restore
       if: ${{ inputs.publish != 'true' }}
-      uses: actions/cache/restore@v6
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       with:
         path: ~/.pytensor
         key: pytensor-${{ hashFiles('.pytensor-cache-key') }}-restore-${{ github.run_id }}
@@ -49,14 +49,14 @@ runs:
       # restores (prefix hit) stay silent: the publisher's full-suite
       # snapshot is the proper cover for the delta.
       if: ${{ inputs.publish != 'true' && steps.restore.outputs.cache-matched-key == '' }}
-      uses: actions/cache/save@v6
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       with:
         path: ~/.pytensor
         key: pytensor-${{ hashFiles('.pytensor-cache-key') }}-bootstrap-${{ github.run_id }}-${{ runner.name }}
 
     - name: Restore and save PyTensor compile caches
       if: ${{ inputs.publish == 'true' }}
-      uses: actions/cache@v6
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/.pytensor
         key: pytensor-${{ hashFiles('.pytensor-cache-key') }}-${{ inputs.lineage }}-${{ github.run_id }}

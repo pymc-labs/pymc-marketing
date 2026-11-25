@@ -37,7 +37,7 @@ jobs:
           sudo apt-get install graphviz graphviz-dev
           uv pip install -e .[test]
       - name: PyTensor compile cache
-        uses: ./.github/actions/pytensor-cache
+        uses: $/.github/actions/pytensor-cache
         with:
           publish: true
           lineage: durations

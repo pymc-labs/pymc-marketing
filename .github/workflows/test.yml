@@ -80,7 +80,7 @@ jobs:
           OLDEST=$(grep '"pymc>=' pyproject.toml | head -1 | sed 's/.*>=//' | sed 's/[",].*//')
           uv run --no-sync --frozen python -c "import pymc; assert pymc.__version__ == '${OLDEST}', pymc.__version__"
       - name: PyTensor compile cache
-        uses: ./.github/actions/pytensor-cache
+        uses: $/.github/actions/pytensor-cache
       - name: Run tests
         run: |
           uv run --no-sync --frozen pytest --splits 6 \
