@@ -24,6 +24,13 @@ inputs:
       restore-only consumers.
     default: durations
 
+outputs:
+  cache-matched-key:
+    description: >-
+      The key the restore actually matched (empty on a total miss). Lets
+      callers bootstrap-save when nothing was restored.
+    value: ${{ steps.restore.outputs.cache-matched-key }}
+
 runs:
   using: composite
   steps:
@@ -41,18 +48,6 @@ runs:
         key: pytensor-${{ hashFiles('.pytensor-cache-key') }}-restore-${{ github.run_id }}
         restore-keys: |
           pytensor-${{ hashFiles('.pytensor-cache-key') }}-
-
-    - name: Bootstrap save on total cache miss
-      # Restore-only consumers normally never publish. On a total miss
-      # (fresh scope, version-key change) they seed the pool once, so CI
-      # does not stay cold until the publishing job succeeds. Partial
-      # restores (prefix hit) stay silent: the publisher's full-suite
-      # snapshot is the proper cover for the delta.
-      if: ${{ inputs.publish != 'true' && steps.restore.outputs.cache-matched-key == '' }}
-      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: ~/.pytensor
-        key: pytensor-${{ hashFiles('.pytensor-cache-key') }}-bootstrap-${{ github.run_id }}-${{ runner.name }}
 
     - name: Restore and save PyTensor compile caches
       if: ${{ inputs.publish == 'true' }}

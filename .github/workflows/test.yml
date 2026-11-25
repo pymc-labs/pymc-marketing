@@ -80,7 +80,20 @@ jobs:
           OLDEST=$(grep '"pymc>=' pyproject.toml | head -1 | sed 's/.*>=//' | sed 's/[",].*//')
           uv run --no-sync --frozen python -c "import pymc; assert pymc.__version__ == '${OLDEST}', pymc.__version__"
       - name: PyTensor compile cache
+        id: cache
         uses: $/.github/actions/pytensor-cache
+      - name: Bootstrap save on total cache miss
+        # Restore-only consumers normally never publish. On a total miss
+        # (fresh scope, version-key change) they seed the pool once, so CI
+        # does not stay cold until the publishing job succeeds. Partial
+        # restores stay silent: the durations job's full-suite snapshot is
+        # the proper cover for the delta. Top-level step so the save's
+        # post phase always runs (nested save posts are unreliable).
+        if: steps.cache.outputs.cache-matched-key == ''
+        uses: actions/cache/save@v6.1.0
+        with:
+          path: ~/.pytensor
+          key: pytensor-${{ hashFiles('.pytensor-cache-key') }}-bootstrap-${{ github.run_id }}-${{ matrix.config.oldest-pymc && 'oldest' || 'latest' }}-group${{ matrix.group }}
       - name: Run tests
         run: |
           uv run --no-sync --frozen pytest --splits 6 \
