@@ -28,6 +28,13 @@ on:
      - "!docs/source/notebooks/*/dev/**.ipynb"
      - "docs/source/guide/**.ipynb"
 
+permissions:
+  contents: read
+  # actions: write: the cache-reservation backend only grants a cache
+  # write lease to a token with at least one writable scope, so the
+  # LFS cache/save step below fails silently without it.
+  actions: write
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -57,7 +64,9 @@ jobs:
           - split: "--notebooks general"
           - split: "--exclude-dirs mmm clv bass customer_choice general"
     steps:
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@v7.0.1
+      with:
+        persist-credentials: false
 
     # Some MMM notebooks load a fitted posterior stored in Git LFS
     # (docs/source/notebooks/mmm/multidimensional_model.nc, 95 MB). Pull it
@@ -74,7 +83,7 @@ jobs:
     - name: Restore LFS cache
       id: lfs-cache
       if: matrix.lfs
-      uses: actions/cache/restore@v6
+      uses: actions/cache/restore@v6.1.0
       with:
         path: .git/lfs
         key: lfs-${{ hashFiles('.lfs-assets-id') }}
@@ -87,7 +96,7 @@ jobs:
     # succeeds, so a failing notebook would leave the cache empty.
     - name: Save LFS cache
       if: matrix.lfs && steps.lfs-cache.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v6
+      uses: actions/cache/save@v6.1.0
       with:
         path: .git/lfs
         key: ${{ steps.lfs-cache.outputs.cache-primary-key }}
