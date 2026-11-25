@@ -26,6 +26,11 @@ repos:
         args: [--ignore-missing-imports]
         files: ^pymc_marketing/
         additional_dependencies: [numpy>=1.20, pandas-stubs]
+  - repo: https://github.com/zizmorcore/zizmor-pre-commit
+    rev: v1.33.1
+    hooks:
+      - id: zizmor
+        args: [--no-online-audits, --no-progress]
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
