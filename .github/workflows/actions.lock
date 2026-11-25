@@ -51,7 +51,6 @@ workflows:
         - 'jtalk/url-health-check-action@v5'
     '.github/workflows/test.yml':
         - 'actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9'
-        - 'actions/cache@v6.1.0'
         - 'actions/checkout@v7.0.1'
         - 'astral-sh/setup-uv@v8.3.2'
         - 'codecov/codecov-action@v7.1.1'

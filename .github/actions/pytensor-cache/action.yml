@@ -24,13 +24,6 @@ inputs:
       restore-only consumers.
     default: durations
 
-outputs:
-  cache-matched-key:
-    description: >-
-      The key the restore actually matched (empty on a total miss). Lets
-      callers bootstrap-save when nothing was restored.
-    value: ${{ steps.restore.outputs.cache-matched-key }}
-
 runs:
   using: composite
   steps:
@@ -39,18 +32,12 @@ runs:
       run: |
         uv run --no-sync python "$GITHUB_ACTION_PATH/compute_key.py"
 
-    - name: Restore PyTensor compile caches (restore-only)
-      id: restore
-      if: ${{ inputs.publish != 'true' }}
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: ~/.pytensor
-        key: pytensor-${{ hashFiles('.pytensor-cache-key') }}-restore-${{ github.run_id }}
-        restore-keys: |
-          pytensor-${{ hashFiles('.pytensor-cache-key') }}-
-
+    # The combined action (restore + save-in-post) is used for every job:
+    # its save phase is the only mechanism that has published entries
+    # reliably in this repo; standalone actions/cache/save posts have
+    # silently produced nothing. Per-lineage keys keep publishers from
+    # racing.
     - name: Restore and save PyTensor compile caches
-      if: ${{ inputs.publish == 'true' }}
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/.pytensor
