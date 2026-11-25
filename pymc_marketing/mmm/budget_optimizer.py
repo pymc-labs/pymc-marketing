@@ -296,7 +296,6 @@ from pymc_marketing.pytensor_utils import (
     SharedPosterior,
     deterministic_renames,
     extract_response_distribution,
-    frozen_variables,
     merge_models,
     reorder_to_model_coords,
 )
@@ -2131,13 +2130,9 @@ class BudgetOptimizer(BaseModel):
                 if len(reached) == 1
                 else f"frozen paths over {self.date_dim!r} that exist"
             )
-            listing = " and ".join(
-                repr(name) if renamed is None else f"{name!r} (a view of {renamed!r})"
-                for name, renamed in reached.items()
-            )
             message = (
                 f"response_variable {self.response_variable!r} includes "
-                f"{listing}, {paths} only on the dates the "
+                f"{' and '.join(map(repr, reached))}, {paths} only on the dates the "
                 "model was fitted on, so it cannot be optimized on a window."
             )
             default = DEFAULT_RESPONSE_VARIABLE
@@ -2159,22 +2154,16 @@ class BudgetOptimizer(BaseModel):
         self._constraints = {}
         self.set_constraints(constraints=self.constraints)
 
-    def _frozen_date_paths(self, response_variable: str) -> dict[str, str | None]:
+    def _frozen_date_paths(self, response_variable: str) -> list[str]:
         """Return the frozen deterministics over ``date_dim`` an objective reaches.
 
         The traversal stops at every frozen deterministic, as the evaluation does
         when it substitutes their posterior draws, so a path that enters the
-        objective only through another frozen deterministic is not reached.  It
-        runs on the source model, where a deterministic that only renames a free
-        random variable is still apart from it (see
-        :func:`~pymc_marketing.pytensor_utils.frozen_variables`); the objective
-        exists there too, since ``freeze_dims_and_data`` and ``do`` add no named
-        variable.  A rename the objective does not reach is not refused even when
-        the objective reads its variable another way: freezing the rename holds
-        the variable at its posterior draws, which conditioning does for every
-        free random variable anyway, so the allocation is the same as without it.
-        The same holds for a rename the objective does reach, which is refused all
-        the same: freezing the variable under its own name is refused too.
+        objective only through another frozen deterministic is not reached.  A
+        deterministic that only renames a free random variable is never reached:
+        on the clone it is a view that nothing reads.  Freezing it is harmless
+        here, since conditioning holds every free random variable at its
+        posterior draws anyway.
 
         Parameters
         ----------
@@ -2183,21 +2172,24 @@ class BudgetOptimizer(BaseModel):
 
         Returns
         -------
-        dict of str to str or None
-            By name, in the order of ``frozen_deterministics``: the free random
-            variable a name only renames, or ``None``.
+        list of str
+            The names, in the order of ``frozen_deterministics``.
         """
-        model = self.model
-        held = frozen_variables(model, self.frozen_deterministics or ())
-        upstream = set(
-            ancestors([model[response_variable]], blockers=[model[n] for n in held])
-        )
-        return {
-            name: var.name if var is not model[name] else None
-            for name, var in held.items()
-            if model[name] in upstream
-            and self.date_dim in (model.named_vars_to_dims.get(name) or ())
+        model = self._pymc_model
+        frozen = {
+            name: model[name]
+            for name in self.frozen_deterministics or ()
+            if name in model.named_vars
         }
+        upstream = set(
+            ancestors([model[response_variable]], blockers=list(frozen.values()))
+        )
+        return [
+            name
+            for name, var in frozen.items()
+            if self.date_dim in (model.named_vars_to_dims.get(name) or ())
+            and var in upstream
+        ]
 
     def __copy__(self) -> "BudgetOptimizer":
         """Return a copy that owns its posterior binding and compiled functions.

@@ -2253,15 +2253,13 @@ def _channel_model(channels, n_dates=6, node="channel_data"):
     return model, prior.prior
 
 
-def _frozen_path_optimizer(response_variable: str, renames: int = 0) -> BudgetOptimizer:
+def _frozen_path_optimizer(response_variable: str) -> BudgetOptimizer:
     """An optimizer on ``_channel_model``'s graph plus two frozen deterministics.
 
     ``path`` is a random walk over ``date``, as a latent path over the fitted dates
     is, and ``total_response_original_scale`` adds it to the media contribution.
     ``level`` is the walk's mean over ``date``, without a ``date`` dim as an HSGP's
-    frozen mean is, and ``response_with_level`` adds that instead.  With
-    *renames*, ``path`` is instead the steps themselves behind that many
-    deterministics that only rename them.
+    frozen mean is, and ``response_with_level`` adds that instead.
     """
     channels, n_dates = ["a", "b"], 6
     with pm.Model(coords={"channel": channels}) as model:
@@ -2274,13 +2272,7 @@ def _frozen_path_optimizer(response_variable: str, renames: int = 0) -> BudgetOp
             "total_media_contribution_original_scale", (channel_data * beta).sum()
         )
         steps = pmd.Normal("steps", sigma=0.1, dims="date")
-        if renames:
-            path = steps
-            for index in range(renames - 1):
-                path = pmd.Deterministic(f"rename_{index}", path)
-            path = pmd.Deterministic("path", path)
-        else:
-            path = pmd.Deterministic("path", steps.cumsum("date"))
+        path = pmd.Deterministic("path", steps.cumsum("date"))
         level = pmd.Deterministic("level", path.mean("date"))
         pmd.Deterministic("total_response_original_scale", media + path.sum("date"))
         pmd.Deterministic("response_with_level", media + level)
@@ -2310,14 +2302,16 @@ def test_objective_reaching_a_frozen_path_over_date_raises():
 def _renamed_path_optimizer(
     *,
     path_renames_walk: bool = False,
+    objective_reads_path: bool = False,
     frozen: tuple[str, ...] = ("path",),
 ) -> BudgetOptimizer:
     """An optimizer on a model where ``path`` is a Deterministic that only renames another variable.
 
     ``path`` renames the free ``steps``, or with *path_renames_walk* the Deterministic
-    ``walk`` of their cumulative sum.  Only ``report`` reads ``path``; the objective
-    reads ``steps`` directly.  The media response saturates, so the allocation is
-    interior.  *frozen* is ``frozen_deterministics``.
+    ``walk`` of their cumulative sum.  ``report`` reads ``path``; the objective
+    reads ``steps`` directly, or through ``path`` with *objective_reads_path*.  The
+    media response saturates, so the allocation is interior.  *frozen* is
+    ``frozen_deterministics``.
     """
     channels, n_dates = ["a", "b"], 6
     with pm.Model(coords={"channel": channels}) as model:
@@ -2338,7 +2332,8 @@ def _renamed_path_optimizer(
         )
         path = pmd.Deterministic("path", inner)
         pmd.Deterministic("report", path * 2)
-        pmd.Deterministic("total_response_original_scale", media + steps.sum("date"))
+        read = path if objective_reads_path else steps
+        pmd.Deterministic("total_response_original_scale", media + read.sum("date"))
     prior = pm.sample_prior_predictive(draws=4, model=model, random_seed=1).prior
     return BudgetOptimizer(
         model=model,
@@ -2350,14 +2345,22 @@ def _renamed_path_optimizer(
     )
 
 
-def test_objective_that_does_not_read_a_frozen_rename_is_optimized():
-    """Only ``report`` reads ``path``; the objective reads ``steps`` without it.
+@pytest.mark.parametrize(
+    "objective_reads_path", [False, True], ids=["steps", "through-path"]
+)
+def test_objective_on_a_frozen_rename_of_a_free_variable_is_optimized(
+    objective_reads_path,
+):
+    """``path`` only renames ``steps``, and the objective reads ``steps`` with or without it.
 
     Freezing ``path`` holds ``steps`` at its posterior draws, which conditioning
-    does anyway, so the allocation is the one without it.
+    does anyway, so the allocation is the one without it, even though ``path`` is
+    over ``date``.
     """
-    frozen = _renamed_path_optimizer()
-    unfrozen = _renamed_path_optimizer(frozen=())
+    frozen = _renamed_path_optimizer(objective_reads_path=objective_reads_path)
+    unfrozen = _renamed_path_optimizer(
+        objective_reads_path=objective_reads_path, frozen=()
+    )
 
     result = frozen.allocate_budget(total_budget=10.0)
     expected = unfrozen.allocate_budget(total_budget=10.0)
@@ -2378,22 +2381,6 @@ def test_a_rename_of_a_deterministic_is_refused_before_cloning(frozen):
         r"Deterministic: 'path' \(renames 'walk'\)",
     ):
         _renamed_path_optimizer(path_renames_walk=True, frozen=frozen)
-
-
-@pytest.mark.parametrize("renames", [1, 2], ids=["renamed", "chained"])
-def test_objective_reaching_a_frozen_renaming_deterministic_over_date_raises(renames):
-    """A path that only renames the steps is frozen as the steps, over ``date`` too.
-
-    The optimization model is a clone, whose graphs read the steps rather than
-    the renaming deterministic, so matching the name alone would miss it.
-    """
-    with pytest.raises(
-        NotImplementedError,
-        match=r"^response_variable 'total_response_original_scale' includes 'path' "
-        r"\(a view of 'steps'\), a frozen path over 'date' that exists only on the "
-        r"dates the model was fitted on",
-    ):
-        _frozen_path_optimizer("total_response_original_scale", renames=renames)
 
 
 @pytest.mark.parametrize(
