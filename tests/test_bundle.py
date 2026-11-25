@@ -1251,6 +1251,20 @@ def test_an_older_schema_is_fine(tmp_path):
     assert load(tmp_path / "m").model is not None
 
 
+def test_keys_a_reader_does_not_recognise_are_not_a_failure(tmp_path):
+    """The tolerance half of the contract: keys are ignored, versions are refused.
+
+    A newer writer that added keys must still load here, so long as the
+    schema_version it records is one this reader understands.
+    """
+    save_model(build_model(), tmp_path / "m")
+    manifest = json.loads((tmp_path / "m" / "manifest.json").read_text())
+    manifest["something_new"] = {"nested": [1, 2]}
+    (tmp_path / "m" / "manifest.json").write_text(json.dumps(manifest))
+
+    assert load(tmp_path / "m").manifest["something_new"] == {"nested": [1, 2]}
+
+
 def test_a_manifest_without_a_model_says_so(tmp_path):
     save_model(build_model(), tmp_path / "m")
     (tmp_path / "m" / "model.cloudpickle").unlink()

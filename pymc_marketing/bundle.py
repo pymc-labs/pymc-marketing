@@ -473,7 +473,8 @@ class Manifest:
     key                what a consumer may rely on
     ================== ==================================================
     ``schema_version`` present, and greater than this package understands
-                       means the manifest must not be loaded.
+                       means the manifest must not be loaded, because past
+                       that point the meanings below may no longer hold.
     ``created``        ISO 8601 UTC, second resolution. Informational.
     ``pymc``           version that wrote it. Drift is reported, never fatal.
     ``pytensor``       as above.
@@ -488,7 +489,10 @@ class Manifest:
                        be built, which is not a failure.
     ``depth``          as above.
     ``fingerprint``    structural hash of names, roles, dims, transforms and
-                       coord values. Change means the model changed.
+                       coord values. Change means one of those changed; it
+                       does not hash the expressions, so a model rewritten
+                       under the same names and coords hashes the same.
+                       Numeric drift is what ``reference_logp`` checks.
     ``reference_logp`` logp at the initial point when saved. May be ``null``
                        when it could not be computed, which is warned at
                        save time rather than hidden.
@@ -498,10 +502,13 @@ class Manifest:
                        the same as null.
     ================== ==================================================
 
-    Adding a key is a minor change; removing one, renaming one, or changing what
-    one means requires a ``schema_version`` bump. Fields have only ever been
-    added, which is what lets an older reader pass a newer manifest through
-    untouched rather than refusing it.
+    Adding a key is a minor change: a consumer of a compatible
+    ``schema_version`` ignores keys it does not recognise, so a manifest from
+    a newer writer still loads in an older reader. Removing a key, renaming
+    one, or changing what one means requires a ``schema_version`` bump, and
+    is exactly what the refusal covers: a reader declines a ``schema_version``
+    greater than it understands because the meanings it knows may have been
+    rewritten with it. Tolerance is for keys; refusal is for versions.
     """
 
     raw: dict
@@ -603,8 +610,11 @@ def _transform_label(transform: Any) -> str:
 
 
 def _fingerprint(model: pm.Model) -> str:
-    """Structural hash of everything a bundle should hand back unchanged.
+    """Structural hash of the model's interface: what a bundle hands back unchanged.
 
+    Hashes names, roles, dims, transforms and coord values. It does not hash
+    the expressions, so a model rewritten under the same names and coords
+    hashes the same; that is ``reference_logp``'s job, not this one.
     Order is excluded on purpose: it is not preserved and does not matter.
     Dims are joined to a string so the hash does not care whether they arrive as
     a tuple or a list. Coord values are hashed from their dtype and bytes, so a
