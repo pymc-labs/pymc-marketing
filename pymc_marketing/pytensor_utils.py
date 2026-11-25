@@ -586,17 +586,18 @@ def deterministic_renames(pymc_model: Model) -> dict[str, str]:
     name.  Only renames of a Deterministic are returned: a rename of a data
     variable is merged the same way but is not checked, and a chain of renames
     that ends at a free random variable is resolved by :func:`frozen_variables`.
+    On a model that is already a clone, a rename is found as a second name of the
+    variable it renames.
 
     Parameters
     ----------
     pymc_model : pm.Model
-        The source model.
+        The model, a source model or a clone of one.
 
     Returns
     -------
     dict of str to str
-        Each such rename, by name, with the name of the Deterministic it renames,
-        in model order.
+        Each such rename, by name, with the name of the Deterministic it renames.
     """
     deterministics = set(pymc_model.deterministics)
     candidates = [
@@ -607,11 +608,16 @@ def deterministic_renames(pymc_model: Model) -> dict[str, str]:
         and det.owner.inputs[0] in deterministics
     ]
     held = frozen_variables(pymc_model, [det.name for det in candidates])
-    return {
+    renames = {
         det.name: det.owner.inputs[0].name
         for det in candidates
         if held[det.name] is det
     }
+    data_vars = set(pymc_model.data_vars)
+    for name, var in pymc_model.named_vars.items():
+        if var in deterministics and var not in data_vars and name != var.name:
+            renames[name] = var.name
+    return renames
 
 
 def refuse_frozen_deterministic_renames(

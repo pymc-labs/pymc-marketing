@@ -3638,6 +3638,30 @@ def test_monthly_incrementality_refuses_a_frozen_rename_of_a_deterministic(
         mmm.incrementality.compute_incremental_contribution(frequency="monthly")
 
 
+@pytest.mark.parametrize("entry_point", BUDGET_ENTRY_POINTS)
+@pytest.mark.parametrize("freeze", [False, True], ids=["unfrozen", "frozen"])
+def test_budget_optimizer_refuses_a_rename_of_a_deterministic(
+    single_dim_data, mock_pymc_sample, entry_point, freeze
+):
+    """A rename of the walk is refused however the optimizer is built.
+
+    The MMM routes build it on a clone, where the two names share one variable.
+    """
+    X, y = single_dim_data
+    mmm = _mmm_with_effects(
+        _ScaledByDateLevelEffect(walk=True, renames=1, freeze=freeze)
+    )
+    mmm.fit(X.iloc[:9], y.iloc[:9], draws=50, chains=1, random_seed=42)
+
+    with pytest.raises(
+        ValueError,
+        # BudgetOptimizer is a pydantic model, so the error arrives as a ValidationError.
+        match=r"The model has Deterministics that only rename another "
+        r"Deterministic: 'scaled_rename_1' \(renames 'scaled_walk'\)",
+    ):
+        _optimize_budget(entry_point, mmm, "2023-01-10", "2023-01-14")
+
+
 def test_monthly_incrementality_on_a_frozen_rename_no_response_reads(
     fit_mmm_with_effect,
 ):

@@ -1167,6 +1167,15 @@ def test_deterministic_renames_lists_a_rename_but_not_an_expression():
     assert deterministic_renames(_renaming_model()) == {}
 
 
+def test_deterministic_renames_lists_a_rename_on_a_clone_but_not_a_data_rename():
+    """A clone registers ``path`` on ``walk``'s variable, and ``dview`` on ``dat``."""
+    model = _deterministic_rename_model()
+    with model:
+        pmd.Deterministic("dview", pmd.Data("dat", np.ones(4), dims="date"))
+
+    assert deterministic_renames(clone_model(model)) == {"path": "walk"}
+
+
 def test_a_refusal_names_every_rename_of_a_frozen_deterministic():
     """Two Deterministics rename ``walk``; freezing ``walk`` names both."""
     with pm.Model(coords={"date": range(4)}) as model:
