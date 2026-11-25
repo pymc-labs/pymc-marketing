@@ -817,10 +817,11 @@ class ProbeStatistics:
         move's, made inexact.  ``None`` until a slice with a predictor is
         folded.
     node_magnitude : float
-        Largest ``|value|`` of any compared node, baseline or probed.
+        Largest ``|value|`` of any compared node, baseline or probed.  Sets
+        the rounding floor of the predictor's dtype.
     dtype : np.dtype or None
         The result type of the compared arrays.  The rounding floor is taken
-        per dtype instead, from :attr:`magnitude_by_dtype`.
+        per dtype instead; see :meth:`tolerance`.
     magnitude_by_dtype : dict
         Per dtype, the largest ``|value|`` of any compared node of that dtype,
         baseline or probed.  Each dtype sets its own rounding floor: a float32
@@ -1017,8 +1018,12 @@ class ProbeStatistics:
         misattribution vacuously.  The magnitude is the largest baseline or
         probed value of every node the identity compares, which is where
         cancellation inside the accounted sum sets the true floor when large
-        terms offset; the predictor alone would understate it.  It is taken
-        per dtype, against that dtype's ``eps``, and the largest floor wins.
+        terms offset; the predictor alone would understate it.  Each dtype
+        gives a floor from its own ``eps`` and its own nodes' magnitude, and
+        the predictor's dtype gives one from every node's magnitude: every
+        term reaches the predictor in its dtype, so a float32 predictor rounds
+        each float64 term on float32's grid at that term's size.  The largest
+        floor wins.
 
         Returns
         -------
@@ -1026,10 +1031,13 @@ class ProbeStatistics:
             The tolerance, or ``0.0`` when nothing was folded to compare.
         """
         scale = max(self.max_expected, self.max_accounted)
+        floors = list(self.magnitude_by_dtype.items())
+        if self.expected_dtype is not None:
+            floors.append((self.expected_dtype, self.node_magnitude))
         return max(
             (
                 completeness_tolerance(scale=scale, magnitude=magnitude, dtype=dtype)
-                for dtype, magnitude in self.magnitude_by_dtype.items()
+                for dtype, magnitude in floors
             ),
             default=0.0,
         )
