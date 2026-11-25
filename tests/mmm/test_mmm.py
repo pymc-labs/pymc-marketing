@@ -3435,10 +3435,10 @@ class _ScaledByDateLevelEffect(_ZeroEffect):
     ``second_reader``, the cumulative sum of the free variable reaches spend too,
     without going through the renames.  With ``renames_unread``, only a
     ``report`` Deterministic reads the renames, and spend reads the free variable
-    directly.  With ``classic``, the renames are ``pm.Deterministic`` on the
-    variable before ``as_xtensor``.  With ``classic``, the variable is declared with ``pymc`` and wrapped with
-    ``as_xtensor``, over ``dims="date"`` or, without ``classic_dims``, over a bare
-    ``shape``.  With ``classic_contribution``, the contribution is registered with
+    directly.  With ``classic``, the variable is declared with ``pymc`` and wrapped
+    with ``as_xtensor``, over ``dims="date"`` or, without ``classic_dims``, over a
+    bare ``shape``, and the renames are ``pm.Deterministic`` before ``as_xtensor``.
+    With ``classic_contribution``, the contribution is registered with
     ``pm.Deterministic``.  With ``scalar``, the variable is one value for every date,
     declared with ``pymc.dims`` or, with ``classic``, with ``pymc``.
     """
@@ -3617,7 +3617,8 @@ def test_monthly_incrementality_refuses_a_frozen_rename_read_another_way(
     with pytest.raises(
         ValueError,
         match=r"^frozen_deterministics includes 'scaled_rename_1' \(a view of "
-        r"'scaled_level'\), but the responses also read the variable",
+        r"'scaled_level'\), but the responses also read the variable.* To cut "
+        r"every read to the windows, freeze the variable itself: 'scaled_level'\.$",
     ):
         mmm.incrementality.compute_incremental_contribution(frequency="monthly")
 
@@ -3662,19 +3663,21 @@ def test_budget_optimizer_refuses_a_rename_of_a_deterministic(
         _optimize_budget(entry_point, mmm, "2023-01-10", "2023-01-14")
 
 
+@pytest.mark.parametrize("walk", [False, True], ids=["level", "random-walk"])
 def test_monthly_incrementality_on_a_frozen_rename_no_response_reads(
-    fit_mmm_with_effect,
+    fit_mmm_with_effect, walk
 ):
     """A frozen rename that only a report reads is left out of the evaluation.
 
-    On the evaluator's clone it would stand for every read of the variable, so it
-    would cut the read that scales spend to the windows.
+    On the evaluator's clone a rename of the variable would stand for every read
+    of it, so it would cut the read that scales spend to the windows.  A rename of
+    the walk is not refused either, although a clone keeps one of the two names.
     """
     unfrozen = fit_mmm_with_effect(
-        _ScaledByDateLevelEffect(renames=1, renames_unread=True)
+        _ScaledByDateLevelEffect(walk=walk, renames=1, renames_unread=True)
     )
     frozen = fit_mmm_with_effect(
-        _ScaledByDateLevelEffect(freeze=True, renames=1, renames_unread=True)
+        _ScaledByDateLevelEffect(walk=walk, freeze=True, renames=1, renames_unread=True)
     )
 
     with warnings.catch_warnings():
