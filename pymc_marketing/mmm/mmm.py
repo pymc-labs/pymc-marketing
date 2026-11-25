@@ -3591,8 +3591,12 @@ class MMM(RegressionModelBuilder):
         Raises
         ------
         ValueError
-            If the model has no *date_dim* coordinate, or the window leaves no
-            room for a decision once both flanking blocks are taken out.
+            If the model has no *date_dim* coordinate, the window leaves no
+            room for a decision once both flanking blocks are taken out, or a
+            date before *start_date* comes after the training data.  The
+            carry-in is taken from the training dates, so such a *start_date*
+            is later than the one the model was built for.  A later
+            *start_date* inside the training range is not detected.
 
         Examples
         --------
@@ -3625,7 +3629,23 @@ class MMM(RegressionModelBuilder):
         # Leading dates hold spend that already happened, so they are neither
         # decisions nor carry-over. Counting them as either would spread the
         # budget over history.
-        carry_in = int((model_dates < pd.Timestamp(start_date)).sum())
+        before_start = model_dates[model_dates < pd.Timestamp(start_date)]
+        carry_in = len(before_start)
+        # create_zero_dataset takes the carry-in from the training dates, so a
+        # later one is a planned date: start_date is later than the model's.
+        # The three blocks would still add up, so BudgetOptimizer cannot tell.
+        training_end = pd.DatetimeIndex(
+            self.xarray_dataset.coords[Dim.DATE].values
+        ).max()
+        planned = before_start[before_start > training_end]
+        if len(planned):
+            raise ValueError(
+                f"start_date {pd.Timestamp(start_date).date()} is later than the "
+                f"window this model was built for: {len(planned)} of the dates "
+                f"before it, from {planned[0].date()}, come after the training "
+                f"data, which ends {training_end.date()}. Pass the start_date "
+                "given to create_optimization_model."
+            )
         carry_over = self.effective_carryover_lags()
         decisions = len(model_dates) - carry_in - carry_over
         if decisions <= 0:
