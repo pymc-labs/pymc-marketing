@@ -6,17 +6,13 @@
 
 name: zizmor
 
+# No paths filter: this is a required status check on main, and a
+# skipped workflow leaves the required check pending.
 on:
   pull_request:
     branches: [main]
-    paths:
-      - ".github/workflows/**"
-      - ".github/zizmor.yml"
   push:
     branches: [main]
-    paths:
-      - ".github/workflows/**"
-      - ".github/zizmor.yml"
 
 permissions:
   contents: read

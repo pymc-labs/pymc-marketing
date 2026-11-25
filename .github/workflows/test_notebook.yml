@@ -30,6 +30,9 @@ on:
 
 permissions:
   contents: read
+  # actions: write: the cache-reservation backend only grants a cache
+  # write lease to a token with at least one writable scope, so the
+  # LFS cache/save step below fails silently without it.
   actions: write
 
 concurrency:
