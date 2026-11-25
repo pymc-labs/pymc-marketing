@@ -1277,6 +1277,8 @@ class MMM(RegressionModelBuilder):
         df_events: pd.DataFrame,
         prefix: str,
         effect: EventEffect,
+        period_days: int | None = None,
+        period_anchor: Literal["start", "end"] = "start",
     ) -> Self:
         """Add event effects to the model.
 
@@ -1293,6 +1295,14 @@ class MMM(RegressionModelBuilder):
             The prefix to use for the event effect and associated variables.
         effect : EventEffect
             The event effect to apply.
+        period_days : int, optional
+            Number of days covered by each model date. When set, the event basis
+            is evaluated on every day of the period and summed, instead of once at
+            the date label. Use ``period_days=7`` for weekly data. Default is
+            ``None`` (one evaluation per date label).
+        period_anchor : Literal["start", "end"]
+            Whether each date labels the first (``"start"``) or last (``"end"``)
+            day of its period. Default is ``"start"``.
 
         Returns
         -------
@@ -1313,6 +1323,8 @@ class MMM(RegressionModelBuilder):
             df_events=df_events,
             prefix=prefix,
             effect=effect,
+            period_days=period_days,
+            period_anchor=period_anchor,
         )
         self.mu_effects.append(event_effect)
 

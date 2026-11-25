@@ -1542,6 +1542,16 @@ class EventAdditiveEffect(MuEffect):
         is "2025-01-01".
     date_dim_name : str
         The name of the date dimension in the model. Default is "date".
+    period_days : int, optional
+        Number of days covered by each model date. ``None`` (default) evaluates
+        the basis once per model date, at the date label. Set it (for example
+        ``period_days=7`` for weekly data) to evaluate the basis on every day of
+        the period and sum the daily values, so each period gets the effect of
+        all its days. This works with any basis and handles multi-day events.
+    period_anchor : Literal["start", "end"]
+        Whether the model date labels the first day of the period (``"start"``)
+        or the last day (``"end"``, as with pandas ``"W"`` / ``"W-SUN"`` labels).
+        Only used when ``period_days`` is set. Default is ``"start"``.
 
     """
 
@@ -1550,6 +1560,8 @@ class EventAdditiveEffect(MuEffect):
     effect: EventEffect
     reference_date: str = "2025-01-01"
     date_dim_name: str = "date"
+    period_days: int | None = Field(default=None, ge=1)
+    period_anchor: Literal["start", "end"] = "start"
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a dict with ``__type__`` key.
@@ -1563,6 +1575,8 @@ class EventAdditiveEffect(MuEffect):
             "date_dim_name": self.date_dim_name,
             "effect": self.effect.to_dict(),
             "df_events_group": f"supplementary_data_{self.prefix}",
+            "period_days": self.period_days,
+            "period_anchor": self.period_anchor,
         }
 
     def model_post_init(self, context: Any, /) -> None:
@@ -1583,6 +1597,20 @@ class EventAdditiveEffect(MuEffect):
     def end_dates(self) -> pd.Series:
         """The end dates of the events."""
         return pd.to_datetime(self.df_events["end_date"])
+
+    @property
+    def period_dim(self) -> str:
+        """Name of the within-period day dimension that is summed out."""
+        return f"{self.prefix}_period_day"
+
+    @property
+    def period_offsets(self) -> npt.NDArray[np.int64] | None:
+        """Day offsets from the date label to each day of its period."""
+        if self.period_days is None:
+            return None
+        if self.period_anchor == "start":
+            return np.arange(self.period_days)
+        return np.arange(-self.period_days + 1, 1)
 
     def create_data(self, mmm: Model) -> None:
         """Create the required data in the model.
@@ -1636,6 +1664,12 @@ class EventAdditiveEffect(MuEffect):
         model: pm.Model = mmm.model
 
         days = model["days"]
+        sum_dims: tuple[str, ...] = (self.prefix,)
+        if (offsets := self.period_offsets) is not None:
+            # Evaluate the basis on every day of each period, then sum them.
+            days = days + ptx.as_xtensor(offsets, dims=(self.period_dim,))
+            sum_dims = (self.prefix, self.period_dim)
+
         start_ref = days - model[f"{self.prefix}_start_diff"]
         end_ref = days - model[f"{self.prefix}_end_diff"]
 
@@ -1653,7 +1687,7 @@ class EventAdditiveEffect(MuEffect):
 
         return pmd.Deterministic(
             self.contribution_var_name,
-            event_effect.sum(dim=self.prefix),
+            event_effect.sum(dim=sum_dims),
         )
 
     @property
@@ -1718,6 +1752,8 @@ def _deserialize_event_additive_effect(
         prefix=data["prefix"],
         reference_date=data.get("reference_date", "2025-01-01"),
         date_dim_name=data.get("date_dim_name", "date"),
+        period_days=data.get("period_days"),
+        period_anchor=data.get("period_anchor", "start"),
     )
 
 
