@@ -227,6 +227,7 @@ def test_lenient_save_still_warns_about_custom_dist(tmp_path):
 def test_manifest_records_version_pins(bundle_path):
     manifest = load(bundle_path).manifest
     assert manifest["pymc"] == pm.__version__
+    assert manifest["numpy"] == np.__version__
     assert manifest["schema_version"] == 1
     assert manifest.version_mismatch() == {}
     assert manifest.created
@@ -269,6 +270,19 @@ def test_version_mismatch_is_reported_not_fatal(bundle_path):
 
     assert bundle.manifest.version_mismatch() == {"pymc": ("0.0.0", pm.__version__)}
     assert bundle.validate().ok
+
+
+def test_a_manifest_from_an_older_writer_has_no_numpy_drift(bundle_path):
+    """Manifests written before the numpy pin lack the key; that is not drift.
+
+    version_mismatch compares only keys that are present, so an older manifest
+    passes through untouched rather than reporting (missing, live) as a pair.
+    """
+    bundle = load(bundle_path)
+    raw = {k: v for k, v in bundle.manifest.raw.items() if k != "numpy"}
+    bundle.manifest = type(bundle.manifest)(raw)
+
+    assert bundle.manifest.version_mismatch() == {}
 
 
 def test_fingerprint_is_stable_across_identical_models():
@@ -1399,6 +1413,7 @@ def test_version_pins_resolve_to_real_versions(tmp_path):
     recorded value against the live one, so "unknown" matched "unknown" and the
     drift the pin exists to warn about was never reported.
     """
+    import numpy
     import pymc
     import pytensor
 
@@ -1410,6 +1425,7 @@ def test_version_pins_resolve_to_real_versions(tmp_path):
 
     assert raw["pymc"] == pymc.__version__
     assert raw["pytensor"] == pytensor.__version__
+    assert raw["numpy"] == numpy.__version__
     assert raw["pymc_marketing"] == pymc_marketing.__version__
     assert "unknown" not in raw.values()
 
@@ -1638,6 +1654,7 @@ def test_manifest_records_python_and_floatx(tmp_path):
 
     assert raw["python"] == platform.python_version()
     assert raw["floatX"] in ("float32", "float64")
+    assert raw["numpy"] == np.__version__
 
 
 def test_a_missing_reference_logp_warns_rather_than_going_quiet(tmp_path):

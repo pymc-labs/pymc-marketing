@@ -211,8 +211,8 @@ oppositely despite being pickled the same way.
 
 **Scope: a raw** ``pm.Model`` **in the environment that wrote it.**  This is a
 same-environment artefact, not an archival format: it depends on the pymc,
-pytensor and Python that produced the model, which is why the manifest pins
-them.  For a builder class such as ``MMM``, use ``ModelIO.save`` / ``ModelIO.load``,
+pytensor, numpy and Python that produced the model, which is why the manifest
+pins them.  For a builder class such as ``MMM``, use ``ModelIO.save`` / ``ModelIO.load``,
 which calls your class again, stores your configuration, and survives you editing
 the class.  This module stores the Model as built, which is the faithful answer
 for a model built without a builder and the least portable.  If a format that
@@ -477,6 +477,9 @@ class Manifest:
     ``created``        ISO 8601 UTC, second resolution. Informational.
     ``pymc``           version that wrote it. Drift is reported, never fatal.
     ``pytensor``       as above.
+    ``numpy``          as above. The logp numerics and the coord hashing that
+                       back ``fingerprint`` and ``reference_logp`` depend on
+                       it, not only on ``floatX``.
     ``pymc_marketing`` as above.
     ``python``         as above. The pin most likely to matter on load,
                        since cloudpickle stores classes as bytecode.
@@ -565,11 +568,14 @@ class Manifest:
         """Return the recorded pins against the live environment.
 
         Informational, not fatal, but worth surfacing: a pickled Model is
-        not guaranteed to load under a different pymc or pytensor.
+        not guaranteed to load under a different pymc or pytensor, and the
+        logp numerics ``validate`` compares depend on the numpy that wrote
+        the reference as much as on the precision it was taken at.
         """
         live = {
             "pymc": _version("pymc"),
             "pytensor": _version("pytensor"),
+            "numpy": _version("numpy"),
             "pymc_marketing": _version("pymc_marketing"),
             # cloudpickle stores dynamic classes as bytecode, so the Python that
             # writes a bundle is the version most likely to break loading it.
@@ -1143,6 +1149,7 @@ def build_manifest(
         # the graph cannot record what wrote it
         "pymc": _version("pymc"),
         "pytensor": _version("pytensor"),
+        "numpy": _version("numpy"),
         "pymc_marketing": _version("pymc_marketing"),
         "python": _python_version(),
         "floatX": _floatX(),
