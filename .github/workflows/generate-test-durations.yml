@@ -8,6 +8,14 @@ on:
     # Twice weekly: the repo's cache retention is 7 days (org limit), so a
     # single failed run must not strand the compile-cache pool until the
     # next week.
+  push:
+    branches: [main]
+    # An environment change moves the version key, and only this job
+    # publishes under it - so republish promptly on dependency bumps
+    # instead of leaving every test run cold until the next cron.
+    paths:
+      - "uv.lock"
+      - "pyproject.toml"
 
 permissions:
   contents: write
