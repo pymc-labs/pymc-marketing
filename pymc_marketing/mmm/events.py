@@ -121,10 +121,107 @@ from pymc_marketing.names import Key
 from pymc_marketing.serialization import serialization
 
 
+def _normal_cdf(x: XTensorLike, sigma: XTensorLike) -> XTensorVariable:
+    """CDF of a zero-mean normal with scale ``sigma``."""
+    return 0.5 * (1 + ptx.math.erf(x / (sigma * np.sqrt(2))))
+
+
+def _normal_mass(
+    lower: XTensorLike,
+    upper: XTensorLike,
+    sigma: XTensorLike,
+    *,
+    support_lower: float | None = None,
+    support_upper: float | None = None,
+) -> XTensorVariable:
+    """Mass of a zero-mean normal on ``[lower, upper]`` within a support.
+
+    The interval is clipped to ``[support_lower, support_upper]`` first, so the
+    mass is 0 when the interval lies entirely outside the support.
+    """
+    if support_lower is not None:
+        lower = ptx.math.maximum(lower, support_lower)
+        upper = ptx.math.maximum(upper, support_lower)
+    if support_upper is not None:
+        lower = ptx.math.minimum(lower, support_upper)
+        upper = ptx.math.minimum(upper, support_upper)
+    return _normal_cdf(upper, sigma) - _normal_cdf(lower, sigma)
+
+
 class Basis(Transformation):
-    """Basis transformation associated with an event model."""
+    """Basis transformation associated with an event model.
+
+    By default the basis is evaluated pointwise at ``x``, the distance in days
+    between the model date and the event. When the model dates label periods
+    longer than a day (weekly data, for instance), a pointwise evaluation reads
+    the curve once per period at the label date and ignores the other days.
+    Set ``period_days`` to integrate the curve over the whole period instead.
+
+    Parameters
+    ----------
+    period_days : int, optional
+        Number of days covered by each model date. ``None`` (default) keeps the
+        pointwise evaluation. With ``period_days=7`` each weekly value is the
+        integral of the curve over the 7 days of that week, computed with
+        normal CDF differences.
+    period_anchor : Literal["start", "end"]
+        Whether the model date labels the first day of the period (``"start"``,
+        e.g. pandas ``W-MON`` style labels on the Monday that opens the week) or
+        the last day (``"end"``, e.g. pandas ``"W"`` / ``"W-SUN"`` labels on the
+        Sunday that closes the week). Default is ``"start"``.
+    priors : dict[str, Prior], optional
+        Priors for the basis parameters.
+    prefix : str, optional
+        Prefix for the parameter names.
+
+    Notes
+    -----
+    Day ``d`` is treated as the interval ``[d - 0.5, d + 0.5]``, so with
+    ``period_days=1`` the integrated basis is the probability mass of each day.
+    The integrated mode is exact for single-day events. For multi-day events the
+    distance ``x`` collapses the event interior to 0, so periods that only
+    partially overlap the event are approximated.
+    """
 
     prefix: str = "basis"
+
+    def __init__(
+        self,
+        priors: dict | None = None,
+        prefix: str | None = None,
+        *,
+        period_days: int | None = None,
+        period_anchor: Literal["start", "end"] = "start",
+    ):
+        super().__init__(priors=priors, prefix=prefix)
+        if period_days is not None and period_days < 1:
+            raise ValueError(f"period_days must be >= 1, got {period_days}")
+        if period_anchor not in ("start", "end"):
+            raise ValueError(
+                f"period_anchor must be 'start' or 'end', got {period_anchor!r}"
+            )
+        self.period_days = period_days
+        self.period_anchor = period_anchor
+
+    @property
+    def integrate(self) -> bool:
+        """Whether the basis integrates over a period instead of sampling."""
+        return self.period_days is not None
+
+    def _period_bounds(self, x: XTensorLike) -> tuple[XTensorLike, XTensorLike]:
+        """Continuous bounds of the period labelled by ``x``."""
+        period_days = cast(int, self.period_days)
+        if self.period_anchor == "start":
+            return x - 0.5, x + period_days - 0.5
+        return x - period_days + 0.5, x + 0.5
+
+    def to_dict(self) -> dict:
+        """Convert the basis to a dictionary."""
+        data = super().to_dict()
+        if self.period_days is not None:
+            data["period_days"] = self.period_days
+            data["period_anchor"] = self.period_anchor
+        return data
 
     @classmethod
     def from_dict(cls, data: dict) -> "Basis":
@@ -253,6 +350,9 @@ class GaussianBasis(Basis):
         """Gaussian bump function."""
         x = as_xtensor(x)
         sigma = as_xtensor(sigma)
+        if self.integrate:
+            lower, upper = self._period_bounds(x)
+            return _normal_mass(lower, upper, sigma)
         return density(pmd.Normal, value=x, sigma=sigma)
 
     default_priors = {
@@ -295,6 +395,8 @@ class HalfGaussianBasis(Basis):
         Prior for the sigma parameter.
     prefix : str
         Prefix for the parameter names.
+    period_days, period_anchor
+        Integrate over each model period instead of sampling. See :class:`Basis`.
     """
 
     def __init__(
@@ -313,6 +415,15 @@ class HalfGaussianBasis(Basis):
         """One-sided Gaussian bump function."""
         x = as_xtensor(x)
         sigma = as_xtensor(sigma)
+        if self.integrate:
+            lower, upper = self._period_bounds(x)
+            # The event day is the interval [-0.5, 0.5]; it belongs to the
+            # support only when include_event is True.
+            edge = 0.5 if self.include_event else -0.5
+            if self.mode == "after":
+                return _normal_mass(lower, upper, sigma, support_lower=-edge)
+            return _normal_mass(lower, upper, sigma, support_upper=edge)
+
         out = density(pmd.Normal, value=x, sigma=sigma)
         # Sign determines if the zeroing happens after or before the event.
         sign = 1 if self.mode == "after" else -1
@@ -374,6 +485,8 @@ class AsymmetricGaussianBasis(Basis):
         Prior for the sigma_before, sigma_after, a_before, and a_after parameters.
     prefix : str
         Prefix for the parameters.
+    period_days, period_anchor
+        Integrate over each model period instead of sampling. See :class:`Basis`.
     """
 
     def __init__(
@@ -397,6 +510,25 @@ class AsymmetricGaussianBasis(Basis):
         x = as_xtensor(x)
         sigma_before = as_xtensor(sigma_before)
         sigma_after = as_xtensor(sigma_after)
+
+        if self.integrate:
+            lower, upper = self._period_bounds(x)
+            # The event day is the interval [-0.5, 0.5]. event_in decides which
+            # side owns it, or whether it is left out.
+            match self.event_in:
+                case "before":
+                    before_edge, after_edge = 0.5, 0.5
+                case "after":
+                    before_edge, after_edge = -0.5, -0.5
+                case "exclude":
+                    before_edge, after_edge = -0.5, 0.5
+                case _:
+                    raise ValueError(f"Invalid event_in: {self.event_in}")
+            y_before = _normal_mass(
+                lower, upper, sigma_before, support_upper=before_edge
+            )
+            y_after = _normal_mass(lower, upper, sigma_after, support_lower=after_edge)
+            return y_before + y_after * a_after
 
         match self.event_in:
             case "before":
