@@ -16,6 +16,8 @@ permissions:
 jobs:
   generate-durations:
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
     env:
       # Match the test job's portable-target pins so this job shares the
       # same cache pool (keys must not embed the runner's CPU).
@@ -38,9 +40,6 @@ jobs:
           uv pip install -e .[test]
       - name: PyTensor compile cache
         uses: $/.github/actions/pytensor-cache
-        with:
-          publish: true
-          lineage: durations
       - name: Run all tests with duration tracking
         # --run-slow: record real timings for slow-marked tests instead of
         # their skip times (test_slow groups balance on this file)
@@ -61,6 +60,25 @@ jobs:
             echo "::error::Durations file is truncated (${stored} stored < ${collected} collected); not opening PR"
             exit 1
           fi
+      - name: Delete previous PyTensor cache snapshot
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          KEY=$(cat /tmp/pytensor-snapshot-key)
+          echo "refreshing snapshot key: $KEY"
+          gh cache list --key "$KEY" --json id --jq '.[].id' | xargs -r gh cache delete
+
+      - name: Save PyTensor cache snapshot
+        env:
+          KEY_FILE: /tmp/pytensor-snapshot-key
+        id: snapshot
+        run: echo "key=$(cat "$KEY_FILE")" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ~/.pytensor
+          key: ${{ steps.snapshot.outputs.key }}
+
       - name: Ensure newline at end of durations file
         run: |
           # Add newline if missing (pre-commit requirement)

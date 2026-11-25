@@ -1,28 +1,12 @@
 name: PyTensor compile cache
 description: >-
-  Restore and save PyTensor compile caches (C compiledir and numba file
-  cache) under a version-derived key. The job must set the portable-target
-  pins (PYTENSOR_FLAGS=cxxflags=-march=x86-64 and NUMBA_CPU_NAME=generic)
-  so cache keys do not embed the runner's CPU: numba keys include the host
-  CPU name and pytensor's C keys include auto-detected march flags, and
-  GitHub's runner fleet is heterogeneous.
-
-inputs:
-  publish:
-    description: >-
-      Whether this job publishes a snapshot. Only the durations job (which
-      runs the full suite) should publish: its snapshot is a superset of
-      every test slice, and under actions/cache's newest-wins restore rule
-      the most complete newest entry is what maximizes hit rate. Test jobs
-      restore-only. Composite action inputs are always strings, so this is
-      compared as a string ("true"/"false") in the step guards.
-    default: 'false'
-
-  lineage:
-    description: >-
-      Label for the publishing job's save key, e.g. "durations". Unused by
-      restore-only consumers.
-    default: durations
+  Compute the PyTensor compile-cache version key and restore compiled
+  artifacts (C compiledir and numba file cache) for the current
+  environment. The job must set the portable-target pins
+  (PYTENSOR_FLAGS=cxxflags=-march=x86-64,compiledir_format=... and
+  NUMBA_CPU_NAME=generic) so cache keys do not embed the runner's CPU:
+  numba keys include the host CPU name and pytensor's C compiledir name
+  embeds platform details, and GitHub's runner fleet is heterogeneous.
 
 runs:
   using: composite
@@ -32,16 +16,18 @@ runs:
       run: |
         uv run --no-sync python "$GITHUB_ACTION_PATH/compute_key.py"
 
-    # The combined action (restore + save-in-post) is used for every job:
-    # its save phase is the only mechanism that has published entries
-    # reliably in this repo; standalone actions/cache/save posts have
-    # silently produced nothing. Per-lineage keys keep publishers from
-    # racing.
-    - name: Restore and save PyTensor compile caches
-      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+    - name: Record canonical snapshot key
+      # The full-suite durations job publishes ONE snapshot under this
+      # static key (delete-then-save, since actions/cache never
+      # overwrites). Every other job restores it read-only.
+      shell: bash
+      run: echo "pytensor-${{ hashFiles('.pytensor-cache-key') }}-snapshot" > /tmp/pytensor-snapshot-key
+
+    - name: Restore PyTensor compile caches
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       with:
         path: ~/.pytensor
-        key: pytensor-${{ hashFiles('.pytensor-cache-key') }}-${{ inputs.lineage }}-${{ github.run_id }}
+        key: pytensor-${{ hashFiles('.pytensor-cache-key') }}-restore-${{ github.run_id }}
         restore-keys: |
           pytensor-${{ hashFiles('.pytensor-cache-key') }}-
 
