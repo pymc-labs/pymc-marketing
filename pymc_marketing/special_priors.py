@@ -79,7 +79,7 @@ def _deserialize_scaled(data: dict, context: Any = None) -> Scaled:
 
 
 # New saves use pymc-extras' native ``{"class": "Scaled", "data": ...}`` shape.
-# The deserializer reads the ``__type__`` shape written by 1.1.0. A serializer
+# The deserializer reads the ``__type__`` shape written by 1.0.0 to 1.5.0. A serializer
 # must be given: without one, ``register`` wraps ``Scaled.to_dict`` to add
 # ``__type__`` back.
 serialization.register(

@@ -817,8 +817,8 @@ class TestSpecialPriorTypeRegistry:
         assert serialization.serialize(scaled) == scaled.to_dict()
         assert deserialize(serialization.serialize(scaled)).factor == 50_000
 
-    def test_scaled_in_1_1_0_shape_still_deserializes(self):
-        """The ``__type__`` shape written by 1.1.0 still loads (#2970)."""
+    def test_scaled_in_legacy_shape_still_deserializes(self):
+        """The ``__type__`` shape written by 1.0.0 to 1.5.0 still loads (#2970)."""
         data = {
             "__type__": "pymc_extras.prior.Scaled",
             "dist": Prior("Gamma", mu=1, sigma=0.1).to_dict(),

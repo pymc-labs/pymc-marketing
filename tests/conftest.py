@@ -64,15 +64,15 @@ mock_pymc_sample = pytest.fixture(scope="module")(mock_sample_setup_and_teardown
 
 
 @pytest.fixture
-def writing_scaled_as_in_1_1_0(monkeypatch):
-    """Return a context manager under which saves write ``Scaled`` as 1.1.0 did.
+def writing_scaled_in_legacy_shape(monkeypatch):
+    """Return a context manager under which saves write ``Scaled`` as 1.0.0 to 1.5.0 did.
 
-    1.1.0 wrote ``{"__type__": "pymc_extras.prior.Scaled", "dist": ..., "factor": ...}``.
+    Those releases wrote ``{"__type__": "pymc_extras.prior.Scaled", "dist": ..., "factor": ...}``.
     Saving under it gives a file with both that shape and the model id hashed from it.
     """
     key = serialization.key_for(Scaled)
 
-    def serialize_1_1_0(obj: Scaled) -> dict:
+    def serialize_legacy(obj: Scaled) -> dict:
         return {"__type__": key, "dist": obj.dist.to_dict(), "factor": obj.factor}
 
     @contextmanager
@@ -82,7 +82,7 @@ def writing_scaled_as_in_1_1_0(monkeypatch):
             m.setitem(
                 serialization._registry,
                 key,
-                dataclasses.replace(entry, serializer=serialize_1_1_0),
+                dataclasses.replace(entry, serializer=serialize_legacy),
             )
             yield
 

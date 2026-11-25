@@ -1157,19 +1157,19 @@ class TestBassModelClass:
         assert isinstance(loaded.model_config["m"].dist, Prior)
         xr.testing.assert_allclose(model.idata.posterior, loaded.idata.posterior)
 
-    def test_load_scaled_prior_saved_by_1_1_0(
-        self, mock_pymc_sample, y: np.ndarray, tmp_path, writing_scaled_as_in_1_1_0
+    def test_load_scaled_prior_in_legacy_shape(
+        self, mock_pymc_sample, y: np.ndarray, tmp_path, writing_scaled_in_legacy_shape
     ):
-        """A Scaled prior saved in the 1.1.0 ``__type__`` shape still loads (#2970).
+        """A Scaled prior saved in the ``__type__`` shape of 1.0.0 to 1.5.0 still loads (#2970).
 
         The Bass id hashes ``to_dict()``, which the saved shape does not change.
         """
         model = BassModel(
             model_config={"m": Scaled(Prior("Gamma", mu=1, sigma=0.1), factor=50_000)}
         )
-        file = str(tmp_path / "bass_model_scaled_1_1_0.nc")
-        # ``fit`` writes the idata attrs, so it must run in the 1.1.0 shape too.
-        with writing_scaled_as_in_1_1_0():
+        file = str(tmp_path / "bass_model_scaled_legacy.nc")
+        # ``fit`` writes the idata attrs, so it must run in the legacy shape too.
+        with writing_scaled_in_legacy_shape():
             model.fit(data=y, draws=5, tune=5, chains=1, random_seed=42)
             model.save(file)
         assert (

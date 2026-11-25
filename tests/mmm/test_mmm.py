@@ -2355,21 +2355,43 @@ class TestSerializationIntegration:
         assert isinstance(loaded.model_config["intercept"], Scaled)
         assert loaded == mmm
 
-    def test_load_scaled_prior_saved_by_1_1_0_needs_check_false(
-        self, minimal_fit_data, tmp_path, mock_pymc_sample, writing_scaled_as_in_1_1_0
+    def test_roundtrip_with_censored_prior(
+        self, minimal_fit_data, tmp_path, mock_pymc_sample
     ):
-        """An MMM saved by 1.1.0 with a Scaled prior fails the id check (#2970).
+        """A Censored prior, saved as a ``class``/``data`` pair, loads back."""
+        X, y = minimal_fit_data
+        mmm = self._base_mmm(
+            model_config={"intercept": Censored(Prior("Normal", sigma=1), lower=-5)}
+        )
+        mmm.fit(X, y)
 
-        The id hashes the serialized config, and 1.1.0 wrote Scaled under
+        fname = str(tmp_path / "model.nc")
+        mmm.save(fname)
+        loaded = MMM.load(fname)
+
+        assert isinstance(loaded.model_config["intercept"], Censored)
+        assert loaded.model_config["intercept"].lower == -5
+        assert loaded == mmm
+
+    def test_load_legacy_scaled_prior_needs_check_false(
+        self,
+        minimal_fit_data,
+        tmp_path,
+        mock_pymc_sample,
+        writing_scaled_in_legacy_shape,
+    ):
+        """An MMM saved by 1.0.0 to 1.5.0 with a Scaled prior fails the id check (#2970).
+
+        The id hashes the serialized config, and those releases wrote Scaled under
         ``__type__``. The prior itself still loads with ``check=False``.
         """
         X, y = minimal_fit_data
         mmm = self._base_mmm(
             model_config={"intercept": Scaled(Prior("Normal", sigma=1), factor=2.0)}
         )
-        fname = str(tmp_path / "model_1_1_0.nc")
-        # ``fit`` writes the idata attrs, so it must run in the 1.1.0 shape too.
-        with writing_scaled_as_in_1_1_0():
+        fname = str(tmp_path / "model_legacy.nc")
+        # ``fit`` writes the idata attrs, so it must run in the legacy shape too.
+        with writing_scaled_in_legacy_shape():
             mmm.fit(X, y)
             mmm.save(fname)
 
