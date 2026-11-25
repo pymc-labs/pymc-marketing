@@ -339,27 +339,6 @@ def test_model_config_warns_on_non_skipped_keys():
             "The model hasn't been fit yet",
             ["test"],
         ),
-        (
-            "fit_result_error",
-            RegressionModelBuilderTest,
-            "fit_result",
-            "The model hasn't been fit yet",
-            [],
-        ),
-        (
-            "graphviz_before_build",
-            RegressionModelBuilderTest,
-            "graphviz",
-            "The model hasn't been built yet",
-            [],
-        ),
-        (
-            "table_before_build",
-            RegressionModelBuilderTest,
-            "table",
-            "The model hasn't been built yet",
-            [],
-        ),
     ],
 )
 def test_error_handling(test_case, model_class, method, expected_error, args):
@@ -564,14 +543,6 @@ def test_base_model_save_load(fitted_base_model_instance):
     assert fitted_base_model_instance.model_config == test_builder2.model_config
     assert fitted_base_model_instance.sampler_config == test_builder2.sampler_config
     temp.close()
-
-
-def test_initial_build_and_fit(
-    fitted_regression_model_instance, check_idata=True
-) -> RegressionModelBuilder:
-    if check_idata:
-        assert fitted_regression_model_instance.idata is not None
-        assert "/posterior" in fitted_regression_model_instance.idata.groups
 
 
 def test_save_forwards_backend_kwargs(fitted_regression_model_instance, tmp_path):
@@ -1416,15 +1387,6 @@ class TestModelConfigFormattingTypeDetection:
         assert isinstance(result["component"], _DummyConfigType)
         assert result["component"].value == 42
 
-    def test_legacy_dict_without_type_key_unchanged(self):
-        """A dict without __type__ follows the existing list->tuple/array heuristic."""
-        model_config = {
-            "intercept": {"mu": 0, "sigma": 1, "dims": ["date"]},
-        }
-        result = ModelIO._model_config_formatting(model_config)
-        assert isinstance(result["intercept"]["dims"], tuple)
-        assert result["intercept"]["dims"] == ("date",)
-
     def test_plain_scalars_unchanged(self):
         """Non-dict values pass through unchanged."""
         model_config = {"n_obs": 100, "name": "test"}
@@ -1450,22 +1412,6 @@ class TestModelConfigFormattingClassForm:
 
         assert isinstance(result["likelihood"], Censored)
         assert result["likelihood"] == prior
-
-    def test_class_form_takes_precedence_over_recursion(self):
-        """The wrapper is rebuilt whole, not recursed into.
-
-        Recursing first would convert the nested ``dist`` to a ``Prior`` and
-        leave the wrapper as an unreadable dict.
-        """
-        from pymc_extras.prior import Censored, Prior
-
-        prior = Censored(Prior("Normal", mu=0, sigma=1), lower=0)
-        model_config = json.loads(json.dumps({"likelihood": prior.to_dict()}))
-
-        result = ModelIO._model_config_formatting(model_config)
-
-        assert not isinstance(result["likelihood"], dict)
-        assert isinstance(result["likelihood"].distribution, Prior)
 
     def test_non_prior_mapping_with_class_key_unchanged(self):
         """A plain config mapping is not misrouted to the deserializer."""

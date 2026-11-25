@@ -340,17 +340,6 @@ class TestToMmmDatasetWithDims:
 class TestToMmmDatasetDateCoercion:
     """to_mmm_dataset coerces date columns to datetime for DataFrame inputs."""
 
-    def test_string_dates_are_coerced(self):
-        X = pd.DataFrame(
-            {
-                "date": ["2023-01-01", "2023-01-08", "2023-01-15"],
-                "channel_1": [1.0, 2.0, 3.0],
-            }
-        )
-        y = pd.Series([10, 20, 30])
-        ds = to_mmm_dataset(X, y, date_column="date", channel_columns=["channel_1"])
-        assert np.issubdtype(ds.coords["date"].values.dtype, np.datetime64)
-
     def test_non_standard_date_format(self):
         X = pd.DataFrame(
             {

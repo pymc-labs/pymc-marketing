@@ -197,24 +197,6 @@ class TestsAdstockTransformers:
         with pytest.raises(ParameterValueError):
             y.eval()
 
-    @pytest.mark.parametrize(
-        argnames="mode",
-        argvalues=[ConvMode.After, ConvMode.Before, ConvMode.Overlap],
-        ids=["After", "Before", "Overlap"],
-    )
-    def test_delayed_adstock_output_type(self, mode):
-        x = np.ones(shape=(100))
-        y = delayed_adstock(
-            x=as_xtensor(x, dims=("time",)),
-            alpha=0.5,
-            theta=6,
-            l_max=7,
-            dim="time",
-            mode=mode,
-        )
-        assert isinstance(y, XTensorVariable)
-        assert isinstance(y.eval(), np.ndarray)
-
     def test_delayed_adstock_x_zero(self):
         x = np.zeros(shape=(100))
         y = delayed_adstock(

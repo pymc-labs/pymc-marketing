@@ -574,6 +574,13 @@ def subsample_draws(
     ValueError
         If *num_samples* is less than 1.
 
+    See Also
+    --------
+    pymc_marketing.mmm.incrementality.subsample_draws_per_chain :
+        Keeps the same draws in every chain under their own labels; the
+        :class:`~pymc_marketing.mmm.incrementality.Incrementality` methods
+        subsample with it.
+
     Examples
     --------
     >>> sub = subsample_draws(posterior, num_samples=100, random_state=42)

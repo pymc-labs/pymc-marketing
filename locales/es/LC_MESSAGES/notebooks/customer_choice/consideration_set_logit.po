@@ -1,0 +1,1009 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2026, PyMC Labs
+# This file is distributed under the same license as the PyMC-Marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyMC-Marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:10002
+#: 2260005013a349349eb52a39d4c603b9
+msgid "Consideration Set Mixed Logit: Separating Attention from Preference"
+msgstr ""
+"Logit mixto con conjunto de consideración: separando la atención de la "
+"preferencia"
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:10004
+#: a11cd9e797794428b7008771dcb4fa37
+msgid ""
+"This notebook demonstrates a two-stage discrete choice model that "
+"separates *which alternatives get considered* from *which is preferred*. "
+"We apply it to the Swiss Metro stated-preference dataset (Train, "
+"SwissMetro, Car), compare a vanilla model with one that adds random "
+"effects on travel time, and show that the consideration-stage estimates "
+"can change dramatically when the utility stage is better specified."
+msgstr ""
+"Este cuaderno demuestra un modelo de elección discreta en dos etapas que "
+"separa *qué alternativas se consideran* de *cuál se prefiere*. Lo aplicamos "
+"al conjunto de datos de preferencias declaradas de Swiss Metro (Train, "
+"SwissMetro, Car), comparamos un modelo básico con otro que añade efectos "
+"aleatorios sobre el tiempo de viaje, y mostramos que las estimaciones de la "
+"etapa de consideración pueden cambiar drásticamente cuando la etapa de "
+"utilidad está mejor especificada."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:40002
+#: 3df096ad3ab84a4495c2f730d95879aa
+msgid "Motivation: Why Separate Consideration from Preference?"
+msgstr "Motivación: ¿por qué separar la consideración de la preferencia?"
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:40004
+#: a02fc7b49d594b8f8c31e5c77143d379
+msgid ""
+"Standard discrete choice models assume every alternative is actively "
+"considered. The chosen option maximises utility across the full set. This"
+" is the rational-agent ideal, not how people decide."
+msgstr ""
+"Los modelos estándar de elección discreta suponen que todas las alternativas"
+" se consideran activamente. La opción elegida maximiza la utilidad entre "
+"todo el conjunto. Este es el ideal del agente racional, no la forma en que "
+"decide la gente."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:40006
+#: 126725499c0f4507a69b1851a8559370
+msgid ""
+"Real decisions have two stages. First, *screening*: habits, awareness, "
+"and contextual cues determine which options enter the consideration set. "
+"Second, *evaluation*: among the considered options, the individual weighs"
+" trade-offs and picks the best. The old parable applies. The drunk "
+"searches for his keys under the streetlamp, not because he dropped them "
+"there, but because that's where the light is. People can only choose from"
+" what they notice."
+msgstr ""
+"Las decisiones reales tienen dos etapas. Primero, el *filtrado*: los "
+"hábitos, el conocimiento y las señales del contexto determinan qué opciones "
+"entran en el conjunto de consideración. Segundo, la *evaluación*: entre las "
+"opciones consideradas, la persona sopesa los compromisos y elige la mejor. "
+"Aquí aplica la vieja parábola. El borracho busca sus llaves bajo la farola, "
+"no porque las haya perdido allí, sino porque ahí hay luz. Las personas solo "
+"pueden elegir entre lo que notan."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:40008
+#: edd33ff5652644a08d58029d25c1c089
+msgid ""
+"A commuter who has never heard of SwissMetro cannot prefer it. A "
+"traveller without a rail pass may never think of the train, even when it "
+"dominates on time and cost. The consideration set bounds the search space"
+" before evaluation begins."
+msgstr ""
+"Un viajero habitual que nunca ha oído hablar de SwissMetro no puede "
+"preferirlo. Un viajero sin abono de tren puede no pensar nunca en el tren, "
+"incluso cuando es la mejor opción en tiempo y costo. El conjunto de "
+"consideración acota el espacio de búsqueda antes de que comience la "
+"evaluación."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:40010
+#: 7431c22714df4100ac9781f5d20ff881
+msgid ""
+"By conflating these stages, a standard logit attributes low market share "
+"to *low preference* when the real cause may be *low consideration*. The "
+"confusion matters. If rail's problem is consideration (people don't know "
+"about it), the remedy is marketing or subscriptions, not fare cuts. A "
+"standard logit prescribes the wrong intervention."
+msgstr ""
+"Al confundir estas etapas, un logit estándar atribuye una cuota de mercado "
+"baja a una *baja preferencia* cuando la causa real puede ser una *baja "
+"consideración*. La confusión importa. Si el problema del tren es la "
+"consideración (la gente no lo conoce), el remedio es el marketing o las "
+"suscripciones, no las rebajas de tarifas. Un logit estándar prescribe la "
+"intervención equivocada."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:40012
+#: 90cae8fc30a6479e9e0e1a4138320cac
+msgid ""
+"More broadly, when consideration determinants drive choices more strongly"
+" than utility parameters, it reveals that decisions are being made from a"
+" narrow menu. That is a signal about choice architecture: the question "
+"becomes whether to widen the set of options people actively evaluate. "
+"This is the difference between a marketing problem (not noticed) and a "
+"product problem (noticed but disliked)."
+msgstr ""
+"En términos más generales, cuando los determinantes de la consideración "
+"influyen en las decisiones con más fuerza que los parámetros de utilidad, se"
+" revela que las decisiones se toman a partir de un menú reducido. Eso es una"
+" señal sobre la arquitectura de la elección: la cuestión pasa a ser si "
+"conviene ampliar el conjunto de opciones que las personas evalúan "
+"activamente. Esta es la diferencia entre un problema de marketing (no se "
+"notó) y un problema de producto (se notó, pero no gustó)."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:50002
+#: 700a0ab9249448abb5801edb5d0b8043
+msgid "Mathematical Formulation"
+msgstr "Formulación matemática"
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:50004
+#: 90268a2e9259414f801301e3b96f908c
+msgid "Stage 1: Consideration"
+msgstr "Etapa 1: consideración"
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:50006
+#: 96ab09e09777467b9cb4b0104133524d
+msgid ""
+"Each alternative $j$ has a consideration probability for individual $n$, "
+"driven by $K_z$ instruments:"
+msgstr ""
+"Cada alternativa $j$ tiene una probabilidad de consideración para el "
+"individuo $n$, determinada por $K_z$ instrumentos:"
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:50008
+#: 6219286e43c64d70b3603ad58c1ed29a
+#, python-brace-format
+msgid ""
+"\\pi_{nj} = sigmoid\\!\\left(\\sum_{k=1}^{K_z} \\gamma_{zjk} \\cdot "
+"\\tilde{z}_{nk}\\right)"
+msgstr ""
+"\\pi_{nj} = sigmoid\\!\\left(\\sum_{k=1}^{K_z} \\gamma_{zjk} \\cdot "
+"\\tilde{z}_{nk}\\right)"
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:50010
+#: 9e754b307367405295c45ff4b74a1b11
+#, python-brace-format
+msgid ""
+"Here $\\gamma_{zjk}$ is the mode-specific sensitivity to instrument $k$ "
+"and $\\tilde{z}_{nk}$ is mean-centred. In our application, $\\gamma_z$ "
+"has shape (modes × instruments), so the same person-level trait can "
+"screen differently for different modes."
+msgstr ""
+"Aquí $\\gamma_{zjk}$ es la sensibilidad específica de cada modo al "
+"instrumento $k$ y $\\tilde{z}_{nk}$ está centrado en la media. En nuestra "
+"aplicación, $\\gamma_z$ tiene forma (modos × instrumentos), de modo que el "
+"mismo rasgo a nivel de persona puede filtrar de forma distinta para "
+"diferentes modos."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:50012
+#: 01d469cd499848158528bb756b7bd439
+msgid ""
+"The instruments must satisfy an **exclusion restriction**: they affect "
+"*whether you notice* a mode but not *how you value it conditional on "
+"noticing*. Without this, the two stages are not separately identified."
+msgstr ""
+"Los instrumentos deben satisfacer una **restricción de exclusión**: afectan "
+"a *si se advierte* un modo, pero no a *cómo se valora ese modo una vez "
+"advertido*. Sin esto, las dos etapas no están identificadas por separado."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:50014
+#: e73a1a2a5e0849a786efa6153b451385
+#, python-brace-format
+msgid ""
+"The model optionally supports consideration intercepts $\\gamma_{0j}$ and"
+" a random intercept $\\eta_n \\sim \\mathcal{N}(0, \\sigma_\\eta^2)$ for "
+"individual-level attentiveness. We use neither in this notebook."
+msgstr ""
+"Opcionalmente, el modelo admite interceptos de consideración $\\gamma_{0j}$ "
+"y un intercepto aleatorio $\\eta_n \\sim \\mathcal{N}(0, \\sigma_\\eta^2)$ "
+"para la atención a nivel individual. En este cuaderno no usamos ninguno de "
+"los dos."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:50016
+#: 3eb2678747d94005b4bd115bab3f2ddf
+msgid "Stage 2: Conditional Utility"
+msgstr "Etapa 2: utilidad condicional"
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:50018
+#: 615230316dd04c459eb334174b56258c
+#, python-brace-format
+msgid "V_{nj} = \\alpha_j + \\boldsymbol{\\beta}_n' \\mathbf{x}_{nj}"
+msgstr "V_{nj} = \\alpha_j + \\boldsymbol{\\beta}_n' \\mathbf{x}_{nj}"
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:50020
+#: 7dde80b912b745338dceae4ac5efd321
+#, python-brace-format
+msgid ""
+"where $\\boldsymbol{\\beta}_n \\sim "
+"\\mathcal{N}(\\boldsymbol{\\mu}_\\beta, \\boldsymbol{\\Sigma}_\\beta)$ "
+"for random coefficients, or $\\boldsymbol{\\beta}_n = "
+"\\boldsymbol{\\beta}$ when fixed."
+msgstr ""
+"donde $\\boldsymbol{\\beta}_n \\sim \\mathcal{N}(\\boldsymbol{\\mu}_\\beta, "
+"\\boldsymbol{\\Sigma}_\\beta)$ para coeficientes aleatorios, o "
+"$\\boldsymbol{\\beta}_n = \\boldsymbol{\\beta}$ cuando son fijos."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:50022
+#: 5ca4768b6ead49799ce888442e6ba5b2
+msgid "Bridging the Two Stages"
+msgstr "Uniendo las dos etapas"
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:50024
+#: 57572fe7008544afaaa8c3723573f956
+msgid ""
+"The choice probability combines consideration and utility via the "
+"**bridge formula**:"
+msgstr ""
+"La probabilidad de elección combina la consideración y la utilidad mediante "
+"la **fórmula puente**:"
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:50026
+#: 1a2b97238fe243f09589e52262cec56e
+#, python-brace-format
+msgid ""
+"P(y_n = j \\mid \\boldsymbol{\\beta}_n) = \\text{softmax}_j\\bigl(\\log "
+"\\pi_{nj} + V_{nj}\\bigr)"
+msgstr ""
+"P(y_n = j \\mid \\boldsymbol{\\beta}_n) = \\text{softmax}_j\\bigl(\\log "
+"\\pi_{nj} + V_{nj}\\bigr)"
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:50028
+#: 2210bf9c7c254ddbbd2216ff88b9d4f8
+#, python-brace-format
+msgid ""
+"The $\\log \\pi_{nj}$ term is a soft availability mask. As $\\pi_{nj} "
+"\\to 0$, the alternative is effectively removed from the choice set. When"
+" $\\pi_{nj} = 1$ for all alternatives, the model reduces to a standard "
+"mixed logit."
+msgstr ""
+"El término $\\log \\pi_{nj}$ es una máscara de disponibilidad suave. A "
+"medida que $\\pi_{nj} \\to 0$, la alternativa queda efectivamente eliminada "
+"del conjunto de elección. Cuando $\\pi_{nj} = 1$ para todas las "
+"alternativas, el modelo se reduce a un logit mixto estándar."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:50030
+#: 915c3ba5eb944aa2ae6bd47778d14db8
+#, python-brace-format
+msgid ""
+"For random coefficients, MCMC handles the marginal integral "
+"automatically. Each posterior draw of $\\boldsymbol{\\beta}_n$ is one "
+"sample from the mixing distribution; the posterior predictive averages "
+"over draws."
+msgstr ""
+"Para los coeficientes aleatorios, MCMC resuelve automáticamente la integral "
+"marginal. Cada muestra posterior de $\\boldsymbol{\\beta}_n$ es una muestra "
+"de la distribución de mezcla; la predictiva posterior promedia sobre las "
+"muestras."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:60002
+#: d71f3d150b9043eb8a685bac264cd40d
+msgid "Parameter Recovery: Simulated Hiring Data"
+msgstr "Recuperación de parámetros: datos simulados de contratación"
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:60004
+#: 389a2517f2d144f8a84383abc1a1f5a8
+msgid ""
+"Before applying the model to real data, we verify that it can recover "
+"known parameters. We simulate a hiring setting where three firms compete "
+"for candidates. The consideration stage is driven by two continuous "
+"instruments: a candidate's **qualification score** (a standardised "
+"composite of education and credentials) and **network score** (a "
+"standardised measure of referrals and professional connections). Both "
+"instruments are mean-centred by construction."
+msgstr ""
+"Antes de aplicar el modelo a datos reales, verificamos que puede recuperar "
+"parámetros conocidos. Simulamos un escenario de contratación en el que tres "
+"empresas compiten por candidatos. La etapa de consideración está determinada"
+" por dos instrumentos continuos: la **puntuación de cualificación** del "
+"candidato (un compuesto estandarizado de educación y credenciales) y la "
+"**puntuación de red** (una medida estandarizada de referencias y contactos "
+"profesionales). Ambos instrumentos están centrados en la media por "
+"construcción."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:60006
+#: c7e47226c6e34f758b18a43e3fbbbd67
+msgid ""
+"Continuous instruments are important here: with binary indicators each "
+"candidate carries only two possible consideration log-odds values, which "
+"gives a near-flat likelihood for γ_z. Standardised continuous scores give"
+" every candidate a unique consideration probability, producing a much "
+"more curved likelihood and cleanly identifiable slopes."
+msgstr ""
+"Los instrumentos continuos son importantes aquí: con indicadores binarios "
+"cada candidato tiene solo dos posibles valores de log-odds de consideración,"
+" lo que da una verosimilitud casi plana para γ_z. Las puntuaciones continuas"
+" estandarizadas dan a cada candidato una probabilidad de consideración "
+"única, lo que produce una verosimilitud mucho más curvada y pendientes "
+"claramente identificables."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:60008
+#: c15ade7efbea49699c7e6287ea648b33
+msgid ""
+"The utility stage depends on alternative-specific covariates (each firm "
+"offers different role characteristics) that vary independently across "
+"firms. This variation identifies the utility parameters, since the "
+"covariates differ across alternatives within each choice scenario."
+msgstr ""
+"La etapa de utilidad depende de covariables específicas de cada alternativa "
+"(cada empresa ofrece distintas características del puesto) que varían de "
+"forma independiente entre empresas. Esta variación identifica los parámetros"
+" de utilidad, ya que las covariables difieren entre alternativas dentro de "
+"cada escenario de elección."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:60010
+#: 5a74ec11134b4c6ab331a618006fbc25
+msgid ""
+"The exclusion restriction holds by construction. The model should recover"
+" the true `gamma_z` (screening slopes) and `beta` (utility weights) "
+"separately."
+msgstr ""
+"La restricción de exclusión se cumple por construcción. El modelo debería "
+"recuperar por separado los valores verdaderos de `gamma_z` (pendientes de "
+"filtrado) y `beta` (pesos de utilidad)."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:100002
+#: f1cea236ac474525926ca1fb709526ff
+msgid ""
+"The model recovers both stages. The dashed lines (true values) fall "
+"within the posterior mass for all parameters. The consideration slopes "
+"are cleanly separated from the utility weights because the exclusion "
+"restriction holds by construction: qualification and network scores "
+"affect screening, while age and experience affect evaluation."
+msgstr ""
+"El modelo recupera ambas etapas. Las líneas discontinuas (valores "
+"verdaderos) caen dentro de la masa posterior para todos los parámetros. Las "
+"pendientes de consideración quedan claramente separadas de los pesos de "
+"utilidad porque la restricción de exclusión se cumple por construcción: las "
+"puntuaciones de cualificación y de red afectan al filtrado, mientras que la "
+"edad y la experiencia afectan a la evaluación."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:100004
+#: df22bd62364843b2b4eb314ff9591286
+msgid ""
+"Now consider the counterfactual that motivated the hiring example. What "
+"happens if we widen the consideration set by giving every candidate a "
+"strong network score (+1 SD)? We shift `network_score` to 1.0 for all "
+"candidates, leaving qualification screening intact. This simulates a "
+"policy that connects every candidate equally to professional networks — "
+"candidates who previously had weak networks gain access, and the model "
+"shows which firms benefit most."
+msgstr ""
+"Consideremos ahora el contrafactual que motivó el ejemplo de contratación. "
+"¿Qué ocurre si ampliamos el conjunto de consideración dándole a cada "
+"candidato una puntuación de red alta (+1 DE)? Cambiamos `network_score` a "
+"1.0 para todos los candidatos, dejando intacto el filtrado por "
+"cualificación. Esto simula una política que conecta por igual a todos los "
+"candidatos con redes profesionales — los candidatos que antes tenían redes "
+"débiles obtienen acceso, y el modelo muestra qué empresas se benefician más."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:120002
+#: 0082b1c7f2f34108bb196007264ec760
+msgid ""
+"The shift in market shares reflects the *structure we built in*. Firm C "
+"(γ_network = 1.5) gains the most in relative terms (+19%) — it screens "
+"most heavily on network, so boosting everyone's network score raises Firm"
+" C's consideration probability most. Firm A (γ_network = 1.2) gains "
+"substantially as well (+18%)."
+msgstr ""
+"El cambio en las cuotas de mercado refleja la *estructura que incorporamos*."
+" La empresa C (γ_network = 1.5) es la que más gana en términos relativos "
+"(+19%): es la que filtra más intensamente según la red, de modo que aumentar"
+" la puntuación de red de todos eleva más la probabilidad de consideración de"
+" la empresa C. La empresa A (γ_network = 1.2) también gana de forma "
+"considerable (+18%)."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:120004
+#: 78f314aaf3854afd847a1d313ed601db
+#, python-format
+msgid ""
+"Firm B (γ_network = 0.3), which barely screens on network, gains almost "
+"nothing from the boost. Because shares must sum to one, it absorbs the "
+"full displacement cost: it loses roughly 20% of its baseline share. The "
+"mechanism is market-share arithmetic — when two firms with high network "
+"sensitivity both expand, a third firm that is insensitive to the "
+"instrument bears the brunt of the reallocation, even though its own "
+"consideration probability is largely unchanged."
+msgstr ""
+"La empresa B (γ_network = 0.3), que apenas filtra según la red, casi no gana"
+" nada con el aumento. Como las cuotas deben sumar uno, absorbe todo el costo"
+" del desplazamiento: pierde aproximadamente el 20% de su cuota base. El "
+"mecanismo es aritmética de cuotas de mercado — cuando dos empresas con alta "
+"sensibilidad a la red se expanden, una tercera empresa insensible al "
+"instrumento soporta el peso de la reasignación, aunque su propia "
+"probabilidad de consideración permanezca en gran medida sin cambios."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:120006
+#: f895d916f52a46efb4e20a144b397268
+msgid ""
+"The counterfactual is credible here because the exclusion restriction "
+"holds by construction: network connections affect screening, not "
+"productivity conditional on evaluation. The model correctly decomposes "
+"the two channels — and the direction and magnitude of the effects follow "
+"directly from the recovered γ values."
+msgstr ""
+"El contrafactual es creíble aquí porque la restricción de exclusión se "
+"cumple por construcción: las conexiones de red afectan al filtrado, no a la "
+"productividad condicional a la evaluación. El modelo descompone "
+"correctamente los dos canales — y la dirección y la magnitud de los efectos "
+"se derivan directamente de los valores de γ recuperados."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:120008
+#: 4d3c28a7aeb14e87a005046b418d67c4
+msgid ""
+"This is the benchmark. When we turn to the Swiss Metro data below, the "
+"instruments are messier (GA proxies for lifestyle, not just awareness) "
+"and the exclusion restriction is debatable. The parameter recovery "
+"exercise establishes that the model works when its assumptions hold. The "
+"empirical application then asks what happens when they are strained."
+msgstr ""
+"Este es el punto de referencia. Cuando pasemos a los datos de Swiss Metro "
+"más abajo, los instrumentos son más imperfectos (GA es un indicador de "
+"estilo de vida, no solo de conocimiento) y la restricción de exclusión es "
+"discutible. El ejercicio de recuperación de parámetros establece que el "
+"modelo funciona cuando se cumplen sus supuestos. La aplicación empírica "
+"pregunta entonces qué sucede cuando esos supuestos se ven forzados."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:130002
+#: a35f95b2f40f475a872632d92c9dadc5
+msgid "Loading and Exploring the Swiss Metro Data"
+msgstr "Carga y exploración de los datos de Swiss Metro"
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:130004
+#: 03d14862ce12454398f296d898c73082
+msgid ""
+"The Swiss Metro dataset is a stated-preference survey. Respondents choose"
+" between Train, SwissMetro (a hypothetical high-speed rail), and Car "
+"across 9 choice scenarios with varying travel times, costs, headways, and"
+" seat configurations."
+msgstr ""
+"El conjunto de datos de Swiss Metro es una encuesta de preferencias "
+"declaradas. Los encuestados eligen entre Train, SwissMetro (un tren de alta "
+"velocidad hipotético) y Car en 9 escenarios de elección con tiempos de "
+"viaje, costos, frecuencias de servicio y configuraciones de asientos "
+"variables."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:150002
+#: 67264df4261943b29370584783240534
+msgid "Data Preprocessing"
+msgstr "Preprocesamiento de datos"
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:150004
+#: 11c0fa582cef4585a7ad8382da13bcd3
+msgid ""
+"We prepare the data in wide format: string choice labels, scaled travel "
+"times and costs for numerical stability, and a subsample for tractable "
+"MCMC."
+msgstr ""
+"Preparamos los datos en formato ancho: etiquetas de elección como cadenas de"
+" texto, tiempos de viaje y costos escalados por estabilidad numérica, y una "
+"submuestra para que MCMC sea manejable."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:170002
+#: 44c23f6d6d524314bfb707f0ce8b3a1e
+msgid "Constructing Consideration Instruments"
+msgstr "Construcción de los instrumentos de consideración"
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:170004
+#: 220c0473365c41ab98d0dbd63379cf21
+msgid ""
+"The consideration instruments must satisfy the exclusion restriction: "
+"they should affect whether a mode enters the consideration set, not "
+"utility conditional on consideration. Without this separation, the model "
+"cannot distinguish \"didn't notice\" from \"noticed but disliked.\""
+msgstr ""
+"Los instrumentos de consideración deben satisfacer la restricción de "
+"exclusión: deben afectar a si un modo entra en el conjunto de consideración,"
+" no a la utilidad condicional a la consideración. Sin esta separación, el "
+"modelo no puede distinguir entre \"no lo noté\" y \"lo noté, pero no me "
+"gustó\"."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:170006
+#: bbf7a69ba1f343b6860c9e36e10ca1eb
+msgid ""
+"We use four person-level characteristics. Each captures a reason why "
+"someone's streetlamp might point in a particular direction."
+msgstr ""
+"Usamos cuatro características a nivel de persona. Cada una captura una razón"
+" por la que la farola de alguien podría apuntar en una dirección particular."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:170008
+#: 1e3552beaefc4d2ebdca34909609f178
+msgid ""
+"**GA (General Abonnement)** is an annual rail pass. Holders are "
+"habituated to rail. The pass doesn't change how fast or cheap a trip is; "
+"it changes whether rail is on the radar. A subscription buys you into a "
+"consideration set. **Business** indicates a business trip. Business "
+"travellers may default to employer-reimbursed modes or familiar routines,"
+" narrowing consideration before any evaluation of time or cost. **High "
+"income** flags household income above the median. Higher income may "
+"expand the consideration set: more modes feel affordable enough to think "
+"about. **Older** flags respondents above the median age, who may have "
+"entrenched habits that restrict active consideration."
+msgstr ""
+"**GA (General Abonnement)** es un abono anual de tren. Quienes lo tienen "
+"están habituados al tren. El abono no cambia lo rápido o barato que es un "
+"viaje; cambia si el tren está en el radar. Una suscripción te compra un "
+"lugar en el conjunto de consideración. **Business** indica un viaje de "
+"negocios. Los viajeros de negocios pueden optar por defecto por los modos "
+"que reembolsa la empresa o por rutinas conocidas, lo que reduce la "
+"consideración antes de cualquier evaluación de tiempo o costo. **High "
+"income** señala un ingreso del hogar por encima de la mediana. Un mayor "
+"ingreso puede ampliar el conjunto de consideración: más modos resultan lo "
+"bastante asequibles como para planteárselos. **Older** señala a los "
+"encuestados por encima de la edad mediana, que pueden tener hábitos "
+"arraigados que restringen la consideración activa."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:170010
+#: 5019b3bbd20d44c38de8609522c6eea2
+msgid ""
+"The key feature is that `gamma_z` varies by mode. A GA pass may strongly "
+"increase Train consideration while having no effect on Car. The model "
+"learns these mode-specific sensitivities from the data."
+msgstr ""
+"La característica clave es que `gamma_z` varía según el modo. Un abono GA "
+"puede aumentar con fuerza la consideración de Train sin tener ningún efecto "
+"sobre Car. El modelo aprende estas sensibilidades específicas de cada modo a"
+" partir de los datos."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:200002
+#: 8080327e0fe14ee1a5618cfe2a488775
+msgid "Model 1: Vanilla Consideration Set Logit (No Random Effects)"
+msgstr ""
+"Modelo 1: logit con conjunto de consideración básico (sin efectos "
+"aleatorios)"
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:200004
+#: dcf63f0d1a7143c5bc70df888a6c736c
+msgid ""
+"Our first model uses fixed coefficients for travel time and cost. This is"
+" the simplest consideration set model: a consideration stage on top of a "
+"standard conditional logit. Travel time and cost are alternative-specific"
+" covariates, varying across modes within each choice scenario."
+msgstr ""
+"Nuestro primer modelo usa coeficientes fijos para el tiempo de viaje y el "
+"costo. Este es el modelo de conjunto de consideración más simple: una etapa "
+"de consideración sobre un logit condicional estándar. El tiempo de viaje y "
+"el costo son covariables específicas de cada alternativa, que varían entre "
+"modos dentro de cada escenario de elección."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:260002
+#: 24b00f4a8438422b9a229de18347962d
+msgid "Interpreting the Consideration Stage"
+msgstr "Interpretación de la etapa de consideración"
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:260004
+#: 9c785b70ebf6481d85a231fce78a7617
+msgid ""
+"The `gamma_z` parameters answer the question: *what determines where the "
+"streetlamp shines?* We have 4 instruments and 3 modes, giving 12 "
+"screening slopes. A positive `gamma_z` means the instrument increases "
+"consideration of that mode. Where these slopes are large relative to "
+"utility parameters, consideration is the primary driver of choice. That "
+"is the audit signal."
+msgstr ""
+"Los parámetros `gamma_z` responden a la pregunta: *¿qué determina dónde "
+"brilla la farola?* Tenemos 4 instrumentos y 3 modos, lo que da 12 pendientes"
+" de filtrado. Una `gamma_z` positiva significa que el instrumento aumenta la"
+" consideración de ese modo. Cuando estas pendientes son grandes en relación "
+"con los parámetros de utilidad, la consideración es el principal motor de la"
+" elección. Esa es la señal de auditoría."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:280002
+#: f28e8f7e0a0c4fc8ae399b8c60d5eb33
+msgid ""
+"GA dominates. It strongly increases consideration of Train and SwissMetro"
+" (rail pass holders have rail on their radar) and strongly decreases Car "
+"consideration (GA holders are rail-embedded). Business and Older show "
+"more diffuse effects, suggesting weaker screening. High_income effects "
+"are moderate and mode-dependent."
+msgstr ""
+"GA domina. Aumenta con fuerza la consideración de Train y SwissMetro (los "
+"titulares del abono tienen el tren en su radar) y reduce con fuerza la "
+"consideración de Car (los titulares de GA están arraigados en el tren). "
+"Business y Older muestran efectos más difusos, lo que sugiere un filtrado "
+"más débil. Los efectos de High_income son moderados y dependen del modo."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:280004
+#: 9ce485f39eec42749ff7f5ab847d2d5c
+msgid ""
+"Note the scale. GA slopes run ±5 to ±10; the utility-stage coefficients "
+"below are much smaller. For this population, *who considers what* matters"
+" at least as much as *how they evaluate it*."
+msgstr ""
+"Observe la escala. Las pendientes de GA van de ±5 a ±10; los coeficientes de"
+" la etapa de utilidad que se muestran más abajo son mucho más pequeños. Para"
+" esta población, *quién considera qué* importa al menos tanto como *cómo lo "
+"evalúa*."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:300002
+#: 2cc72918ebad4d29baf842edc12fd37f
+msgid ""
+"The utility-stage parameters behave as expected. Both travel time and "
+"cost coefficients are negative: people prefer faster and cheaper options."
+" The mode constants capture baseline preference after accounting for time"
+" and cost. These are the \"rational evaluation\" parameters, operating "
+"conditional on consideration."
+msgstr ""
+"Los parámetros de la etapa de utilidad se comportan como se esperaba. Tanto "
+"el coeficiente del tiempo de viaje como el del costo son negativos: la gente"
+" prefiere las opciones más rápidas y baratas. Las constantes de modo "
+"capturan la preferencia base después de tener en cuenta el tiempo y el "
+"costo. Estos son los parámetros de \"evaluación racional\", que operan "
+"condicionados a la consideración."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:310002
+#: c9b12755e6854b7ea5fe2a01915c53c5
+msgid "Model 2: Consideration Set Logit with Random Effects on Travel Time"
+msgstr ""
+"Modelo 2: logit con conjunto de consideración y efectos aleatorios sobre el "
+"tiempo de viaje"
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:310004
+#: 2b10bf6e2142448d909657221f3eb21e
+#, python-brace-format
+msgid ""
+"We now allow taste heterogeneity in time sensitivity. Some individuals "
+"are time-sensitive business travellers; others accept longer journeys. "
+"The random coefficient $\\beta^{tt}_n \\sim \\mathcal{N}(\\mu_{tt}, "
+"\\sigma_{tt}^2)$ is integrated out in the marginal likelihood:"
+msgstr ""
+"Ahora permitimos heterogeneidad de preferencias en la sensibilidad al "
+"tiempo. Algunas personas son viajeros de negocios sensibles al tiempo; otras"
+" aceptan trayectos más largos. El coeficiente aleatorio $\\beta^{tt}_n \\sim"
+" \\mathcal{N}(\\mu_{tt}, \\sigma_{tt}^2)$ se integra en la verosimilitud "
+"marginal:"
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:310006
+#: 348b5486cbb24c9f9b5a1d2b0149f072
+msgid ""
+"P(y_n = j) = \\int \\frac{\\pi_{nj} \\cdot "
+"\\exp(V_{nj}(\\beta^{tt}_n))}{\\sum_k \\pi_{nk} \\cdot "
+"\\exp(V_{nk}(\\beta^{tt}_n))} \\, \\phi(\\beta^{tt}_n \\mid \\mu_{tt}, "
+"\\sigma_{tt}) \\, d\\beta^{tt}_n"
+msgstr ""
+"P(y_n = j) = \\int \\frac{\\pi_{nj} \\cdot "
+"\\exp(V_{nj}(\\beta^{tt}_n))}{\\sum_k \\pi_{nk} \\cdot "
+"\\exp(V_{nk}(\\beta^{tt}_n))} \\, \\phi(\\beta^{tt}_n \\mid \\mu_{tt}, "
+"\\sigma_{tt}) \\, d\\beta^{tt}_n"
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:310008
+#: 010090497e014302b084091a55406ce4
+#, python-brace-format
+msgid ""
+"MCMC draws individual-level $\\beta^{tt}_n$ values, computing this "
+"integral through sampling."
+msgstr ""
+"MCMC extrae valores individuales de $\\beta^{tt}_n$ y calcula esta integral "
+"mediante muestreo."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:370002
+#: 17e59d56442242528dd0137bf6dff889
+msgid "Individual-Level Heterogeneity in Time Sensitivity"
+msgstr "Heterogeneidad individual en la sensibilidad al tiempo"
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:370004
+#: f2a79ee9f0c446878f1bf5755452fefa
+msgid ""
+"The random coefficient on travel time captures taste heterogeneity. Below"
+" we plot the population distribution of individual-level time "
+"coefficients."
+msgstr ""
+"El coeficiente aleatorio del tiempo de viaje captura la heterogeneidad de "
+"preferencias. A continuación trazamos la distribución poblacional de los "
+"coeficientes de tiempo individuales."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:390002
+#: 9249700c1538446199fd227dbb5f040c
+msgid "Comparing Consideration Parameters Across Models"
+msgstr "Comparación de los parámetros de consideración entre modelos"
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:390004
+#: b6f0837d2a06420a905235608d68eef9
+msgid ""
+"Twelve consideration slopes, shown as M1 (blue) versus M2 (orange). Most "
+"are stable. Look at **High_income × Car** (bottom row, third column)."
+msgstr ""
+"Doce pendientes de consideración, mostradas como M1 (azul) frente a M2 "
+"(naranja). La mayoría son estables. Observe **High_income × Car** (fila "
+"inferior, tercera columna)."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:410002
+#: 1ae02be64b4c4db5b891f249df263545
+msgid "The High_income × Car Sign Flip"
+msgstr "El cambio de signo de High_income × Car"
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:410004
+#: a3bdfe961a844c8cb594864d33b4a3a6
+msgid ""
+"The striking result is the potential for sign flips between models. In "
+"M1, the posterior is mostly positive: high income increases car "
+"consideration. Intuitive enough, since wealthier people are more likely "
+"to own cars. In M2, the sign flips allow negative values for high earner "
+"consideration of cars."
+msgstr ""
+"El resultado llamativo es la posibilidad de cambios de signo entre modelos. "
+"En M1, la posterior es mayormente positiva: un ingreso alto aumenta la "
+"consideración del automóvil. Es bastante intuitivo, ya que las personas con "
+"más recursos tienen más probabilidades de poseer un automóvil. En M2, el "
+"cambio de signo permite valores negativos para la consideración del "
+"automóvil por parte de quienes tienen ingresos altos."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:410006
+#: f4a7243687ec4459aa61edabf7d5c325
+msgid ""
+"The explanation is confounding between time sensitivity and income. High-"
+"income individuals tend to have a higher value of time. In M1, with fixed"
+" time coefficients, the model cannot capture this, so `gamma_z[X, "
+"High_income]` absorbs the effect. High earners *appear* to consider Car "
+"more when they are really responding more strongly to Car's door-to-door "
+"speed advantage."
+msgstr ""
+"La explicación es la confusión entre la sensibilidad al tiempo y el ingreso."
+" Las personas con ingresos altos tienden a tener un mayor valor del tiempo. "
+"En M1, con coeficientes de tiempo fijos, el modelo no puede capturar esto, "
+"por lo que `gamma_z[X, High_income]` absorbe el efecto. Quienes ganan más "
+"*parecen* considerar más Car cuando en realidad responden con más fuerza a "
+"la ventaja de velocidad puerta a puerta de Car."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:410008
+#: 9569d3d99b94482d8c9ba726f4e71a09
+#, python-brace-format
+msgid ""
+"M2 introduces random coefficients on travel time. Individual-level time "
+"sensitivity is now captured by $\\beta^{tt}_n$. The consideration slope "
+"is freed to reflect the *residual* income effect: conditional on time "
+"preferences, high-income Swiss travellers are less likely to consider "
+"Car, perhaps because they are the urban professionals who hold GA passes "
+"and default to rail."
+msgstr ""
+"M2 introduce coeficientes aleatorios sobre el tiempo de viaje. La "
+"sensibilidad al tiempo a nivel individual queda ahora capturada por "
+"$\\beta^{tt}_n$. La pendiente de consideración queda libre para reflejar el "
+"efecto *residual* del ingreso: condicionados a las preferencias de tiempo, "
+"los viajeros suizos de ingresos altos tienen menos probabilidades de "
+"considerar Car, quizá porque son los profesionales urbanos que tienen abonos"
+" GA y optan por defecto por el tren."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:410010
+#: 968a9e2f509e4186ae3bba92473c954e
+msgid ""
+"The lesson is plain. Consideration parameters are only identifiable up to"
+" the quality of the utility specification. A misspecified utility stage "
+"does not just produce wrong utility estimates. It contaminates the "
+"consideration story."
+msgstr ""
+"La lección es clara. Los parámetros de consideración solo son identificables"
+" hasta donde lo permite la calidad de la especificación de la utilidad. Una "
+"etapa de utilidad mal especificada no solo produce estimaciones de utilidad "
+"erróneas. Contamina también la historia de la consideración."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:420002
+#: 79c1ce6222604b55bdb000bc25a8633b
+msgid "Counterfactual: What if Everyone Held a GA Pass?"
+msgstr "Contrafactual: ¿qué pasaría si todos tuvieran un abono GA?"
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:420004
+#: 2490d1a3b8b94a82ad9c01308100aafe
+msgid ""
+"The consideration set model lets us simulate interventions that widen the"
+" streetlamp rather than change what's underneath it. Here we give every "
+"traveller a GA pass, shifting the GA column of `Z_tilde` to its maximum."
+msgstr ""
+"El modelo de conjunto de consideración nos permite simular intervenciones "
+"que amplían la farola en lugar de cambiar lo que hay debajo de ella. Aquí le"
+" damos a cada viajero un abono GA, desplazando la columna GA de `Z_tilde` a "
+"su máximo."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:420006
+#: 06c854ce993d47e188a37bd7eb2df9c7
+msgid "A necessary caveat"
+msgstr "Una advertencia necesaria"
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:420008
+#: 62cfcabcb03b491c8cc72eea35d0ded8
+msgid ""
+"This counterfactual is a stress test of the model, not a policy forecast."
+" People who lack a GA pass often have good reasons: they live far from "
+"rail, travel infrequently, or prefer driving. GA ownership is endogenous "
+"to lifestyle and geography, not randomly assigned. Giving everyone a pass"
+" in the model changes where the drunk looks, but cannot change where the "
+"keys are."
+msgstr ""
+"Este contrafactual es una prueba de estrés del modelo, no un pronóstico de "
+"política. Las personas que no tienen un abono GA suelen tener buenas "
+"razones: viven lejos del tren, viajan con poca frecuencia o prefieren "
+"conducir. La posesión de GA es endógena al estilo de vida y a la geografía, "
+"no se asigna al azar. Dar un abono a todos en el modelo cambia dónde mira el"
+" borracho, pero no puede cambiar dónde están las llaves."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:420010
+#: 4bca71fcbab0418aa55624a80e9deebf
+msgid ""
+"GA is really a proxy for rail-embeddedness. Extrapolating to universal "
+"ownership pushes far beyond the support of the data. Read the results "
+"below as \"what the model thinks would happen,\" not \"what would "
+"happen.\""
+msgstr ""
+"GA es en realidad un indicador del arraigo en el tren. Extrapolar a la "
+"posesión universal lleva mucho más allá del soporte de los datos. Lea los "
+"resultados que siguen como \"lo que el modelo cree que pasaría\", no como "
+"\"lo que pasaría\"."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:420012
+#: 4b97aa33944443809ba46bf3d1b203f7
+msgid ""
+"The sensitivity of `gamma_z` to utility-stage specification reinforces "
+"this caution. The sign flip on High_income × Car shows that consideration"
+" parameters absorb different things depending on what the utility stage "
+"captures. A counterfactual built on M1's estimates would tell a different"
+" story than one built on M2's."
+msgstr ""
+"La sensibilidad de `gamma_z` a la especificación de la etapa de utilidad "
+"refuerza esta cautela. El cambio de signo en High_income × Car muestra que "
+"los parámetros de consideración absorben cosas distintas según lo que "
+"capture la etapa de utilidad. Un contrafactual construido sobre las "
+"estimaciones de M1 contaría una historia distinta de la de uno construido "
+"sobre las de M2."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:460002
+#: ce01522f8b7040ef84819a602225d72e
+msgid ""
+"The near-zero car share is implausible. People own cars and use them for "
+"reasons unrelated to lacking a rail pass. But the value of the "
+"counterfactual is in the mechanism, not the numbers."
+msgstr ""
+"La cuota casi nula del automóvil es inverosímil. La gente tiene automóvil y "
+"lo usa por razones ajenas a no tener un abono de tren. Pero el valor del "
+"contrafactual está en el mecanismo, no en los números."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:460004
+#: b078b0bc4afd4e9fbf9e8e195bdca66d
+msgid ""
+"In settings where the exclusion restriction is more defensible, this "
+"framework quantifies something important. Consider hiring. Race or gender"
+" may affect whether a candidate is *seen* without affecting their "
+"productivity conditional on evaluation. A consideration set model applied"
+" to hiring data would decompose how much of the outcome is driven by the "
+"narrowness of the consideration set versus genuine preference. The "
+"counterfactual probe would then quantify the cost of bias at the "
+"screening stage, where its effects are most dramatic and most actionable."
+msgstr ""
+"En entornos donde la restricción de exclusión es más defendible, este marco "
+"cuantifica algo importante. Pensemos en la contratación. La raza o el género"
+" pueden afectar a si un candidato es *visto* sin afectar a su productividad "
+"condicional a la evaluación. Un modelo de conjunto de consideración aplicado"
+" a datos de contratación descompondría cuánto del resultado se debe a la "
+"estrechez del conjunto de consideración frente a la preferencia genuina. La "
+"sonda contrafactual cuantificaría entonces el costo del sesgo en la etapa de"
+" filtrado, donde sus efectos son más drásticos y más accionables."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:460006
+#: a30d8c72abb2458d8886d0f6bdddf9fa
+msgid ""
+"The Swiss Metro example clouds the picture because GA plausibly plays two"
+" roles: it drives consideration *and* proxies for utility (rail-embedded "
+"lifestyles correlate with rail-favourable preferences). In an ideal "
+"application, the screening instruments would be independent of the "
+"utility calculation but meaningful for the consideration calculation."
+msgstr ""
+"El ejemplo de Swiss Metro enturbia el panorama porque GA plausiblemente "
+"desempeña dos papeles: determina la consideración *y* actúa como indicador "
+"de la utilidad (los estilos de vida arraigados en el tren se correlacionan "
+"con preferencias favorables al tren). En una aplicación ideal, los "
+"instrumentos de filtrado serían independientes del cálculo de la utilidad "
+"pero significativos para el cálculo de la consideración."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:470002
+#: 33be11f07a0f4a84b5d2a769069f1960
+msgid "Summary"
+msgstr "Resumen"
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:470004
+#: f5e6f4a93d25425a8a185f9c708527f2
+msgid ""
+"Consideration dominates the Swiss Metro choice setting. The `gamma_z` "
+"slopes, especially for GA, are large relative to utility parameters. Who "
+"notices what matters at least as much as how they evaluate it."
+msgstr ""
+"La consideración domina el escenario de elección de Swiss Metro. Las "
+"pendientes de `gamma_z`, especialmente las de GA, son grandes en relación "
+"con los parámetros de utilidad. Quién advierte qué importa al menos tanto "
+"como cómo lo evalúa."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:470006
+#: dacadf7790344603b7bf238aa48d55fc
+msgid ""
+"The comparison between models sharpens this conclusion and complicates "
+"it. Adding random effects on travel time (Model 2) flips the sign on "
+"High_income × Car, showing that consideration parameters absorb whatever "
+"the utility stage fails to capture. Both stages need proper "
+"specification, and no single model's consideration estimates should be "
+"taken at face value without comparison."
+msgstr ""
+"La comparación entre modelos afina esta conclusión y a la vez la complica. "
+"Añadir efectos aleatorios sobre el tiempo de viaje (Modelo 2) cambia el "
+"signo de High_income × Car, lo que muestra que los parámetros de "
+"consideración absorben todo lo que la etapa de utilidad no logra capturar. "
+"Ambas etapas necesitan una especificación adecuada, y las estimaciones de "
+"consideración de ningún modelo individual deben tomarse al pie de la letra "
+"sin compararlas."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:470008
+#: 78d9e9bffeaa498bb3b7d313fb3251c8
+msgid ""
+"The counterfactual exercise reinforces the point. The universal-GA "
+"scenario is deliberately extreme and produces implausible predictions. "
+"Its value is not in the numbers but in revealing the model's structure: "
+"how much screening matters, and where the instruments are doing real work"
+" versus proxying for unmodeled preference heterogeneity. In domains with "
+"cleaner exclusion restrictions, such as hiring, the same framework would "
+"produce more credible counterfactuals and more actionable diagnoses."
+msgstr ""
+"El ejercicio contrafactual refuerza el argumento. El escenario de GA "
+"universal es deliberadamente extremo y produce predicciones inverosímiles. "
+"Su valor no está en los números sino en revelar la estructura del modelo: "
+"cuánto importa el filtrado, y dónde los instrumentos hacen un trabajo real "
+"frente a actuar como indicadores de una heterogeneidad de preferencias no "
+"modelada. En dominios con restricciones de exclusión más limpias, como la "
+"contratación, el mismo marco produciría contrafactuales más creíbles y "
+"diagnósticos más accionables."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:470010
+#: eec3722bf5094273adb4dcfcb9d72f75
+msgid "Consideration is competitive"
+msgstr "La consideración es competitiva"
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:470012
+#: 996273de64bd4391b1b3feb0dca132d7
+#, python-format
+msgid ""
+"The simulated hiring counterfactual illustrates a subtler point: "
+"**consideration is zero-sum**. Market shares must sum to one, so when a "
+"policy or intervention raises the visibility of some firms it necessarily"
+" lowers the relative share of others — even firms whose own screening "
+"probabilities barely move. In the network-score counterfactual, Firm B's "
+"consideration probability is nearly unchanged, yet it loses roughly 20% "
+"of its baseline share simply because Firms A and C became more visible. "
+"Firm B is not the target of the intervention; it is collateral."
+msgstr ""
+"El contrafactual simulado de contratación ilustra un punto más sutil: **la "
+"consideración es de suma cero**. Las cuotas de mercado deben sumar uno, así "
+"que cuando una política o intervención aumenta la visibilidad de algunas "
+"empresas, necesariamente reduce la cuota relativa de las demás — incluso de "
+"aquellas cuyas propias probabilidades de filtrado apenas se mueven. En el "
+"contrafactual de la puntuación de red, la probabilidad de consideración de "
+"la empresa B casi no cambia, y aun así pierde aproximadamente el 20% de su "
+"cuota base simplemente porque las empresas A y C se volvieron más visibles. "
+"La empresa B no es el objetivo de la intervención; es un daño colateral."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:470014
+#: 8c7eebed7da240ce8f4c96eb2f33d7fd
+msgid ""
+"This has a direct managerial implication. A firm should monitor the "
+"consideration instruments of its *competitors*, not just its own. A rival"
+" that improves its network reach, or benefits from a broad platform or "
+"subscription that embeds it in customers' routines, can erode your share "
+"without your product or service changing at all. Consideration is not a "
+"fixed attribute of an alternative — it is shaped by the entire "
+"competitive landscape and by whatever mechanisms route customers toward "
+"or away from alternatives in the first place."
+msgstr ""
+"Esto tiene una implicación directa para la gestión. Una empresa debería "
+"vigilar los instrumentos de consideración de sus *competidores*, no solo los"
+" suyos. Un rival que mejora su alcance de red, o que se beneficia de una "
+"plataforma amplia o de una suscripción que lo integra en las rutinas de los "
+"clientes, puede erosionar su cuota sin que su producto o servicio cambie en "
+"absoluto. La consideración no es un atributo fijo de una alternativa — está "
+"moldeada por todo el panorama competitivo y por cualquier mecanismo que "
+"encamine a los clientes hacia las alternativas o los aleje de ellas en "
+"primer lugar."
+
+#: ../source/notebooks/customer_choice/consideration_set_logit.ipynb:470016
+#: 79955c57ff404436a3da37ada6bb643f
+msgid ""
+"The `ConsiderationSetMixedLogit` class extends the existing `MixedLogit` "
+"with a consideration stage, supports multiple instruments per "
+"alternative, and provides `apply_intervention` for counterfactual "
+"analysis."
+msgstr ""
+"La clase `ConsiderationSetMixedLogit` extiende el `MixedLogit` existente con"
+" una etapa de consideración, admite múltiples instrumentos por alternativa y"
+" proporciona `apply_intervention` para el análisis contrafactual."

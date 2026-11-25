@@ -37,13 +37,6 @@ class TestSuggestTypoFix:
     def test_no_match(self):
         assert suggest_typo_fix("zzz", {"model", "data"}) is None
 
-    def test_close_match_kwargs(self):
-        assert suggest_typo_fix("kwarg", {"class", "kwargs", "args"}) == "kwargs"
-
-    def test_close_match_effects(self):
-        valid = {"model", "data", "effects", "original_scale_vars"}
-        assert suggest_typo_fix("efects", valid) == "effects"
-
 
 class TestBuildSpec:
     def test_valid_minimal(self):

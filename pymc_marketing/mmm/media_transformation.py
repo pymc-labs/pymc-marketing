@@ -93,6 +93,7 @@ Apply the media transformation to media data in PyMC model:
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import cast
 
@@ -139,7 +140,23 @@ class MediaTransformation:
     dims: Dims | None = None
 
     def __post_init__(self):
-        """Normalize the dims and check them against the transformations' prior dims."""
+        """Check the input types, normalize the dims and check them against the transformations' prior dims."""
+        if not isinstance(self.adstock, AdstockTransformation):
+            raise TypeError(
+                f"adstock must be an AdstockTransformation, got {type(self.adstock).__name__}. "
+                "Example: GeometricAdstock(l_max=8)"
+            )
+        if not isinstance(self.saturation, SaturationTransformation):
+            raise TypeError(
+                f"saturation must be a SaturationTransformation, got {type(self.saturation).__name__}. "
+                "Example: LogisticSaturation()"
+            )
+        if not isinstance(self.adstock_first, bool):
+            raise TypeError(
+                f"adstock_first must be a bool, got {self.adstock_first!r}. "
+                "Pass True to apply adstock before saturation, or False for the reverse order."
+            )
+
         if isinstance(self.dims, str):
             self.dims = (self.dims,)
 
@@ -266,6 +283,7 @@ class MediaConfig:
         The name of the media transformation and prefix of all media variables.
     columns : list[str]
         The media channels to apply the transformation to.
+        Any non-empty iterable of names, such as a tuple or ``pandas.Index``, is stored as a list.
     media_transformation : MediaTransformation
         The media transformation to apply to the media channels.
 
@@ -274,6 +292,31 @@ class MediaConfig:
     name: str
     columns: list[str]
     media_transformation: MediaTransformation
+
+    def __post_init__(self):
+        """Check the input types and store ``columns`` as a list."""
+        if isinstance(self.columns, str) or not isinstance(self.columns, Iterable):
+            raise TypeError(
+                f"columns must be a list of column names, got {self.columns!r}. "
+                'Example: columns=["tv", "radio"]'
+            )
+        self.columns = list(self.columns)
+        for column in self.columns:
+            if not isinstance(column, str):
+                raise TypeError(
+                    f"columns must contain only str column names, got {column!r} "
+                    f"({type(column).__name__})."
+                )
+        # Plain str, so that ``to_dict()`` output also dumps to YAML for numpy string arrays.
+        self.columns = [str(column) for column in self.columns]
+        if not self.columns:
+            raise ValueError("columns must contain at least one column name.")
+
+        if not isinstance(self.media_transformation, MediaTransformation):
+            raise TypeError(
+                "media_transformation must be a MediaTransformation, "
+                f"got {type(self.media_transformation).__name__}."
+            )
 
     def to_dict(self) -> dict:
         """Convert the media configuration to a dictionary.

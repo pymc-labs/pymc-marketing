@@ -284,6 +284,8 @@ from pymc_marketing.mmm.price_response import PriceResponse, _cell_label_for_mes
 from pymc_marketing.mmm.price_schedule import (
     Bounds,
     BreakpointSettler,
+    constraint_scale_from_jacobian,
+    entry_sizes,
     objective_scale_from_gradient,
 )
 from pymc_marketing.mmm.spend_reach import _PKG_PREFIX
@@ -545,7 +547,7 @@ class MinimizeSettings:
         on their breakpoints run only then.
     rescale : bool
         Whether SLSQP runs with the default tolerance, so each solve divides the objective by its steepest
-        gradient entry.
+        gradient entry and each constraint by its scale.
     ftol : float
         ``options["ftol"]``, else ``tol``, else SciPy's SLSQP default of ``1e-6``: what the exact passes' progress
         rule compares a release's gain with.
@@ -817,15 +819,15 @@ def merge_inference_data(
             use_every_n_draw=2,
         )
 
-        # Step 4 – optimize
+        # Step 4 – optimize. Both models span the same dates, so north's
+        # layout also describes the merged model's date axis.
+        layout = mmm_north.window_layout(m1, "2025-01-01")
         optimizer = BudgetOptimizer(
             model=merged_model,
             idata=merged_idata,
-            num_periods=13,
-            # The model's date axis is carry-in + decisions + carry-over, each
-            # flank effective_carryover_lags() wide.
-            carry_in_periods=mmm_north.effective_carryover_lags(),
-            adstock_periods=mmm_north.effective_carryover_lags(),
+            num_periods=layout.decisions,
+            carry_in_periods=layout.carry_in,
+            adstock_periods=layout.carry_over,
             response_variable="north_total_media_contribution_original_scale",
         )
         optimal, result = optimizer.allocate_budget(total_budget=100_000)
@@ -997,14 +999,15 @@ def merge_models_and_idata(
             use_every_n_draw=2,
         )
 
+        # Both models span the same dates, so north's layout also describes
+        # the merged model's date axis.
+        layout = mmm_north.window_layout(m1, "2025-01-01")
         optimizer = BudgetOptimizer(
             model=merged_model,
             idata=merged_idata,
-            num_periods=13,
-            # The model's date axis is carry-in + decisions + carry-over, each
-            # flank effective_carryover_lags() wide.
-            carry_in_periods=mmm_north.effective_carryover_lags(),
-            adstock_periods=mmm_north.effective_carryover_lags(),
+            num_periods=layout.decisions,
+            carry_in_periods=layout.carry_in,
+            adstock_periods=layout.carry_over,
             response_variable="north_total_media_contribution_original_scale",
         )
         optimal, result = optimizer.allocate_budget(total_budget=100_000)
@@ -1435,9 +1438,19 @@ class BudgetOptimizer(BaseModel):
         Fitted posterior inference data from the model.
     num_periods : int
         Number of time units at the desired time granularity to allocate budget for.
+        For a model from ``MMM.create_optimization_model``, pass
+        ``mmm.window_layout(model, start_date).decisions``.
     adstock_periods : int, optional
-        Number of extra warm-up periods prepended for adstock carryover.
-        Equivalent to ``adstock.l_max`` on the built-in MMM. Defaults to 0.
+        Number of zero-spend periods appended after the decisions to catch
+        their carryover. For a model from ``MMM.create_optimization_model``,
+        pass ``mmm.window_layout(model, start_date).carry_over``. Defaults to 0.
+    carry_in_periods : int, optional
+        Number of leading periods that hold spend already made before the
+        window, kept at the model's own channel data rather than optimized.
+        For a model from ``MMM.create_optimization_model``, pass
+        ``mmm.window_layout(model, start_date).carry_in``. Defaults to 0.
+        ``carry_in_periods + num_periods + adstock_periods`` must equal the
+        model's date axis.
     channel_scales : float or array-like, optional
         Per-channel scale factors used to convert monetary budgets into the
         model's native units. A scalar ``1.0`` means no scaling. Defaults to 1.0.
@@ -1541,14 +1554,15 @@ class BudgetOptimizer(BaseModel):
             start_date="2025-01-01",
             end_date="2025-03-31",
         )
+        # The model's date axis is carry-in + decisions + carry-over, and the
+        # three must add up to it; window_layout counts them.
+        layout = mmm.window_layout(pymc_model, start_date="2025-01-01")
         optimizer = pmm.mmm.BudgetOptimizer(
             model=pymc_model,
             idata=mmm.idata,
-            num_periods=13,
-            # The model's date axis is carry-in + decisions + carry-over, each
-            # flank effective_carryover_lags() wide; the three must add up to it.
-            carry_in_periods=mmm.effective_carryover_lags(),
-            adstock_periods=mmm.effective_carryover_lags(),
+            num_periods=layout.decisions,
+            carry_in_periods=layout.carry_in,
+            adstock_periods=layout.carry_over,
             frozen_deterministics=mmm.frozen_deterministics,
             response_variable="total_media_contribution_original_scale",
         )
@@ -1576,7 +1590,11 @@ class BudgetOptimizer(BaseModel):
         ge=0,
         description=(
             "Number of extra carry-over periods appended to the optimization horizon. "
-            "For built-in MMM this equals adstock.l_max; defaults to 0 (no carry-over)."
+            "Defaults to 0 (no carry-over). For a model from "
+            "MMM.create_optimization_model, take it from "
+            "mmm.window_layout(model, start_date).carry_over, which is the "
+            "adstock's l_max plus the widest additional carryover any of the "
+            "model's effects declares."
         ),
     )
 
@@ -1587,10 +1605,10 @@ class BudgetOptimizer(BaseModel):
             "Number of leading periods of the model's date axis that hold spend "
             "already made before the window. They are held at the model's own "
             "channel-data values rather than optimized, so the adstock does not "
-            "start cold. Defaults to 0. A model from "
-            "MMM.create_optimization_model carries mmm.effective_carryover_lags() "
-            "of them (fewer only when the window opens at the start of training), "
-            "and carry_in_periods + num_periods + adstock_periods must equal the "
+            "start cold. Defaults to 0. For a model from "
+            "MMM.create_optimization_model, take it from "
+            "mmm.window_layout(model, start_date).carry_in. "
+            "carry_in_periods + num_periods + adstock_periods must equal the "
             "model's date axis."
         ),
     )
@@ -2718,13 +2736,10 @@ class BudgetOptimizer(BaseModel):
                 f"carry_in_periods ({self.carry_in_periods}) + num_periods "
                 f"({self.num_periods}) + adstock_periods ({self.adstock_periods}) "
                 f"= {expected}. If this model came from "
-                "MMM.create_optimization_model, its date axis is carry-in + "
-                "decisions + carry-over with each flank "
-                "mmm.effective_carryover_lags() wide: pass "
-                "carry_in_periods=mmm.effective_carryover_lags() (or the number "
-                "of model dates before your start_date, when the window opens "
-                "at the start of training) and "
-                "adstock_periods=mmm.effective_carryover_lags(), or use "
+                "MMM.create_optimization_model, take the three from "
+                "layout = mmm.window_layout(model, start_date): "
+                "carry_in_periods=layout.carry_in, num_periods=layout.decisions "
+                "and adstock_periods=layout.carry_over. Or use "
                 "mmm.budget_optimizer(start_date, end_date), which sets all three."
             )
 
@@ -3223,18 +3238,25 @@ class BudgetOptimizer(BaseModel):
         the newly introduced budgets and the posterior of model parameters.
         """
         if self._conditioned is not None:
-            return self._conditioned.extract(response_variable)
-        return cast(
-            XTensorVariable,
-            extract_response_distribution(
+            graph = self._conditioned.extract(response_variable)
+        else:
+            graph = extract_response_distribution(
                 pymc_model=self._pymc_model,
                 idata=reorder_to_model_coords(
                     _extract_dataset(self.idata, "posterior"), self._pymc_model.coords
                 ),
                 response_variable=response_variable,
                 frozen_deterministics=self.frozen_deterministics,
-            ),
-        )
+            )
+        # A response declared with pymc rather than pymc.dims comes back as a
+        # plain tensor, which the objective cannot reduce by dim name.
+        if not isinstance(graph, XTensorVariable):
+            raise ValueError(
+                f"{response_variable!r} is not a pymc.dims variable.  The budget "
+                "optimizer requires a response with named dimensions, for "
+                "example one built with pmd.Deterministic(..., dims=(...))."
+            )
+        return graph
 
     def evaluate_response_distribution(
         self,
@@ -3873,35 +3895,102 @@ class BudgetOptimizer(BaseModel):
         bounds: Bounds,
         *,
         settings: MinimizeSettings,
+        size: np.ndarray,
         callback: Callable[[np.ndarray], None] | None,
     ) -> OptimizeResult:
-        """Run one solve over ``bounds``: SLSQP on the rescaled objective, then a polish when the scale moved.
+        """Run one solve over ``bounds``: SLSQP on the rescaled problem, then a polish when the objective's scale moved.
 
-        The default SLSQP tolerance is absolute, so the objective is divided by its steepest gradient entry (see
-        :meth:`allocate_budget` Notes). SciPy clips the start to the bounds before its first evaluation, so the
-        scale is taken there too.
+        The default SLSQP tolerance is absolute, so the objective is divided by its steepest gradient entry and each
+        constraint by its scale (see :meth:`allocate_budget` Notes). SciPy clips the start to the bounds before its
+        first evaluation, so the scales are taken there too. ``size`` is each entry's size under the caller's
+        bounds, which a breakpoint pass keeps although it solves over a piece; an entry these bounds fix does not
+        count towards a constraint's scale. ``multipliers`` come back in objective units per unit of each
+        constraint as written.
         """
         kwargs = settings.kwargs
         if not settings.rescale:
-            return self._minimize_scaled(start, bounds, 1.0, kwargs, callback)
-        lower = [-np.inf if lo is None else lo for lo, _ in bounds]
-        upper = [np.inf if hi is None else hi for _, hi in bounds]
-        _, grad = self._objective_and_grad(np.clip(start, lower, upper))
+            return self._minimize_scaled(
+                start, bounds, 1.0, self._compiled_constraints, kwargs, callback
+            )
+        lower = np.array(
+            [-np.inf if lo is None else lo for lo, _ in bounds], dtype=float
+        )
+        upper = np.array(
+            [np.inf if hi is None else hi for _, hi in bounds], dtype=float
+        )
+        clipped = np.clip(start, lower, upper)
+        _, grad = self._objective_and_grad(clipped)
         scale = objective_scale_from_gradient(grad)
-        result = self._minimize_scaled(start, bounds, scale, kwargs, callback)
-        if scale == 1.0:
-            return result
-        return self._polish_with_solution_scale(result, bounds, scale, kwargs, callback)
+        constraints, constraint_scales = self._scaled_constraints(
+            clipped, np.where(lower < upper, size, 0.0)
+        )
+        result = self._minimize_scaled(
+            start, bounds, scale, constraints, kwargs, callback
+        )
+        if scale != 1.0:
+            result, scale = self._polish_with_solution_scale(
+                result, bounds, scale, constraints, kwargs, callback
+            )
+        if "multipliers" in result:
+            result.multipliers = result.multipliers * scale / constraint_scales
+        return result
+
+    def _scaled_constraints(
+        self, start: np.ndarray, size: np.ndarray
+    ) -> tuple[list[dict], np.ndarray]:
+        """Return the compiled constraints divided by their scales, and the scales in SciPy's multiplier order.
+
+        A constraint's own ``scale`` is used as given; without one it is :func:`constraint_scale_from_jacobian` at
+        ``start``. A constraint whose scale is 1 is passed as compiled. SciPy reports ``multipliers`` for the
+        equality constraints first, then for the inequalities, each in the order given.
+
+        Parameters
+        ----------
+        start : np.ndarray
+            The flat plan the solve starts from, clipped to its bounds.
+        size : np.ndarray
+            Each flat entry's size, 0 for an entry the solve's bounds fix.
+
+        Returns
+        -------
+        tuple of (list of dict, np.ndarray)
+            The constraints SciPy reads, and their scales in the order of ``multipliers``.
+        """
+        scaled, scales = [], []
+        for constraint in self._compiled_constraints:
+            scale = constraint["scale"]
+            if scale is None:
+                scale = constraint_scale_from_jacobian(constraint["jac"](start), size)
+            # Default arguments bind this constraint's callables and scale; a plain
+            # closure would read the loop's last values.
+            scaled.append(
+                constraint
+                if scale == 1.0
+                else {
+                    **constraint,
+                    "fun": lambda x, fun=constraint["fun"], scale=scale: (
+                        np.asarray(fun(x)) / scale
+                    ),
+                    "jac": lambda x, jac=constraint["jac"], scale=scale: (
+                        np.asarray(jac(x)) / scale
+                    ),
+                }
+            )
+            scales.append(scale)
+        equality = np.array([c["type"] == "eq" for c in self._compiled_constraints])
+        ordered = np.asarray(scales, dtype=float)
+        return scaled, np.concatenate([ordered[equality], ordered[~equality]])
 
     def _minimize_scaled(
         self,
         start: np.ndarray,
         bounds: Bounds,
         scale: float,
+        constraints: list[dict],
         minimize_kwargs: dict[str, Any],
         callback: Callable[[np.ndarray], None] | None,
     ) -> OptimizeResult:
-        """Run :func:`scipy.optimize.minimize` on the objective divided by ``scale``."""
+        """Run :func:`scipy.optimize.minimize` on the objective divided by ``scale``, subject to ``constraints``."""
 
         def scaled_objective_and_grad(x):
             objective, grad = self._objective_and_grad(x)
@@ -3912,7 +4001,7 @@ class BudgetOptimizer(BaseModel):
             x0=start,
             jac=True,
             bounds=bounds,
-            constraints=self._compiled_constraints,
+            constraints=constraints,
             callback=callback,
             **minimize_kwargs,
         )
@@ -3922,21 +4011,22 @@ class BudgetOptimizer(BaseModel):
         result: OptimizeResult,
         bounds: Bounds,
         scale: float,
+        constraints: list[dict],
         minimize_kwargs: dict[str, Any],
         callback: Callable[[np.ndarray], None] | None,
-    ) -> OptimizeResult:
+    ) -> tuple[OptimizeResult, float]:
         """Solve once more from a solution whose steepest gradient entry fell well below the scale, and report it.
 
         The steepest cells at the start flattened on the way to the solution, so the scale from the start can
         stop SLSQP early in the flatter cells: solve again with the scale taken at the solution, and keep that
-        solve only if it succeeds. ``fun``, ``jac`` and ``multipliers`` come back in objective units, and the
-        counts cover both solves.
+        solve only if it succeeds. The constraints keep their scales. ``fun`` and ``jac`` come back in objective
+        units, the counts cover both solves, and the objective scale returned is that of the solve kept.
         """
         objective, grad = self._objective_and_grad(result.x)
         solution_scale = objective_scale_from_gradient(grad)
         if result.success and solution_scale * 10.0 < scale:
             polish = self._minimize_scaled(
-                result.x, bounds, solution_scale, minimize_kwargs, callback
+                result.x, bounds, solution_scale, constraints, minimize_kwargs, callback
             )
             if polish.success:
                 self._accumulate_solver_counts(polish, result)
@@ -3946,9 +4036,7 @@ class BudgetOptimizer(BaseModel):
                 self._accumulate_solver_counts(result, polish)
         result.fun = float(objective)
         result.jac = np.asarray(grad)
-        if "multipliers" in result:
-            result.multipliers = result.multipliers * scale
-        return result
+        return result, scale
 
     @staticmethod
     def _accumulate_solver_counts(into: OptimizeResult, other: OptimizeResult) -> None:
@@ -4020,7 +4108,9 @@ class BudgetOptimizer(BaseModel):
             ``maxiter=1_000``). ``options`` are merged key by key, so
             ``{"options": {"ftol": 1e-6}}`` keeps ``maxiter=1_000``. The SLSQP default
             ``options`` are not injected for other methods. A ``ftol`` (or ``tol``)
-            that you pass is absolute, in objective units. See Notes for the default.
+            that you pass is absolute: in objective units for the objective, and in
+            each constraint's own units for the summed constraint violation. See
+            Notes for the default.
         return_if_fail : bool, optional
             Return output even if optimization fails. Default is False.
         callback : bool, optional
@@ -4038,7 +4128,8 @@ class BudgetOptimizer(BaseModel):
             Result object with ``budgets`` (the optimized allocation across
             channels, monetary units), ``scipy_result`` (the raw scipy
             optimization result, with ``fun``, ``jac`` and, from SciPy 1.16,
-            ``multipliers`` in objective units), ``optimized_vars`` (every
+            ``multipliers`` in objective units per unit of each constraint as
+            written), ``optimized_vars`` (every
             ``spend_vars`` and ``optimizable_vars`` allocation by name, empty when
             neither is declared), and
             ``callback_info`` (per-iteration diagnostics when ``callback=True``, else
@@ -4075,8 +4166,9 @@ class BudgetOptimizer(BaseModel):
 
         **Default tolerance**:
 
-        - SLSQP's ``ftol`` is an absolute tolerance on the objective, so on its own
-          its meaning depends on the units of the response.
+        - SLSQP's ``ftol`` is an absolute tolerance on the objective and on the
+          summed constraint violation, so on its own its meaning depends on the
+          units of the response and of each constraint.
         - When you do not set ``ftol`` or ``tol``, SLSQP minimizes the objective
           divided by the largest absolute entry of its gradient at ``x0`` (clipped
           to the bounds), if that entry is larger than one. This costs two extra
@@ -4091,9 +4183,24 @@ class BudgetOptimizer(BaseModel):
         - When the gradient entries at ``x0`` span several orders of magnitude,
           this default can stop at a slightly less stationary point than a solve
           in the original units would.
-        - With a ``ftol`` or ``tol`` that you pass, the objective is not rescaled.
-        - ``scipy_result.fun``, ``scipy_result.jac``, ``callback_info`` and, from
-          SciPy 1.16, ``scipy_result.multipliers`` are always in objective units.
+        - SLSQP compares the summed constraint violation with the same ``ftol``.
+          Each constraint is divided by its ``scale``
+          (:class:`~pymc_marketing.mmm.constraints.Constraint`) or, without one, by
+          the largest change one entry makes in it moving across the entry's size,
+          at ``x0``, if that is larger than one. An entry's size is ``total_budget``
+          for money (its largest finite bound when ``total_budget`` is 0) and the
+          largest absolute value among its finite bounds, at least 1, for any other
+          entry; entries the bounds fix do not count. A constraint in revenue is
+          then met to a relative accuracy rather than to ``1e-9`` revenue. The
+          default budget constraint has a scale of 1, so the budgets still add up
+          to ``total_budget``. This costs one Jacobian evaluation per constraint
+          without a scale, per solve.
+        - With a ``ftol`` or ``tol`` that you pass, neither the objective nor the
+          constraints are rescaled.
+        - ``scipy_result.fun``, ``scipy_result.jac`` and ``callback_info`` are always
+          in objective and constraint units, and, from SciPy 1.16,
+          ``scipy_result.multipliers`` in objective units per unit of each
+          constraint as written.
 
         **Breakpoints** (a ``price_response`` such as
         :class:`~pymc_marketing.mmm.price_response.TieredPriceResponse` whose map changes
@@ -4136,6 +4243,7 @@ class BudgetOptimizer(BaseModel):
         bounds = self._flat_bounds(total_budget, budget_bounds)
         low = np.array([-np.inf if lo is None else lo for lo, _ in bounds], dtype=float)
         high = np.array([np.inf if hi is None else hi for _, hi in bounds], dtype=float)
+        size = entry_sizes(self._variables, low, high, total_budget)
         self._warn_breakpoints_above_bounds(high)
         callback_info: list[OptimizationIterationInfo] = []
 
@@ -4150,6 +4258,7 @@ class BudgetOptimizer(BaseModel):
                 self._pack_decision_vector(start),
                 solve_bounds,
                 settings=settings,
+                size=size,
                 callback=partial(self._record_iteration, callback_info, index)
                 if callback
                 else None,
