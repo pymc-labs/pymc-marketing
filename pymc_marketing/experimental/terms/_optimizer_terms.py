@@ -910,7 +910,12 @@ def _condition_outputs(
     free = set(model.free_RVs)
     blockers = free | set(model.observed_RVs)
     nodes = set(ancestors(list(built.values()), blockers=blockers))
-    equations = {model[name] for name in context.equation_names.values()}
+    # An equation observing a latent has no model variable of its own
+    equations = {
+        model[name]
+        for name in context.equation_names.values()
+        if name in model.named_vars
+    }
     if nodes.intersection(equations):
         raise ValueError(
             "Optimizer targets and dependencies must be deterministic terms, not stochastic Equation outputs."

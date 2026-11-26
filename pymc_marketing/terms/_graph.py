@@ -311,11 +311,10 @@ class Equation(GraphTerm):
 
     def _build(self, context: BuildContext) -> Any:
         self._validate()
-        binding = context.binding(self)
-        context.equations[id(self)] = self
-        context.equation_names[id(self)] = binding.name
-        context._claim_name(binding.name, self)
-        context._ensure_dims(binding.dims)
+        builder = context.equation_builders.get(id(self))
+        if builder is not None:
+            return builder(self, context)
+        binding = context.register_equation(self)
         if context.prediction and binding.name in context.condition_on:
             if binding.observed is None:
                 raise ValueError(
@@ -516,7 +515,8 @@ class BuildContext:
     equations : dict
         Built equation identities to original equation specifications.
     equation_names : dict
-        Equation identities to actual named PyMC outputs, not anonymous downstream history expressions.
+        Equation identities to their names. Most equations build a named PyMC output; one an
+        extension builds itself, such as an equation observing a latent, may not have one.
     data_variables : set of str
         Dataset variables registered as mutable ``float64`` model data containers of the same name.
 
@@ -569,6 +569,9 @@ class BuildContext:
         self.equations: dict[int, Equation] = {}
         self.equation_names: dict[int, str] = {}
         self.data_variables: set[str] = set()
+        # Equations an extension builds itself, such as one joint likelihood for
+        # several equations, keyed by equation identity
+        self.equation_builders: dict[int, Callable[[Equation, BuildContext], Any]] = {}
         self._registered_inputs: dict[Variable, str] = {}
         self._input_arrays: dict[str, xr.DataArray] = {}
         self._registration_datasets: dict[int, xr.Dataset] = {}
@@ -615,6 +618,15 @@ class BuildContext:
                 dims=_dimensions(dims),
             )
         return self._bindings[key]
+
+    def register_equation(self, equation: Equation) -> Binding:
+        """Record ``equation`` in this build, claim its name and dims, and return its binding."""
+        binding = self.binding(equation)
+        self.equations[id(equation)] = equation
+        self.equation_names[id(equation)] = binding.name
+        self._claim_name(binding.name, equation)
+        self._ensure_dims(binding.dims)
+        return binding
 
     def _claim_name(self, name: str, owner: Any) -> None:
         _name(name, "Model variable name")

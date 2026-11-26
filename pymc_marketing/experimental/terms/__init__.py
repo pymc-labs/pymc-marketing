@@ -85,6 +85,10 @@ while allocations contain only decided rows.
 
 import warnings
 
+from pymc_marketing.experimental.terms._latent import (
+    LatentState,
+    LatentStateSpace,
+)
 from pymc_marketing.experimental.terms._optimizer import OptimizationResult, Problem
 from pymc_marketing.experimental.terms._scm import SCM
 from pymc_marketing.experimental.terms._terms import MediaTransform
@@ -111,6 +115,8 @@ __all__ = [
     "SCM",
     "Data",
     "Equation",
+    "LatentState",
+    "LatentStateSpace",
     "MediaTransform",
     "OptimizationResult",
     "Problem",

@@ -36,6 +36,7 @@ import pandas as pd
 import xarray as xr
 from pymc_extras.prior import Prior, VariableFactory
 
+from pymc_marketing.experimental.terms._latent import LatentState, LatentStateSpace
 from pymc_marketing.mmm.components.base import Transformation
 from pymc_marketing.mmm.fourier import FourierBase
 from pymc_marketing.names import Key
@@ -71,10 +72,27 @@ for _key, _term in (
     ("pymc_marketing.terms.Data", Data),
     ("pymc_marketing.terms.Equation", Equation),
     ("pymc_marketing.terms.MediaTransform", MediaTransform),
+    ("pymc_marketing.experimental.terms.LatentStateSpace", LatentStateSpace),
+    ("pymc_marketing.experimental.terms.LatentState", LatentState),
 ):
     serialization.register(
         _key, _term, serializer=_standalone, deserializer=_standalone
     )
+
+_STATESPACE_MODULE = "pymc_extras.statespace"
+
+
+def _statespace_class(name: str) -> type:
+    """Resolve a saved statespace model class, only from ``pymc_extras.statespace``."""
+    import pymc_extras.statespace as statespace
+    from pymc_extras.statespace.core import PyMCStateSpace
+
+    cls = getattr(statespace, name, None)
+    if not (isinstance(cls, type) and issubclass(cls, PyMCStateSpace)):
+        raise SerializationError(
+            f"{name!r} is not a model class of {_STATESPACE_MODULE}."
+        )
+    return cls
 
 
 def _node_fields(term: Any) -> dict[str, Any]:
@@ -196,6 +214,12 @@ class _Writer:
             if not all(isinstance(key, str) for key in value):
                 raise SerializationError("Saved mappings need string keys.")
             return {"$map": {key: self.value(item) for key, item in value.items()}}
+        if isinstance(value, type) and value.__module__.startswith(_STATESPACE_MODULE):
+            if _statespace_class(value.__name__) is not value:
+                raise SerializationError(
+                    f"Save statespace models exported by {_STATESPACE_MODULE}; got {value!r}."
+                )
+            return {"$statespace": value.__name__}
         if callable(value) and not isinstance(value, type):
             return {"$func": _func_name(value)}
         raise SerializationError(f"Cannot save a value of type {type(value).__name__}.")
@@ -268,6 +292,8 @@ class _Reader:
             return {key: self.value(item) for key, item in payload.items()}
         if tag == "$func":
             return _resolve_func(payload)
+        if tag == "$statespace":
+            return _statespace_class(payload)
         raise SerializationError(f"Unrecognized saved value tag {tag!r}.")
 
 
