@@ -28,8 +28,12 @@ import pytensor
 import xarray as xr
 import zarr
 
-from pymc_marketing.experimental.terms._data import validate_dataset
-from pymc_marketing.experimental.terms._graph import (
+from pymc_marketing.experimental.terms._latent import Marginalization
+from pymc_marketing.experimental.terms._serialize import spec_from_dict, spec_to_dict
+from pymc_marketing.names import Group
+from pymc_marketing.names.mmm import Dim
+from pymc_marketing.terms._data import validate_dataset
+from pymc_marketing.terms._graph import (
     Binding,
     BuildContext,
     Equation,
@@ -37,9 +41,6 @@ from pymc_marketing.experimental.terms._graph import (
     total_lookback,
     walk,
 )
-from pymc_marketing.experimental.terms._serialize import spec_from_dict, spec_to_dict
-from pymc_marketing.names import Group
-from pymc_marketing.names.mmm import Dim
 from pymc_marketing.version import __version__
 
 _LOGP_DRAWS = 3
@@ -62,6 +63,10 @@ class SCM:
 
     Notes
     -----
+    Equations can use the observed states of a :class:`LatentStateSpace`. Fitting
+    integrates its states out with a Kalman filter, and ``sample_prior_predictive``
+    draws them forward from the prior.
+
     Data enter only through ``fit``, ``sample_prior_predictive``, and
     ``sample_posterior_predictive`` as an ``xarray.Dataset`` whose every dimension
     carries unique labels. ``Data(name)`` terms reference dataset variables; nothing
@@ -138,8 +143,9 @@ class SCM:
             raise ValueError("Equation names must be distinct.")
 
     def _key(self) -> Any:
-        return specification_key(self._roots), tuple(
-            id(node) for node in walk(self._roots)
+        return (
+            specification_key(self._roots),
+            tuple(id(node) for node in walk(self._roots)),
         )
 
     def _new_model(
@@ -149,6 +155,7 @@ class SCM:
         prediction: bool = False,
         condition_on: Sequence[str] = (),
         history_length: int = 0,
+        simulate_latents: bool = False,
     ) -> tuple[pm.Model, BuildContext]:
         model = pm.Model(coords={dim: data.coords[dim].values for dim in data.dims})
         with model:
@@ -159,12 +166,19 @@ class SCM:
                 condition_on=condition_on,
                 history_length=history_length,
             )
+            latents = Marginalization(self._roots)
+            # Only fitting integrates the latents out; other builds are generative
+            fitting = not (simulate_latents or prediction)
+            if fitting:
+                latents.attach(context)
             for root in self._roots:
                 context.build(root)
+            if fitting:
+                latents.build(context)
         return model, context
 
     def _training_model(
-        self, data: xr.Dataset
+        self, data: xr.Dataset, *, simulate_latents: bool = False
     ) -> tuple[xr.Dataset, pm.Model, BuildContext]:
         self._validate_roots()
         data = validate_dataset(data).copy(deep=True)
@@ -177,7 +191,7 @@ class SCM:
                 raise ValueError(
                     f"Training data are missing observations {node.observed!r}."
                 )
-        model, context = self._new_model(data)
+        model, context = self._new_model(data, simulate_latents=simulate_latents)
         return data, model, context
 
     def build_model(self, data: xr.Dataset) -> pm.Model:
@@ -232,12 +246,18 @@ class SCM:
         xarray.DataTree
             ``prior``, ``prior_predictive``, and ``observed_data`` groups. Nothing is
             stored on this object, and an existing fit is left untouched.
+
+        Notes
+        -----
+        Latent state-space terms are drawn forward from the prior here rather than
+        filtered, so the draws never depend on the observations. Their state paths
+        are in the ``prior`` group as ``{latent}_latent``.
         """
         if conflicts := {"model", "return_inferencedata"} & kwargs.keys():
             raise ValueError(
                 f"Prior predictive sampling manages these arguments: {sorted(conflicts)}."
             )
-        _, model, _ = self._training_model(data)
+        _, model, _ = self._training_model(data, simulate_latents=True)
         result = pm.sample_prior_predictive(
             draws=draws, model=model, var_names=var_names, **kwargs
         )
