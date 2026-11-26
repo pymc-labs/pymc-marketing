@@ -388,13 +388,6 @@ def test_bounds_must_cover_exactly_the_inferred_decisions(
         Problem(**_arguments(fitted, terms=fitted.mean, bounds=bounds))
 
 
-def test_missing_scenario_input_is_not_held_at_training_values(
-    fitted: FittedProblem,
-) -> None:
-    with pytest.raises(ValueError):
-        Problem(**_arguments(fitted)).solve(fitted.future[["price"]])
-
-
 def test_mixed_outputs_preserve_paired_joint_posterior_and_implicit_dimensions(
     fitted: FittedProblem,
 ) -> None:

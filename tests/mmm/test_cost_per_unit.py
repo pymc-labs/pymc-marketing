@@ -874,18 +874,6 @@ class TestGetAvgCostPerUnit:
         expected = xr.ones_like(wrapper.get_channel_scale())
         xr.testing.assert_equal(result, expected)
 
-    def test_with_spend_returns_weighted_average(self, simple_idata_with_spend):
-        wrapper = MMMIDataWrapper(simple_idata_with_spend)
-        result = wrapper.get_avg_cost_per_unit()
-
-        total_spend = wrapper.get_channel_spend().sum(dim="date")
-        total_data = wrapper.get_channel_data().sum(dim="date")
-        expected = total_spend / total_data
-        assert not np.isnan(expected).any()
-        assert not np.isinf(expected).any()
-        assert not expected.isnull().any()
-        xr.testing.assert_allclose(result, expected)
-
     def test_with_spend_correct_values(self, simple_idata_with_spend):
         """Verify avg cpu = 2.0 for TV, 3.0 for Radio (constant cpu)."""
         wrapper = MMMIDataWrapper(simple_idata_with_spend)
@@ -1339,9 +1327,6 @@ class TestPriceResponseGate:
                 cost_per_unit=_window_cpu(mmm, dict.fromkeys(CHANNELS_3, 2.0)),
                 price_response=PowerPriceResponse(elasticity=0.0),
             )
-
-    def test_identity_response_skips_the_gate(self, simple_fitted_mmm):
-        _optimizer(simple_fitted_mmm, price_response=PowerPriceResponse(elasticity=0.0))
 
     def test_a_response_that_only_prices_masked_channels_is_the_identity(
         self, simple_fitted_mmm

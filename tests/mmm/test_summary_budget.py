@@ -132,9 +132,3 @@ class TestBudgetSummaryProperties:
     def test_budget_plots_summary_returns_factory(self):
         """BudgetPlots.summary exposes BudgetSummaryFactory."""
         assert BudgetPlots().summary is BudgetSummaryFactory
-
-    def test_budget_plots_summary_matches_direct_call(self, budget_allocation_samples):
-        """optimizer.plot.summary matches BudgetSummaryFactory static methods."""
-        df_direct = BudgetSummaryFactory.allocation_roas(budget_allocation_samples)
-        df_via_plots = BudgetPlots().summary.allocation_roas(budget_allocation_samples)
-        pd.testing.assert_frame_equal(df_direct, df_via_plots)

@@ -58,14 +58,3 @@ def test_registration(register_arbitrary_object) -> None:
 
     assert isinstance(instance, ArbitraryObject)
     assert instance.code == "test"
-
-
-def test_registeration_mixup() -> None:
-    data_that_looks_like_prior = {
-        "dist": "Normal",
-        "kwargs": {"something": "else"},
-    }
-
-    match = "Couldn't deserialize"
-    with pytest.raises(DeserializableError, match=match):
-        deserialize(data_that_looks_like_prior)

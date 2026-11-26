@@ -1,0 +1,748 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2026, PyMC Labs
+# This file is distributed under the same license as the PyMC-Marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyMC-Marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:10003
+#: 86fe40586f054e1ca2e902bfa4519858
+msgid "How Much Would One Lift Test Reduce ROAS Uncertainty?"
+msgstr "¿Cuánto reduciría una prueba de elevación la incertidumbre del ROAS?"
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:10005
+#: 5e633cc4a9064141a6e64a8241c2e3a4
+msgid ""
+"A Marketing Mix Model (MMM) gives a posterior distribution for the return"
+" on ad spend (ROAS) of every channel. That posterior is often wide, "
+"because sales data alone cannot separate the channels well. A lift test "
+"is the standard remedy, but it costs money and time, so a natural "
+"question comes before the test: **how much would one lift test narrow the"
+" ROAS posterior?**"
+msgstr ""
+"Un modelo de mezcla de marketing (MMM) entrega una distribución posterior "
+"para el retorno del gasto publicitario (ROAS) de cada canal. Ese posterior "
+"suele ser amplio, porque los datos de ventas por sí solos no permiten "
+"separar bien los canales. Una prueba de elevación es el remedio estándar, "
+"pero cuesta dinero y tiempo, por lo que antes de la prueba surge una "
+"pregunta natural: **¿cuánto reduciría una prueba de elevación la amplitud "
+"del posterior del ROAS?**"
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:10007
+#: 5aec1547b0324018a427f91e508afa05
+msgid ""
+"This notebook answers that question with the fitted model itself. The "
+"idea is a *pre-posterior analysis*: we simulate the test results the "
+"model considers possible, update the posterior for each result, and "
+"measure how much the ROAS uncertainty shrinks on average. The update does"
+" not refit the model. It reuses the posterior draws we already have, with"
+" importance weights."
+msgstr ""
+"Este cuaderno responde esa pregunta con el propio modelo ajustado. La idea "
+"es un *análisis pre-posterior*: simulamos los resultados de prueba que el "
+"modelo considera posibles, actualizamos el posterior para cada resultado y "
+"medimos cuánto se reduce en promedio la incertidumbre del ROAS. La "
+"actualización no vuelve a ajustar el modelo. Reutiliza las muestras del "
+"posterior que ya tenemos, con pesos de importancia."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:10009
+#: ebefd2ec4e41469fb5f74413847075d6
+#, python-brace-format
+msgid ""
+"We use the same data and the same model as the {ref}`mmm_case_study`, so "
+"the modelling steps are kept short. To learn how to feed a real lift test"
+" result into a model, see {ref}`mmm_lift_test`."
+msgstr ""
+"Usamos los mismos datos y el mismo modelo que en {ref}`mmm_case_study`, por "
+"lo que los pasos de modelado se mantienen breves. Para aprender a incorporar"
+" el resultado de una prueba de elevación real en un modelo, consulte "
+"{ref}`mmm_lift_test`."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:10011
+#: e045e5361fc44f68b9cc575035d350b1
+msgid "The method has four steps:"
+msgstr "El método tiene cuatro pasos:"
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:10013
+#: 5695f239566844998158311b8d12b481
+msgid ""
+"**Express the test as a model quantity.** For every posterior draw, "
+"compute the lift the model implies for the planned spend increase."
+msgstr ""
+"**Expresar la prueba como una cantidad del modelo.** Para cada muestra del "
+"posterior, calcule la elevación que el modelo implica para el aumento de "
+"gasto planificado."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:10014
+#: c9d2818a059d4b06987503b9e65d0e13
+msgid ""
+"**Update without refitting.** Treat a test result as one more observation"
+" and re-weight the existing posterior draws by how well they agree with "
+"it."
+msgstr ""
+"**Actualizar sin volver a ajustar.** Trate el resultado de una prueba como "
+"una observación más y vuelva a ponderar las muestras existentes del "
+"posterior según qué tan bien concuerdan con ella."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:10015
+#: 61ef80c07a7644bbaaff6183c65f5209
+msgid ""
+"**Resample.** Draw from the weighted posterior to read off the ROAS "
+"uncertainty after the test."
+msgstr ""
+"**Remuestrear.** Extraiga muestras del posterior ponderado para leer la "
+"incertidumbre del ROAS después de la prueba."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:10016
+#: 97df49e3fdb54ab69f5724e14a75a194
+msgid ""
+"**Average over the results we do not know yet.** Simulate many possible "
+"test results from the model and repeat steps 2 and 3 for each one."
+msgstr ""
+"**Promediar sobre los resultados que aún no conocemos.** Simule muchos "
+"resultados posibles de la prueba a partir del modelo y repita los pasos 2 y "
+"3 para cada uno."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:10018
+#: 479c485e85af4f7fad89c13aec58f1a4
+msgid "What you will learn"
+msgstr "Qué aprenderá"
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:10021
+#: 359b8b2624864bfc922fec14577276d9
+msgid "How to express a planned lift test as a quantity of the fitted MMM."
+msgstr ""
+"Cómo expresar una prueba de elevación planificada como una cantidad del MMM "
+"ajustado."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:10022
+#: 246718cb0c34460b8bd9f44dfb2ad1a7
+msgid ""
+"How to update a posterior with importance weights instead of a refit, and"
+" when that shortcut is safe."
+msgstr ""
+"Cómo actualizar un posterior con pesos de importancia en lugar de volver a "
+"ajustar, y cuándo es seguro este atajo."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:10023
+#: a871be2a725a4ecb8c634bc1fa5fae61
+msgid ""
+"How to simulate unknown test results and summarise the expected gain in "
+"ROAS precision."
+msgstr ""
+"Cómo simular resultados de prueba desconocidos y resumir la ganancia "
+"esperada en la precisión del ROAS."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:20002
+#: 104accb6cced4f2e94cf062e8fe683e4
+msgid "Prepare Notebook"
+msgstr "Preparar el cuaderno"
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:40002
+#: 2afd2648905d4eb4b2c92e0411a163c6
+msgid "Fit the Baseline MMM"
+msgstr "Ajustar el MMM base"
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:40004
+#: f342cd3d5efe4c6290c0e94e6c5a9832
+#, python-brace-format
+msgid ""
+"We load the weekly data of the case study, keep seven media channels and "
+"the holiday indicators, and fit the model on the period up to February "
+"2018. The gray sales in the plots below show a held-out period not used "
+"for this fit. See the {ref}`mmm_case_study` for the details of the data "
+"and the model choices."
+msgstr ""
+"Cargamos los datos semanales del caso de estudio, conservamos siete canales "
+"de medios y los indicadores de feriados, y ajustamos el modelo con el "
+"período hasta febrero de 2018. Las ventas en gris en los gráficos siguientes"
+" muestran un período que se dejó fuera y que no se usó para este ajuste. "
+"Consulte {ref}`mmm_case_study` para ver los detalles de los datos y de las "
+"decisiones del modelo."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:70002
+#: 323e361321f24dff90f103885286c366
+msgid ""
+"The model has geometric adstock, logistic saturation, holiday controls, "
+"and yearly seasonality. We fit it with the same sampler settings as the "
+"case study: six chains of 800 draws after 1500 tuning steps with "
+"`target_accept=0.9`. The budget is generous on purpose: the comparison at"
+" the end works with the spread of the posterior, so we do not want MCMC "
+"noise to dominate it."
+msgstr ""
+"El modelo tiene adstock geométrico, saturación logística, controles de "
+"feriados y estacionalidad anual. Lo ajustamos con la misma configuración del"
+" muestreador que en el caso de estudio: seis cadenas de 800 muestras después"
+" de 1500 pasos de calentamiento con `target_accept=0.9`. El presupuesto es "
+"generoso a propósito: la comparación final trabaja con la dispersión del "
+"posterior, por lo que no queremos que el ruido de MCMC la domine."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:90002
+#: c145e75e83034a8890950b0ae51f8918
+msgid "ROAS Before the Test"
+msgstr "ROAS antes de la prueba"
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:90004
+#: 93d4e442bb1d49cdba229718cca0176e
+#, python-brace-format
+msgid ""
+"For every posterior draw, the ROAS of a channel is its incremental "
+"contribution over the training period divided by its total spend. The "
+"incremental contribution is the difference between the fitted sales and "
+"the counterfactual sales with the channel's spend set to zero, with "
+"adstock carry-over included. We compute it with "
+"{meth}`~pymc_marketing.mmm.incrementality.Incrementality.contribution_over_spend`,"
+" as in the {ref}`mmm_case_study`. This is the definition we recommend, "
+"and for more complex models, it is not necessarily the same as the sum of"
+" the fitted channel contribution divided by spend. In this case-study, "
+"ROAS is the quantity whose uncertainty we want to reduce."
+msgstr ""
+"Para cada muestra del posterior, el ROAS de un canal es su contribución "
+"incremental durante el período de entrenamiento dividida por su gasto total."
+" La contribución incremental es la diferencia entre las ventas ajustadas y "
+"las ventas contrafactuales con el gasto del canal fijado en cero, incluyendo"
+" el efecto de arrastre del adstock. La calculamos con "
+"{meth}`~pymc_marketing.mmm.incrementality.Incrementality.contribution_over_spend`,"
+" como en {ref}`mmm_case_study`. Esta es la definición que recomendamos y, "
+"para modelos más complejos, no es necesariamente igual a la suma de la "
+"contribución ajustada del canal dividida por el gasto. En este caso de "
+"estudio, el ROAS es la cantidad cuya incertidumbre queremos reducir."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:110002
+#: b5307c19857a46b1befe83d66079bcdb
+msgid ""
+"The current ROAS posteriors are wide for all channels. For Online "
+"Display, the channel we will test, the posterior mean is about 53 and the"
+" standard deviation is about 36. This is the \"before\" picture."
+msgstr ""
+"Los posteriores actuales del ROAS son amplios para todos los canales. Para "
+"Online Display, el canal que probaremos, la media posterior es de "
+"aproximadamente 53 y la desviación estándar es de aproximadamente 36. Esta "
+"es la imagen \"antes\"."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:130002
+#: 79dc9428072f4464987de30aa0bbd7d0
+msgid "Simulating One Lift Test Without Refitting"
+msgstr "Simular una prueba de elevación sin volver a ajustar"
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:130004
+#: 19d6d9e3491841b9af86c09b7cbdab1c
+#, python-brace-format
+msgid ""
+"**Step 1: the test as a model quantity.** A lift test raises the weekly "
+"spend of one channel from $x_\\text{start}$ to $x_\\text{end}$ and "
+"measures the incremental sales. The saturation curve $f$ of the fitted "
+"model gives the lift it implies for posterior draw $s$:"
+msgstr ""
+"**Paso 1: la prueba como cantidad del modelo.** Una prueba de elevación "
+"aumenta el gasto semanal de un canal de $x_\\text{start}$ a $x_\\text{end}$ "
+"y mide las ventas incrementales. La curva de saturación $f$ del modelo "
+"ajustado da la elevación que implica para la muestra $s$ del posterior:"
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:130006
+#: 1a33782bab6e4ce9a3ca44f5f5ad41b2
+#, python-brace-format
+msgid ""
+"\n"
+"\\Delta_s = f(x_\\text{end}; \\theta_s) - f(x_\\text{start}; \\theta_s).\n"
+msgstr ""
+"\n"
+"\\Delta_s = f(x_\\text{end}; \\theta_s) - f(x_\\text{start}; \\theta_s).\n"
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:130010
+#: a560402bf4584f0cbba1dc8cc2267403
+#, python-brace-format
+msgid ""
+"This is the immediate response of the saturation curve, without adstock "
+"carry-over. It is the same convention that "
+"{meth}`~pymc_marketing.mmm.mmm.MMM.add_lift_test_measurements` uses when "
+"it calibrates a model on a real lift test."
+msgstr ""
+"Esta es la respuesta inmediata de la curva de saturación, sin el efecto de "
+"arrastre del adstock. Es la misma convención que usa "
+"{meth}`~pymc_marketing.mmm.mmm.MMM.add_lift_test_measurements` cuando "
+"calibra un modelo con una prueba de elevación real."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:130012
+#: 3e8c081780204337a650a8933a319c81
+#, python-brace-format
+msgid ""
+"**Step 2: update without refitting.** Suppose the test reports a lift "
+"$\\hat{\\Delta}$ with measurement noise $\\sigma_\\text{test}$. In Bayes'"
+" rule this is one more likelihood term:"
+msgstr ""
+"**Paso 2: actualizar sin volver a ajustar.** Supongamos que la prueba "
+"reporta una elevación $\\hat{\\Delta}$ con ruido de medición "
+"$\\sigma_\\text{test}$. En la regla de Bayes, esto es un término de "
+"verosimilitud adicional:"
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:130014
+#: 3902d6474c4b4db9968d278ca3f5a3e5
+#, python-brace-format
+msgid ""
+"\n"
+"p(\\theta \\mid y, \\hat{\\Delta}) \\propto p(\\theta \\mid y)\\, "
+"\\text{Normal}(\\hat{\\Delta} \\mid \\Delta(\\theta), "
+"\\sigma_\\text{test}).\n"
+msgstr ""
+"\n"
+"p(\\theta \\mid y, \\hat{\\Delta}) \\propto p(\\theta \\mid y)\\, \\text{Normal}(\\hat{\\Delta} \\mid \\Delta(\\theta), \\sigma_\\text{test}).\n"
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:130018
+#: eba059268bed4dd690d4a8fde8d8a56b
+#, python-brace-format
+msgid ""
+"We already have draws from $p(\\theta \\mid y)$. So the posterior after "
+"the test is the same set of draws with weights $w_s \\propto "
+"\\text{Normal}(\\hat{\\Delta} \\mid \\Delta_s, \\sigma_\\text{test})$. "
+"This is importance sampling. We use Pareto smoothed importance sampling "
+"(PSIS) to stabilise the weights; it also returns a Pareto $\\hat{k}$ "
+"diagnostic that tells us when the weights are unreliable. The weights are"
+" normalised jointly across all posterior draws."
+msgstr ""
+"Ya tenemos muestras de $p(\\theta \\mid y)$. Entonces, el posterior después "
+"de la prueba es el mismo conjunto de muestras con pesos $w_s \\propto "
+"\\text{Normal}(\\hat{\\Delta} \\mid \\Delta_s, \\sigma_\\text{test})$. Esto "
+"es muestreo de importancia. Usamos el muestreo de importancia suavizado de "
+"Pareto (PSIS) para estabilizar los pesos; además devuelve un diagnóstico "
+"$\\hat{k}$ de Pareto que nos indica cuándo los pesos no son confiables. Los "
+"pesos se normalizan de forma conjunta sobre todas las muestras del "
+"posterior."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:130020
+#: 87915e814dab40c1bc0fbe7d1740a56f
+msgid ""
+"**Step 3: calculate posterior uncertainty.** We calculate the weighted "
+"standard deviation of ROAS directly from the PSIS weights. For an "
+"illustrative posterior plot, we can also resample draws with those "
+"weights."
+msgstr ""
+"**Paso 3: calcular la incertidumbre del posterior.** Calculamos la "
+"desviación estándar ponderada del ROAS directamente a partir de los pesos de"
+" PSIS. Para un gráfico ilustrativo del posterior, también podemos "
+"remuestrear las muestras con esos pesos."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:130022
+#: f6d5ba4e1d5645b2a39b570e78cff447
+#, python-brace-format
+msgid ""
+"**Step 4: average over unknown results.** Before the test runs, "
+"$\\hat{\\Delta}$ is unknown. The model tells us which results are "
+"plausible: pick one posterior draw $s^*$ at random as the temporary truth"
+" and add test noise,"
+msgstr ""
+"**Paso 4: promediar sobre resultados desconocidos.** Antes de que se ejecute"
+" la prueba, $\\hat{\\Delta}$ es desconocido. El modelo nos dice qué "
+"resultados son plausibles: elija al azar una muestra $s^*$ del posterior "
+"como verdad temporal y añada ruido de prueba,"
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:130024
+#: f354e2b1d0ae4103a20aa3678fb0d8ce
+#, python-brace-format
+msgid ""
+"\n"
+"\\hat{\\Delta} \\sim \\text{Normal}(\\Delta_{s^*}, \\sigma_\\text{test})."
+"\n"
+msgstr ""
+"\n"
+"\\hat{\\Delta} \\sim \\text{Normal}(\\Delta_{s^*}, \\sigma_\\text{test}).\n"
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:130028
+#: fda93856501e4b48aa3eba36ebc46090
+msgid ""
+"We repeat this many times. Each simulated result gives one post-test ROAS"
+" standard deviation. The reduction relative to the current standard "
+"deviation, averaged over all simulated results, is the expected gain in "
+"ROAS precision from the test."
+msgstr ""
+"Repetimos esto muchas veces. Cada resultado simulado produce una desviación "
+"estándar del ROAS posterior a la prueba. La reducción relativa a la "
+"desviación estándar actual, promediada sobre todos los resultados simulados,"
+" es la ganancia esperada en la precisión del ROAS gracias a la prueba."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:130030
+#: 15316d445bcf43159f497e57a4f1fa2c
+msgid "When does the shortcut break?"
+msgstr "¿Cuándo falla el atajo?"
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:130033
+#: 9b4d87535be54cb5bf459d4186772b96
+msgid ""
+"Importance sampling reuses the draws we have. If the test is much more "
+"precise than the spread of the implied lift $\\Delta_s$ across the "
+"posterior, only a few draws are compatible with any result and they carry"
+" all the weight. Compare `test_sigma / mmm.data.get_target_scale()` with "
+"`mmm.idata[\"posterior\"][\"lift\"].std()`, and check the `k_hat` value "
+"stored for each simulated experiment (values above 0.7 signal unreliable "
+"weights). For a very precise test, refit the model with the simulated "
+"result through `add_lift_test_measurements` instead."
+msgstr ""
+"El muestreo de importancia reutiliza las muestras que tenemos. Si la prueba "
+"es mucho más precisa que la dispersión de la elevación implícita $\\Delta_s$"
+" a lo largo del posterior, solo unas pocas muestras son compatibles con "
+"cualquier resultado y concentran todo el peso. Compare `test_sigma / "
+"mmm.data.get_target_scale()` con `mmm.idata[\"posterior\"][\"lift\"].std()`,"
+" y revise el valor `k_hat` almacenado para cada experimento simulado (los "
+"valores superiores a 0.7 indican pesos no confiables). Para una prueba muy "
+"precisa, en cambio, vuelva a ajustar el modelo con el resultado simulado "
+"mediante `add_lift_test_measurements`."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:140002
+#: f40c69d00bc343119a970095943624c5
+msgid "Helper functions"
+msgstr "Funciones auxiliares"
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:140004
+#: 1789f412439344b9aead45c2baa4f71e
+msgid ""
+"`compile_saturation_fn` compiles the saturation curve of the model once, "
+"so that we can evaluate it for all posterior draws at any spend level "
+"(step 1)."
+msgstr ""
+"`compile_saturation_fn` compila una sola vez la curva de saturación del "
+"modelo, de modo que podamos evaluarla para todas las muestras del posterior "
+"con cualquier nivel de gasto (paso 1)."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:160002
+#: 22c07d06f5f24cefa6ed9ff043b6a7f6
+msgid ""
+"`sample_lift_experiments` computes the implied lift of every posterior "
+"draw for the planned spend increase, then simulates the requested number "
+"of test results and the PSIS weights for each of them (steps 1, 2, and "
+"4). The implied lift is stored in the posterior as `lift`, so you can "
+"inspect it."
+msgstr ""
+"`sample_lift_experiments` calcula la elevación implícita de cada muestra del"
+" posterior para el aumento de gasto planificado, y luego simula el número "
+"solicitado de resultados de prueba y los pesos de PSIS para cada uno de "
+"ellos (pasos 1, 2 y 4). La elevación implícita se almacena en el posterior "
+"como `lift`, por lo que puede inspeccionarla."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:180002
+#: 2e42944992c3472c94ed90a868ca6899
+msgid ""
+"`resample_posterior` draws a weighted posterior sample for the "
+"illustrative forest plot below. For the simulated results, we compute the"
+" ROAS standard deviation directly from the PSIS weights."
+msgstr ""
+"`resample_posterior` extrae una muestra ponderada del posterior para el "
+"gráfico de bosque ilustrativo que aparece más abajo. Para los resultados "
+"simulados, calculamos la desviación estándar del ROAS directamente a partir "
+"de los pesos de PSIS."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:200002
+#: c0d7ded30bfd4c2aa7528a5c443125b6
+msgid "Choose the Experiment"
+msgstr "Elegir el experimento"
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:200004
+#: 6d29898f3f704e96a1400b49de34ec79
+msgid "Four numbers define the test:"
+msgstr "Cuatro números definen la prueba:"
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:200006
+#: 857fa12d85f746a88b56932a48edba33
+msgid "`channel_selection`: the channel to test."
+msgstr "`channel_selection`: el canal que se probará."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:200007
+#: c49d068afe814dfe95f2f13cee7308dd
+msgid ""
+"`start_spend` and `test_budget`: the weekly spend before the increase and"
+" the size of the increase, in the units of the spend columns. They are "
+"two points on the saturation curve, not the cost of running the "
+"experiment. Here the test moves Online Display from 100,000 to 150,000 "
+"per week, in the lower part of the spend range seen in the training data."
+msgstr ""
+"`start_spend` y `test_budget`: el gasto semanal antes del aumento y el "
+"tamaño del aumento, en las unidades de las columnas de gasto. Son dos puntos"
+" de la curva de saturación, no el costo de ejecutar el experimento. Aquí la "
+"prueba lleva Online Display de 100,000 a 150,000 por semana, en la parte "
+"baja del rango de gasto observado en los datos de entrenamiento."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:200008
+#: 0c1f6f72e4ff4ea6b1431c44f55851dc
+msgid ""
+"`test_sigma`: the standard deviation of the measured lift, in sales "
+"units. It is about 1 percent of a typical training week's sales. A lower "
+"value means a more precise, and usually more expensive, experiment. The "
+"function converts it to the scaled target of the model."
+msgstr ""
+"`test_sigma`: la desviación estándar de la elevación medida, en unidades de "
+"ventas. Equivale a aproximadamente el 1 por ciento de las ventas de una "
+"semana típica de entrenamiento. Un valor menor significa un experimento más "
+"preciso y, por lo general, más costoso. La función lo convierte a la escala "
+"del objetivo escalado del modelo."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:220002
+#: f843f4aa562842dba6c14d3860c9aeca
+msgid "Run the Simulations"
+msgstr "Ejecutar las simulaciones"
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:220004
+#: 112dfed4459d489a955789adb058079f
+msgid "We simulate 1000 possible test results and their posterior weights."
+msgstr "Simulamos 1000 posibles resultados de prueba y sus pesos posteriores."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:240002
+#: 902ebe23299f46ab999f01a36da00272
+#, python-brace-format
+msgid ""
+"Check the largest Pareto $\\hat{k}$ diagnostic across the simulated "
+"tests. A maximum below 0.7, and zero tests above 0.7, are the pass "
+"condition for this configuration."
+msgstr ""
+"Revisamos el mayor diagnóstico $\\hat{k}$ de Pareto entre las pruebas "
+"simuladas. Un máximo inferior a 0.7 y ninguna prueba por encima de 0.7 son "
+"la condición de aprobación para esta configuración."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:260002
+#: 15dd6d82f782428d90b5f846a41261df
+msgid ""
+"For each simulated result, we calculate the ROAS standard deviation "
+"directly from the PSIS-weighted posterior."
+msgstr ""
+"Para cada resultado simulado, calculamos la desviación estándar del ROAS "
+"directamente a partir del posterior ponderado con PSIS."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:280002
+#: 2213e97a107c4d4cabdbd093c11089ac
+msgid "Results: Expected Reduction in ROAS Uncertainty"
+msgstr "Resultados: reducción esperada de la incertidumbre del ROAS"
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:280004
+#: 8c0d2d9116a24649a81ac8b7a135bffd
+msgid ""
+"The plot shows, for every channel, the distribution over the simulated "
+"test results of the reduction in the ROAS standard deviation (current "
+"minus post-test). We see a sizeable reduction in uncertainty for Online "
+"Display, the channel where we run the lift test. The Radio and Insert "
+"reductions appear to have two modes: although their average reductions "
+"are near zero, this shape hints at dependence between the channel "
+"estimates. Understanding that dependence would be a useful topic for "
+"further study."
+msgstr ""
+"El gráfico muestra, para cada canal, la distribución sobre los resultados de"
+" prueba simulados de la reducción en la desviación estándar del ROAS (actual"
+" menos posterior a la prueba). Vemos una reducción considerable de la "
+"incertidumbre para Online Display, el canal en el que realizamos la prueba "
+"de elevación. Las reducciones de Radio e Insert parecen tener dos modos: "
+"aunque sus reducciones promedio están cerca de cero, esta forma sugiere una "
+"dependencia entre las estimaciones de los canales. Comprender esa "
+"dependencia sería un tema útil para estudios posteriores."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:300002
+#: a09537f9ef57439b80e42f3032caa828
+#, python-format
+msgid ""
+"The forest plot gives a concrete picture of the precision gain. It "
+"compares the ROAS posterior before the test with the posterior after one "
+"typical simulated result: the experiment whose observed lift is the "
+"median of all simulated results. Points are posterior means, thick lines "
+"the 50% and thin lines the 94% highest density intervals."
+msgstr ""
+"El gráfico de bosque ofrece una imagen concreta de la ganancia de precisión."
+" Compara el posterior del ROAS antes de la prueba con el posterior después "
+"de un resultado simulado típico: el experimento cuya elevación observada es "
+"la mediana de todos los resultados simulados. Los puntos son medias "
+"posteriores, las líneas gruesas son los intervalos de mayor densidad del 50%"
+" y las líneas delgadas los del 94%."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:320002
+#: d93a22a45c884c56a883dbc067414bbf
+msgid ""
+"For Online Display, the tested channel, the interval after the test is "
+"about half as wide as before, and the mean moves toward the simulated "
+"result. The intervals of the other channels remain largely unchanged in "
+"our case."
+msgstr ""
+"Para Online Display, el canal probado, el intervalo después de la prueba es "
+"aproximadamente la mitad de ancho que antes, y la media se mueve hacia el "
+"resultado simulado. Los intervalos de los demás canales permanecen "
+"prácticamente sin cambios en nuestro caso."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:320004
+#: 1708e6e6646547ae8131cd9e93736cb0
+#, python-format
+msgid ""
+"The table summarises both plots per channel: the ROAS posterior mean and "
+"standard deviation before the test, the mean post-test standard "
+"deviation, and the mean reduction with the central 94% of the simulated "
+"results."
+msgstr ""
+"La tabla resume ambos gráficos por canal: la media posterior y la desviación"
+" estándar del ROAS antes de la prueba, la desviación estándar media "
+"posterior a la prueba y la reducción media junto con el 94% central de los "
+"resultados simulados."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:340002
+#: 4c58b555b6e2471ab5a85d93e8c5f4ab
+#, python-format
+msgid ""
+"For Online Display, the tested channel, the ROAS standard deviation falls"
+" from about 36 to about 16 on average, a reduction of about 56 percent. "
+"The central 94% of the simulated results give a reduction between 17 and "
+"27."
+msgstr ""
+"Para Online Display, el canal probado, la desviación estándar del ROAS cae "
+"en promedio de aproximadamente 36 a aproximadamente 16, una reducción de "
+"alrededor del 56 por ciento. El 94% central de los resultados simulados da "
+"una reducción entre 17 y 27."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:340004
+#: 6b1ccda956734e6489db09c432f20f62
+msgid ""
+"For the other channels the reduction is centred near zero. Any departure "
+"from zero reflects posterior dependence induced by the lift-test "
+"likelihood: a nonzero centre would show that the test also informs a "
+"channel through parameters that the channels share. In this model that "
+"transfer is negligible: one test on Online Display sharpens the ROAS of "
+"Online Display and almost nothing else."
+msgstr ""
+"Para los demás canales, la reducción está centrada cerca de cero. Cualquier "
+"desviación respecto de cero refleja la dependencia posterior inducida por la"
+" verosimilitud de la prueba de elevación: un centro distinto de cero "
+"mostraría que la prueba también informa a un canal a través de parámetros "
+"que los canales comparten. En este modelo esa transferencia es "
+"insignificante: una prueba en Online Display afina el ROAS de Online Display"
+" y casi nada más."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:350002
+#: f7ae3fe5cb64404b957fbf04ca5c6008
+msgid "Conclusion"
+msgstr "Conclusión"
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:350004
+#: 5b5e93813ca948549e6be373996c98e9
+msgid ""
+"A fitted MMM can tell us, before we run a lift test, how much that test "
+"would sharpen a ROAS estimate. The recipe is a pre-posterior analysis: "
+"simulate the test results the model considers possible, update the "
+"posterior for each result with importance weights instead of a refit, and"
+" average the resulting reduction in ROAS uncertainty. Here, one test on "
+"Online Display is expected to cut the ROAS standard deviation by about 56"
+" percent and to leave the other channels unchanged."
+msgstr ""
+"Un MMM ajustado puede decirnos, antes de ejecutar una prueba de elevación, "
+"cuánto afinaría esa prueba una estimación del ROAS. La receta es un análisis"
+" pre-posterior: simular los resultados de prueba que el modelo considera "
+"posibles, actualizar el posterior para cada resultado con pesos de "
+"importancia en lugar de volver a ajustar, y promediar la reducción "
+"resultante de la incertidumbre del ROAS. Aquí se espera que una prueba en "
+"Online Display reduzca la desviación estándar del ROAS en aproximadamente un"
+" 56 por ciento y que deje sin cambios los demás canales."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:350006
+#: 3defa0c19d41401bb0ddbf0f2f49a903
+#, python-brace-format
+msgid ""
+"To compare candidate tests, change the channel, the spend levels, or the "
+"test precision and run the cells from \"Choose the Experiment\" again. "
+"Compare the relative reductions and weigh them against what each "
+"experiment would cost. Once a test has run, feed the measured lift into "
+"the model with "
+"{meth}`~pymc_marketing.mmm.mmm.MMM.add_lift_test_measurements`, as shown "
+"in {ref}`mmm_lift_test`."
+msgstr ""
+"Para comparar pruebas candidatas, cambie el canal, los niveles de gasto o la"
+" precisión de la prueba y vuelva a ejecutar las celdas a partir de \"Elegir "
+"el experimento\". Compare las reducciones relativas y sopéselas frente a lo "
+"que costaría cada experimento. Una vez que se haya ejecutado una prueba, "
+"incorpore la elevación medida en el modelo con "
+"{meth}`~pymc_marketing.mmm.mmm.MMM.add_lift_test_measurements`, como se "
+"muestra en {ref}`mmm_lift_test`."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:350008
+#: 091c830367fc4b1fadab85f23ff457ad
+msgid "Keep these limits in mind:"
+msgstr "Tenga en cuenta estos límites:"
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:350010
+#: ec9648558522414ea7b7cd1484d5f9d0
+msgid ""
+"The forecast is model-based. The simulated results come from the current "
+"posterior, so a misspecified model gives a misleading forecast of what "
+"the test will teach."
+msgstr ""
+"El pronóstico se basa en el modelo. Los resultados simulados provienen del "
+"posterior actual, por lo que un modelo mal especificado da un pronóstico "
+"engañoso de lo que la prueba nos enseñará."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:350011
+#: ead40ee24d3c433fa6ba1c1d517ff35e
+msgid ""
+"The implied lift is the immediate saturation response. Adstock carry-over"
+" is not part of it."
+msgstr ""
+"La elevación implícita es la respuesta inmediata de la saturación. El efecto"
+" de arrastre del adstock no forma parte de ella."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:350012
+#: ad7b2d0a41094ae393ceef70353cc395
+msgid ""
+"Importance sampling is reliable only when the test does not move the "
+"posterior far. For a very precise test, refit instead."
+msgstr ""
+"El muestreo de importancia solo es confiable cuando la prueba no desplaza el"
+" posterior demasiado lejos. Para una prueba muy precisa, vuelva a ajustar el"
+" modelo."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:350013
+#: 1741834e22224bf0bfa096ac1ddced5d
+msgid ""
+"The standard deviation is one criterion; expected information gain and "
+"other decision-relevant utilities are alternatives that the same "
+"simulation can support."
+msgstr ""
+"La desviación estándar es un criterio; la ganancia de información esperada y"
+" otras utilidades relevantes para la decisión son alternativas que la misma "
+"simulación puede respaldar."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:350015
+#: 1f6c3178a8724d19a0da078760baed29
+msgid "References"
+msgstr "Referencias"
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:350017
+#: fa4a09e3f944448e80df61a28b41484d
+msgid ""
+"Raiffa, H. and Schlaifer, R. (1961). *Applied Statistical Decision "
+"Theory*. Harvard University Press."
+msgstr ""
+"Raiffa, H. y Schlaifer, R. (1961). *Applied Statistical Decision Theory*. "
+"Harvard University Press."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:350018
+#: e8c5768cb24442a8aee2db1f40acea35
+msgid ""
+"Chaloner, K. and Verdinelli, I. (1995). Bayesian experimental design: a "
+"review. *Statistical Science*, 10(3), 273 to 304."
+msgstr ""
+"Chaloner, K. y Verdinelli, I. (1995). Bayesian experimental design: a "
+"review. *Statistical Science*, 10(3), 273 a 304."
+
+#: ../source/notebooks/mmm/mmm_roas_experimentation.ipynb:350019
+#: e754f7e883ea42a3b6130dfd4e41d7e7
+msgid ""
+"Vehtari, A., Simpson, D., Gelman, A., Yao, Y., and Gabry, J. (2024). "
+"Pareto smoothed importance sampling. *Journal of Machine Learning "
+"Research*, 25(72), 1 to 58."
+msgstr ""
+"Vehtari, A., Simpson, D., Gelman, A., Yao, Y. y Gabry, J. (2024). Pareto "
+"smoothed importance sampling. *Journal of Machine Learning Research*, "
+"25(72), 1 a 58."

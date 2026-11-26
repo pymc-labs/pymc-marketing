@@ -1,0 +1,465 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2026, PyMC Labs
+# This file is distributed under the same license as the PyMC-Marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyMC-Marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb:10003
+#: ce93f7302fb9452fa8a2bc670395258b
+msgid "MMM Dims Migration Guide"
+msgstr "Guía de migración a dims en MMM"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb:10005
+#: 1b22730cbec7471398fc831ad35ec202
+msgid ""
+"This guide covers the changes introduced by the migration of PyMC-"
+"Marketing's MMM internals to "
+"[`pymc.dims`](https://www.pymc.io/projects/docs/en/latest/learn/core_notebooks/dims_module.html)"
+" and PyTensor's "
+"[`xtensor`](https://pytensor.readthedocs.io/en/latest/library/xtensor/index.html)"
+" system."
+msgstr ""
+"Esta guía cubre los cambios introducidos por la migración de los componentes"
+" internos de MMM de PyMC-Marketing a "
+"[`pymc.dims`](https://www.pymc.io/projects/docs/en/latest/learn/core_notebooks/dims_module.html)"
+" y al sistema "
+"[`xtensor`](https://pytensor.readthedocs.io/en/latest/library/xtensor/index.html)"
+" de PyTensor."
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb:10007
+#: f71de823530348e892280f9eeff7cf3b
+msgid "The impact depends on how you use the library:"
+msgstr "El impacto depende de cómo utilice la biblioteca:"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb:10009
+#: 2f5decb9d82048d2aa00af63c89f4dc9
+msgid ""
+"**High-level users** (standard model fitting, prediction, budget "
+"optimization): minimal changes."
+msgstr ""
+"**Usuarios de alto nivel** (ajuste estándar de modelos, predicción, "
+"optimización del presupuesto): cambios mínimos."
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb:10010
+#: 1db69136737044bdbd3115e6bd7ec55f
+msgid ""
+"**Low-level users** (custom transformations, extensions, direct model "
+"building): significant API changes."
+msgstr ""
+"**Usuarios de bajo nivel** (transformaciones personalizadas, extensiones, "
+"construcción directa de modelos): cambios significativos en la API."
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb:30002
+#: dbee0c876aad442faac16ba4180f5ef3
+msgid "High-Level Users: Prior Array Parameters"
+msgstr "Usuarios de alto nivel: parámetros de arreglo en los priors"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb:30004
+#: ef65817a6e8941e2bc67dcabac1dd049
+msgid ""
+"If you use `MMM` through its standard API (fit, predict, budget "
+"optimization), **nothing changes** in your workflow."
+msgstr ""
+"Si utiliza `MMM` a través de su API estándar (ajuste, predicción, "
+"optimización del presupuesto), **nada cambia** en su flujo de trabajo."
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb:30006
+#: 91ceb42068b2487f83e8721d14711873
+msgid ""
+"The one thing you may notice is a new warning when passing raw arrays or "
+"lists as prior parameters. Previously, a value like `mu=[2, 1]` was "
+"passed through without any dimension information. Now, the system needs "
+"to know **which dimension** the array corresponds to."
+msgstr ""
+"Lo único que puede notar es una nueva advertencia al pasar arreglos o listas"
+" sin procesar como parámetros de un prior. Antes, un valor como `mu=[2, 1]` "
+"se pasaba sin ninguna información de dimensión. Ahora, el sistema necesita "
+"saber **a qué dimensión** corresponde el arreglo."
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb:30008
+#: 679ece4a64fa408e9e4a45a934106804
+msgid ""
+"By default, array parameters are assumed to map to the **rightmost "
+"dimension** of the prior's `dims`. For instance, when the MMM sets "
+"`dims=(\"channel\",)` on your saturation beta prior internally, a 1D "
+"array is assumed to be along `\"channel\"`. This works, but emits a "
+"warning encouraging you to be explicit."
+msgstr ""
+"Por defecto, se asume que los parámetros de tipo arreglo corresponden a la "
+"**dimensión más a la derecha** de los `dims` del prior. Por ejemplo, cuando "
+"el MMM establece internamente `dims=(\"channel\",)` en su prior beta de "
+"saturación, se asume que un arreglo 1D va a lo largo de `\"channel\"`. Esto "
+"funciona, pero emite una advertencia que le anima a ser explícito."
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb:60002
+#: 140b1033276046739aa1d2f5491926c4
+msgid ""
+"Use `xr.DataArray` with explicit `dims` to silence the warning and be "
+"unambiguous about which dimension the array maps to:"
+msgstr ""
+"Utilice `xr.DataArray` con `dims` explícitos para silenciar la advertencia y"
+" no dejar ambigüedad sobre a qué dimensión corresponde el arreglo:"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb:90002
+#: 20e5d94f0b604be1ada3b03dd5d4faab
+msgid ""
+"This also enables **broadcasting across dimensions**. In a hierarchical "
+"MMM with `dims=(\"geo\",)`, the adstock and saturation parameters get "
+"`dims=(\"geo\", \"channel\")` internally. You can set a parameter that "
+"varies only along one of these dimensions and it broadcasts across the "
+"other."
+msgstr ""
+"Esto también habilita el **broadcasting entre dimensiones**. En un MMM "
+"jerárquico con `dims=(\"geo\",)`, los parámetros de adstock y saturación "
+"reciben internamente `dims=(\"geo\", \"channel\")`. Puede definir un "
+"parámetro que varíe solo a lo largo de una de estas dimensiones y se "
+"propagará (broadcasting) a lo largo de la otra."
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb:90004
+#: 332f965d0d7042f2a53eeb6dabc0a7d2
+msgid ""
+"Implicit dim assignment always picks the **rightmost** dimension, so a 1D"
+" array would be assumed to be `\"channel\"`. If you want a parameter to "
+"vary by `\"geo\"` instead, you **must** use `DataArray` — implicit "
+"assignment would get it wrong:"
+msgstr ""
+"La asignación implícita de dimensiones siempre elige la dimensión **más a la"
+" derecha**, por lo que se asumiría que un arreglo 1D corresponde a "
+"`\"channel\"`. Si desea que un parámetro varíe por `\"geo\"`, **debe** usar "
+"`DataArray`, ya que la asignación implícita lo haría mal:"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb:120002
+#: df46b7a7d0ed48d7b08d11b9453a0693
+msgid "Low-Level Users: Key Concepts"
+msgstr "Usuarios de bajo nivel: conceptos clave"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb:120004
+#: 5235766f156d4179b47d9f685644bb06
+msgid "The internals now use three new building blocks:"
+msgstr ""
+"Los componentes internos ahora usan tres nuevos bloques de construcción:"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb:120006
+#: af6f3d57d23d4cd79d91ae6870f33271
+msgid ""
+"**[`pymc.dims`](https://www.pymc.io/projects/docs/en/latest/learn/core_notebooks/dims_module.html)**"
+" (`import pymc.dims as pmd`) — dimension-aware wrappers for PyMC "
+"distributions, data, and deterministics. These produce `XTensorVariable` "
+"outputs with named dimensions."
+msgstr ""
+"**[`pymc.dims`](https://www.pymc.io/projects/docs/en/latest/learn/core_notebooks/dims_module.html)**"
+" (`import pymc.dims as pmd`) — envoltorios con soporte de dimensiones para "
+"las distribuciones, los datos y las variables deterministas de PyMC. "
+"Producen salidas `XTensorVariable` con dimensiones con nombre."
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb:120007
+#: dadecb57730f4fb7aa385e862add1f64
+msgid ""
+"**[`xtensor`](https://pytensor.readthedocs.io/en/latest/library/xtensor/index.html)**"
+" (`import pytensor.xtensor as ptx`) — PyTensor's named-dimension tensor "
+"system for math operations."
+msgstr ""
+"**[`xtensor`](https://pytensor.readthedocs.io/en/latest/library/xtensor/index.html)**"
+" (`import pytensor.xtensor as ptx`) — el sistema de tensores con dimensiones"
+" con nombre de PyTensor para operaciones matemáticas."
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb:120008
+#: 0a5e919a00d94dc0afffefc8740476b8
+msgid ""
+"**`Prior.create_variable(..., xdist=True)`** — the `xdist=True` flag "
+"makes `Prior.create_variable` produce an `XTensorVariable` (via "
+"`pymc.dims`) instead of a plain `TensorVariable`. The MMM internals now "
+"always use `xdist=True`. If you call `create_variable` directly or "
+"implement a custom `SpecialPrior` subclass, you need to pass or support "
+"this flag."
+msgstr ""
+"**`Prior.create_variable(..., xdist=True)`** — la bandera `xdist=True` hace "
+"que `Prior.create_variable` produzca un `XTensorVariable` (mediante "
+"`pymc.dims`) en lugar de un `TensorVariable` simple. Los componentes "
+"internos de MMM ahora siempre usan `xdist=True`. Si llama a "
+"`create_variable` directamente o implementa una subclase personalizada de "
+"`SpecialPrior`, debe pasar o admitir esta bandera."
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb:120010
+#: 7cc529787ed345569eb4b381cc21c82c
+msgid ""
+"Variables are now `XTensorVariable` (from `pytensor.xtensor.type`) "
+"instead of `TensorVariable`. They carry dimension names, enabling "
+"dimension-aware operations without manual axis tracking."
+msgstr ""
+"Las variables ahora son `XTensorVariable` (de `pytensor.xtensor.type`) en "
+"lugar de `TensorVariable`. Llevan nombres de dimensión, lo que permite "
+"operaciones con soporte de dimensiones sin tener que rastrear los ejes "
+"manualmente."
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb:140002
+#: 0801db7a36b94b63917f6a2ef2b413cc
+msgid "Custom Saturation Transformations"
+msgstr "Transformaciones de saturación personalizadas"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb:140004
+#: 296ccc6dd2c14767b3fa5b38ab45d917
+msgid ""
+"Saturation functions are **elementwise** — they don't operate along a "
+"specific dimension. The only change is that `function` now receives a `*,"
+" dim` keyword argument, which elementwise saturations can safely ignore:"
+msgstr ""
+"Las funciones de saturación son **elemento a elemento** — no operan a lo "
+"largo de una dimensión específica. El único cambio es que `function` ahora "
+"recibe un argumento de palabra clave `*, dim`, que las saturaciones elemento"
+" a elemento pueden ignorar sin problema:"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb:160002
+#: 4a3b0ea3d49f440cb3e164e4bce3e4eb
+msgid ""
+"Applying the saturation inside a model now uses `core_dim` instead of the"
+" deprecated `dims` parameter. For elementwise saturations, `core_dim` has"
+" no effect but is still passed by the framework:"
+msgstr ""
+"Aplicar la saturación dentro de un modelo ahora usa `core_dim` en lugar del "
+"parámetro obsoleto `dims`. Para las saturaciones elemento a elemento, "
+"`core_dim` no tiene efecto, pero el framework lo sigue pasando:"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb:180002
+#: 77dc2733ab934161b1b5ee17e0da0b6f
+msgid "Custom Adstock Transformations"
+msgstr "Transformaciones de adstock personalizadas"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb:180004
+#: 7069dae43396452cb96b98a7e57e92f3
+msgid ""
+"Adstock functions operate along a time dimension (convolution). The key "
+"change: instead of assuming a numerical axis (defaulting to 0), the "
+"function receives `dim` by name and must forward it to the underlying "
+"convolution function. There's no default:"
+msgstr ""
+"Las funciones de adstock operan a lo largo de una dimensión temporal "
+"(convolución). El cambio clave: en lugar de asumir un eje numérico (por "
+"defecto 0), la función recibe `dim` por nombre y debe reenviarlo a la "
+"función de convolución subyacente. No hay valor por defecto:"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb:200002
+#: 950b26e4d4524545925179bb63b225b8
+msgid ""
+"When applying adstock inside a model, `core_dim` tells the convolution "
+"which dimension to operate along:"
+msgstr ""
+"Al aplicar adstock dentro de un modelo, `core_dim` le indica a la "
+"convolución a lo largo de qué dimensión debe operar:"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb:220002
+#: 7de26b84c004451fb101179553ba2336
+msgid "Custom Model Building with `pymc.dims` and `xtensor`"
+msgstr "Construcción de modelos personalizados con `pymc.dims` y `xtensor`"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb:220004
+#: 887af8f1bdf44a6f9c99d6bb1434d21e
+msgid "If you build custom PyMC models that extend MMM, the key changes are:"
+msgstr ""
+"Si construye modelos de PyMC personalizados que extienden MMM, los cambios "
+"clave son:"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb:220006
+#: 87b43b3d55b748f6a58c8cb9126433b7
+msgid ""
+"Use `pymc.dims` (`pmd`) instead of `pymc` (`pm`) for dimension-aware "
+"distributions and data"
+msgstr ""
+"Use `pymc.dims` (`pmd`) en lugar de `pymc` (`pm`) para distribuciones y "
+"datos con soporte de dimensiones"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb:220007
+#: 7650ca56b4404d0e90db40ff77bcff90
+msgid ""
+"Use `pytensor.xtensor` (`ptx`) instead of `pytensor.tensor` (`pt`) for "
+"math operations"
+msgstr ""
+"Use `pytensor.xtensor` (`ptx`) en lugar de `pytensor.tensor` (`pt`) para las"
+" operaciones matemáticas"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb:220008
+#: 21194583b2034960a5d43386224a83d0
+msgid ""
+"Wrap raw data with `as_xtensor(data, dims=(...))` to give it named "
+"dimensions"
+msgstr ""
+"Envuelva los datos sin procesar con `as_xtensor(data, dims=(...))` para "
+"darles dimensiones con nombre"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb:240002
+#: 69bce965634d4d40a40bf04cc3faccb5
+msgid "Quick API Reference"
+msgstr "Referencia rápida de la API"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb
+#: 16d80ffdd0f148e9bb974612617eb168
+msgid "Old"
+msgstr "Anterior"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb
+#: 3d46e9d11f1e44a9b4338320b359457d
+msgid "New"
+msgstr "Nuevo"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb
+#: 0000541822a842a6824d39197f9811d9
+msgid "`import pymc as pm`"
+msgstr "`import pymc as pm`"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb
+#: db0ce921ac9f4873ae24a76a8d21ff72
+msgid "`import pymc.dims as pmd` (for dimension-aware code)"
+msgstr "`import pymc.dims as pmd` (para código con soporte de dimensiones)"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb
+#: 0b8980dd298e42db8e39ece02a933ced
+msgid "`pm.Data(...)`"
+msgstr "`pm.Data(...)`"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb
+#: b9d1efbce78d44f09460fa37efd9b330
+msgid "`pmd.Data(...)`"
+msgstr "`pmd.Data(...)`"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb
+#: 7f83c1b1639348148cb68d884440ef06
+msgid "`pm.Normal(...)`"
+msgstr "`pm.Normal(...)`"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb
+#: a56a0d69542f4184a3ef8c59754920f0
+msgid "`pmd.Normal(...)`"
+msgstr "`pmd.Normal(...)`"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb
+#: aa4e584f1a0241efa6c72c81c831fd3f
+msgid "`pm.Deterministic(...)`"
+msgstr "`pm.Deterministic(...)`"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb
+#: 1197291a5ed14ef889af57198e8e0683
+msgid "`pmd.Deterministic(...)`"
+msgstr "`pmd.Deterministic(...)`"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb
+#: 44e612d183c947718e9f17c8b52d8cc9
+msgid "`import pytensor.tensor as pt`"
+msgstr "`import pytensor.tensor as pt`"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb
+#: b93a4f2316a147d1a61ce2165ad1189e
+msgid "`import pytensor.xtensor as ptx`"
+msgstr "`import pytensor.xtensor as ptx`"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb
+#: 17f3fabb064a443088b454dba2691ea1
+msgid "`pt.switch(...)`"
+msgstr "`pt.switch(...)`"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb
+#: 83d2ff11dbb64f30a6618a9b56f184e7
+msgid "`ptx.math.switch(...)`"
+msgstr "`ptx.math.switch(...)`"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb
+#: e490459d285a479ebb938304c43daddc
+msgid "`TensorVariable`"
+msgstr "`TensorVariable`"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb
+#: 5b18cf647427403b846a8478a32d5078
+msgid "`XTensorVariable`"
+msgstr "`XTensorVariable`"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb
+#: 08ffecef7a874f728326a135fdad568e
+msgid "`prior.create_variable(name)`"
+msgstr "`prior.create_variable(name)`"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb
+#: 79a71befced643f7a5bbfb9565031d80
+msgid "`prior.create_variable(name, xdist=True)`"
+msgstr "`prior.create_variable(name, xdist=True)`"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb
+#: 68d6a96169944a2b9e8f134f883fcb02
+msgid "`transformation.apply(x, dims=...)`"
+msgstr "`transformation.apply(x, dims=...)`"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb
+#: 96b3b14714164cce8c02e63a66f1127b
+msgid "`transformation.apply(x, core_dim=...)` (`dims` removed)"
+msgstr "`transformation.apply(x, core_dim=...)` (`dims` eliminado)"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb
+#: dab8ab2230ed42069185c0cfb2bd48c9
+msgid "`batched_convolution(x, w, axis=0)`"
+msgstr "`batched_convolution(x, w, axis=0)`"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb
+#: 9b41149c369244e08cf39e3d33a20a04
+msgid "`batched_convolution(x, w, dim=\"date\", kernel_dim=\"lag\")`"
+msgstr "`batched_convolution(x, w, dim=\"date\", kernel_dim=\"lag\")`"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb
+#: d5184a4973bf4c2f9cc359ddcc76209a
+msgid "`def function(self, x, alpha)`"
+msgstr "`def function(self, x, alpha)`"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb
+#: 7f381c147ffe43e7b7caf3b7acb81812
+msgid "`def function(self, x, alpha, *, dim=None)`"
+msgstr "`def function(self, x, alpha, *, dim=None)`"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb
+#: e9cb22ffd5b845328b8c0e0354a3d562
+msgid "`Prior(\"Normal\", mu=np.array([...]))`"
+msgstr "`Prior(\"Normal\", mu=np.array([...]))`"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb
+#: a4cd4886dd774c78910a5c159be6f552
+msgid "`Prior(\"Normal\", mu=DataArray([...], dims=\"channel\"))`"
+msgstr "`Prior(\"Normal\", mu=DataArray([...], dims=\"channel\"))`"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb:240019
+#: fb3b35d13e0b4c959daff08c346e4da8
+msgid "Further Reading"
+msgstr "Lecturas adicionales"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb:240021
+#: 66b1dd3d24584deeacec478343171620
+msgid ""
+"[`pymc.dims` "
+"documentation](https://www.pymc.io/projects/docs/en/latest/learn/core_notebooks/dims_module.html)"
+" — dimension-aware model building in PyMC"
+msgstr ""
+"[Documentación de "
+"`pymc.dims`](https://www.pymc.io/projects/docs/en/latest/learn/core_notebooks/dims_module.html)"
+" — construcción de modelos con soporte de dimensiones en PyMC"
+
+#: ../source/notebooks/mmm/mmm_dims_migration_guide.ipynb:240022
+#: 274870301ea84102874d14214765ad48
+msgid ""
+"[`xtensor` "
+"documentation](https://pytensor.readthedocs.io/en/latest/library/xtensor/index.html)"
+" — PyTensor's named-dimension tensor operations"
+msgstr ""
+"[Documentación de "
+"`xtensor`](https://pytensor.readthedocs.io/en/latest/library/xtensor/index.html)"
+" — operaciones con tensores de dimensiones con nombre de PyTensor"
