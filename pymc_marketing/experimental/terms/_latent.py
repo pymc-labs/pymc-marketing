@@ -274,7 +274,10 @@ class LatentStateSpace(GraphTerm):
                 pmd.Deterministic(name, pmd.as_xtensor(value, dims=self._dims(dims)))
         else:
             value = pt.as_tensor(np.asarray(spec, dtype="float64"))
-        return pt.broadcast_to(value.astype(placeholder.dtype), shape)
+        value = value.astype(placeholder.dtype)
+        if isinstance(spec, Prior):
+            return pt.broadcast_to(value, shape)
+        return pt.specify_shape(value, shape)
 
     def _exogenous(
         self, context: BuildContext, data_name: str, placeholder: Any
