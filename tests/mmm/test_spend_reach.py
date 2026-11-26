@@ -1774,6 +1774,8 @@ class TestProbeStatistics:
         )
         expected = probed[LINEAR_PREDICTOR] - baseline[LINEAR_PREDICTOR]
 
+        # Exact: atol is built as completeness_tolerance builds it, in the same
+        # order and dtype.
         assert stats.tolerance() == atol
         within = ulps_above == 0
         assert stats.residual_within(stats.tolerance()) is within

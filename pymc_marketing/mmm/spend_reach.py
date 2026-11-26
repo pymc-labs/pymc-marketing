@@ -820,8 +820,9 @@ class ProbeStatistics:
         Largest ``|value|`` of any compared node, baseline or probed.  Sets
         the rounding floor of the predictor's dtype.
     dtype : np.dtype or None
-        The result type of the compared arrays.  The rounding floor is taken
-        per dtype instead; see :meth:`tolerance`.
+        The result type of the compared arrays.  Kept for compatibility: the
+        tolerance does not read it, and takes its floor per dtype instead; see
+        :meth:`tolerance`.
     magnitude_by_dtype : dict
         Per dtype, the largest ``|value|`` of any compared node of that dtype,
         baseline or probed.  Each dtype sets its own rounding floor: a float32
