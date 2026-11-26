@@ -407,7 +407,7 @@ def test_nested_observed_equations_are_marginalized(data):
         observed="c", mu=Data("z") + a, likelihood=Prior("Normal", sigma=1.0)
     )
     model = SCM(downstream, b, marginalize=[lat]).build_model(data)
-    assert set(model.coords["lat_observed"]) == {"a", "b"}
+    assert set(model.coords["lat_equation"]) == {"a", "b"}
     assert "c" in model.named_vars
 
 

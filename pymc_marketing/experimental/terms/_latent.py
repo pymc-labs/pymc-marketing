@@ -48,7 +48,11 @@ from pymc_extras.statespace.utils.constants import (
 )
 from pytensor.graph.replace import graph_replace
 
-from pymc_marketing.names.mmm import Dim
+from pymc_marketing.names.mmm import (
+    LATENT_EQUATION_SUFFIX,
+    LATENT_OBSERVATIONS_SUFFIX,
+    Dim,
+)
 from pymc_marketing.terms import Sum
 from pymc_marketing.terms._graph import (
     BuildContext,
@@ -403,6 +407,7 @@ class LatentStateSpace(GraphTerm):
                 f"{self.name!r} can only be fit marginalized: pass it to SCM(..., marginalize=[...])."
             )
         system = self.filter_system(context)
+        # pymc-extras' LinearGaussianStateSpace names its draws after the latent
         for suffix in ("combined", "latent", "observed"):
             context._claim_name(f"{self.name}_{suffix}", self)
         _, observed = LinearGaussianStateSpace(
@@ -465,7 +470,7 @@ class _KalmanLikelihood:
 
     def build(self, context: BuildContext) -> None:
         latent = self.latent
-        equation = f"{latent.name}_observed"
+        equation = f"{latent.name}{LATENT_EQUATION_SUFFIX}"
         equation_aux = f"{equation}_aux"
         bindings = [context.binding(obs.equation) for obs in self.observations]
         names = [binding.name for binding in bindings]
@@ -529,7 +534,7 @@ class _KalmanLikelihood:
         )
         predicted_mean, predicted_cov = predicted[2], predicted[5]
 
-        name = f"{latent.name}_observations"
+        name = f"{latent.name}{LATENT_OBSERVATIONS_SUFFIX}"
         context._claim_name(name, latent)
         pmd.MvNormal(
             name,

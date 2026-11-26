@@ -35,6 +35,8 @@ MODULE_LEVEL = {
         "RESERVED_DIMS",
         "ORIGINAL_SCALE_SUFFIX",
         "EFFECT_CONTRIBUTION_SUFFIX",
+        "LATENT_OBSERVATIONS_SUFFIX",
+        "LATENT_EQUATION_SUFFIX",
         "original_scale_name",
         "effect_contribution_name",
     },
@@ -272,6 +274,8 @@ def test_mmm_module_level_names() -> None:
     assert mmm.RESERVED_DIMS == {"date", "channel", "control", "fourier_mode"}
     assert mmm.ORIGINAL_SCALE_SUFFIX == "_original_scale"
     assert mmm.EFFECT_CONTRIBUTION_SUFFIX == "_effect_contribution"
+    assert mmm.LATENT_OBSERVATIONS_SUFFIX == "_observations"
+    assert mmm.LATENT_EQUATION_SUFFIX == "_equation"
     assert mmm.original_scale_name("mu") == "mu_original_scale"
     assert mmm.effect_contribution_name("trend") == "trend_effect_contribution"
 
