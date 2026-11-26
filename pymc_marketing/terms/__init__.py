@@ -299,10 +299,13 @@ from pymc_marketing.serialization import (
 )
 
 __all__ = [
+    "Data",
     "Dot",
+    "Equation",
     "Intercept",
     "ModelTerm",
     "Named",
+    "Observed",
     "Parameter",
     "Product",
     "Ref",
@@ -1494,3 +1497,15 @@ def collect_coords(*params: Any, ds: xr.Dataset) -> dict[str, Any]:
     for param in params:
         coords.update(get_coords(param, ds))
     return coords
+
+
+# Observed equations: the graph-level machinery for likelihood statements.
+# Imported last: the submodules resolve names from this (partially
+# initialized) module, which is why they sit below every definition above.
+# The supporting internals (Binding, BuildContext, walk, ...) stay importable
+# from their private modules, pymc_marketing.terms._graph and _data.
+from pymc_marketing.terms._graph import (  # noqa: E402
+    Data,
+    Equation,
+)
+from pymc_marketing.terms._observed import Observed  # noqa: E402

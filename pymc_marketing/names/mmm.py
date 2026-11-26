@@ -217,3 +217,10 @@ def effect_contribution_name(prefix: str) -> str:
         # 'trend_effect_contribution'
     """
     return f"{prefix}{EFFECT_CONTRIBUTION_SUFFIX}"
+
+
+LATENT_OBSERVATIONS_SUFFIX: Final = "_observations"
+"""Suffix, after a marginalized latent's name, of the joint likelihood of the equations observing it."""
+
+LATENT_EQUATION_SUFFIX: Final = "_equation"
+"""Suffix, after a marginalized latent's name, of the dim of the equations observing it."""

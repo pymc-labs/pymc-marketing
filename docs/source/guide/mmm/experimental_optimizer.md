@@ -21,7 +21,8 @@ The following builds two responses sharing a spend input; `train` is a labeled `
 
 ```python
 from pymc_extras.prior import Prior
-from pymc_marketing.experimental.terms import SCM, Data, Equation, MediaTransform, Problem
+from pymc_marketing.experimental.terms import SCM, MediaTransform, Problem
+from pymc_marketing.terms import Data, Equation
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 
 spend = Data("spend")
@@ -340,6 +341,7 @@ A problem with all entries fixed is evaluated without running SLSQP and reports 
 
 ## Experimental API change record
 
+- Moved `Data` and `Equation` (and the graph build machinery) from `pymc_marketing.experimental.terms` into `pymc_marketing.terms`, and added the `Observed` constructor there. The experimental namespace keeps re-exports that warn on use. Saved specs now write public serialization keys (`pymc_marketing.terms.Data`, `pymc_marketing.terms.Equation`, `pymc_marketing.terms.MediaTransform`); stores saved before this change must be recreated, refitted, and saved again.
 - Renamed the experimental support model from `GAM` to `SCM` (Structural Causal Model), with no compatibility alias. The serialized format is now `pymc_marketing.experimental.SCM/1`; older GAM stores must be recreated with `SCM`, refitted, and saved again. Causal interpretation depends on the specified assumptions; prediction does not automatically identify causal effects or perform interventions or counterfactual inference.
 - Moved graph-first modeling and term-first optimization to `pymc_marketing.experimental.terms`, outside the MMM namespace. Stores using former MMM graph-node identifiers must likewise be recreated, refitted, and saved again; `check=False` does not migrate them.
 - Replaced the synchronous `optimize` function with public `Problem`, `evaluate` and `solve`; retained `OptimizationResult` and original-unit reporting.
