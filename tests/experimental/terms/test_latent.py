@@ -197,6 +197,28 @@ def test_prior_function_returns_the_requested_dim_order(data):
     )
 
 
+@pytest.mark.parametrize(
+    "reorder",
+    [
+        lambda arr: arr.transpose("observed_state_aux", "lag_ar", "observed_state"),
+        lambda arr: arr.sel(observed_state=["b", "a"]),
+    ],
+    ids=["transposed", "relabeled"],
+)
+def test_labeled_fixed_values_line_up_by_name(data, reorder):
+    arr = xr.DataArray(
+        A[:, None, :],
+        dims=("observed_state", "lag_ar", "observed_state_aux"),
+        coords={
+            "observed_state": ["a", "b"],
+            "lag_ar": [1],
+            "observed_state_aux": ["a", "b"],
+        },
+    )
+    model = SCM(*equations(latent(ar_params=reorder(arr)))).build_model(data)
+    np.testing.assert_allclose(observation_logp(model), varmax_loglike(data), rtol=1e-6)
+
+
 def test_fixed_values_must_have_the_parameter_shape(data):
     # A diagonal given as a vector would broadcast to a non-symmetric covariance
     lat = latent(state_cov=np.array([0.2, 0.1]))

@@ -269,6 +269,16 @@ class LatentStateSpace(GraphTerm):
                 context._claim_name(name, self)
                 pmd.Deterministic(name, pmd.as_xtensor(value, dims=self._dims(dims)))
         else:
+            if isinstance(spec, xr.DataArray):
+                # Line up a labeled value by dim name and label, as priors are
+                coords = self._statespace.coords
+                spec = spec.transpose(*dims).sel(
+                    {
+                        dim: list(coords[dim])
+                        for dim in dims
+                        if dim in spec.coords and dim in coords
+                    }
+                )
             value = pt.as_tensor(np.asarray(spec, dtype="float64"))
         value = value.astype(placeholder.dtype)
         if isinstance(spec, Prior):
