@@ -823,12 +823,12 @@ class MuEffect(SerializableBaseModel, ABC):
         deterministic that only renames another deterministic
         (pymc-devs/pymc#8608). Incrementality refuses to freeze either name of
         such a pair when a response reads it, and the budget optimizer refuses
-        such a model whether the rename is frozen or not. Write such a rename as an expression, such as
-        ``Deterministic(name, other + 0)``. Only a dimension
-        named ``date`` counts: incrementality does not notice a variable over the
-        fitted dates declared under another dimension name and can read it at the
-        wrong dates, so declare such a variable over ``date`` or list its path
-        here.
+        such a model whether the rename is frozen or not. Write such a rename as
+        an expression, such as ``Deterministic(name, other + 0)``. Only a
+        dimension named ``date`` counts: incrementality does not notice a
+        variable over the fitted dates declared under another dimension name and
+        can read it at the wrong dates, so declare such a variable over ``date``
+        or list its path here.
         """
         return []
 

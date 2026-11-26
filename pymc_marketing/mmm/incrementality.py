@@ -5787,10 +5787,11 @@ class Incrementality:
         ------
         ValueError
             If a frozen name the responses read only renames another
-            Deterministic, or is renamed by one: the clone the evaluator reads keeps one of the two names.  Or if
-            a frozen name only renames a free random variable over ``date`` that
-            the responses also read another way: freezing the rename would cut
-            every read of the variable to the evaluation windows.
+            Deterministic, or is renamed by one: the clone the evaluator reads
+            keeps one of the two names.  Or if a frozen name only renames a free
+            random variable over ``date`` that the responses also read another
+            way: freezing the rename would cut every read of the variable to the
+            evaluation windows.
         """
         model = self.model.model
         refuse_frozen_deterministic_renames(model, frozen)
