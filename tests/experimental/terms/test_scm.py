@@ -26,9 +26,9 @@ from pymc_extras.prior import Prior
 from scipy.special import gammaln
 from scipy.stats import norm
 
-from pymc_marketing.experimental.terms import SCM, Data, Equation
+from pymc_marketing.experimental.terms import SCM
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
-from pymc_marketing.terms import Dot, Intercept, Parameter, Transform
+from pymc_marketing.terms import Data, Dot, Equation, Intercept, Parameter, Transform
 
 SAMPLE_KWARGS = {
     "draws": 30,

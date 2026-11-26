@@ -1068,7 +1068,22 @@ class CounterfactualEvaluator:
             )
             for var in self._response_requested
         ]
-        return self._conditioned.extract(resolved)
+        graphs = self._conditioned.extract(resolved)
+        # A response declared with pymc rather than pymc.dims comes back as a
+        # plain tensor, with no dim names to find its sample and date axes by.
+        classic = [
+            name
+            for name, graph in zip(self.response_vars, graphs, strict=True)
+            if not isinstance(graph, XTensorVariable)
+        ]
+        if classic:
+            raise ValueError(
+                f"The response variables {classic} are not pymc.dims variables.  "
+                "A counterfactual evaluation requires responses with named "
+                "dimensions, for example ones built with "
+                "pmd.Deterministic(..., dims=(...))."
+            )
+        return [graph for graph in graphs if isinstance(graph, XTensorVariable)]
 
     def _build(self) -> None:
         """Extract the graphs and compile the batched evaluator for the binding.
@@ -1228,6 +1243,24 @@ class CounterfactualEvaluator:
         # response refuses them, and Incrementality evaluates on the full date
         # axis when a response it reads on windows has one.
         shared_posterior = self._conditioned.shared_posterior
+        # A variable declared with pymc without dims= is stored with generated
+        # axis names, so the check below cannot see a date axis among them, and
+        # a windowed evaluation would read it at the wrong dates without an
+        # error.
+        undeclared = [
+            name
+            for name, source in shared_posterior.variables.items()
+            if source in graph_ancestors
+            and not isinstance(do_model[name], XTensorVariable)
+            and do_model[name].ndim > 0
+            and not do_model.named_vars_to_dims.get(name)
+        ]
+        if undeclared:
+            raise ValueError(
+                f"The posterior variables {undeclared} are declared with pymc and "
+                "have axes but no dims, so the evaluation cannot tell whether one "
+                f"of them is {Dim.DATE!r}.  Pass dims= to the pymc distribution."
+            )
         posterior_dims = shared_posterior.dims
         uncut = {
             name: source

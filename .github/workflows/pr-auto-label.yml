@@ -1,6 +1,6 @@
 name: "Pull Request Labeler"
 on:
-- pull_request_target
+- pull_request_target # zizmor: ignore[dangerous-triggers]
 
 jobs:
   file-change:
@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Run Labeler Action
-      uses: actions/labeler@v7
+      uses: actions/labeler@v7.0.0
 
   sync:
     permissions:
@@ -19,7 +19,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v7
+      uses: actions/checkout@v7.0.1
+      with:
+        persist-credentials: false
     - name: Sync labels with closing issues
       uses: williambdean/closing-labels@v1.0.1
       with:

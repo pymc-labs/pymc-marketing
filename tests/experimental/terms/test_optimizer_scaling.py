@@ -26,12 +26,10 @@ from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.experimental.terms import (
     SCM,
-    Data,
-    Equation,
     OptimizationResult,
     Problem,
 )
-from pymc_marketing.terms import Parameter, Transform
+from pymc_marketing.terms import Data, Equation, Parameter, Transform
 
 CHANNELS = ["tv", "search"]
 SAMPLE_KWARGS = {

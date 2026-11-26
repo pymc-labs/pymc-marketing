@@ -1365,6 +1365,183 @@ def test_shared_posterior_aligns_coordinates_on_rebind():
     assert "1 not bound, 1 missing" in str(info.value)
 
 
+POSTERIOR_PATHS = [
+    pytest.param(lambda: None, id="constant"),
+    pytest.param(SharedPosterior, id="shared"),
+]
+
+
+@pytest.mark.parametrize("make_shared_posterior", POSTERIOR_PATHS)
+def test_extract_response_distribution_reads_a_classic_variable_by_dim_name(
+    make_shared_posterior,
+):
+    """A classic random variable over two dims is read by dim name, not position.
+
+    ``lam`` is declared with ``pymc`` as ``(date, channel)``, and the posterior
+    stores it as ``(channel, date)``.  A classic variable is bound as a plain
+    tensor, which is read by axis position, so the draws have to be put in the
+    variable's own axis order first.  The dims have different lengths, so a
+    transposed read could not pass.  On the shared path, a rebind from the
+    other order has to reach the compiled function too.
+    """
+    dates, channels = [0, 1, 2], ["a", "b"]
+    with pm.Model(coords={"date": dates, "channel": channels}) as model:
+        lam = pm.Normal("lam", dims=("date", "channel"))
+        pmd.Deterministic(
+            "doubled", 2.0 * ptx.as_xtensor(lam, dims=("date", "channel"))
+        )
+
+    values = np.arange(6.0).reshape(3, 2)  # date x channel
+    posterior = xr.Dataset(
+        {"lam": (("chain", "draw", "channel", "date"), values.T[None, None])},
+        coords={"date": dates, "channel": channels},
+    )
+    shared_posterior = make_shared_posterior()
+    graph = extract_response_distribution(
+        model, posterior, "doubled", shared_posterior=shared_posterior
+    )
+    fn = function([], graph)
+
+    assert graph.type.dims == ("sample", "date", "channel")
+    np.testing.assert_allclose(fn(), 2.0 * values[None])
+
+    if shared_posterior is not None:
+        rebound = xr.Dataset(
+            {
+                "lam": (
+                    ("chain", "draw", "date", "channel"),
+                    (10.0 + values)[None, None],
+                )
+            },
+            coords={"date": dates, "channel": channels},
+        )
+        shared_posterior.set_posterior(rebound)
+        np.testing.assert_allclose(fn(), 2.0 * (10.0 + values)[None])
+
+
+@pytest.mark.parametrize("make_shared_posterior", POSTERIOR_PATHS)
+def test_extract_response_distribution_mixes_classic_and_dims_variables(
+    make_shared_posterior,
+):
+    """Classic variables and a ``pymc.dims`` one share one ``sample`` dim.
+
+    The ``pymc.dims`` variable brings ``sample`` in as an xtensor dim and the
+    classic ones as a tensor batch dim.  The two have to line up draw by draw,
+    not form two sample axes.  ``offset`` has no ``dims``, so there is no
+    declared order to put its draws in.
+    """
+    dates = [0, 1, 2]
+    with pm.Model(coords={"date": dates}) as model:
+        classic = pm.Normal("classic", dims="date")
+        offset = pm.Normal("offset")
+        dims = pmd.Normal("dims", dims="date")
+        pmd.Deterministic(
+            "total",
+            ptx.as_xtensor(classic, dims=("date",))
+            + dims
+            + ptx.as_xtensor(offset, dims=()),
+        )
+
+    rng = np.random.default_rng(3398)
+    posterior = xr.Dataset(
+        {
+            "classic": (("chain", "draw", "date"), rng.normal(size=(2, 3, 3))),
+            "dims": (("chain", "draw", "date"), rng.normal(size=(2, 3, 3))),
+            "offset": (("chain", "draw"), rng.normal(size=(2, 3))),
+        },
+        coords={"date": dates},
+    )
+    graph = extract_response_distribution(
+        model, posterior, "total", shared_posterior=make_shared_posterior()
+    )
+
+    stacked = posterior.stack(sample=("chain", "draw"))
+    expected = stacked["classic"] + stacked["dims"] + stacked["offset"]
+    assert graph.type.dims == ("sample", "date")
+    np.testing.assert_allclose(
+        function([], graph)(), expected.transpose("sample", "date").values
+    )
+
+
+@pytest.mark.parametrize("make_shared_posterior", POSTERIOR_PATHS)
+def test_extract_response_distribution_returns_a_classic_response_as_a_plain_tensor(
+    make_shared_posterior,
+):
+    """A response declared with ``pymc`` comes back unnamed, ``sample`` first."""
+    with pm.Model(coords={"date": [0, 1, 2], "channel": ["a", "b"]}) as model:
+        lam = pm.Normal("lam", dims=("date", "channel"))
+        pm.Deterministic("doubled", 2.0 * lam, dims=("date", "channel"))
+
+    values = np.arange(12.0).reshape(1, 2, 3, 2)  # chain, draw, date, channel
+    posterior = xr.Dataset(
+        {"lam": (("chain", "draw", "date", "channel"), values)},
+        coords={"date": [0, 1, 2], "channel": ["a", "b"]},
+    )
+    graph = extract_response_distribution(
+        model, posterior, "doubled", shared_posterior=make_shared_posterior()
+    )
+
+    assert not isinstance(graph, ptx.type.XTensorVariable)
+    np.testing.assert_allclose(function([], graph)(), 2.0 * values.reshape(2, 3, 2))
+
+
+def test_a_shared_posterior_reused_by_a_classic_model_reads_the_declared_order():
+    """A classic model reads a shared variable in its own order, whoever bound it.
+
+    ``lam`` is first bound through a model that declares it with ``pymc.dims``,
+    from a posterior stored as ``(channel, date)``, so the shared variable keeps
+    that order.  A model that declares ``lam`` with ``pymc`` then reuses it and
+    reads it by position.  The dims have the same length, so a transposed read
+    would not raise.
+    """
+    coords = {"date": [0, 1], "channel": ["a", "b"]}
+    with pm.Model(coords=coords) as dims_model:
+        lam = pmd.Normal("lam", dims=("date", "channel"))
+        pmd.Deterministic("out", 2.0 * lam)
+    with pm.Model(coords=coords) as classic_model:
+        lam = pm.Normal("lam", dims=("date", "channel"))
+        pmd.Deterministic("out", 2.0 * ptx.as_xtensor(lam, dims=("date", "channel")))
+
+    values = np.array([[1.0, 2.0], [3.0, 4.0]])  # date x channel
+    posterior = xr.Dataset(
+        {"lam": (("chain", "draw", "channel", "date"), values.T[None, None])},
+        coords=coords,
+    )
+    shared_posterior = SharedPosterior()
+    dims_graph = extract_response_distribution(
+        dims_model, posterior, "out", shared_posterior=shared_posterior
+    )
+    classic_graph = extract_response_distribution(
+        classic_model, posterior, "out", shared_posterior=shared_posterior
+    )
+
+    np.testing.assert_allclose(function([], dims_graph)(), 2.0 * values[None])
+    np.testing.assert_allclose(function([], classic_graph)(), 2.0 * values[None])
+
+
+def test_extract_response_distribution_names_a_classic_variable_missing_a_declared_dim():
+    """A posterior without one of a classic variable's dims fails with its name.
+
+    Reading it by position instead would give wrong values without an error.
+    """
+    with pm.Model(coords={"date": [0, 1, 2], "channel": ["a", "b"]}) as model:
+        lam = pm.Normal("lam", dims=("date", "channel"))
+        pmd.Deterministic(
+            "doubled", 2.0 * ptx.as_xtensor(lam, dims=("date", "channel"))
+        )
+    posterior = xr.Dataset(
+        {"lam": (("chain", "draw", "date", "media"), np.zeros((1, 1, 3, 2)))},
+        coords={"date": [0, 1, 2], "media": ["a", "b"]},
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"^The posterior draws of 'lam' cannot be put in the order its dims "
+        r"declare, \('date', 'channel'\)",
+    ):
+        extract_response_distribution(model, posterior, "doubled")
+
+
 def test_shared_posterior_realigns_permuted_multi_dim_variables():
     """A variable over two non-sample dims rebinds from a permuted, reordered layout.
 

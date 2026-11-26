@@ -80,6 +80,7 @@ from pymc_marketing.mmm.incrementality import (
     PeriodTotal,
     ReadoutContext,
     kernel_trailing_lags,
+    subsample_draws_per_chain,
 )
 from pymc_marketing.mmm.link import LinkFunction
 from pymc_marketing.mmm.spend_reach import (
@@ -1632,15 +1633,13 @@ class TestSubsampleDraws:
             {"x": (("chain", "draw"), np.arange(2 * 3, dtype=float).reshape(2, 3))}
         )
 
-        subsample = incrementality_module._subsample_draws_per_chain(
-            posterior, num_samples=5
-        )
+        subsample = subsample_draws_per_chain(posterior, num_samples=5)
 
         assert subsample is posterior
 
     @pytest.mark.parametrize(
         "subsample",
-        [incrementality_module._subsample_draws_per_chain, subsample_draws],
+        [subsample_draws_per_chain, subsample_draws],
         ids=["per_chain", "flattened"],
     )
     @pytest.mark.parametrize("num_samples", [0, -1])
@@ -1652,6 +1651,48 @@ class TestSubsampleDraws:
 
         with pytest.raises(ValueError, match="num_samples must be at least 1"):
             subsample(posterior, num_samples=num_samples)
+
+    def test_picks_the_draws_the_incrementality_methods_read(
+        self, log_link_two_chain_fitted_mmm
+    ):
+        """The same sample count and seed select the draws a method computes from.
+
+        A readout computed on the subsample then pairs with the method's result
+        by ``chain`` and ``draw``.
+        """
+        mmm = log_link_two_chain_fitted_mmm
+        posterior = mmm.idata.posterior.dataset
+
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time", num_samples=10, random_state=123
+        )
+        subsample = subsample_draws_per_chain(
+            posterior, num_samples=10, random_state=123
+        )
+
+        # Two chains, so a subsampler that flattens them would pick other draws.
+        assert subsample.sizes["chain"] == 2
+        assert subsample.sizes["draw"] < posterior.sizes["draw"]
+        np.testing.assert_array_equal(result["chain"], subsample["chain"])
+        np.testing.assert_array_equal(result["draw"], subsample["draw"])
+
+    def test_the_private_name_warns(self):
+        """The private name released up to 1.5.0 still works, with a warning."""
+        posterior = xr.Dataset(
+            {"x": (("chain", "draw"), np.arange(2 * 3, dtype=float).reshape(2, 3))}
+        )
+
+        with pytest.warns(
+            FutureWarning, match=r"incrementality\.subsample_draws_per_chain"
+        ):
+            subsample = incrementality_module._subsample_draws_per_chain(
+                posterior, num_samples=2, random_state=0
+            )
+
+        xr.testing.assert_identical(
+            subsample,
+            subsample_draws_per_chain(posterior, num_samples=2, random_state=0),
+        )
 
 
 class TestIncrementalReducers:

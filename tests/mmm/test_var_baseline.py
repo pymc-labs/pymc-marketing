@@ -2155,14 +2155,14 @@ def budget_optimizer(
                 model=mmm, start_date=start_date, end_date=end_date
             )
         return BudgetOptimizer(model=wrapper, num_periods=wrapper.num_periods, **kwargs)
-    lags = mmm.effective_carryover_lags()
     model = mmm.create_optimization_model(start_date, end_date)
+    layout = mmm.window_layout(model, start_date)
     return BudgetOptimizer(
         model=model,
         idata=mmm.idata,
-        num_periods=len(model.coords["date"]) - 2 * lags,
-        carry_in_periods=lags,
-        adstock_periods=lags,
+        num_periods=layout.decisions,
+        carry_in_periods=layout.carry_in,
+        adstock_periods=layout.carry_over,
         frozen_deterministics=mmm.frozen_deterministics,
         **kwargs,
     )

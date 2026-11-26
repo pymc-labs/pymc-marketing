@@ -403,6 +403,7 @@ __all__ = [
     "Incrementality",
     "LogLinkReducer",
     "kernel_trailing_lags",
+    "subsample_draws_per_chain",
 ]
 
 CentralTendency = Literal["median", "mean"]
@@ -941,9 +942,9 @@ def _transformation_parameters(
     )
 
 
-# Differs from the public subsample_draws, which the MMM curve methods still use;
-# moving them to this scheme would leave one subsampler (#3305).
-def _subsample_draws_per_chain(
+# Differs from subsample_draws, which the MMM curve methods still use; moving
+# them to this scheme would leave one subsampler (#3305).
+def subsample_draws_per_chain(
     dataset: xr.Dataset,
     *,
     num_samples: int | None,
@@ -955,10 +956,19 @@ def _subsample_draws_per_chain(
     subsample is a block of *dataset* under its own ``chain`` and ``draw``
     labels: a result computed from it lines up with *dataset* by label.
 
+    The :class:`Incrementality` methods subsample the posterior with it.
+    Called on the model's posterior with the ``num_samples`` and integer
+    ``random_state`` passed to one of those methods, it returns the draws that
+    method computes from, so other readouts computed on it pair with that
+    method's result by ``chain`` and ``draw``.  A ``Generator`` advances each
+    time it draws, so pass the same integer seed to both calls rather than one
+    shared generator.
+
     Parameters
     ----------
     dataset : xr.Dataset
-        Dataset with ``chain`` and ``draw`` dimensions.
+        Dataset with ``chain`` and ``draw`` dimensions, such as
+        ``mmm.idata.posterior.dataset``.
     num_samples : int or None
         Total number of draws to keep, rounded up to a multiple of the number
         of chains.  If ``None``, or if that leaves no draw out, returns
@@ -981,6 +991,27 @@ def _subsample_draws_per_chain(
         If *num_samples* is less than 1, or if the ``chain`` or ``draw``
         labels repeat, so a draw cannot be found by label, as when two runs
         are concatenated along ``draw``.
+
+    See Also
+    --------
+    pymc_marketing.data.idata.utils.subsample_draws :
+        Returns the draws it picks as one chain without ``chain`` or ``draw``
+        labels, so its result cannot be matched to the posterior by label.
+        With more than one chain it also picks other draws for the same seed.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        from pymc_marketing.mmm.incrementality import subsample_draws_per_chain
+
+        increments = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time", num_samples=500, random_state=42
+        )
+        # The draws `increments` was computed from.
+        posterior = subsample_draws_per_chain(
+            mmm.idata.posterior.dataset, num_samples=500, random_state=42
+        )
     """
     # Checked on the whole posterior: a subsample rarely keeps a repeat.
     for dim in ("chain", "draw"):
@@ -1013,6 +1044,24 @@ def _subsample_draws_per_chain(
         }
     )
     return dataset.isel(draw=positions)
+
+
+def _subsample_draws_per_chain(
+    dataset: xr.Dataset,
+    *,
+    num_samples: int | None,
+    random_state: RandomState | Generator | None = None,
+) -> xr.Dataset:
+    """Warn that this name is deprecated, then call :func:`subsample_draws_per_chain`."""
+    warnings.warn(
+        f"{__name__}._subsample_draws_per_chain is deprecated and will be removed "
+        f"in a future release; use {__name__}.subsample_draws_per_chain.",
+        FutureWarning,
+        stacklevel=2,
+    )
+    return subsample_draws_per_chain(
+        dataset, num_samples=num_samples, random_state=random_state
+    )
 
 
 def _missing_variables(
@@ -3481,7 +3530,7 @@ class Incrementality:
         # One subset for both computations below: drawing twice from a
         # Generator would give each a different one.
         posterior_sub = self._posterior_in_data_order(
-            _subsample_draws_per_chain(
+            subsample_draws_per_chain(
                 self.idata.posterior.dataset,
                 num_samples=num_samples,
                 random_state=random_state,
@@ -5567,7 +5616,7 @@ class Incrementality:
         posterior_sub = self._posterior_in_data_order(
             posterior
             if posterior is not None
-            else _subsample_draws_per_chain(
+            else subsample_draws_per_chain(
                 self.idata.posterior.dataset,
                 num_samples=num_samples,
                 random_state=random_state,
