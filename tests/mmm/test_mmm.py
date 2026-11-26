@@ -10928,3 +10928,28 @@ def test_cost_per_target_persistence_object_selectors(
         np.testing.assert_allclose(
             loaded_grad(p), original_grad(p), rtol=1e-11, atol=1e-8
         )
+
+
+def test_build_model_rejects_a_panel_column_missing_from_dims():
+    """#1753: brand and geo in the data, only geo declared, used to drop rows."""
+    rng = np.random.default_rng(0)
+    dates = pd.date_range("2024-01-01", periods=6, freq="W-MON")
+    X = pd.DataFrame(
+        [
+            {"date": d, "brand": b, "geo": g, "x1": rng.uniform(1, 10)}
+            for d in dates
+            for b in ("b1", "b2")
+            for g in ("g1", "g2")
+        ]
+    )
+    y = pd.Series(rng.uniform(10, 50, len(X)))
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["x1"],
+        target_column="y",
+        dims=("geo",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+    with pytest.raises(ValueError, match=r"12 rows repeat .*\('date', 'geo'\)"):
+        mmm.build_model(X, y)
