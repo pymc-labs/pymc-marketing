@@ -3597,8 +3597,9 @@ class MMM(RegressionModelBuilder):
             room for a decision once both flanking blocks are taken out, or a
             date before *start_date* comes after the training data.  The
             carry-in is taken from the training dates, so such a *start_date*
-            is later than the one the model was built for.  A later
-            *start_date* inside the training range is not detected.
+            is later than the one the model was built for.  An earlier
+            *start_date*, or a later one inside the training range, is not
+            detected.
 
         Examples
         --------
