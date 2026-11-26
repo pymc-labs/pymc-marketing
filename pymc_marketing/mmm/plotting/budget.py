@@ -41,15 +41,14 @@ class BudgetPlots:
     """Budget allocation plots.
 
     Stateless namespace — all data is supplied via the ``samples`` argument
-    on each method call. Obtain an instance via ``optimizer.plot`` on
-    :class:`~pymc_marketing.mmm.mmm.BudgetOptimizerWrapper` (when
-    ``plot_suite='new'``).
+    on each method call. Create it directly with ``BudgetPlots()``, and build
+    ``samples`` as in the MMM data export guide.
 
     Provides ``allocation_roas`` (forest plot of per-channel ROAS
     distributions) and ``contribution_over_time`` (time-series of channel
     contributions from an optimised budget allocation).
 
-    Tabular export for frontends uses ``optimizer.summary`` (same samples
+    Tabular export for frontends uses ``BudgetPlots().summary`` (same samples
     argument), which returns :class:`~pymc_marketing.mmm.summary.budget.BudgetSummaryFactory`.
     """
 
@@ -77,15 +76,16 @@ class BudgetPlots:
         Parameters
         ----------
         samples : xr.Dataset
-            Response samples for an allocation: the result of
+            Response samples for an allocation, built from
             :meth:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.evaluate_response_distribution`
-            converted with ``.to_dataset(name=...)``, or the output of the
-            deprecated ``BudgetOptimizerWrapper.sample_response_distribution``.
+            as in the MMM data export guide, or the output of the deprecated
+            ``BudgetOptimizerWrapper.sample_response_distribution``.
             Must contain:
 
             - ``channel_contribution_original_scale``
               (dims: ``sample`` or ``(chain, draw)``, ``date``, ``channel``, ...)
             - ``allocation`` (dims: ``channel``, ...)
+            - ``total_allocation`` (dims: ``channel``, ...)
         dims : dict, optional
             Dimension filters, e.g. ``{"geo": ["CA"]}``.
         hdi_prob : float, default 0.94
@@ -149,10 +149,10 @@ class BudgetPlots:
         Parameters
         ----------
         samples : xr.Dataset
-            Response samples for an allocation: the result of
+            Response samples for an allocation, built from
             :meth:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.evaluate_response_distribution`
-            converted with ``.to_dataset(name=...)``, or the output of the
-            deprecated ``BudgetOptimizerWrapper.sample_response_distribution``.
+            as in the MMM data export guide, or the output of the deprecated
+            ``BudgetOptimizerWrapper.sample_response_distribution``.
             Must have:
 
             - a variable whose name contains ``"channel_contribution"``

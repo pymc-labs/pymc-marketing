@@ -104,10 +104,11 @@ mmm.add_original_scale_contribution_variable(["channel_contribution"])
 optimizer = mmm.budget_optimizer(start_date="2024-01-01", end_date="2024-12-31")
 result = optimizer.allocate_budget(total_budget=100_000)
 
-response = optimizer.evaluate_response_distribution(
-    result.budgets, "channel_contribution_original_scale"
-)
-samples = response.to_dataset(name="channel_contribution_original_scale").assign(
+name = "channel_contribution_original_scale"
+response = optimizer.evaluate_response_distribution(result.budgets, name)
+baseline = optimizer.evaluate_response_distribution(result.budgets * 0, name)
+increment = (response - baseline).sel(date=slice("2024-01-01", None))
+samples = increment.to_dataset(name=name).assign(
     allocation=result.budgets,
     total_allocation=result.budgets * optimizer.num_periods,
 )
@@ -118,7 +119,7 @@ fig, axes = BudgetPlots().allocation_roas(samples=samples)
 records = df_roas.to_dict(orient="records")
 ```
 
-`samples` is an `xr.Dataset` built from the posterior response at the optimized plan, not the optimization result object itself. `result.budgets` is per-period money, so `total_allocation` multiplies it by the number of periods in the window.
+`samples` is an `xr.Dataset` built from the posterior response at the optimized plan, not the optimization result object itself. The response covers the optimizer's whole date axis, which starts `l_max` periods before `start_date` with historical spend, and historical spend also carries over into the window. Subtracting the response to a zero plan keeps only the contribution the plan causes, and the slice drops the earlier dates, where that difference is zero. `result.budgets` is per-period money, so `total_allocation` multiplies it by the number of periods in the window.
 
 ## Cross-validation results
 
