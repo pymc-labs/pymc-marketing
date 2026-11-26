@@ -73,7 +73,6 @@ _SHORT_NAMES = {
 }
 
 # Keys of this module's state in ``BuildContext.extensions``
-_SYSTEMS = "latent_state_space.systems"
 _SIMULATE = "latent_state_space.simulate"
 
 
@@ -202,18 +201,13 @@ class LatentStateSpace(GraphTerm):
         return tuple(self.exog.values())
 
     def filter_system(self, context: BuildContext) -> SimpleNamespace:
-        """Return the model's system matrices bound to SCM variables, once per build.
+        """Return the model's system matrices bound to SCM variables.
 
         pymc-extras builds the matrices from placeholder variables. Each placeholder
         is replaced by an SCM variable: parameters come from ``priors``, exogenous
-        data from ``exog``, and the number of time steps from the dataset.
+        data from ``exog``, and the number of time steps from the dataset. Each build
+        binds a latent once: either its likelihood or its forward simulation does it.
         """
-        systems = context.extensions.setdefault(_SYSTEMS, {})
-        if id(self) not in systems:
-            systems[id(self)] = self._bind(context)
-        return systems[id(self)]
-
-    def _bind(self, context: BuildContext) -> SimpleNamespace:
         ss = self._statespace
         context._add_model_coords(
             {self._dim(dim): list(labels) for dim, labels in ss.coords.items()}
