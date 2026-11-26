@@ -5714,16 +5714,25 @@ class MMM(RegressionModelBuilder):
             keys = X_df[coord_cols].assign(
                 **{self.date_column: pd.to_datetime(X_df[self.date_column])}
             )
+            if set(y_da.dims) != {Dim.DATE, *dims_in_X}:
+                raise ValueError(
+                    f"Cannot align y with X: y has dims {list(y_da.dims)}, X has "
+                    f"columns {coord_cols}"
+                )
+            # A dim of y without labels takes the sorted labels of X by
+            # position, as in build_model.
+            y_da = y_da.assign_coords(
+                {
+                    d: np.sort(X_df[d].unique())
+                    for d in dims_in_X
+                    if d not in y_da.indexes
+                }
+            )
             y_labeled = (
                 y_da.to_series()
                 .rename(self.target_column)
                 .rename_axis(index={Dim.DATE: self.date_column})
             )
-            if not set(coord_cols).issubset(y_labeled.index.names):
-                raise ValueError(
-                    f"Cannot align y with X: y has dims {list(y_da.dims)}, X has "
-                    f"columns {coord_cols}"
-                )
             joined = keys.merge(
                 y_labeled.reset_index(),
                 on=coord_cols,

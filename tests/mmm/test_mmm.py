@@ -1823,6 +1823,27 @@ def test_create_fit_data_raises_when_labeled_y_lacks_a_dim_of_X():
         mmm.create_fit_data(X, y.isel(geo=0, drop=True))
 
 
+def test_create_fit_data_raises_when_labeled_y_has_a_dim_X_lacks():
+    mmm, X, y = _labeled_y_with_shuffled_X("panel_date_week")
+
+    with pytest.raises(ValueError, match="Cannot align y with X"):
+        mmm.create_fit_data(X, y.expand_dims(extra=["e1", "e2"]))
+
+
+def test_create_fit_data_gives_unlabeled_dim_of_y_the_labels_of_X():
+    """A dim of y without labels takes the sorted labels of X, as in ``build_model``."""
+    mmm, X, y = _labeled_y_with_shuffled_X("panel_date_week")
+    y = y.drop_vars("geo")
+    mmm.build_model(X, y)
+
+    fit_data = mmm.create_fit_data(X, y)
+
+    built = mmm.xarray_dataset["_target"].transpose("date", "geo")
+    stored = fit_data["y"].rename({mmm.date_column: "date"}).transpose("date", "geo")
+    np.testing.assert_array_equal(stored.values, built.values)
+    np.testing.assert_array_equal(stored["geo"].values, built["geo"].values)
+
+
 def test_create_fit_data_joins_labeled_y_on_string_dates():
     """String dates in X match the datetime labels of y, as in ``build_model``."""
     mmm, X, y = _labeled_y_with_shuffled_X("no_dims")
