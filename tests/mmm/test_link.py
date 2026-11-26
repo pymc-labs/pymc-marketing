@@ -256,6 +256,36 @@ class TestLinkSpec:
             LinkFunction.LOG, Censored(Prior("LogNormal", sigma=1), lower=0)
         )
 
+    @pytest.mark.parametrize("link", [LinkFunction.IDENTITY, LinkFunction.LOG])
+    @pytest.mark.parametrize(
+        "likelihood",
+        [
+            Prior("Gamma", alpha=2, beta=1),
+            Prior("InverseGamma", alpha=3, beta=1),
+            Prior("InverseGamma", alpha=3),
+            Prior("Beta", alpha=2, beta=2),
+            Censored(Prior("Gamma", alpha=2, beta=1), lower=0),
+        ],
+        ids=["gamma", "inverse_gamma", "inverse_gamma_alpha_only", "beta", "censored"],
+    )
+    def test_validate_likelihood_compat_rejects_params_that_drop_mu(
+        self, link, likelihood
+    ):
+        # pymc reads alpha (and beta) before mu for these distributions, so
+        # the linear predictor would never reach y (#3507).
+        with pytest.raises(ValueError, match="ignores 'mu'"):
+            LinkSpec.validate_likelihood_compatibility(link, likelihood)
+
+    @pytest.mark.parametrize(
+        "likelihood",
+        [Prior("Gamma", alpha=2), Prior("Gamma", beta=1)],
+        ids=["gamma_alpha_only", "gamma_beta_only"],
+    )
+    def test_validate_likelihood_compat_leaves_partial_gamma_to_pymc(self, likelihood):
+        # pymc already refuses these with "Incompatible parameterization", so
+        # claiming they ignore mu would be wrong.
+        LinkSpec.validate_likelihood_compatibility(LinkFunction.IDENTITY, likelihood)
+
     def test_validate_likelihood_compat_identity_unknown_warns(self):
         with pytest.warns(UserWarning, match="not a known response-scale likelihood"):
             LinkSpec.validate_likelihood_compatibility(

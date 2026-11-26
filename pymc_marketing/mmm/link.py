@@ -90,6 +90,16 @@ RESPONSE_SCALE_LIKELIHOODS = (
 #: of that scale.  Rejected under the identity link.
 NON_RESPONSE_SCALE_LIKELIHOODS = {"LogNormal": "log"}
 
+#: Parameters that, when all given, make pymc ignore the ``mu`` the model
+#: passes in, by distribution name.  pymc reads them before ``mu``, so the
+#: linear predictor would have no path to the observed variable.
+#: ``InverseGamma`` defaults ``beta`` to 1 when only ``alpha`` is given.
+MU_OVERRIDING_PARAMETERS = {
+    "Gamma": frozenset({"alpha", "beta"}),
+    "InverseGamma": frozenset({"alpha"}),
+    "Beta": frozenset({"alpha", "beta"}),
+}
+
 #: Likelihoods allowed for the non-identity links, which each need one specific
 #: distributional form for their counterfactual decomposition to be correct.
 LINK_LIKELIHOODS = {LinkFunction.LOG: frozenset({"LogNormal"})}
@@ -200,6 +210,33 @@ def _distribution_name(likelihood: Prior) -> str:
     while dist is not None and not isinstance(dist, str):
         dist = getattr(dist, "distribution", None)
     return dist if dist is not None else type(likelihood).__name__
+
+
+def _reject_mu_overriding_parameters(likelihood: Prior) -> None:
+    """Raise if *likelihood* has parameters that make pymc ignore ``mu``.
+
+    Wrappers such as ``Censored`` hold the parameters on the inner prior, so
+    unwrap the same way :func:`_distribution_name` does.
+    """
+    inner = likelihood
+    while not isinstance(dist := getattr(inner, "distribution", None), str | None):
+        inner = dist
+    dist_name = _distribution_name(likelihood)
+    overriding = MU_OVERRIDING_PARAMETERS.get(dist_name)
+    given = set(getattr(inner, "parameters", {}))
+    if overriding and overriding <= given:
+        named = sorted(given & {"alpha", "beta"})
+        raise ValueError(
+            f"Likelihood '{dist_name}' with {named} ignores 'mu': pymc "
+            "uses those parameters instead of the linear predictor, so no "
+            "channel, control or intercept term would reach the target. "
+            f"Give '{dist_name}' a 'sigma' instead, for example "
+            f"Prior('{dist_name}', sigma=Prior('HalfNormal', sigma=1)). "
+            "To repair an already saved model without refitting:\n"
+            "    kwargs = MMM.idata_to_init_kwargs(idata)\n"
+            "    kwargs['model_config']['likelihood'] = ...\n"
+            "    mmm = MMM(**kwargs)"
+        )
 
 
 def _reject_wrapped_likelihood(likelihood: Prior, *, calibration: bool = False) -> None:
@@ -866,6 +903,7 @@ class LinkSpec(ABC):
         UserWarning
             If the likelihood is not one whose ``mu`` scale is known.
         """
+        _reject_mu_overriding_parameters(likelihood)
         dist_name = _distribution_name(likelihood)
 
         if link == LinkFunction.IDENTITY:
