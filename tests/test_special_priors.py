@@ -33,6 +33,7 @@ from pymc_extras.prior import (
     CUSTOM_TRANSFORMS,
     MuAlreadyExistsError,
     Prior,
+    Scaled,
     UnknownTransformError,
     VariableFactory,
     register_tensor_transform,
@@ -808,6 +809,27 @@ class TestSpecialPriorTypeRegistry:
         assert restored.parameters["std"] == 0.8
         assert restored.dims == ("channel",)
         assert restored.centered is False
+
+    def test_scaled_is_serialized_in_pymc_extras_shape(self):
+        """The registry writes Scaled as pymc-extras does, with no ``__type__`` (#2970)."""
+        scaled = Scaled(Prior("Gamma", mu=1, sigma=0.1), factor=50_000)
+
+        assert serialization.serialize(scaled) == scaled.to_dict()
+        assert deserialize(serialization.serialize(scaled)).factor == 50_000
+
+    def test_scaled_in_legacy_shape_still_deserializes(self):
+        """The ``__type__`` shape written by 1.0.0 to 1.5.0 still loads (#2970)."""
+        data = {
+            "__type__": "pymc_extras.prior.Scaled",
+            "dist": Prior("Gamma", mu=1, sigma=0.1).to_dict(),
+            "factor": 50_000,
+        }
+
+        restored = serialization.deserialize(data)
+
+        assert isinstance(restored, Scaled)
+        assert restored.dist == Prior("Gamma", mu=1, sigma=0.1)
+        assert restored.factor == 50_000
 
     def test_laplace_prior_roundtrip_all_parameters(self):
         from pymc_marketing.serialization import serialization

@@ -427,7 +427,11 @@ class TypeRegistry:
             if Key.TYPE in value:
                 return self.deserialize(value)
 
-            if isinstance(value.get("dist"), str):
+            # A Prior spec, or a pymc-extras wrapper such as Scaled or
+            # Censored, which ``to_dict`` writes as a ``class``/``data`` pair.
+            if isinstance(value.get("dist"), str) or (
+                isinstance(value.get("class"), str) and "data" in value
+            ):
                 prior = self._deserialize_prior_spec(value)
                 if prior is not None:
                     return prior
