@@ -40,6 +40,7 @@ import xarray as xr
 from pymc_extras.prior import Prior
 from pymc_extras.statespace.filters import StandardFilter
 from pymc_extras.statespace.filters.distributions import LinearGaussianStateSpace
+from pymc_extras.statespace.filters.utilities import scan_sequence_names
 from pymc_extras.statespace.utils.constants import (
     ALL_STATE_DIM,
     MATRIX_DIMS,
@@ -60,17 +61,6 @@ from pymc_marketing.terms._graph import (
     GraphTerm,
     walk,
 )
-
-# pymc-extras' short names of the system matrices, for time-varying ones
-_SHORT_NAMES = {
-    "state_intercept": "c",
-    "obs_intercept": "d",
-    "transition": "T",
-    "design": "Z",
-    "selection": "R",
-    "obs_cov": "H",
-    "state_cov": "Q",
-}
 
 
 class LatentStateSpace(GraphTerm):
@@ -429,7 +419,7 @@ class LatentStateSpace(GraphTerm):
             system.H,
             system.Q,
             steps=system.n_steps - 1,
-            sequence_names=[_SHORT_NAMES[name] for name in system.time_varying],
+            sequence_names=scan_sequence_names(system.time_varying),
             dims=(Dim.DATE, self._dim(ALL_STATE_DIM), self.component_dim),
         )
         return pmd.as_xtensor(observed, dims=(Dim.DATE, self.component_dim))
