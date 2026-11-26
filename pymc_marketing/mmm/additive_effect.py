@@ -818,8 +818,8 @@ class MuEffect(SerializableBaseModel, ABC):
         deterministic that only renames the variable, such as
         ``Deterministic(name, rv)``, or a chain of them, is frozen as the variable
         itself, so it holds every read of the variable: incrementality leaves it
-        out, with a warning, when the graph also reads the variable without going
-        through the rename.
+        out, with a warning, when the variable is over ``date`` and the graph also
+        reads it without going through the rename.
         When PyMC clones the model, it keeps only one of the two names of a
         deterministic that only renames another deterministic
         (pymc-devs/pymc#8608). Incrementality refuses to freeze either name of
