@@ -5503,7 +5503,7 @@ class Incrementality:
     def _evaluator_frozen(
         self, response_vars: Sequence[str | Variable]
     ) -> tuple[str, ...]:
-        """Return the frozen deterministics the evaluator's responses read.
+        """Return the frozen deterministics the evaluator holds fixed.
 
         An unread frozen name changes nothing in the graphs, except a Deterministic
         that only renames a free random variable: on the evaluator's clone it would
@@ -5550,8 +5550,7 @@ class Incrementality:
                 "every read of the variable is date by date, freeze the variable "
                 "itself instead: "
                 f"{', '.join(map(repr, dict.fromkeys(shared.values())))}.  Otherwise, "
-                "also freeze a Deterministic of each path that reads it without going "
-                "through the rename.",
+                "see MuEffect.frozen_deterministics for the paths to freeze.",
                 UserWarning,
                 skip_file_prefixes=(_PKG_PREFIX,),
             )
@@ -5571,7 +5570,7 @@ class Incrementality:
             Responses in order.  A node is keyed by its name, which is how the
             evaluator resolves it against its intervened clone.
         frozen : tuple of str
-            The frozen deterministics the responses read, from
+            The frozen deterministics the evaluator holds fixed, from
             :meth:`_evaluator_frozen`.
 
         Returns
@@ -5798,7 +5797,7 @@ class Incrementality:
             is resolved against the model for the traversal only; the evaluator
             still receives the node.
         frozen : tuple of str
-            The frozen deterministics the responses read, from
+            The frozen deterministics the evaluator holds fixed, from
             :meth:`_evaluator_frozen`.
 
         Returns

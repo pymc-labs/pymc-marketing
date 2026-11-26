@@ -3622,21 +3622,23 @@ def test_monthly_incrementality_leaves_out_a_frozen_rename_read_another_way(
     )
 
     with warnings.catch_warnings():
+        # Also silences the full-axis warning pytest.warns re-emits for the left-out
+        # variable.
         warnings.simplefilter("ignore", UserWarning)
         expected = unfrozen.incrementality.compute_incremental_contribution(
             frequency="monthly"
         )
-    with pytest.warns(
-        UserWarning,
-        match=r"^frozen_deterministics includes 'scaled_rename_1' \(a view of "
-        r"'scaled_level'\), but the responses also read the variable without going "
-        r"through the rename\..* freeze the variable itself instead: "
-        r"'scaled_level'\.  Otherwise, also freeze a Deterministic of each path that "
-        r"reads it without going through the rename\.$",
-    ):
-        actual = frozen.incrementality.compute_incremental_contribution(
-            frequency="monthly"
-        )
+        with pytest.warns(
+            UserWarning,
+            match=r"^frozen_deterministics includes 'scaled_rename_1' \(a view of "
+            r"'scaled_level'\), but the responses also read the variable without "
+            r"going through the rename\..* freeze the variable itself instead: "
+            r"'scaled_level'\.  Otherwise, see MuEffect\.frozen_deterministics for "
+            r"the paths to freeze\.$",
+        ):
+            actual = frozen.incrementality.compute_incremental_contribution(
+                frequency="monthly"
+            )
 
     np.testing.assert_allclose(actual, expected.transpose(*actual.dims))
 
