@@ -379,6 +379,8 @@ class MMMPlotSuite:
     ) -> xr.Dataset:
         """Retrieve the prior_predictive group from either provided or self.idata."""
         if idata is not None:
+            if isinstance(idata, xr.DataTree) and "prior_predictive" in idata.children:
+                return idata.prior_predictive  # type: ignore
             return idata
 
         # Otherwise, check if self.idata has prior_predictive
@@ -612,7 +614,8 @@ class MMMPlotSuite:
         var : str, optional
             The variable name to plot. Default is "y" if not provided.
         idata : xarray.Dataset, optional
-            The prior predictive dataset to plot. If not provided, tries to
+            The prior predictive dataset to plot. A DataTree with a
+            `prior_predictive` group also works. If not provided, tries to
             use `self.idata.prior_predictive`.
         hdi_prob: float, optional
             The probability mass of the highest density interval to be displayed. Default is 0.85.

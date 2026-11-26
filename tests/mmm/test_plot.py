@@ -290,6 +290,13 @@ def test_prior_predictive_labels(prior_predictive_only_idata):
     assert ax.get_ylabel() == "Prior Predictive"
 
 
+def test_prior_predictive_accepts_full_idata(prior_predictive_only_idata):
+    """Passing the whole DataTree as ``idata`` plots its prior_predictive group."""
+    suite = MMMPlotSuite(idata=xr.DataTree.from_dict({}))
+    _, axes = suite.prior_predictive(idata=prior_predictive_only_idata)
+    assert axes[0][0].get_title() == "Prior Predictive Time Series"
+
+
 def test_prior_predictive_raises_for_missing_variable(prior_predictive_only_idata):
     """A variable that is not in the prior predictive data raises a ValueError."""
     suite = MMMPlotSuite(idata=prior_predictive_only_idata)
