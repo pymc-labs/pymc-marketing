@@ -1176,6 +1176,16 @@ def test_deterministic_renames_lists_a_rename_on_a_clone_but_not_a_data_rename()
     assert deterministic_renames(clone_model(model)) == {"path": "walk"}
 
 
+def test_pymc_merges_a_rename_of_a_deterministic_when_cloning():
+    """Remove the refusals built on deterministic_renames once this fails (pymc-devs/pymc#8656)."""
+    with pm.Model() as model:
+        steps = pm.Normal("steps", shape=3)
+        walk = pm.Deterministic("walk", steps.cumsum())
+        pm.Deterministic("path", walk)
+    clone = clone_model(model)
+    assert clone["path"] is clone["walk"]
+
+
 def test_a_refusal_names_every_rename_of_a_frozen_deterministic():
     """Two Deterministics rename ``walk``; freezing ``walk`` names both."""
     with pm.Model(coords={"date": range(4)}) as model:
