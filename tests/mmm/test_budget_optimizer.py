@@ -2192,7 +2192,9 @@ class TestDateAxisMustMatchTheBlocks:
             start, training_end + pd.Timedelta(weeks=self.N_PERIODS)
         )
 
-        with pytest.raises(ValueError, match="start_date"):
+        with pytest.raises(
+            ValueError, match="later than the window this model was built for"
+        ):
             mmm.window_layout(model, start + pd.Timedelta(weeks=2))
 
     def test_the_private_window_layout_name_warns(self, funnel_identity_fitted_mmm):

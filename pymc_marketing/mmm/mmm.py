@@ -3560,8 +3560,10 @@ class MMM(RegressionModelBuilder):
         this MMM's own adstock and effects. The two therefore have to describe
         the same window -- pass the model
         :meth:`create_optimization_model` returned for *start_date*, not one
-        built from different parameters, or the three blocks will not add up to
-        the axis and ``BudgetOptimizer`` will refuse them.
+        built from different parameters.  A mismatch can still give three
+        blocks that add up to the axis, which ``BudgetOptimizer`` accepts; only
+        a *start_date* that puts dates after the training data into the
+        carry-in is refused here.
 
         Derived in one place so the three numbers cannot drift apart: the
         leading dates are whatever
