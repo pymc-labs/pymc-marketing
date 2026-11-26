@@ -560,15 +560,27 @@ class _KalmanLikelihood:
             sigma = context._recipe(obs.sigma).create_variable(
                 f"{name}_sigma", xdist=True
             )
-        elif isinstance(obs.sigma, int | float):
-            sigma = ptx.as_xtensor(float(obs.sigma), dims=())
+        elif isinstance(obs.sigma, int | float | np.ndarray | np.generic):
+            _check_scalar_sigma(np.shape(obs.sigma), name)
+            sigma = ptx.as_xtensor(np.asarray(obs.sigma, dtype="float64"), dims=())
         else:
             sigma = context.build(obs.sigma, name=f"{name}_sigma")
-        if sigma.dims:
-            raise ValueError(
-                f"The sigma of {name!r} must be a scalar when its latent is marginalized."
-            )
+        _check_scalar_sigma(sigma.dims, name)
         return sigma
+
+
+def _check_scalar_sigma(dims: Sequence[Any], name: str) -> None:
+    if dims:
+        raise ValueError(
+            f"The sigma of {name!r} must be a scalar when its latent is marginalized."
+        )
+
+
+def _check_date_only(binding: Any) -> None:
+    if binding.dims != (Dim.DATE,):
+        raise ValueError(
+            f"Equation {binding.name!r} must be indexed by {Dim.DATE!r} only."
+        )
 
 
 def _per_date(value: pt.TensorVariable, n_steps: int) -> pt.TensorVariable:
@@ -642,10 +654,7 @@ def _observed_value(equation: Equation, context: BuildContext) -> Any:
     equation never depends on them.
     """
     binding = context.register_equation(equation)
-    if binding.dims != (Dim.DATE,):
-        raise ValueError(
-            f"Equation {binding.name!r} must be indexed by {Dim.DATE!r} only."
-        )
+    _check_date_only(binding)
     return context._observations(binding)
 
 
@@ -680,7 +689,8 @@ class Marginalization:
     observations, and its joint likelihood is built after the rest of the model.
     Prior predictive sampling instead draws the latents forward when the equations
     reach them, so only the checks apply. The checks run on construction, in both
-    cases, so a prior predictive check refuses what fitting would refuse.
+    cases, and ``check`` runs the ones that need the built model, so a prior
+    predictive check refuses what fitting would refuse.
 
     Parameters
     ----------
@@ -709,3 +719,20 @@ class Marginalization:
         """Add each latent's joint likelihood; call after building the equations."""
         for likelihood in self._likelihoods:
             likelihood.build(context)
+
+    def check(self, context: BuildContext) -> None:
+        """Refuse what ``build`` would refuse, in a build that draws the latents forward.
+
+        Call after building the equations, so a sigma term is already built.
+        """
+        for likelihood in self._likelihoods:
+            for obs in likelihood.observations:
+                binding = context.binding(obs.equation)
+                _check_date_only(binding)
+                if isinstance(obs.sigma, Prior):
+                    dims = obs.sigma.dims
+                elif isinstance(obs.sigma, int | float | np.ndarray | np.generic):
+                    dims = np.shape(obs.sigma)
+                else:
+                    dims = context.build(obs.sigma, name=f"{binding.name}_sigma").dims
+                _check_scalar_sigma(dims, binding.name)

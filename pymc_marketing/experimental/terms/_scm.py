@@ -175,6 +175,8 @@ class SCM:
                 context.build(root)
             if fitting:
                 latents.build(context)
+            elif simulate_latents:
+                latents.check(context)
         return model, context
 
     def _training_model(

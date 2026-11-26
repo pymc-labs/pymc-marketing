@@ -521,6 +521,50 @@ def test_marginalization_needs_normal_likelihood(data):
         scm.sample_prior_predictive(data, draws=5)
 
 
+def test_prior_predictive_refuses_a_time_varying_sigma(data):
+    lat = latent()
+    a = Equation(
+        observed="a",
+        mu=lat["a"],
+        parameters={"sigma": Data("s")},
+        likelihood=Prior("Normal"),
+    )
+    scm = SCM(a, equations(lat)[1])
+    ds = data.assign(s=("date", np.full(N, 0.3)))
+    with pytest.raises(ValueError, match="must be a scalar"):
+        scm.build_model(ds)
+    with pytest.raises(ValueError, match="must be a scalar"):
+        scm.sample_prior_predictive(ds, draws=5)
+
+
+def test_prior_predictive_refuses_an_equation_not_indexed_by_date_only(data):
+    lat = latent()
+    a = Equation(observed="ag", mu=lat["a"], likelihood=Prior("Normal", sigma=0.3))
+    scm = SCM(a, equations(lat)[1])
+    ds = data.assign(ag=(("date", "geo"), np.zeros((N, 2)))).assign_coords(
+        geo=["g1", "g2"]
+    )
+    with pytest.raises(ValueError, match="indexed by 'date' only"):
+        scm.build_model(ds)
+    with pytest.raises(ValueError, match="indexed by 'date' only"):
+        scm.sample_prior_predictive(ds, draws=5)
+
+
+def test_numpy_array_sigma_matches_float_sigma(data):
+    def logp(value):
+        lat = latent()
+        a = Equation(
+            observed="a",
+            mu=Data("z") + lat["a"],
+            likelihood=Prior("Normal", sigma=value),
+        )
+        return observation_logp(SCM(a, equations(lat)[1]).build_model(data))
+
+    np.testing.assert_allclose(
+        logp(np.array(SIGMA[0])), logp(float(SIGMA[0])), rtol=1e-6
+    )
+
+
 def test_marginalization_refuses_transformed_likelihood(data):
     lat = latent()
     a = Equation(
