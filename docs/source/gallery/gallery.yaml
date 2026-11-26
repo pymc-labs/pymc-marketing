@@ -105,6 +105,12 @@ sections:
           - title: Prior Sensitivity in the MMM Workflow
             notebook: mmm/mmm_prior_sensitivity
             thumb: mmm_prior_sensitivity_psense.png
+          - title: Reweighting Priors Instead of Refitting
+            notebook: mmm/mmm_prior_reweighting
+            thumb: mmm_prior_reweighting.png
+          - title: Reweighting Likelihoods Instead of Refitting
+            notebook: mmm/mmm_likelihood_reweighting
+            thumb: mmm_likelihood_reweighting.png
       - title: Causal Inference
         cards:
           - title: Causal Identification
