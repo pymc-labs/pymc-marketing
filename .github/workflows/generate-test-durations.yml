@@ -24,8 +24,6 @@ permissions:
 jobs:
   generate-durations:
     runs-on: ubuntu-latest
-    permissions:
-      actions: write
     env:
       # Match the test job's portable-target pins so this job shares the
       # same cache pool (keys must not embed the runner's CPU).
@@ -68,25 +66,6 @@ jobs:
             echo "::error::Durations file is truncated (${stored} stored < ${collected} collected); not opening PR"
             exit 1
           fi
-      - name: Delete previous PyTensor cache snapshot
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          KEY=$(cat /tmp/pytensor-snapshot-key)
-          echo "refreshing snapshot key: $KEY"
-          gh cache list --key "$KEY" --json id --jq '.[].id' | xargs -r gh cache delete
-
-      - name: Save PyTensor cache snapshot
-        env:
-          KEY_FILE: /tmp/pytensor-snapshot-key
-        id: snapshot
-        run: echo "key=$(cat "$KEY_FILE")" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-        with:
-          path: ~/.pytensor
-          key: ${{ steps.snapshot.outputs.key }}
-
       - name: Ensure newline at end of durations file
         run: |
           # Add newline if missing (pre-commit requirement)
@@ -113,7 +92,7 @@ jobs:
 
             **Details:**
             - 🤖 Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-            - 📅 Trigger: ${{ github.event_name == 'schedule' && 'Scheduled (weekly)' || format('Manual trigger by @{0}', github.actor) }}
+            - 📅 Trigger: ${{ github.event_name }}
 
             **Note:** This is an automated update. The file will be used by pytest-split to balance test groups in CI.
           labels: |

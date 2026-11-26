@@ -81,6 +81,8 @@ jobs:
           uv run --no-sync --frozen python -c "import pymc; assert pymc.__version__ == '${OLDEST}', pymc.__version__"
       - name: PyTensor compile cache
         uses: $/.github/actions/pytensor-cache
+        with:
+          lineage: ${{ matrix.config.oldest-pymc && 'oldest' || 'latest' }}-group${{ matrix.group }}
       - name: Run tests
         run: |
           uv run --no-sync --frozen pytest --splits 6 \

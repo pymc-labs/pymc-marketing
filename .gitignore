@@ -166,6 +166,3 @@ sandbox/
 
 .cursor/plans
 automatic_translation.py
-
-# pytensor cache version key (generated per CI job)
-.pytensor-cache-key

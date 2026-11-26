@@ -1,35 +1,49 @@
 name: PyTensor compile cache
 description: >-
-  Compute the PyTensor compile-cache version key and restore compiled
+  Compute the PyTensor compile-cache version key and restore/save compiled
   artifacts (C compiledir and numba file cache) for the current
   environment. The job must set the portable-target pins
-  (PYTENSOR_FLAGS=cxxflags=-march=x86-64,compiledir_format=... and
-  NUMBA_CPU_NAME=generic) so cache keys do not embed the runner's CPU:
-  numba keys include the host CPU name and pytensor's C compiledir name
-  embeds platform details, and GitHub's runner fleet is heterogeneous.
+  (PYTENSOR_FLAGS=cxxflags=-march=x86-64,... and NUMBA_CPU_NAME=generic)
+  so cache keys do not embed the runner's CPU: numba keys include the host
+  CPU name and pytensor's C compiledir name embeds platform details, and
+  GitHub's runner fleet is heterogeneous.
+
+inputs:
+  lineage:
+    description: >-
+      Label for this job's save key, e.g. "latest-group3" for a matrix leg
+      or "durations". Distinct lineages let publishers save without racing;
+      restores prefer the same lineage before falling back to any snapshot.
+    required: true
+
+outputs:
+  hash:
+    description: 16-hex version key of the installed compile environment.
+    value: ${{ steps.key.outputs.hash }}
 
 runs:
   using: composite
   steps:
-    - name: Compute PyTensor cache key
+    - name: Compute PyTensor cache version key
+      id: key
       shell: bash
       run: |
-        uv run --no-sync python "$GITHUB_ACTION_PATH/compute_key.py"
+        h=$({ uv run --no-sync python -V; uv pip freeze | grep -Ei '^(pytensor|numba|llvmlite|numpy|scipy)==' ; echo "${PYTENSOR_FLAGS:?} ${NUMBA_CPU_NAME:?}"; } | sha256sum | cut -c1-16)
+        echo "hash=$h" >> "$GITHUB_OUTPUT"
 
-    - name: Record canonical snapshot key
-      # The full-suite durations job publishes ONE snapshot under this
-      # static key (delete-then-save, since actions/cache never
-      # overwrites). Every other job restores it read-only.
-      shell: bash
-      run: echo "pytensor-${{ hashFiles('.pytensor-cache-key') }}-snapshot" > /tmp/pytensor-snapshot-key
-
-    - name: Restore PyTensor compile caches
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+    # The combined action (restore + save-in-post) is used for every job:
+    # its save phase is the only mechanism that has published entries
+    # reliably in this repo; standalone actions/cache/save posts have
+    # silently produced nothing.
+    - name: Restore and save PyTensor compile caches
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/.pytensor
-        key: pytensor-${{ hashFiles('.pytensor-cache-key') }}-restore-${{ github.run_id }}
+        key: pytensor-${{ steps.key.outputs.hash }}-${{ inputs.lineage }}-${{ github.run_id }}
         restore-keys: |
-          pytensor-${{ hashFiles('.pytensor-cache-key') }}-
+          pytensor-${{ steps.key.outputs.hash }}-${{ inputs.lineage }}-
+          pytensor-${{ steps.key.outputs.hash }}-
+          pytensor-
 
     - name: Inspect PyTensor cache
       shell: bash
