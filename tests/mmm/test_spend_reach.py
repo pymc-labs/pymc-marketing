@@ -36,6 +36,7 @@ from pymc_marketing.mmm.spend_reach import (
     SpendProbe,
     SpendReach,
     TemporalReach,
+    completeness_tolerance,
     linear_predictor,
     refuse_blocked_spend_paths,
     resolve_channel_dependent_effects,
@@ -1782,6 +1783,30 @@ class TestProbeStatistics:
         assert (
             bool(np.allclose(accounted, expected, rtol=0.0, atol=stats.tolerance()))
             is within
+        )
+
+    def test_a_float64_tolerance_is_rounded_by_allclose_to_a_float32_predictor(self):
+        """A caller's float64 tolerance gets allclose's float32 answer.
+
+        ``completeness_tolerance`` with a float64 dtype puts the tolerance a
+        quarter float32 ulp below the residual.  ``allclose`` rounds a Python
+        float ``atol`` to the float32 predictor and passes; a ``np.float64``
+        would not be rounded and would refuse.
+        """
+        residual = np.float32(0.1)
+        target = float(residual) - float(np.spacing(residual)) / 4
+        magnitude = target / (
+            COMPLETENESS_ACCUMULATION_SAFETY_FACTOR * np.finfo(np.float64).eps
+        )
+        atol = completeness_tolerance(scale=0.0, magnitude=magnitude, dtype="float64")
+
+        # The tolerance lies in the quarter ulp that rounds up to the residual.
+        assert atol < float(residual) <= float(np.float32(atol))
+        assert np.allclose(
+            np.array([float(residual)]),
+            np.zeros(1, dtype="float32"),
+            rtol=0.0,
+            atol=atol,
         )
 
     def test_a_float32_predictor_over_float64_nodes_gets_a_float32_floor(self):
