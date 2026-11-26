@@ -1837,6 +1837,33 @@ class TestProbeStatistics:
         assert stats.max_residual > 1e-3
         assert stats.accounting_gap() is None
 
+    def test_float32_nodes_summed_in_float32_under_a_float64_predictor_get_a_float32_floor(
+        self,
+    ):
+        """Float32 terms summed before the upcast to a float64 mu round in float32.
+
+        float32 contributions plus a float64 term upcast mu to float64.  When
+        the channels are summed in float32 first, the sum carries float32
+        rounding of its size, far above mu's float64 floor.
+        """
+        n_dates = 4
+        baseline = {CHANNEL_CONTRIBUTION: np.full((1, n_dates, 3), 1e4, np.float32)}
+        probed = {CHANNEL_CONTRIBUTION: baseline[CHANNEL_CONTRIBUTION].copy()}
+        probed[CHANNEL_CONTRIBUTION][0, 1, 0] += np.float32(0.37)
+        for values in (baseline, probed):
+            values[LINEAR_PREDICTOR] = (
+                values[CHANNEL_CONTRIBUTION].sum(-1).astype(np.float64) + 1e6
+            )
+        stats = ProbeStatistics.fold(
+            probed,
+            baseline,
+            accounted=(CHANNEL_CONTRIBUTION,),
+            non_date_dims=FakeEvaluator.non_date_dims,
+        )
+
+        assert stats.max_residual > 1e-4
+        assert stats.accounting_gap() is None
+
     @pytest.mark.parametrize("with_predictor", [True, False])
     def test_one_probe_evaluation_alive_at_a_time(self, with_predictor):
         """No array of an earlier probe is alive while the next one is evaluated.
