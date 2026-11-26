@@ -3606,21 +3606,39 @@ def test_monthly_incrementality_on_a_frozen_renaming_deterministic_that_scales_s
     assert json.loads(split.attrs["assumptions"])["evaluation"] == "window"
 
 
-def test_monthly_incrementality_refuses_a_frozen_rename_read_another_way(
+def test_monthly_incrementality_leaves_out_a_frozen_rename_read_another_way(
     fit_mmm_with_effect,
 ):
-    """Freezing the rename would cut the cumulative sum's read of the variable too."""
-    mmm = fit_mmm_with_effect(
+    """Freezing the rename would cut the cumulative sum's read of the variable too.
+
+    The rename is left out with a warning, so the increments are those of freezing
+    nothing.
+    """
+    unfrozen = fit_mmm_with_effect(
+        _ScaledByDateLevelEffect(renames=1, second_reader=True)
+    )
+    frozen = fit_mmm_with_effect(
         _ScaledByDateLevelEffect(freeze=True, renames=1, second_reader=True)
     )
 
-    with pytest.raises(
-        ValueError,
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        expected = unfrozen.incrementality.compute_incremental_contribution(
+            frequency="monthly"
+        )
+    with pytest.warns(
+        UserWarning,
         match=r"^frozen_deterministics includes 'scaled_rename_1' \(a view of "
-        r"'scaled_level'\), but the responses also read the variable.* To cut "
-        r"every read to the windows, freeze the variable itself: 'scaled_level'\.$",
+        r"'scaled_level'\), but the responses also read the variable without going "
+        r"through the rename\..* freeze the variable itself instead: "
+        r"'scaled_level'\.  Otherwise, also freeze a Deterministic of each path that "
+        r"reads it without going through the rename\.$",
     ):
-        mmm.incrementality.compute_incremental_contribution(frequency="monthly")
+        actual = frozen.incrementality.compute_incremental_contribution(
+            frequency="monthly"
+        )
+
+    np.testing.assert_allclose(actual, expected.transpose(*actual.dims))
 
 
 def test_monthly_incrementality_refuses_a_frozen_rename_of_a_deterministic(

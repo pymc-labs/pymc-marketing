@@ -5508,7 +5508,11 @@ class Incrementality:
         An unread frozen name changes nothing in the graphs, except a Deterministic
         that only renames a free random variable: on the evaluator's clone it would
         hold every read of the variable.  See
-        :func:`~pymc_marketing.pytensor_utils.reached_frozen_names`.
+        :func:`~pymc_marketing.pytensor_utils.reached_frozen_names`.  For the same
+        reason, a frozen rename of a free random variable over ``date`` that the
+        responses also read without going through the rename is left out with a
+        warning: on the clone, freezing it would cut every read of the variable to
+        the evaluation windows.
 
         Parameters
         ----------
@@ -5524,9 +5528,34 @@ class Incrementality:
         resolved = [
             model[var] if isinstance(var, str) else var for var in response_vars
         ]
-        return tuple(
-            reached_frozen_names(model, resolved, self.model.frozen_deterministics)
+        reached = reached_frozen_names(
+            model, resolved, self.model.frozen_deterministics
         )
+        shared = {
+            name: var
+            for name, var in frozen_renames_read_elsewhere(
+                model, resolved, reached
+            ).items()
+            if Dim.DATE in (model.named_vars_to_dims.get(var) or ())
+        }
+        if shared:
+            listing = ", ".join(
+                f"{name!r} (a view of {var!r})" for name, var in shared.items()
+            )
+            warnings.warn(
+                f"frozen_deterministics includes {listing}, but the responses also "
+                "read the variable without going through the rename.  A "
+                "Deterministic that only renames a variable cannot be frozen apart "
+                "from it, so the rename is left out, as if it were not listed.  When "
+                "every read of the variable is date by date, freeze the variable "
+                "itself instead: "
+                f"{', '.join(map(repr, dict.fromkeys(shared.values())))}.  Otherwise, "
+                "also freeze a Deterministic of each path that reads it without going "
+                "through the rename.",
+                UserWarning,
+                skip_file_prefixes=(_PKG_PREFIX,),
+            )
+        return tuple(name for name in reached if name not in shared)
 
     def _evaluator_cache_key(
         self, response_vars: Sequence[str | Variable], frozen: tuple[str, ...]
@@ -5788,37 +5817,13 @@ class Incrementality:
         ValueError
             If a frozen name the responses read only renames another
             Deterministic, or is renamed by one: the clone the evaluator reads
-            keeps one of the two names.  Or if a frozen name only renames a free
-            random variable over ``date`` that the responses also read another
-            way: freezing the rename would cut every read of the variable to the
-            evaluation windows.
+            keeps one of the two names.
         """
         model = self.model.model
         refuse_frozen_deterministic_renames(model, frozen)
         resolved = [
             model[var] if isinstance(var, str) else var for var in response_vars
         ]
-        shared = {
-            name: var
-            for name, var in frozen_renames_read_elsewhere(
-                model, resolved, frozen
-            ).items()
-            if Dim.DATE in (model.named_vars_to_dims.get(var) or ())
-        }
-        if shared:
-            listing = ", ".join(
-                f"{name!r} (a view of {var!r})" for name, var in shared.items()
-            )
-            raise ValueError(
-                f"frozen_deterministics includes {listing}, but the responses also "
-                "read the variable without going through the rename.  Freezing a "
-                "Deterministic that only renames a variable freezes every read of "
-                "that variable, so each would be cut to the evaluation windows.  "
-                "Freeze a Deterministic computed from the variable on the path you "
-                "mean instead, or remove the rename from frozen_deterministics.  To "
-                "cut every read to the windows, freeze the variable itself: "
-                f"{', '.join(map(repr, dict.fromkeys(shared.values())))}."
-            )
         read = set(needed_posterior_names(model, resolved, frozen))
         names = [name for name in posterior.data_vars if name in read]
         if names:
