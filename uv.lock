@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.15' and sys_platform == 'win32'",
@@ -1389,19 +1389,19 @@ resolution-markers = [
     "python_full_version < '3.13' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 dependencies = [
-    { name = "causal-learn" },
-    { name = "cvxpy" },
-    { name = "cython", version = "0.29.37", source = { registry = "https://pypi.org/simple" } },
-    { name = "joblib" },
-    { name = "networkx" },
-    { name = "numba" },
-    { name = "numpy" },
-    { name = "pandas" },
-    { name = "scikit-learn" },
-    { name = "scipy" },
-    { name = "statsmodels" },
-    { name = "sympy" },
-    { name = "tqdm" },
+    { name = "causal-learn", marker = "python_full_version < '3.13'" },
+    { name = "cvxpy", marker = "python_full_version < '3.13'" },
+    { name = "cython", version = "0.29.37", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13'" },
+    { name = "joblib", marker = "python_full_version < '3.13'" },
+    { name = "networkx", marker = "python_full_version < '3.13'" },
+    { name = "numba", marker = "python_full_version < '3.13'" },
+    { name = "numpy", marker = "python_full_version < '3.13'" },
+    { name = "pandas", marker = "python_full_version < '3.13'" },
+    { name = "scikit-learn", marker = "python_full_version < '3.13'" },
+    { name = "scipy", marker = "python_full_version < '3.13'" },
+    { name = "statsmodels", marker = "python_full_version < '3.13'" },
+    { name = "sympy", marker = "python_full_version < '3.13'" },
+    { name = "tqdm", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/aa/0f/793cbb59d0ac3f25ba8053724c446e2704974b4a192835e59953b7f74a1f/dowhy-0.12.tar.gz", hash = "sha256:de67fbb3066d25cb065b32af669373065e2f18dfd1f95938da346bc6a315d163", size = 13030585, upload-time = "2024-11-24T07:36:19.825Z" }
 wheels = [
@@ -1424,19 +1424,19 @@ resolution-markers = [
     "python_full_version == '3.13.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 dependencies = [
-    { name = "causal-learn" },
-    { name = "cvxpy" },
-    { name = "cython", version = "3.3.1", source = { registry = "https://pypi.org/simple" } },
-    { name = "joblib" },
-    { name = "networkx" },
-    { name = "numba" },
-    { name = "numpy" },
-    { name = "pandas" },
-    { name = "scikit-learn" },
-    { name = "scipy" },
-    { name = "statsmodels" },
-    { name = "sympy" },
-    { name = "tqdm" },
+    { name = "causal-learn", marker = "python_full_version >= '3.13'" },
+    { name = "cvxpy", marker = "python_full_version >= '3.13'" },
+    { name = "cython", version = "3.3.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
+    { name = "joblib", marker = "python_full_version >= '3.13'" },
+    { name = "networkx", marker = "python_full_version >= '3.13'" },
+    { name = "numba", marker = "python_full_version >= '3.13'" },
+    { name = "numpy", marker = "python_full_version >= '3.13'" },
+    { name = "pandas", marker = "python_full_version >= '3.13'" },
+    { name = "scikit-learn", marker = "python_full_version >= '3.13'" },
+    { name = "scipy", marker = "python_full_version >= '3.13'" },
+    { name = "statsmodels", marker = "python_full_version >= '3.13'" },
+    { name = "sympy", marker = "python_full_version >= '3.13'" },
+    { name = "tqdm", marker = "python_full_version >= '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/25/1f/85ab41e0deb64c01590b05c15c9f302040d25340ae82e5117cb93cd89e2b/dowhy-0.14.tar.gz", hash = "sha256:18f48882bc2cd3452ed3536ae3529a196acfa3b1e21b8978b71934e65cabb665", size = 13225280, upload-time = "2025-11-08T05:05:10.581Z" }
 wheels = [
@@ -1979,8 +1979,8 @@ name = "httpcore2"
 version = "2.16.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "h11" },
-    { name = "truststore" },
+    { name = "h11", marker = "sys_platform != 'emscripten'" },
+    { name = "truststore", marker = "sys_platform != 'emscripten'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/92/9d/df40b41f7db0370f82019820709244e7b660c52aa3da3c9e5c4e8141f6e6/httpcore2-2.16.2.tar.gz", hash = "sha256:6c519d0f7b44f7269fa9bbb4d2763db395a4a2370f046d8e8e0a4b38227815d2", size = 70064, upload-time = "2026-11-16T10:12:19.491Z" }
 wheels = [
@@ -4039,7 +4039,7 @@ name = "pexpect"
 version = "4.9.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "ptyprocess" },
+    { name = "ptyprocess", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/42/92/cc564bf6381ff43ce1f4d06852fc19a2f11d180f23dc32d9588bee2f149d/pexpect-4.9.0.tar.gz", hash = "sha256:ee7d41123f3c9911050ea2c2dac107568dc43b2d3b0c7557a33212c398ead30f", size = 166450, upload-time = "2023-11-25T09:07:26.339Z" }
 wheels = [
@@ -4752,6 +4752,7 @@ dependencies = [
     { name = "arviz" },
     { name = "arviz-plots", extra = ["matplotlib"] },
     { name = "arviz-stats" },
+    { name = "cloudpickle" },
     { name = "h5netcdf" },
     { name = "h5py" },
     { name = "matplotlib" },
@@ -4872,6 +4873,7 @@ requires-dist = [
     { name = "arviz-stats", specifier = ">=1.2.0,<2.0" },
     { name = "blackjax", marker = "extra == 'docs'", specifier = "<1.6" },
     { name = "blackjax", marker = "extra == 'test'", specifier = "<1.6" },
+    { name = "cloudpickle" },
     { name = "coverage", marker = "extra == 'test'", specifier = ">=7.1" },
     { name = "dowhy", marker = "extra == 'dag'" },
     { name = "dowhy", marker = "extra == 'docs'" },
@@ -5777,23 +5779,23 @@ resolution-markers = [
     "python_full_version < '3.13' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 dependencies = [
-    { name = "alabaster" },
-    { name = "babel" },
-    { name = "colorama", marker = "sys_platform == 'win32'" },
-    { name = "docutils", version = "0.22.4", source = { registry = "https://pypi.org/simple" } },
-    { name = "imagesize" },
-    { name = "jinja2" },
-    { name = "packaging" },
-    { name = "pygments" },
-    { name = "requests" },
-    { name = "roman-numerals" },
-    { name = "snowballstemmer" },
-    { name = "sphinxcontrib-applehelp" },
-    { name = "sphinxcontrib-devhelp" },
-    { name = "sphinxcontrib-htmlhelp" },
-    { name = "sphinxcontrib-jsmath" },
-    { name = "sphinxcontrib-qthelp" },
-    { name = "sphinxcontrib-serializinghtml" },
+    { name = "alabaster", marker = "python_full_version < '3.13'" },
+    { name = "babel", marker = "python_full_version < '3.13'" },
+    { name = "colorama", marker = "python_full_version < '3.13' and sys_platform == 'win32'" },
+    { name = "docutils", version = "0.22.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13'" },
+    { name = "imagesize", marker = "python_full_version < '3.13'" },
+    { name = "jinja2", marker = "python_full_version < '3.13'" },
+    { name = "packaging", marker = "python_full_version < '3.13'" },
+    { name = "pygments", marker = "python_full_version < '3.13'" },
+    { name = "requests", marker = "python_full_version < '3.13'" },
+    { name = "roman-numerals", marker = "python_full_version < '3.13'" },
+    { name = "snowballstemmer", marker = "python_full_version < '3.13'" },
+    { name = "sphinxcontrib-applehelp", marker = "python_full_version < '3.13'" },
+    { name = "sphinxcontrib-devhelp", marker = "python_full_version < '3.13'" },
+    { name = "sphinxcontrib-htmlhelp", marker = "python_full_version < '3.13'" },
+    { name = "sphinxcontrib-jsmath", marker = "python_full_version < '3.13'" },
+    { name = "sphinxcontrib-qthelp", marker = "python_full_version < '3.13'" },
+    { name = "sphinxcontrib-serializinghtml", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/fc/73/567727fc8c8d85bc3adc88a246e12937cfda8d565cf1d80e85bceaa61fe5/sphinx-9.1.1.tar.gz", hash = "sha256:48b627f02908f22c601b3ba9c7b17265b4f315dd05c8bc64cd4da41183f44fbc", size = 8725638, upload-time = "2026-10-20T00:41:13.96Z" }
 wheels = [
@@ -5816,23 +5818,23 @@ resolution-markers = [
     "python_full_version == '3.13.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 dependencies = [
-    { name = "alabaster" },
-    { name = "babel" },
-    { name = "colorama", marker = "sys_platform == 'win32'" },
-    { name = "docutils", version = "0.23", source = { registry = "https://pypi.org/simple" } },
-    { name = "imagesize" },
-    { name = "jinja2" },
-    { name = "packaging" },
-    { name = "pygments" },
-    { name = "requests" },
-    { name = "roman-numerals" },
-    { name = "snowballstemmer" },
-    { name = "sphinxcontrib-applehelp" },
-    { name = "sphinxcontrib-devhelp" },
-    { name = "sphinxcontrib-htmlhelp" },
-    { name = "sphinxcontrib-jsmath" },
-    { name = "sphinxcontrib-qthelp" },
-    { name = "sphinxcontrib-serializinghtml" },
+    { name = "alabaster", marker = "python_full_version >= '3.13'" },
+    { name = "babel", marker = "python_full_version >= '3.13'" },
+    { name = "colorama", marker = "python_full_version >= '3.13' and sys_platform == 'win32'" },
+    { name = "docutils", version = "0.23", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
+    { name = "imagesize", marker = "python_full_version >= '3.13'" },
+    { name = "jinja2", marker = "python_full_version >= '3.13'" },
+    { name = "packaging", marker = "python_full_version >= '3.13'" },
+    { name = "pygments", marker = "python_full_version >= '3.13'" },
+    { name = "requests", marker = "python_full_version >= '3.13'" },
+    { name = "roman-numerals", marker = "python_full_version >= '3.13'" },
+    { name = "snowballstemmer", marker = "python_full_version >= '3.13'" },
+    { name = "sphinxcontrib-applehelp", marker = "python_full_version >= '3.13'" },
+    { name = "sphinxcontrib-devhelp", marker = "python_full_version >= '3.13'" },
+    { name = "sphinxcontrib-htmlhelp", marker = "python_full_version >= '3.13'" },
+    { name = "sphinxcontrib-jsmath", marker = "python_full_version >= '3.13'" },
+    { name = "sphinxcontrib-qthelp", marker = "python_full_version >= '3.13'" },
+    { name = "sphinxcontrib-serializinghtml", marker = "python_full_version >= '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/64/d4/413466f0be8b1cb0e3e43893a148b96d7462d0923d82b4166b21afc5f30c/sphinx-9.2.0.tar.gz", hash = "sha256:90470459f3cab15d9dfed146c71cf77694b0445df17b2e0e69059cb9f7fc9ee4", size = 8782438, upload-time = "2026-10-21T00:05:15.019Z" }
 wheels = [
