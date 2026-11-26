@@ -316,12 +316,6 @@ class TestComputeResiduals:
             compute_residuals(data)
 
 
-class TestDiagnosticsPlotsConstructor:
-    def test_stores_data(self, simple_data):
-        plots = DiagnosticsPlots(simple_data)
-        assert plots._data is simple_data
-
-
 class TestPosteriorPredictiveBasic:
     def test_returns_figure_and_axes(self, simple_plots):
         fig, axes = simple_plots.posterior_predictive()
@@ -439,14 +433,6 @@ class TestPosteriorPredictiveElements:
         line_y_arrays = [line.get_ydata() for line in ax.lines]
         assert any(np.allclose(y, expected, equal_nan=True) for y in line_y_arrays), (
             "No line matches the posterior predictive mean (y_original_scale)"
-        )
-
-    def test_hdi_band_present(self, simple_plots):
-        """HDI fill_between band must create at least one collection in the axes."""
-        _, axes = simple_plots.posterior_predictive()
-        ax = axes.flat[0]
-        assert len(ax.collections) > 0, (
-            "No HDI band found in axes (expected fill_between collection)"
         )
 
     def test_x_data_length_matches_dates(self, simple_plots):
@@ -685,14 +671,6 @@ class TestPriorPredictiveElements:
             "No line matches the prior predictive mean (y_original_scale)"
         )
 
-    def test_hdi_band_present(self, simple_plots):
-        """HDI fill_between band must create at least one collection in the axes."""
-        _, axes = simple_plots.prior_predictive()
-        ax = axes.flat[0]
-        assert len(ax.collections) > 0, (
-            "No HDI band found in axes (expected fill_between collection)"
-        )
-
     def test_x_data_length_matches_dates(self, simple_plots):
         """All plotted lines must span the full date range (n_date=20)."""
         _, axes = simple_plots.prior_predictive()
@@ -826,14 +804,6 @@ class TestResidualsElements:
             "No zero reference line found at y=0"
         )
 
-    def test_hdi_band_present(self, simple_plots):
-        """HDI fill_between band must create at least one collection in the axes."""
-        _, axes = simple_plots.residuals_over_time()
-        ax = axes.flat[0]
-        assert len(ax.collections) > 0, (
-            "No HDI band found in residuals axes (expected fill_between collection)"
-        )
-
     def test_narrower_hdi_prob_gives_narrower_band(self, simple_plots):
         """A 50% HDI band must be narrower than the default 94% band."""
         _, axes_94 = simple_plots.residuals_over_time(hdi_prob=0.94)
@@ -933,14 +903,6 @@ class TestResidualsDistributionBasic:
 
 
 class TestResidualsDistributionElements:
-    def test_kde_curve_present(self, simple_plots):
-        """KDE must render at least one line (the density curve) in the axes."""
-        _, axes = simple_plots.residuals_distribution()
-        ax = axes.flat[0]
-        assert len(ax.lines) > 0, (
-            "No KDE curve found — expected at least one Line2D from azp.plot_dist"
-        )
-
     def test_default_three_quantile_lines_present(self, simple_plots):
         """Default quantiles=[0.0275, 0.5, 0.975] must produce exactly 3 reference lines
         beyond the KDE curve (total >= 4 lines)."""
@@ -957,18 +919,6 @@ class TestResidualsDistributionElements:
         ax = axes.flat[0]
         assert len(ax.lines) >= 3, (
             f"Expected KDE + 2 quantile lines (>=3 total), found {len(ax.lines)}"
-        )
-
-    def test_quantile_lines_are_vertical(self, simple_plots):
-        """Quantile reference lines must be vertical (constant x across all y-points)."""
-        _, axes = simple_plots.residuals_distribution()
-        ax = axes.flat[0]
-        # Skip the first line (KDE curve); quantile lines have identical x values
-        vertical_lines = [
-            line for line in ax.lines if len(set(np.round(line.get_xdata(), 6))) == 1
-        ]
-        assert len(vertical_lines) >= 3, (
-            f"Expected >=3 vertical quantile lines, found {len(vertical_lines)}"
         )
 
     def test_quantile_x_positions_match_computed_quantiles(

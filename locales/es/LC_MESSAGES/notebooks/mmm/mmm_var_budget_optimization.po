@@ -1,0 +1,476 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2026, PyMC Labs
+# This file is distributed under the same license as the PyMC-Marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyMC-Marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-19 21:37+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:10003
+#: 669a7b5f321e4edc87bb034dc14e497c
+msgid "Combining an MMM and a Bayesian VAR in One Budget Decision"
+msgstr ""
+"Combinación de un MMM y un VAR bayesiano en una sola decisión de presupuesto"
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:10005
+#: 3ded2cac46014d72a5f58a783999a7e2
+msgid ""
+"A media mix model (MMM) estimates how channel spend changes a near-term "
+"business outcome, here subscription trial starts. A vector autoregression"
+" with exogenous inputs (VARX) answers a different question: how does the "
+"same spend move persistent engagement indicators, such as app-store "
+"visits and community sign-ups, over time?"
+msgstr ""
+"Un modelo de mezcla de medios (MMM) estima cómo el gasto por canal cambia un"
+" resultado de negocio de corto plazo, aquí los inicios de prueba de la "
+"suscripción. Una autorregresión vectorial con entradas exógenas (VARX) "
+"responde una pregunta distinta: ¿cómo mueve ese mismo gasto, a lo largo del "
+"tiempo, los indicadores de engagement persistentes, como las visitas a la "
+"tienda de aplicaciones y los registros en la comunidad?"
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:10007
+#: e2cc5290035f4aa2893ff6c23a96b5bf
+msgid ""
+"This notebook combines those two views in one budget decision. We fit the"
+" models separately, propagate both posterior distributions into a custom "
+"PyMC-Marketing utility, and compare the resulting allocations. The data, "
+"labels, and coefficients are entirely simulated."
+msgstr ""
+"Este cuaderno combina esas dos perspectivas en una sola decisión de "
+"presupuesto. Ajustamos los modelos por separado, propagamos ambas "
+"distribuciones posteriores a una utilidad personalizada de PyMC-Marketing y "
+"comparamos las asignaciones resultantes. Los datos, las etiquetas y los "
+"coeficientes son completamente simulados."
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:10010
+#: 3bbbbbb950fb4697a9d8c27fb9d3152f
+msgid ""
+"Here, **joint optimization** means that one decision uses both fitted "
+"posterior distributions. It does not mean joint estimation: the MMM and "
+"VARX retain separate likelihoods and separate fits."
+msgstr ""
+"Aquí, **optimización conjunta** significa que una sola decisión usa ambas "
+"distribuciones posteriores ajustadas. No significa estimación conjunta: el "
+"MMM y el VARX conservan verosimilitudes separadas y ajustes separados."
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:20002
+#: 44a6f1e54f9841af9b8a06be2eea2932
+msgid "Prepare Notebook"
+msgstr "Preparar el cuaderno"
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:20004
+#: e2155f2b2e76400c939b7e887c3b26f4
+msgid ""
+"We load the modeling, plotting, and optimization tools used throughout "
+"the notebook."
+msgstr ""
+"Cargamos las herramientas de modelado, graficación y optimización que se "
+"usan a lo largo del cuaderno."
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:50002
+#: fe774de685404784be07332dcc685460
+msgid "Simulate the Marketing System"
+msgstr "Simular el sistema de marketing"
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:50004
+#: 5ee6e985e7fd467e9f9dadfb5a9426f4
+msgid "Suppose a fictional subscription app allocates two weekly channel budgets:"
+msgstr ""
+"Supongamos que una aplicación de suscripción ficticia asigna dos "
+"presupuestos semanales por canal:"
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:50006
+#: 282b9f735b914514ac3b331d6a40d7ef
+msgid ""
+"**Affiliate marketing** generates more trial starts inside the planning "
+"window."
+msgstr ""
+"El **marketing de afiliados** genera más inicios de prueba dentro de la "
+"ventana de planificación."
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:50007
+#: e081351a03274b57a1ce3c3574fa4124
+msgid ""
+"**Creator partnerships** generate fewer immediate trials but have a "
+"larger, persistent effect on app discovery and community growth."
+msgstr ""
+"Las **alianzas con creadores** generan menos pruebas inmediatas, pero tienen"
+" un efecto mayor y persistente en el descubrimiento de la aplicación y el "
+"crecimiento de la comunidad."
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:50009
+#: 3338d6e557424221b6f71f487c62e19b
+msgid ""
+"The two models observe the same spend while measuring different stages of"
+" the acquisition journey."
+msgstr ""
+"Los dos modelos observan el mismo gasto mientras miden etapas distintas del "
+"recorrido de adquisición."
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:10009
+#: 8685c3844aa94ffa91e1e4960dfdeffd
+msgid "Model"
+msgstr "Modelo"
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:10009
+#: faa9bfa77a0549a491cd8d724fac4fbe
+msgid "Outcomes"
+msgstr "Resultados"
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:10009
+#: e4aa0c56f2054e23a55dd0a90ffe1830
+msgid "Role in the decision"
+msgstr "Papel en la decisión"
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:10009
+#: 89e1df906c214f54a9dfa6e52cdfefb2
+msgid "MMM"
+msgstr "MMM"
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:10009
+#: 7a1eb08a8a58450eafcbc40fb2b55446
+msgid "Trial starts"
+msgstr "Inicios de prueba"
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:10009
+#: 4cfa3f2ec8ac438b8b7fbce631cc7f1a
+msgid "Direct, saturating response"
+msgstr "Respuesta directa y con saturación"
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:10009
+#: 947e82d6bfd94ee2b4de327bb8ccea8c
+msgid "VARX"
+msgstr "VARX"
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:10009
+#: e440237d335342ce933b03323eb08a61
+msgid "App-store visits and community sign-ups"
+msgstr "Visitas a la tienda de aplicaciones y registros en la comunidad"
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:10009
+#: b80058f629344ecc90351e265632d75d
+msgid "Persistent engagement response"
+msgstr "Respuesta de engagement persistente"
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:50016
+#: f72d67707ac44e09af0ddccd231c5c14
+msgid ""
+"To keep the mechanism visible, the simulated MMM uses saturation without "
+"adstock. This separates its direct trial-start response from the VARX's "
+"persistent engagement response. A production analysis should use its "
+"validated MMM specification and check that the two objectives do not "
+"count the same effect twice."
+msgstr ""
+"Para mantener visible el mecanismo, el MMM simulado usa saturación sin "
+"adstock. Esto separa su respuesta directa en inicios de prueba de la "
+"respuesta de engagement persistente del VARX. Un análisis de producción "
+"debería usar su especificación de MMM validada y comprobar que los dos "
+"objetivos no cuenten el mismo efecto dos veces."
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:80002
+#: b6011f5630c64cfaaef601e8b0653767
+msgid "Fit the MMM and VARX"
+msgstr "Ajustar el MMM y el VARX"
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:80004
+#: 5b74bec34e9a43feb9644a2c471ece13
+msgid ""
+"The MMM estimates the direct trial-start response. The VARX estimates how"
+" app-store visits and community sign-ups reinforce one another and "
+"respond to channel spend. Separate fits are useful when the outcomes live"
+" in different data products or serve different modeling teams."
+msgstr ""
+"El MMM estima la respuesta directa en inicios de prueba. El VARX estima cómo"
+" se refuerzan mutuamente las visitas a la tienda de aplicaciones y los "
+"registros en la comunidad, y cómo responden al gasto por canal. Los ajustes "
+"separados son útiles cuando los resultados viven en productos de datos "
+"diferentes o los atienden equipos de modelado distintos."
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:80006
+#: 3360f4187f0f46b59a9cd39a9056572d
+msgid ""
+"The sampling settings below keep the documentation runnable. A real "
+"analysis still needs prior predictive checks, model diagnostics, "
+"validation, and sensitivity analysis."
+msgstr ""
+"Los parámetros de muestreo que se muestran a continuación mantienen la "
+"documentación ejecutable. Un análisis real aún necesita chequeos predictivos"
+" previos, diagnósticos del modelo, validación y análisis de sensibilidad."
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:120002
+#: 56799bab656c4f2fae6a04379aeb531a
+msgid "Translate VARX Dynamics into a Decision Quantity"
+msgstr "Traducir la dinámica del VARX en una cantidad para la decisión"
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:120004
+#: 421fdd4cf6014b7facf0f6e76ec55249
+msgid "For a one-lag VARX,"
+msgstr "Para un VARX de un rezago,"
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:120006
+#: 8e8fccc6e5444b2291b417de2b2acc89
+msgid ""
+"\n"
+"z_t = a + A z_{t-1} + B_{\\text{exog}} x_t + \\varepsilon_t,\n"
+msgstr ""
+"\n"
+"z_t = a + A z_{t-1} + B_{\\text{exog}} x_t + \\varepsilon_t,\n"
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:120010
+#: f7d0c78252674a8d933ded5033ba070d
+msgid ""
+"where $z_t$ contains the indicators and $x_t$ contains spend. A one-unit "
+"increase in spend today changes the indicators at horizon $h$ by"
+msgstr ""
+"donde $z_t$ contiene los indicadores y $x_t$ contiene el gasto. Un aumento "
+"de una unidad en el gasto de hoy cambia los indicadores en el horizonte $h$ "
+"en"
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:120012
+#: 054b35dc1ac94283bfebf15e8565b142
+msgid ""
+"\n"
+"\\Psi_h = A^h B_{\\text{exog}}.\n"
+msgstr ""
+"\n"
+"\\Psi_h = A^h B_{\\text{exog}}.\n"
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:120016
+#: 85b34922cdf442f9bbc068e461794c0f
+msgid ""
+"This object is a **dynamic multiplier**. It needs no structural-shock "
+"identification because the planner sets the exogenous input $x_t$. "
+"Impulso's `compute_ma_phi` and `lag_matrices` functions evaluate the "
+"multiplier for every posterior draw. We then accumulate the response "
+"because the planned weekly budget repeats throughout the horizon."
+msgstr ""
+"Este objeto es un **multiplicador dinámico**. No requiere identificar shocks"
+" estructurales porque el planificador fija la entrada exógena $x_t$. Las "
+"funciones `compute_ma_phi` y `lag_matrices` de Impulso evalúan el "
+"multiplicador para cada muestra de la distribución posterior. Luego "
+"acumulamos la respuesta porque el presupuesto semanal planificado se repite "
+"a lo largo del horizonte."
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:150002
+#: 29c774dc271c4a8ca844230ba716ea6f
+msgid ""
+"The VARX gives creator partnerships the larger app-store-visit "
+"multiplier. The gap grows with the horizon because visits lead to "
+"community sign-ups, while community activity creates referrals that feed "
+"visits back."
+msgstr ""
+"El VARX le asigna a las alianzas con creadores el mayor multiplicador de "
+"visitas a la tienda de aplicaciones. La brecha crece con el horizonte porque"
+" las visitas conducen a registros en la comunidad, mientras que la actividad"
+" de la comunidad genera referidos que retroalimentan las visitas."
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:150004
+#: f856f81e332f42a3af6d34df5b283b2e
+msgid ""
+"For a constant weekly allocation $x$ over $H$ weeks, total incremental "
+"app-store visits are"
+msgstr ""
+"Para una asignación semanal constante $x$ durante $H$ semanas, el total de "
+"visitas incrementales a la tienda de aplicaciones es"
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:150006
+#: b146f5feefac4fe0ad38a790d23e1340
+#, python-brace-format
+msgid ""
+"\n"
+"\\sum_{t=0}^{H-1} \\left(\\sum_{h=0}^{t} \\Psi_h\\right)x = c^\\top x.\n"
+msgstr ""
+"\n"
+"\\sum_{t=0}^{H-1} \\left(\\sum_{h=0}^{t} \\Psi_h\\right)x = c^\\top x.\n"
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:150010
+#: 47374f8ab97c4221b8b87f1116b54806
+msgid ""
+"The vector $c$ is the area under the cumulative multiplier curve. We "
+"calculate one $c$ for every VARX posterior draw, then pair those draws "
+"with the MMM's posterior draws. Because the models were fitted "
+"separately, this pairing represents an independence assumption rather "
+"than estimated cross-model dependence."
+msgstr ""
+"El vector $c$ es el área bajo la curva del multiplicador acumulado. "
+"Calculamos un $c$ para cada muestra posterior del VARX y luego emparejamos "
+"esas muestras con las muestras posteriores del MMM. Como los modelos se "
+"ajustaron por separado, este emparejamiento representa un supuesto de "
+"independencia y no una dependencia estimada entre modelos."
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:170002
+#: 42157fba13b14710a2106a3ae84a0876
+msgid "Optimize Across Both Models"
+msgstr "Optimizar a través de ambos modelos"
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:170004
+#: 3eb5b17cf5af4c4aaed5934a13c6ec98
+msgid "The optimizer now evaluates each posterior sample with"
+msgstr "El optimizador ahora evalúa cada muestra posterior con"
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:170006
+#: 5e0bf7c191d44614a534fdbc1908debd
+msgid ""
+"\n"
+"U_w^{(s)}(x) = R_{\\text{MMM}}^{(s)}(x) + w\\,c^{(s)\\top}x,\n"
+msgstr ""
+"\n"
+"U_w^{(s)}(x) = R_{\\text{MMM}}^{(s)}(x) + w\\,c^{(s)\\top}x,\n"
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:170010
+#: 044bef444739414aa5defa4177d7281d
+msgid ""
+"then maximizes the posterior mean subject to the total budget and channel"
+" bounds. $R_{\\text{MMM}}$ is the direct trial-start contribution, "
+"$c^\\top x$ is total app-store activity over the planning window, and $w$"
+" converts app-store visit index points into trial-start-response units."
+msgstr ""
+"luego maximiza la media posterior sujeta al presupuesto total y a los "
+"límites por canal. $R_{\\text{MMM}}$ es la contribución directa en inicios "
+"de prueba, $c^\\top x$ es la actividad total en la tienda de aplicaciones "
+"durante la ventana de planificación y $w$ convierte los puntos del índice de"
+" visitas a la tienda de aplicaciones en unidades de respuesta en inicios de "
+"prueba."
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:170012
+#: f0d5d9332e7148af92740205b5b15930
+msgid ""
+"The custom utility below uses PyMC-Marketing's public utility-function "
+"extension point. It adds the VARX term **draw by draw**, so the objective"
+" retains uncertainty from both models."
+msgstr ""
+"La utilidad personalizada que sigue usa el punto de extensión público de "
+"funciones de utilidad de PyMC-Marketing. Agrega el término del VARX "
+"**muestra por muestra**, de modo que el objetivo conserva la incertidumbre "
+"de ambos modelos."
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:220002
+#: 3caa894c387840d9886c840c62c61512
+msgid ""
+"At weight zero, the custom utility reproduces the MMM-only allocation. As"
+" the planner values app-store visits more highly, the optimizer moves "
+"budget toward creator partnerships while preserving the weekly budget "
+"total. The exercise does not reveal a universal best weight; it exposes "
+"the trade-off so decision-makers can inspect it."
+msgstr ""
+"Con peso cero, la utilidad personalizada reproduce la asignación del MMM "
+"solo. A medida que el planificador valora más las visitas a la tienda de "
+"aplicaciones, el optimizador traslada presupuesto hacia las alianzas con "
+"creadores y mantiene el total del presupuesto semanal. El ejercicio no "
+"revela un peso óptimo universal; expone el balance entre objetivos para que "
+"quienes toman las decisiones puedan examinarlo."
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:220004
+#: e8fb2371a02d4401904e03adfef55ebb
+msgid "Key Takeaways"
+msgstr "Conclusiones clave"
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:220006
+#: b7fc85c8e7924696b98c1d2ca8a70e5a
+msgid ""
+"**One decision can use two fitted models.** Separately fitted Bayesian "
+"models can inform a single PyMC-Marketing budget allocation."
+msgstr ""
+"**Una decisión puede usar dos modelos ajustados.** Modelos bayesianos "
+"ajustados por separado pueden informar una única asignación de presupuesto "
+"de PyMC-Marketing."
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:220007
+#: ca404d6643b246fc8e25cd8e9e210e94
+msgid ""
+"**Dynamic multipliers connect models to decisions.** The VARX trajectory "
+"becomes the linear term needed to value a repeated weekly allocation."
+msgstr ""
+"**Los multiplicadores dinámicos conectan los modelos con las decisiones.** "
+"La trayectoria del VARX se convierte en el término lineal necesario para "
+"valorar una asignación semanal repetida."
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:220008
+#: 7ae3abccab784da78eaf73710b227291
+msgid ""
+"**Draw-wise composition preserves uncertainty.** Combining responses for "
+"each posterior draw supports later extensions to risk-sensitive utilities"
+" or probabilistic constraints."
+msgstr ""
+"**La composición muestra por muestra preserva la incertidumbre.** Combinar "
+"las respuestas para cada muestra posterior permite extensiones posteriores a"
+" utilidades sensibles al riesgo o a restricciones probabilísticas."
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:220010
+#: 387aeb7465c3435e9b3448a2872a0789
+msgid "Practical Considerations"
+msgstr "Consideraciones prácticas"
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:220012
+#: 2021a804de994e6c8006d1d7fd26cee6
+msgid ""
+"**Posterior propagation is not joint estimation.** Independent fits "
+"cannot learn cross-model parameter or shock correlation."
+msgstr ""
+"**La propagación de la distribución posterior no es estimación conjunta.** "
+"Los ajustes independientes no pueden aprender la correlación entre "
+"parámetros o shocks de los distintos modelos."
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:220013
+#: d88b82dac1a54c25a097fe18281c1d27
+msgid ""
+"**Exogeneity is an assumption.** The multiplier supports an intervention "
+"only when the planner sets spend independently of unmodeled indicator "
+"shocks."
+msgstr ""
+"**La exogeneidad es un supuesto.** El multiplicador respalda una "
+"intervención solo cuando el planificador fija el gasto de forma "
+"independiente de los shocks no modelados de los indicadores."
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:220014
+#: 47a1096883fb4d18b4fd30133365a05d
+msgid ""
+"**The weight is a business exchange rate.** Inspect a range of values "
+"rather than reporting one allocation without sensitivity analysis."
+msgstr ""
+"**El peso es un tipo de cambio de negocio.** Inspeccione un rango de valores"
+" en lugar de informar una sola asignación sin análisis de sensibilidad."
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:220015
+#: 28af09b22efa4ef19453bb6dbd3afdf4
+msgid ""
+"**Avoid double counting.** Keep the VARX response distinct from effects "
+"already represented in the MMM target and transformations."
+msgstr ""
+"**Evite el doble conteo.** Mantenga la respuesta del VARX distinta de los "
+"efectos ya representados en la variable objetivo y en las transformaciones "
+"del MMM."
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:220016
+#: b9eedcc36a8d4189951aef1e298f4f4e
+msgid ""
+"**Linear VARX effects do not saturate.** Realistic budget bounds become "
+"important when the persistent term receives a large weight."
+msgstr ""
+"**Los efectos lineales del VARX no se saturan.** Los límites de presupuesto "
+"realistas se vuelven importantes cuando el término persistente recibe un "
+"peso grande."
+
+#: ../source/notebooks/mmm/mmm_var_budget_optimization.ipynb:220017
+#: 7b83bbc7e03e4b229f1f2a586ef30fd2
+msgid ""
+"**This plan repeats one weekly allocation.** A pacing problem needs a "
+"time-varying decision vector and the full multiplier matrix."
+msgstr ""
+"**Este plan repite una sola asignación semanal.** Un problema de ritmo de "
+"inversión necesita un vector de decisión que varíe en el tiempo y la matriz "
+"completa de multiplicadores."

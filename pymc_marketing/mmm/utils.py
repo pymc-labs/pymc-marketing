@@ -360,12 +360,11 @@ def create_zero_dataset(
     with :meth:`~pymc_marketing.mmm.mmm.MMM.create_optimization_model`,
     ``pm.set_data`` those variables on it, and hand that model to
     ``BudgetOptimizer`` directly.  That model's date axis is three blocks,
-    ``carry_in + decisions + carry_over``, each flank
-    :meth:`~pymc_marketing.mmm.mmm.MMM.effective_carryover_lags` wide, so pass
-    ``carry_in_periods=mmm.effective_carryover_lags()`` and
-    ``adstock_periods=mmm.effective_carryover_lags()`` along with
-    ``num_periods`` (``BudgetOptimizer`` checks that the three add up to the
-    axis and says so if they do not).
+    ``carry_in + decisions + carry_over``;
+    :meth:`~pymc_marketing.mmm.mmm.MMM.window_layout` counts them, so pass its
+    ``carry_in``, ``decisions`` and ``carry_over`` as ``carry_in_periods``,
+    ``num_periods`` and ``adstock_periods`` (``BudgetOptimizer`` checks that
+    the three add up to the axis and says so if they do not).
 
     An effect variable whose coordinate labels do not cover the shared index
     (a ``channel``-dimensioned variable carrying a subset of the channels, say)

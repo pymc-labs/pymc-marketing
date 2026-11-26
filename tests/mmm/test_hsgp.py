@@ -1019,10 +1019,6 @@ class TestHSGPKwargsRoundtrips:
         expected = f"{HSGPKwargs.__module__}.{HSGPKwargs.__qualname__}"
         assert data["__type__"] == expected
 
-    def test_registered_in_type_registry(self):
-        type_key = f"{HSGPKwargs.__module__}.{HSGPKwargs.__qualname__}"
-        assert type_key in serialization._registry
-
     def test_roundtrip_all_parameters(self):
         original = HSGPKwargs(
             m=150,

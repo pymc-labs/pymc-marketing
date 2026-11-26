@@ -89,6 +89,13 @@ How it works
 - During ``MMM.build_model(...)``, each effect's ``create_data`` is called first to
   introduce any needed ``pmd.Data``. Then ``create_effect`` must return a tensor with
   dims ``("date", *mmm.dims)`` that is added additively to the model mean.
+- Random variables in an effect may come from ``pymc.dims`` or from ``pymc``. Wrap a
+  ``pymc`` variable with ``as_xtensor``, and pass ``dims=`` to the ``pymc``
+  distribution when the variable has any axes: analyses conditioned on the
+  posterior read its draws by dim name, and incrementality refuses to read a
+  ``pymc`` variable with axes but no ``dims``. An effect that opts into incrementality must
+  register its contribution with ``pmd.Deterministic``; incrementality refuses one
+  registered with ``pm.Deterministic``.
 - During posterior predictive, ``set_data`` is called with the cloned PyMC model
   and the new coordinates; update any ``pmd.Data`` you created using ``pm.set_data``.
 
@@ -793,6 +800,27 @@ class MuEffect(SerializableBaseModel, ABC):
         optimizer refuses any objective that reaches a frozen path over ``date``; an
         effect that freezes one should also override ``supports_new_dates`` to
         return ``False``, so that prediction on other dates is refused.
+
+        A free random variable with a ``date`` dimension holds its draws over all
+        fitted dates. Where its ``date`` axis meets a windowed one (spend,
+        ``time_index``, date-indexed data or a frozen path) in a term the
+        increment reads on each window, incrementality evaluates every period on
+        the full date axis and warns, which is correct but slower than a window.
+        A variable that only adds to the linear predictor keeps the windows for a
+        total, since a total reads the predictor on the full axis only; a request
+        for the direct or mediated path reads it on each window. To keep the
+        windows, list a date-indexed Deterministic of the variable's own path,
+        taken before it meets that axis and so not reading the channel data, such
+        as the cumulative sum of a random walk's steps. A listed path is cut to
+        each window before the graph reads it, so a sum, cumulative sum or mean
+        over ``date`` taken after it covers only the window: list the variable
+        itself only when the graph reads it date by date up to that point. Listing
+        a deterministic that only renames the variable, such as
+        ``Deterministic(name, rv)``, currently raises a ``KeyError`` in
+        incrementality. Only a dimension named ``date`` counts: incrementality does
+        not notice a variable over the fitted dates declared under another
+        dimension name and can read it at the wrong dates, so declare such a
+        variable over ``date`` or list its path here.
         """
         return []
 

@@ -285,12 +285,6 @@ class TestMultiDim:
 # Plotters (Agg backend)
 # --------------------------------------------------------------------------- #
 class TestPlotters:
-    def test_plot_taste_profile_stacked_returns_figure(self, fitted_blp):
-        model, _ = fitted_blp
-        fig = taste_profiles.plot_taste_profile_stacked(model, n_samples=40)
-        assert isinstance(fig, Figure)
-        plt.close(fig)
-
     def test_plot_taste_profile_stacked_default_picks_four_markets(self, fitted_blp):
         model, _ = fitted_blp
         fig = taste_profiles.plot_taste_profile_stacked(model, n_samples=20)

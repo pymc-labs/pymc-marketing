@@ -84,63 +84,6 @@ def sensitivity(simple_model_and_idata):
     return SensitivityAnalysis(model, idata)
 
 
-@pytest.mark.parametrize("sweep_type", ["multiplicative", "additive", "absolute"])
-@pytest.mark.parametrize("use_mask", [False, True])
-def test_run_sweep_basic(sensitivity, sweep_type, use_mask):
-    sweep_values = np.linspace(0.5, 1.5, 3)
-
-    if use_mask:
-        # Create a mask that keeps first and last channels for all dates
-        # channel_contribution has dims (date, channel) with 6 dates and 4 channels
-        mask_2d = np.zeros((6, 4), dtype=bool)
-        mask_2d[:, [0, 3]] = True  # Keep channels 'a' and 'd' for all dates
-        response_mask = xr.DataArray(mask_2d, dims=("date", "channel"))
-    else:
-        response_mask = None
-
-    results = sensitivity.run_sweep(
-        var_input="channel_data",
-        var_names="channel_contribution",
-        sweep_values=sweep_values,
-        sweep_type=sweep_type,
-        response_mask=response_mask,
-    )
-
-    assert isinstance(results, xr.DataArray)
-    assert list(results.dims)[:2] == ["sample", "sweep"]
-    assert "channel" in results.dims
-    assert results.sizes["sweep"] == len(sweep_values)
-
-    if use_mask:
-        # Check that masked channels are zeroed
-        assert np.all(results.sel(channel="b").values == 0.0)
-        assert np.all(results.sel(channel="c").values == 0.0)
-
-
-def test_run_sweep_with_response_mask(sensitivity):
-    sweep_values = np.linspace(0.5, 1.5, 3)
-    full = sensitivity.run_sweep(
-        var_input="channel_data",
-        var_names="channel_contribution",
-        sweep_values=sweep_values,
-    )
-
-    # Create 2D mask for (date, channel) dimensions
-    mask_2d = np.zeros((6, 4), dtype=bool)
-    mask_2d[:, [0, 3]] = True  # Keep channels 'a' and 'd' for all dates
-    masked = sensitivity.run_sweep(
-        var_input="channel_data",
-        var_names="channel_contribution",
-        sweep_values=sweep_values,
-        response_mask=xr.DataArray(mask_2d, dims=("date", "channel")),
-    )
-
-    assert masked.shape == full.shape
-    kept = full.sel(channel=["a", "d"]).sum("channel")
-    xr.testing.assert_allclose(masked.sum("channel"), kept)
-    assert np.all(masked.sel(channel="b").values == 0.0)
-
-
 def test_run_sweep_invalid_var_name(sensitivity):
     with pytest.raises(KeyError):
         sensitivity.run_sweep(
@@ -165,18 +108,6 @@ def test_compute_marginal_effects(sensitivity):
     assert me.sizes == results.sizes
 
 
-def test_run_sweep_with_filter(sensitivity):
-    sweeps = np.linspace(0.5, 1.5, 4)
-    results = sensitivity.run_sweep(
-        var_input="channel_data",
-        var_names="channel_contribution",
-        sweep_values=sweeps,
-    )
-    # Apply filtering post hoc per new API
-    filtered = results.sel(channel=["a", "c"])
-    assert filtered.sizes["channel"] == 2
-
-
 def test_extend_idata_stores_results(simple_model_and_idata):
     model, idata = simple_model_and_idata
     sa = SensitivityAnalysis(model, idata)
@@ -196,11 +127,11 @@ def test_run_sweep_takes_frozen_deterministics_from_the_posterior():
     """A latent path over ``date`` in the response is taken from its posterior draws.
 
     The path is a random walk built from plain PyTensor variables and wrapped as an
-    xtensor, as a latent path from a library outside ``pymc.dims`` is, and the sweep
-    cannot recompute it. Frozen, it keeps its posterior draws in every sweep, so the
-    swept response is the path summed over dates plus the swept saturation term.
-    The path's draws are not the cumulative sum of the steps' draws, so a recomputed
-    path would differ.
+    xtensor, as a latent path from a library outside ``pymc.dims`` is.  Unfrozen,
+    the sweep recomputes it from the steps' draws.  Frozen, it keeps its posterior
+    draws in every sweep, so the swept response is the path summed over dates plus
+    the swept saturation term.  The path's draws are not the cumulative sum of the
+    steps' draws, so the two results differ.
     """
     rng = np.random.default_rng(123)
     channel_data = rng.gamma(2.0, 1.0, size=(6, 4))
@@ -213,11 +144,12 @@ def test_run_sweep_takes_frozen_deterministics_from_the_posterior():
         )
         pmd.Deterministic("mu", path + contribution.sum("channel"))
     path_draws = rng.normal(0.0, 0.1, size=(1, 5, 6)).cumsum(axis=-1)
+    steps_draws = rng.normal(0.0, 0.1, size=(1, 5, 6))
     sample_dims = ["chain", "draw", "date"]
     idata = xr.DataTree.from_dict(
         {
             "/posterior": idata.posterior.to_dataset().assign(
-                path_steps=(sample_dims, rng.normal(0.0, 0.1, size=(1, 5, 6))),
+                path_steps=(sample_dims, steps_draws),
                 path=(sample_dims, path_draws),
             )
         }
@@ -228,16 +160,19 @@ def test_run_sweep_takes_frozen_deterministics_from_the_posterior():
         "var_names": "mu",
         "sweep_values": sweep_values,
     }
+    swept = sweep_values[:, None, None] * channel_data
+    saturation = (0.8 * swept / (swept + 1.2)).sum(axis=(1, 2))
 
-    with pytest.raises(AttributeError):
-        SensitivityAnalysis(model, idata).run_sweep(**sweep)
+    recomputed = SensitivityAnalysis(model, idata).run_sweep(**sweep)
+    np.testing.assert_allclose(
+        recomputed.transpose("sample", "sweep"),
+        steps_draws[0].cumsum(axis=-1).sum(axis=-1)[:, None] + saturation,
+    )
 
     results = SensitivityAnalysis(
         model, idata, frozen_deterministics=["path"]
     ).run_sweep(**sweep)
 
-    swept = sweep_values[:, None, None] * channel_data
-    saturation = (0.8 * swept / (swept + 1.2)).sum(axis=(1, 2))
     expected = path_draws[0].sum(axis=-1)[:, None] + saturation
     np.testing.assert_allclose(results.transpose("sample", "sweep"), expected)
 

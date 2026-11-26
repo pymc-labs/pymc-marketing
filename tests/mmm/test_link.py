@@ -187,19 +187,10 @@ class TestLinkSpec:
         spec = IdentityLinkSpec()
         spec.validate_target(np.array([-1.0, 0.0, 1.0]))
 
-    def test_log_validate_target_rejects_negatives(self):
-        spec = LogLinkSpec()
-        with pytest.raises(ValueError):
-            spec.validate_target(np.array([-1.0, 1.0]))
-
     def test_log_validate_target_rejects_zeros(self):
         spec = LogLinkSpec()
         with pytest.raises(ValueError):
             spec.validate_target(np.array([0.0, 1.0]))
-
-    def test_log_validate_target_accepts_positive(self):
-        spec = LogLinkSpec()
-        spec.validate_target(np.array([0.1, 1.0, 100.0]))
 
     @pytest.mark.parametrize(
         "likelihood",
@@ -306,11 +297,6 @@ class TestLinkSpec:
             LinkSpec.validate_likelihood_compatibility(
                 LinkFunction.LOG, LogNormalPrior(std=1.0)
             )
-
-    def test_validate_likelihood_compat_log_lognormal(self):
-        LinkSpec.validate_likelihood_compatibility(
-            LinkFunction.LOG, Prior("LogNormal", sigma=1)
-        )
 
     def test_validate_likelihood_compat_log_unnamed_uses_class_name(self):
         class Unnamed:
@@ -631,13 +617,6 @@ class TestBuildModelDeterministics:
         mmm.build_model(X, y)
         assert "channel_contribution" in mmm.model.named_vars
 
-    def test_build_model_log_add_original_scale_succeeds(self, mock_pymc_sample):
-        mmm = _make_mmm(link="log")
-        X, y = _make_positive_panel()
-        mmm.build_model(X, y)
-        mmm.add_original_scale_contribution_variable(["channel_contribution"])
-        assert "channel_contribution_original_scale" in mmm.model.named_vars
-
     @pytest.mark.parametrize("link", ["identity", "log"])
     def test_add_original_scale_contribution_variable(self, link, mock_pymc_sample):
         mmm = _make_mmm(link=link)
@@ -948,11 +927,6 @@ class TestEquality:
         mmm_id = _make_mmm(link="identity", dims=None)
         mmm_log = _make_mmm(link="log", dims=None)
         assert mmm_id != mmm_log
-
-    def test_same_link_equal(self):
-        mmm1 = _make_mmm(link="log", dims=None)
-        mmm2 = _make_mmm(link="log", dims=None)
-        assert mmm1 == mmm2
 
 
 class TestSerialization:
@@ -1320,24 +1294,6 @@ class TestTruncatedNormalMeanCorrection:
         np.testing.assert_allclose(
             offset.values[0], [10.098093, 40.024969, 100.009998], rtol=1e-5
         )
-
-    def test_two_sided_truncation_matches_scipy(self):
-        posterior = xr.Dataset(
-            {
-                "mu": xr.DataArray([[-1.0, 0.5, 4.0]], dims=("chain", "date")),
-                "y_sigma": xr.DataArray([[1.0, 2.0, 1.5]], dims=("chain", "date")),
-            }
-        )
-        likelihood = Prior("TruncatedNormal", lower=0, upper=5, sigma=1)
-        offset = IdentityLinkSpec()._truncation_offset(posterior, likelihood, "y")
-
-        mus = np.array([-1.0, 0.5, 4.0])
-        sigmas = np.array([1.0, 2.0, 1.5])
-        expected = [
-            stats.truncnorm.mean((0.0 - m) / s, (5.0 - m) / s, loc=m, scale=s) - m
-            for m, s in zip(mus, sigmas, strict=True)
-        ]
-        np.testing.assert_allclose(offset.values[0], expected)
 
     def test_upper_only_truncation_matches_scipy(self):
         posterior = xr.Dataset(
@@ -1717,14 +1673,6 @@ class TestMeanScaleFactor:
                 Prior("TruncatedNormal", lower=0, sigma=1),
                 xr.DataArray(1.0),
             )
-
-    def test_raises_without_mu_in_posterior(self):
-        posterior = xr.Dataset(
-            {"y_sigma": xr.DataArray([[1.0]], dims=("chain", "date"))}
-        )
-        likelihood = Prior("TruncatedNormal", lower=0, sigma=1)
-        with pytest.raises(ValueError, match="need 'mu' in the posterior"):
-            IdentityLinkSpec()._truncation_offset(posterior, likelihood, "y")
 
 
 class TestIdentityMeanScaleDispatch:

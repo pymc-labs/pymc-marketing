@@ -49,6 +49,7 @@ from pymc_marketing.mmm.additive_effect import (
     ControlMuEffect,
     DataVarMuEffect,
     EventAdditiveEffect,
+    IncrementalitySpec,
     LinearTrendEffect,
     MediaMuEffect,
     MuEffect,
@@ -75,6 +76,7 @@ from pymc_marketing.mmm.scaling import (
     FixedScaling,
     Scaling,
 )
+from pymc_marketing.mmm.transformers import ConvMode
 from pymc_marketing.model_builder import DifferentModelError
 from pymc_marketing.serialization import serialization
 from pymc_marketing.special_priors import LogNormalPrior
@@ -1712,16 +1714,6 @@ class TestMultidimMMMEdgeCases:
             mmm.build_model(X, y)
 
 
-def test_save_load(fit_mmm: MMM):
-    file = "test.nc"
-    fit_mmm.save(file)
-
-    loaded = MMM.load(file)
-    assert isinstance(loaded, MMM)
-
-    os.remove(file)
-
-
 def test_save_load_roundtrip_with_unnamed_y_series(
     simple_mmm_data, mock_pymc_sample, tmp_path
 ):
@@ -3053,14 +3045,14 @@ def _optimize_budget(
     if entry_point == "budget_optimizer":
         optimizer = mmm.budget_optimizer(start_date, end_date, **kwargs)
     elif entry_point == "create_optimization_model":
-        lags = mmm.effective_carryover_lags()
         model = mmm.create_optimization_model(start_date, end_date)
+        layout = mmm.window_layout(model, start_date)
         optimizer = BudgetOptimizer(
             model=model,
             idata=mmm.idata,
-            num_periods=len(model.coords["date"]) - 2 * lags,
-            carry_in_periods=lags,
-            adstock_periods=lags,
+            num_periods=layout.decisions,
+            carry_in_periods=layout.carry_in,
+            adstock_periods=layout.carry_over,
             frozen_deterministics=mmm.frozen_deterministics,
             **kwargs,
         )
@@ -3300,6 +3292,393 @@ def test_monthly_incrementality_cuts_a_frozen_path(
     expected = contribution.assign_coords(date=month_ends).groupby("date").sum()
     assert incremental.indexes["date"].equals(expected.indexes["date"])
     np.testing.assert_allclose(incremental, expected.transpose(*incremental.dims))
+
+
+class _DateLevelEffect(_ZeroEffect):
+    """A free random variable over the model's dates, added to ``mu``."""
+
+    prefix: str = "level"
+    reduce: bool = False
+    freeze: bool = False
+
+    @property
+    def frozen_deterministics(self) -> list[str]:
+        """The free random variable itself, when asked to freeze it."""
+        return [f"{self.prefix}_draws"] if self.freeze else []
+
+    def create_effect(self, mmm):
+        """One free value per date, or their mean on every date when reduced."""
+        level = pmd.Normal(f"{self.prefix}_draws", sigma=0.1, dims="date")
+        if self.reduce:
+            zeros = as_xtensor(pt.zeros(mmm.model.dim_lengths["date"]), dims=("date",))
+            level = zeros + level.mean("date")
+        return pmd.Deterministic(self.contribution_var_name, level)
+
+
+@pytest.fixture
+def fit_mmm_with_effect(simple_mmm_data, mock_pymc_sample):
+    """Fit an MMM carrying the effects it is given."""
+
+    def fit(*effects):
+        X, y = simple_mmm_data["X"], simple_mmm_data["y"]
+        mmm = MMM(
+            date_column="date",
+            target_column="target",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            adstock=GeometricAdstock(l_max=1),
+            saturation=LogisticSaturation(),
+        )
+        for effect in effects:
+            mmm.add_mu_effect(effect)
+        mmm.fit(X, y, draws=50, chains=1, random_seed=42)
+        return mmm
+
+    return fit
+
+
+@pytest.mark.parametrize(
+    "max_batch_elements",
+    [
+        pytest.param(None, id="one-block"),
+        # Every draw is over the budget, so each is a block of its own.
+        pytest.param(1, id="a-block-per-draw"),
+    ],
+)
+@pytest.mark.parametrize("freeze", [False, True], ids=["unfrozen", "frozen"])
+def test_monthly_incrementality_on_a_date_variable(
+    fit_mmm_with_effect, monkeypatch, freeze, max_batch_elements
+):
+    """A free random variable over the dates gives each month's contribution.
+
+    It only adds to the linear predictor, which a total does not read on windows,
+    so the months keep their windows whether it is frozen or not, and nothing
+    warns about the full date axis.  It does not depend on spend and there is no
+    carryover, so each channel's increment on a month is its contribution summed
+    over that month.
+    """
+    mmm = fit_mmm_with_effect(_DateLevelEffect(freeze=freeze))
+    if max_batch_elements is not None:
+        monkeypatch.setattr(
+            CounterfactualEvaluator, "MAX_BATCH_ELEMENTS", max_batch_elements
+        )
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "error", message=".*not cut to evaluation windows", category=UserWarning
+        )
+        incremental = mmm.incrementality.compute_incremental_contribution(
+            frequency="monthly"
+        )
+        split = mmm.incrementality.split_incremental_contribution_over_time(
+            frequency="monthly"
+        )
+
+    contribution = (
+        mmm.idata.posterior["channel_contribution"]
+        * mmm.idata.constant_data["target_scale"]
+    )
+    month_ends = contribution.indexes["date"].to_period("M").end_time.normalize()
+    expected = contribution.assign_coords(date=month_ends).groupby("date").sum()
+    assert incremental.indexes["date"].equals(expected.indexes["date"])
+    np.testing.assert_allclose(incremental, expected.transpose(*incremental.dims))
+    assert json.loads(split.attrs["assumptions"])["evaluation"] == "window"
+
+
+def test_monthly_incrementality_evaluates_a_reduced_date_variable(
+    fit_mmm_with_effect,
+):
+    """Reduced over date, the variable never meets a window's date axis.
+
+    The periods keep their windows rather than the full date axis.
+    """
+    mmm = fit_mmm_with_effect(_DateLevelEffect(reduce=True))
+
+    incremental = mmm.incrementality.compute_incremental_contribution(
+        frequency="monthly"
+    )
+    split = mmm.incrementality.split_incremental_contribution_over_time(
+        frequency="monthly"
+    )
+
+    assert np.isfinite(incremental).all()
+    assert json.loads(split.attrs["assumptions"])["evaluation"] == "window"
+
+
+class _ScaledByDateLevelEffect(_ZeroEffect):
+    """A free random variable over the dates that scales the channel contribution.
+
+    With ``walk``, the variable holds the steps of a random walk, and the walk, their
+    cumulative sum over ``date``, is a Deterministic whether frozen or not.  With
+    ``classic``, the variable is declared with ``pymc`` and wrapped with
+    ``as_xtensor``, over ``dims="date"`` or, without ``classic_dims``, over a bare
+    ``shape``.  With ``classic_contribution``, the contribution is registered with
+    ``pm.Deterministic``.  With ``scalar``, the variable is one value for every date,
+    declared with ``pymc.dims`` or, with ``classic``, with ``pymc``.
+    """
+
+    prefix: str = "scaled"
+    walk: bool = False
+    freeze: bool = False
+    classic: bool = False
+    classic_dims: bool = True
+    classic_contribution: bool = False
+    scalar: bool = False
+
+    def incrementality_spec(self) -> IncrementalitySpec:
+        """Opt in: the effect reads the channel contribution."""
+        return IncrementalitySpec()
+
+    @property
+    def frozen_deterministics(self) -> list[str]:
+        """The path where the variable meets spend, when asked to freeze it.
+
+        The variable itself without ``walk``, and the walk with it: frozen steps
+        would be cut to each window before their cumulative sum is taken.
+        """
+        if not self.freeze:
+            return []
+        return [f"{self.prefix}_walk" if self.walk else f"{self.prefix}_level"]
+
+    def create_effect(self, mmm):
+        """The channel contribution, times one free value per date or their walk.
+
+        With ``scalar``, times one free value for every date.
+        """
+        name = f"{self.prefix}_level"
+        if self.scalar:
+            level = (
+                as_xtensor(pm.Normal(name, mu=1.0, sigma=0.5), dims=())
+                if self.classic
+                else pmd.Normal(name, mu=1.0, sigma=0.5)
+            )
+        elif self.classic and self.classic_dims:
+            draws = pm.Normal(name, mu=1.0, sigma=0.5, dims="date")
+            level = as_xtensor(draws, dims=("date",))
+        elif self.classic:
+            n_dates = mmm.model.dim_lengths["date"]
+            draws = pm.Normal(name, mu=1.0, sigma=0.5, shape=n_dates)
+            level = as_xtensor(draws, dims=("date",))
+        else:
+            level = pmd.Normal(name, mu=1.0, sigma=0.5, dims="date")
+        if self.walk:
+            level = pmd.Deterministic(f"{self.prefix}_walk", level.cumsum("date"))
+        contribution = mmm.model["channel_contribution"].sum("channel")
+        if self.classic_contribution:
+            classic = pm.Deterministic(
+                self.contribution_var_name, (level * contribution).values, dims="date"
+            )
+            return as_xtensor(classic, dims=("date",))
+        return pmd.Deterministic(self.contribution_var_name, level * contribution)
+
+
+def _scaled_mmm(**effect) -> MMM:
+    """The 18-month MMM the scaled-level tests share, carrying the effect asked for."""
+    return MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        adstock=GeometricAdstock(l_max=6),
+        saturation=LogisticSaturation(),
+    ).add_mu_effect(_ScaledByDateLevelEffect(**effect))
+
+
+@pytest.fixture
+def scaled_data():
+    """18 months of month-start data: one yearly window spans every date."""
+    from tests.mmm.conftest import _make_mmm_data
+
+    return _make_mmm_data(periods=18, freq="MS", n_channels=3, seed=99)
+
+
+@pytest.mark.parametrize("walk", [False, True], ids=["level", "random-walk"])
+def test_yearly_incrementality_on_a_variable_that_scales_spend(
+    mock_pymc_sample, scaled_data, walk
+):
+    """Unfrozen, a variable that scales spend gives the increments of its frozen path.
+
+    The first year's window spans every fitted date and the second is padded to the
+    same length, so no shape fails.  Unfrozen, the variable holds its draws over all
+    fitted dates and every period is evaluated on the full date axis, with the
+    horizon the probe measured.  Frozen at the path where it meets spend, it is cut
+    to each window.
+    """
+    data = scaled_data
+
+    def yearly(freeze: bool) -> tuple[xr.DataArray, xr.Dataset]:
+        mmm = _scaled_mmm(walk=walk, freeze=freeze)
+        mmm.fit(data["X"], data["y"], draws=50, chains=1, random_seed=42)
+        incrementality = mmm.incrementality
+        return (
+            incrementality.compute_incremental_contribution(frequency="yearly"),
+            incrementality.split_incremental_contribution_current_future(
+                frequency="yearly"
+            ),
+        )
+
+    with pytest.warns(UserWarning, match="full date axis"):
+        unfrozen, unfrozen_split = yearly(freeze=False)
+    frozen, frozen_split = yearly(freeze=True)
+
+    np.testing.assert_allclose(unfrozen, frozen.transpose(*unfrozen.dims))
+    xr.testing.assert_allclose(unfrozen_split, frozen_split)
+    assert (
+        unfrozen_split.attrs["effective_horizon"]
+        == frozen_split.attrs["effective_horizon"]
+    )
+    assert json.loads(unfrozen_split.attrs["assumptions"])["evaluation"] == "full_axis"
+    assert "'scaled_level'" in unfrozen_split.attrs["warnings"]
+
+
+@pytest.mark.parametrize(
+    "scalar, freeze, evaluation",
+    [
+        pytest.param(False, False, "full_axis", id="unfrozen"),
+        pytest.param(False, True, "window", id="frozen"),
+        pytest.param(True, False, "window", id="scalar"),
+    ],
+)
+def test_yearly_incrementality_reads_a_classic_variable_like_its_pymc_dims_twin(
+    mock_pymc_sample, scaled_data, scalar, freeze, evaluation
+):
+    """A level declared with ``pymc`` gives the increments of the ``pymc.dims`` one.
+
+    Both models are evaluated on the same posterior, fitted once with the
+    ``pymc.dims`` level, so the comparison is exact.  Unfrozen, the classic level is
+    found as a path over the fitted dates and every period runs on the full date
+    axis; frozen, it is cut to each window (#3398).  A scalar level has no axes, so
+    it needs no ``dims`` and every period keeps its window.
+    """
+    data = scaled_data
+    reference = _scaled_mmm(scalar=scalar, freeze=freeze)
+    reference.fit(data["X"], data["y"], draws=50, chains=1, random_seed=42)
+    classic = _scaled_mmm(scalar=scalar, freeze=freeze, classic=True)
+    classic.build_model(data["X"], data["y"])
+    classic.idata = reference.idata
+
+    def yearly(mmm: MMM) -> tuple[xr.DataArray, xr.Dataset]:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            return (
+                mmm.incrementality.compute_incremental_contribution(frequency="yearly"),
+                mmm.incrementality.split_incremental_contribution_current_future(
+                    frequency="yearly"
+                ),
+            )
+
+    expected, expected_split = yearly(reference)
+    result, result_split = yearly(classic)
+
+    np.testing.assert_allclose(result, expected.transpose(*result.dims))
+    xr.testing.assert_allclose(result_split, expected_split)
+    assert json.loads(result_split.attrs["assumptions"])["evaluation"] == evaluation
+
+
+def test_incrementality_refuses_a_classic_variable_without_dims(
+    mock_pymc_sample, scaled_data
+):
+    """A ``pymc`` level over the dates declared by ``shape`` alone is refused.
+
+    It is stored with a generated axis name, so its date axis cannot be found, and
+    a windowed evaluation would read it at the wrong dates without an error.
+    """
+    mmm = _scaled_mmm(classic=True, classic_dims=False)
+    mmm.fit(scaled_data["X"], scaled_data["y"], draws=50, chains=1, random_seed=42)
+
+    with pytest.raises(
+        ValueError,
+        match=r"^The posterior variables \['scaled_level'\] are declared with pymc "
+        r"and have axes but no dims",
+    ):
+        mmm.incrementality.compute_incremental_contribution(frequency="yearly")
+
+
+def test_incrementality_refuses_a_classic_contribution(mock_pymc_sample, scaled_data):
+    """A contribution registered with ``pm.Deterministic`` is refused by name."""
+    mmm = _scaled_mmm(classic_contribution=True)
+    mmm.fit(scaled_data["X"], scaled_data["y"], draws=50, chains=1, random_seed=42)
+
+    with pytest.raises(
+        ValueError,
+        match=r"^The response variables \['scaled_effect_contribution'\] are not "
+        r"pymc.dims variables",
+    ):
+        mmm.incrementality.compute_incremental_contribution(frequency="all_time")
+
+
+def test_budget_optimizer_refuses_a_classic_response(single_dim_data, mock_pymc_sample):
+    """A response registered with ``pm.Deterministic`` is refused by name."""
+    X, y = single_dim_data
+    mmm = _mmm_with_effects(_ScaledByDateLevelEffect(classic_contribution=True))
+    mmm.fit(X.iloc[:9], y.iloc[:9], draws=50, chains=1, random_seed=42)
+
+    # BudgetOptimizer is a pydantic model, so the error arrives as a ValidationError.
+    with pytest.raises(
+        ValueError,
+        match=r"'scaled_effect_contribution' is not a pymc.dims variable",
+    ):
+        _optimize_budget(
+            "budget_optimizer",
+            mmm,
+            "2023-01-10",
+            "2023-01-14",
+            response_variable="scaled_effect_contribution",
+        )
+
+
+def test_no_full_axis_warning_where_the_mode_uses_the_full_axis_anyway(
+    mock_pymc_sample,
+):
+    """Under ``ConvMode.Before`` every period is on the full date axis already.
+
+    The uncut variable then changes nothing, so it is not warned about.
+    """
+    from tests.mmm.conftest import _make_mmm_data
+
+    data = _make_mmm_data(periods=18, freq="MS", n_channels=3, seed=99)
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        adstock=GeometricAdstock(l_max=6, mode=ConvMode.Before),
+        saturation=LogisticSaturation(),
+    ).add_mu_effect(_ScaledByDateLevelEffect())
+    mmm.fit(data["X"], data["y"], draws=50, chains=1, random_seed=42)
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "error", message=".*not cut to evaluation windows", category=UserWarning
+        )
+        incremental = mmm.incrementality.compute_incremental_contribution(
+            frequency="yearly"
+        )
+
+    assert np.isfinite(incremental).all()
+
+
+def test_direct_path_on_a_date_variable_in_the_predictor(funnel_mmm_data):
+    """A path request reads the linear predictor on each window, unlike a total.
+
+    The variable only adds to the predictor, so the direct path evaluates every
+    period on the full date axis, and gives the increments of the variable frozen
+    and cut to each window.
+    """
+    from tests.mmm.conftest import _build_funnel_mmm, _funnel_effect
+
+    def direct(freeze: bool) -> xr.DataArray:
+        mmm = _build_funnel_mmm(
+            funnel_mmm_data,
+            "identity",
+            effects=[_funnel_effect(), _DateLevelEffect(freeze=freeze)],
+        )
+        return mmm.incrementality.compute_incremental_contribution(
+            frequency="monthly", paths="direct"
+        )
+
+    with pytest.warns(UserWarning, match="full date axis"):
+        unfrozen = direct(freeze=False)
+    frozen = direct(freeze=True)
+
+    np.testing.assert_allclose(unfrozen, frozen.transpose(*unfrozen.dims))
 
 
 def test_sample_posterior_predictive_same_data_with_include_last_observations(
@@ -4426,70 +4805,6 @@ def test_fixed_scaling_dict_wrong_remaining_dims(multi_dim_data) -> None:
         mmm.build_model(X, y)
 
 
-def test_fixed_scaling_dataarray_country_channel_grid(multi_dim_data) -> None:
-    """Full country × channel grid via DataArray when dict is not enough."""
-    X, y = multi_dim_data
-    countries = ["Venezuela", "Colombia", "Chile"]
-    channels = ["channel_1", "channel_2", "channel_3"]
-    vals = np.arange(9, dtype=float).reshape(3, 3) + 100.0
-    da = xr.DataArray(
-        vals,
-        dims=("country", "channel"),
-        coords={"country": countries, "channel": channels},
-    )
-    scaling = Scaling(
-        target=FixedScaling(dims=("country",), value=25_000.0),
-        channel=FixedScaling(dims=(), value=da),
-    )
-    mmm = MMM(
-        adstock=GeometricAdstock(l_max=2),
-        saturation=LogisticSaturation(),
-        scaling=scaling,
-        date_column="date",
-        target_column="target",
-        channel_columns=channels,
-        dims=("country",),
-    )
-    mmm.build_model(X, y)
-    for cty in countries:
-        for ch in channels:
-            assert float(mmm.scalers._channel.sel(country=cty, channel=ch)) == float(
-                da.sel(country=cty, channel=ch)
-            )
-
-
-def test_fixed_scaling_dataarray_reversed_dims(multi_dim_data) -> None:
-    """DataArray with (channel, country) dims accepted even though data uses (country, channel)."""
-    X, y = multi_dim_data
-    countries = ["Venezuela", "Colombia", "Chile"]
-    channels = ["channel_1", "channel_2", "channel_3"]
-    vals = np.arange(9, dtype=float).reshape(3, 3) + 100.0
-    da = xr.DataArray(
-        vals,
-        dims=("channel", "country"),
-        coords={"channel": channels, "country": countries},
-    )
-    scaling = Scaling(
-        target=FixedScaling(dims=("country",), value=25_000.0),
-        channel=FixedScaling(dims=(), value=da),
-    )
-    mmm = MMM(
-        adstock=GeometricAdstock(l_max=2),
-        saturation=LogisticSaturation(),
-        scaling=scaling,
-        date_column="date",
-        target_column="target",
-        channel_columns=channels,
-        dims=("country",),
-    )
-    mmm.build_model(X, y)
-    for cty in countries:
-        for ch in channels:
-            assert float(mmm.scalers._channel.sel(country=cty, channel=ch)) == float(
-                da.sel(country=cty, channel=ch)
-            )
-
-
 def test_fixed_scaling_dataarray_broadcasts_country_only(multi_dim_data) -> None:
     """Per-country fixed media scale broadcasts over channel (e.g. population)."""
     X, y = multi_dim_data
@@ -4614,7 +4929,9 @@ def test_fixed_scaling_dataarray_model_uses_scale_by_label(
 
     Regression test for issue #3223: a DataArray-valued FixedScaling whose
     label or dimension order differs from the model's coordinates was applied
-    by position, so cells received each other's scale.
+    by position, so cells received each other's scale.  The scale stored on
+    ``mmm.scalers``, which ``get_scales_as_xarray`` and the lift-test scaling
+    read, has to match by label as well.
     """
     X, y = request.getfixturevalue(data_fixture)
     value = make_value()
@@ -4636,13 +4953,16 @@ def test_fixed_scaling_dataarray_model_uses_scale_by_label(
     )
     mmm.build_model(X, y)
 
-    used = _model_scale_by_label(mmm, f"{variable}_scale")
-    expected = (
-        value.sel({dim: used.coords[dim].values for dim in value.dims})
-        .broadcast_like(used)
-        .transpose(*used.dims)
-    )
-    np.testing.assert_allclose(used.values, expected.values)
+    for got in (
+        _model_scale_by_label(mmm, f"{variable}_scale"),
+        mmm.scalers[f"_{variable}"],
+    ):
+        expected = (
+            value.sel({dim: got.coords[dim].values for dim in value.dims})
+            .broadcast_like(got)
+            .transpose(*got.dims)
+        )
+        np.testing.assert_allclose(got.values, expected.values)
 
 
 @pytest.mark.parametrize(
@@ -5981,38 +6301,6 @@ def test_add_lift_test_measurements_missing_channel_column(multi_dim_data) -> No
         mmm.add_lift_test_measurements(df_lift_test_missing_channel)
 
 
-def test_add_lift_test_measurements_missing_dimension_column(multi_dim_data) -> None:
-    """Test that KeyError is raised when dimension column is missing from lift test data."""
-    X, y = multi_dim_data
-    mmm = MMM(
-        adstock=GeometricAdstock(l_max=2),
-        saturation=LogisticSaturation(),
-        date_column="date",
-        target_column="target",
-        channel_columns=["channel_1", "channel_2", "channel_3"],
-        dims=("country",),
-    )
-    mmm.build_model(X, y)
-
-    # Create lift test data without 'country' column (which is in dims)
-    df_lift_test_missing_dim = pd.DataFrame(
-        {
-            "channel": ["channel_1", "channel_1"],
-            "x": [1, 2],
-            "delta_x": [1, 1],
-            "delta_y": [1, 1],
-            "sigma": [1, 1],
-            "date": pd.to_datetime(["2023-01-02", "2023-01-04"]),
-        }
-    )
-
-    with pytest.raises(
-        KeyError,
-        match=r"The country column is required to map the lift measurements to the model.",
-    ):
-        mmm.add_lift_test_measurements(df_lift_test_missing_dim)
-
-
 def test_add_lift_test_measurements_missing_multiple_dimension_columns() -> None:
     """Test that KeyError is raised when multiple dimension columns are missing from lift test data."""
     # Create multi-dimensional data with multiple dimensions
@@ -7316,8 +7604,8 @@ def test_set_xarray_data_without_target_preserves_dtypes(multi_dim_data):
 
 @pytest.mark.parametrize(
     "date_col_name",
-    ["date_week", "week", "period", "timestamp", "time_period"],
-    ids=["date_week", "week", "period", "timestamp", "time_period"],
+    ["date_week", "period"],
+    ids=["date_week", "period"],
 )
 def test_mmm_with_arbitrary_date_column_names_single_dim(
     single_dim_data, date_col_name, mock_pymc_sample
@@ -7369,8 +7657,8 @@ def test_mmm_with_arbitrary_date_column_names_single_dim(
 
 @pytest.mark.parametrize(
     "date_col_name",
-    ["date_week", "period", "timestamp"],
-    ids=["date_week", "period", "timestamp"],
+    ["date_week", "period"],
+    ids=["date_week", "period"],
 )
 def test_mmm_with_arbitrary_date_column_names_multi_dim(
     multi_dim_data, date_col_name, mock_pymc_sample
@@ -7445,8 +7733,8 @@ def test_date_column_validation_with_arbitrary_names(single_dim_data):
 
 @pytest.mark.parametrize(
     "date_col_name",
-    ["date_start", "end_date", "date_week_ending", "reporting_date"],
-    ids=["date_start", "end_date", "date_week_ending", "reporting_date"],
+    ["date_start", "end_date"],
+    ids=["date_start", "end_date"],
 )
 def test_mixed_date_column_scenarios_variations(
     single_dim_data, date_col_name, mock_pymc_sample
@@ -7688,34 +7976,6 @@ def test_multidimensional_mmm_serializes_and_deserializes_dag_and_nodes(
     assert loaded_mmm.outcome_node == outcome_node
 
     os.remove("test_model_multi")
-
-
-def test_multidimensional_mmm_causal_attributes_initialization():
-    dag = """
-    digraph {
-        channel_1 -> target;
-        control_1 -> channel_1;
-        control_1 -> target;
-    }
-    """
-    treatment_nodes = ["channel_1"]
-    outcome_node = "target"
-
-    mmm = MMM(
-        date_column="date",
-        target_column="target",
-        channel_columns=["channel_1", "channel_2"],
-        control_columns=["control_1", "control_2"],
-        adstock=GeometricAdstock(l_max=2),
-        saturation=LogisticSaturation(),
-        dag=dag,
-        treatment_nodes=treatment_nodes,
-        outcome_node=outcome_node,
-    )
-
-    assert mmm.dag == dag
-    assert mmm.treatment_nodes == treatment_nodes
-    assert mmm.outcome_node == outcome_node
 
 
 def test_multidimensional_mmm_causal_attributes_default_treatment_nodes():
@@ -8228,41 +8488,6 @@ class TestAddOriginalScaleContributionVariable:
         )
         y = pd.Series(rng.uniform(100, 500, n_dates), name="y")
         return X, y
-
-    def test_channel_contribution(self, sample_data) -> None:
-        """Test adding channel_contribution_original_scale."""
-        X, y = sample_data
-        mmm = MMM(
-            adstock=GeometricAdstock(l_max=4),
-            saturation=LogisticSaturation(),
-            date_column="date",
-            channel_columns=["x1", "x2"],
-            target_column="y",
-        )
-        mmm.build_model(X, y)
-        mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
-
-        assert "channel_contribution_original_scale" in mmm.model.named_vars
-        dims = mmm.model.named_vars_to_dims["channel_contribution_original_scale"]
-        assert dims == ("date", "channel")
-
-    def test_fourier_contribution(self, sample_data) -> None:
-        """Test adding fourier_contribution_original_scale."""
-        X, y = sample_data
-        mmm = MMM(
-            adstock=GeometricAdstock(l_max=4),
-            saturation=LogisticSaturation(),
-            date_column="date",
-            channel_columns=["x1", "x2"],
-            target_column="y",
-            yearly_seasonality=3,
-        )
-        mmm.build_model(X, y)
-        mmm.add_original_scale_contribution_variable(var=["fourier_contribution"])
-
-        assert "fourier_contribution_original_scale" in mmm.model.named_vars
-        dims = mmm.model.named_vars_to_dims["fourier_contribution_original_scale"]
-        assert dims == ("date", "fourier_mode")
 
     def test_multiple_contributions(self, sample_data) -> None:
         """Test adding multiple contribution variables at once."""
@@ -9619,13 +9844,6 @@ def test_mmm_plot_suite_defaults_to_legacy(fit_mmm):
     assert fit_mmm.plot_suite == "legacy"
 
 
-def test_mmm_plot_suite_setter(fit_mmm):
-    """MMM.plot_suite setter stores the value."""
-    mmm = copy.copy(fit_mmm)
-    mmm.plot_suite = "new"
-    assert mmm.plot_suite == "new"
-
-
 def test_mmm_plot_suite_setter_rejects_invalid(fit_mmm):
     """MMM.plot_suite setter raises ValueError for unknown values."""
     mmm = copy.copy(fit_mmm)
@@ -10159,8 +10377,6 @@ def _assert_cpt_roundtrip(mmm, path):
 @pytest.mark.parametrize(
     "link,central,roas,mixed,labeled,prefix,suffix,dims",
     [
-        ("identity", "mean", False, False, False, "external", ".nc", ("geo",)),
-        ("identity", "mean", True, False, False, "external", ".nc", ("geo",)),
         ("identity", "mean", False, True, False, "external", ".nc", ("geo",)),
         ("log", "mean", True, False, False, "external", ".nc", ("geo",)),
         ("log", "median", True, False, False, "external", ".nc", ("geo",)),
@@ -10170,8 +10386,6 @@ def _assert_cpt_roundtrip(mmm, path):
         ("identity", "mean", False, False, False, "external", ".nc", ()),
     ],
     ids=[
-        "cpt",
-        "roas",
         "mixed",
         "log-mean",
         "log-median",

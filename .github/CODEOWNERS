@@ -1,0 +1,5 @@
+# Workflow edits change what CI executes and which tokens it can use,
+# and the lockfile pins what actually runs. Keep them under code-owner
+# review: a lockfile diff that moves a floating ref to an older commit
+# is not caught by --verify.
+.github/workflows/ @williambdean @juanitorduz
