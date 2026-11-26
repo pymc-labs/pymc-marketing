@@ -224,7 +224,11 @@ from pymc_marketing.mmm.causal import CausalGraphModel
 from pymc_marketing.mmm.components.adstock import AdstockTransformation
 from pymc_marketing.mmm.components.saturation import SaturationTransformation
 from pymc_marketing.mmm.constraints import Constraint
-from pymc_marketing.mmm.data_conversion import has_embedded_target, to_mmm_dataset
+from pymc_marketing.mmm.data_conversion import (
+    _to_mmm_target,
+    has_embedded_target,
+    to_mmm_dataset,
+)
 from pymc_marketing.mmm.decomposition import (
     identity_counterfactual_component,
     log_counterfactual_remove_component,
@@ -5621,6 +5625,8 @@ class MMM(RegressionModelBuilder):
             - If ``y`` is ``None`` and ``X`` does not carry the target.
             - If ``y`` is a ``np.ndarray`` and its length does not match ``X``.
             - If ``y`` cannot be aligned to ``X`` by index or position.
+            - If ``y`` has ``date`` labels and a row of ``X`` has no label in
+              ``y``.
         RuntimeError
             If the target column is missing after alignment.
 
@@ -5701,7 +5707,32 @@ class MMM(RegressionModelBuilder):
         coord_cols = [self.date_column, *dims_in_X]
 
         # Alignment strategies
-        if isinstance(y_s.index, pd.MultiIndex) and set(coord_cols).issubset(
+        y_da = None if y is None else _to_mmm_target(y)
+        if y_da is not None and Dim.DATE in y_da.coords:
+            # build_model joins a y with date labels by label, so fit_data must
+            # too. Dates are converted only for the join, as build_model does.
+            keys = X_df[coord_cols].assign(
+                **{self.date_column: pd.to_datetime(X_df[self.date_column])}
+            )
+            y_labeled = (
+                y_da.to_series()
+                .rename(self.target_column)
+                .rename_axis(index={Dim.DATE: self.date_column})
+            )
+            joined = keys.merge(
+                y_labeled.reset_index(),
+                on=coord_cols,
+                how="left",
+                validate="many_to_one",
+                indicator=True,
+            )
+            if (joined["_merge"] == "left_only").any():
+                raise ValueError(
+                    f"A row of X has no label in y on {coord_cols}; y must cover "
+                    "every date (and dim label) of X"
+                )
+            X_df[self.target_column] = joined[self.target_column].to_numpy()
+        elif isinstance(y_s.index, pd.MultiIndex) and set(coord_cols).issubset(
             y_s.index.names
         ):
             X_mi = X_df.set_index(coord_cols)
@@ -5717,14 +5748,7 @@ class MMM(RegressionModelBuilder):
         elif len(y_s) == len(X_df):
             X_df[self.target_column] = y_s.to_numpy()
         else:
-            if isinstance(y_s.index, pd.MultiIndex) and set(coord_cols).issubset(
-                y_s.index.names
-            ):
-                X_df = X_df.merge(y_s.reset_index(), on=coord_cols, how="left")
-            else:
-                raise ValueError(
-                    "Cannot align y with X; incompatible indices / lengths"
-                )
+            raise ValueError("Cannot align y with X; incompatible indices / lengths")
 
         if self.target_column not in X_df.columns:
             raise RuntimeError(
