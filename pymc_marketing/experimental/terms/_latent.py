@@ -40,6 +40,12 @@ import xarray as xr
 from pymc_extras.prior import Prior
 from pymc_extras.statespace.filters import StandardFilter
 from pymc_extras.statespace.filters.distributions import LinearGaussianStateSpace
+from pymc_extras.statespace.utils.constants import (
+    ALL_STATE_DIM,
+    MATRIX_DIMS,
+    OBS_STATE_AUX_DIM,
+    OBS_STATE_DIM,
+)
 from pytensor.graph.replace import graph_replace
 
 from pymc_marketing.names.mmm import Dim
@@ -177,7 +183,7 @@ class LatentStateSpace(GraphTerm):
     @property
     def component_dim(self) -> str:
         """Dimension of the observed states in the simulated path."""
-        return f"{self.name}_observed_state"
+        return self._dim(OBS_STATE_DIM)
 
     def __getitem__(self, component: str) -> "LatentState":
         """Return one observed state of the model as a term."""
@@ -372,6 +378,13 @@ class LatentStateSpace(GraphTerm):
         prior.dims = self._dims(prior.dims or dims)
         return prior
 
+    def _labeled(self, matrix: pt.TensorVariable, short_name: str) -> Any:
+        """Label a system matrix with pymc-extras' dims for it, led by the date when per date."""
+        dims = self._dims(MATRIX_DIMS[short_name])
+        if matrix.ndim == len(dims) + 1:
+            dims = (Dim.DATE, *dims)
+        return ptx.as_xtensor(matrix, dims=dims)
+
     def _dim(self, dim: str) -> str:
         return f"{self.name}_{dim}"
 
@@ -405,7 +418,7 @@ class LatentStateSpace(GraphTerm):
             system.Q,
             steps=system.n_steps - 1,
             sequence_names=[_SHORT_NAMES[name] for name in system.time_varying],
-            dims=(Dim.DATE, self._dim("state"), self.component_dim),
+            dims=(Dim.DATE, self._dim(ALL_STATE_DIM), self.component_dim),
         )
         return pmd.as_xtensor(observed, dims=(Dim.DATE, self.component_dim))
 
@@ -452,15 +465,15 @@ class _KalmanLikelihood:
 
     def build(self, context: BuildContext) -> None:
         latent = self.latent
-        obs_dim = f"{latent.name}_observed"
-        obs_aux_dim = f"{obs_dim}_aux"
+        equation = f"{latent.name}_observed"
+        equation_aux = f"{equation}_aux"
         bindings = [context.binding(obs.equation) for obs in self.observations]
         names = [binding.name for binding in bindings]
-        context._add_model_coords({obs_dim: names, obs_aux_dim: names})
+        context._add_model_coords({equation: names, equation_aux: names})
 
         def by_equation(values: list[Any]) -> Any:
             return ptx.concat(
-                [value.expand_dims(obs_dim) for value in values], dim=obs_dim
+                [value.expand_dims(equation) for value in values], dim=equation
             )
 
         observed = [context._observations(binding) for binding in bindings]
@@ -480,21 +493,38 @@ class _KalmanLikelihood:
             ]
         )
 
-        # Each equation observes one row of the model's observation equation,
-        # plus its own offset and noise. The filter takes plain (date, equation)
-        # arrays; time-varying matrices lead with the date.
+        # Each equation observes the row of the model's observation equation for its
+        # state, selected by dim name, plus its own offset and noise
         system = latent.filter_system(context)
-        rows = [latent.components.index(obs.state) for obs in self.observations]
+        rows = ptx.as_xtensor(
+            np.array([latent.components.index(obs.state) for obs in self.observations]),
+            dims=(equation,),
+        )
+        rows_aux = rows.rename({equation: equation_aux})
+        observed_state = latent._dim(OBS_STATE_DIM)
+        observed_state_aux = latent._dim(OBS_STATE_AUX_DIM)
+        d = latent._labeled(system.d, "d").isel({observed_state: rows}) + offsets
+        Z = latent._labeled(system.Z, "Z").isel({observed_state: rows})
+        H = latent._labeled(system.H, "H").isel(
+            {observed_state: rows, observed_state_aux: rows_aux}
+        ) + noise**2 * ptx.as_xtensor(pt.eye(len(names)), dims=(equation, equation_aux))
+
+        def plain(value: Any, *dims: str) -> pt.TensorVariable:
+            """Put value in the filter's layout: the date first when per date, then dims."""
+            return value.transpose(
+                *([Dim.DATE] if Dim.DATE in value.dims else []), *dims
+            ).values
+
         predicted = StandardFilter(time_varying_names=system.time_varying).build_graph(
-            data.transpose(Dim.DATE, obs_dim).values,
+            plain(data, equation),
             system.a0,
             system.P0,
             system.c,
-            system.d[:, rows] + offsets.transpose(Dim.DATE, obs_dim).values,
+            plain(d, equation),
             system.T,
-            system.Z[..., rows, :],
+            plain(Z, equation, latent._dim(ALL_STATE_DIM)),
             system.R,
-            system.H[..., rows, :][..., rows] + pt.diag(noise.values**2),
+            plain(H, equation, equation_aux),
             system.Q,
         )
         predicted_mean, predicted_cov = predicted[2], predicted[5]
@@ -503,11 +533,11 @@ class _KalmanLikelihood:
         context._claim_name(name, latent)
         pmd.MvNormal(
             name,
-            mu=pmd.as_xtensor(predicted_mean, dims=(Dim.DATE, obs_dim)),
-            cov=pmd.as_xtensor(predicted_cov, dims=(Dim.DATE, obs_dim, obs_aux_dim)),
-            core_dims=(obs_dim, obs_aux_dim),
+            mu=pmd.as_xtensor(predicted_mean, dims=(Dim.DATE, equation)),
+            cov=pmd.as_xtensor(predicted_cov, dims=(Dim.DATE, equation, equation_aux)),
+            core_dims=(equation, equation_aux),
             observed=data,
-            dims=(Dim.DATE, obs_dim),
+            dims=(Dim.DATE, equation),
         )
 
     @staticmethod
