@@ -662,7 +662,6 @@ class MMMPlotSuite:
             )
 
             # 6. Plot the requested variable
-            # (step 3 already raised if `var` is not in `pp_data`)
             data = pp_data[var].sel(**indexers)
             # Sum leftover dims, stack chain+draw if needed
             data = self._reduce_and_stack(data, ignored_dims)
