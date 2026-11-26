@@ -515,7 +515,8 @@ class BuildContext:
     equations : dict
         Built equation identities to original equation specifications.
     equation_names : dict
-        Equation identities to actual named PyMC outputs, not anonymous downstream history expressions.
+        Equation identities to their names. Most equations build a named PyMC output; one an
+        extension builds itself, such as an equation observing a latent, may not have one.
     data_variables : set of str
         Dataset variables registered as mutable ``float64`` model data containers of the same name.
 

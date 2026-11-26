@@ -24,7 +24,7 @@ from pymc_extras.statespace.core.properties import Data as DataInfo
 from pymc_extras.statespace.core.properties import Parameter, Shock, State
 from scipy.stats import multivariate_normal
 
-from pymc_marketing.experimental.terms import SCM, LatentStateSpace
+from pymc_marketing.experimental.terms import SCM, LatentStateSpace, Problem
 from pymc_marketing.terms import Data, Equation, Observed
 from pymc_marketing.terms._graph import walk
 
@@ -414,6 +414,43 @@ def test_save_and_load_keep_the_marginalized_latent(data, tmp_path):
     assert restored.model is pmss.BayesianVARMAX
     assert restored.model_kwargs == VARMAX
     assert "lat_observations" in loaded.model.named_vars
+
+
+@pytest.fixture(scope="module")
+def fitted_with_latent(data):
+    lat = latent(
+        trend_params=Prior("Normal", sigma=1, dims=("observed_state", "trend"))
+    )
+    a, b = equations(lat)
+    scm = SCM(a, b)
+    scm.fit(data, draws=10, tune=10, chains=1, random_seed=1, progressbar=False)
+    return scm, lat, next(term for term in a.mu.terms if isinstance(term, Data))
+
+
+def test_optimizer_runs_on_terms_that_do_not_touch_the_latent(data, fitted_with_latent):
+    scm, _, z = fitted_with_latent
+    dates = data.get_index("date")[-4:]
+    problem = Problem(
+        model=scm,
+        terms={"z": z},
+        dates=dates,
+        objective=lambda evaluate, u: evaluate(u)["z"].sum(),
+        bounds={"z": (0.0, 1.0)},
+    )
+    plan = xr.Dataset({"z": ("date", np.full(4, 0.5))}, coords={"date": dates})
+    assert "z" in problem.evaluate(plan)
+
+
+def test_forecasting_a_latent_is_refused(data, fitted_with_latent):
+    scm, lat, _ = fitted_with_latent
+    with pytest.raises(NotImplementedError, match="end of the fitted data"):
+        Problem(
+            model=scm,
+            terms={"state": lat["a"]},
+            dates=data.get_index("date")[-4:],
+            objective=lambda evaluate, u: evaluate(u)["state"].sum(),
+            bounds={"inputs": (0.0, 1.0)},
+        )
 
 
 def test_parameters_and_data_must_match_the_model():

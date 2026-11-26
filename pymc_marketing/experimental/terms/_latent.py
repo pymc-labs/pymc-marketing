@@ -388,6 +388,12 @@ class LatentStateSpace(GraphTerm):
         timing. The state path is ``{name}_latent`` and the observed states, with the
         model's own noise, ``{name}_observed``.
         """
+        if context.prediction:
+            # Forecasting starts from the state at the end of the fitted data instead
+            raise NotImplementedError(
+                f"Forecasting {self.name!r} needs its state at the end of the fitted "
+                "data, which is not supported yet."
+            )
         system = self.filter_system(context)
         # pymc-extras' LinearGaussianStateSpace names its draws after the latent
         for suffix in ("combined", "latent", "observed"):
@@ -626,10 +632,6 @@ def _observed_value(equation: Equation, context: BuildContext) -> Any:
     Its likelihood is built later with the latent's other equations, so building the
     equation never depends on them.
     """
-    if context.prediction:
-        raise NotImplementedError(
-            "Prediction with a marginalized latent is not supported yet."
-        )
     binding = context.register_equation(equation)
     if binding.dims != (Dim.DATE,):
         raise ValueError(

@@ -167,11 +167,13 @@ class SCM:
                 history_length=history_length,
             )
             latents = Marginalization(self._roots)
-            if not simulate_latents:
+            # Only fitting integrates the latents out; other builds are generative
+            fitting = not (simulate_latents or prediction)
+            if fitting:
                 latents.attach(context)
             for root in self._roots:
                 context.build(root)
-            if not simulate_latents:
+            if fitting:
                 latents.build(context)
         return model, context
 
