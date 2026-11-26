@@ -629,6 +629,7 @@ class MMMPlotSuite:
         ValueError
             If no `idata` is provided and `self.idata.prior_predictive` does
             not exist, instructing the user to run `MMM.sample_prior_predictive()`.
+            If `var` is not in the prior predictive data.
             If `hdi_prob` is not between 0 and 1, instructing the user to provide a valid value.
         """
         if not 0 < hdi_prob < 1:
@@ -662,6 +663,11 @@ class MMMPlotSuite:
             )
 
             # 6. Plot the requested variable
+            if var not in pp_data:
+                raise ValueError(
+                    f"Variable '{var}' not in the prior_predictive dataset."
+                )
+
             data = pp_data[var].sel(**indexers)
             # Sum leftover dims, stack chain+draw if needed
             data = self._reduce_and_stack(data, ignored_dims)
