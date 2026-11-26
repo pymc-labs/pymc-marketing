@@ -593,8 +593,11 @@ def _deterministic_renames(pymc_model: Model) -> dict[str, str]:
     -------
     dict of str to str
         Each such rename, by name, with the name of the Deterministic it renames.
+        On a ``pm.do`` copy the two names of a pair can come the other way round.
     """
     deterministics = set(pymc_model.deterministics)
+    # shortcut: predicts PyMC's merge from the source graph; remove with the
+    # refusals once test_pymc_merges_a_rename_of_a_deterministic_when_cloning fails.
     candidates = [
         det
         for det in pymc_model.deterministics
