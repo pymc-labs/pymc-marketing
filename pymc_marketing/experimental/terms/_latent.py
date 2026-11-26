@@ -443,7 +443,7 @@ class _KalmanLikelihood:
     """Joint likelihood of the equations observing one marginalized latent.
 
     Built after the rest of the model: the equations' values are their observations
-    (see ``observed_value``), so every offset can be built first, including ones that
+    (see ``_observed_value``), so every offset can be built first, including ones that
     use another of these equations.
     """
 
@@ -620,7 +620,7 @@ def _observation(equation: Equation, latent: LatentStateSpace) -> _Observation |
     return _Observation(equation, states[0].state, offset, sigma)
 
 
-def observed_value(equation: Equation, context: BuildContext) -> Any:
+def _observed_value(equation: Equation, context: BuildContext) -> Any:
     """Build an equation that observes a marginalized latent: its value is its data.
 
     Its likelihood is built later with the latent's other equations, so building the
@@ -638,7 +638,7 @@ def observed_value(equation: Equation, context: BuildContext) -> Any:
     return context._observations(binding)
 
 
-def plan_marginalization(
+def _plan(
     equations: Sequence[Equation], latents: Sequence[LatentStateSpace]
 ) -> list[_KalmanLikelihood]:
     """Group the equations observing each marginalized latent into its likelihood."""
@@ -660,3 +660,41 @@ def plan_marginalization(
             raise ValueError(f"No equation observes {latent.name!r}.")
         plan.append(likelihood)
     return plan
+
+
+class Marginalization:
+    """How an SCM build handles the latent state-space terms its equations reach.
+
+    Fitting integrates every latent out: the equations observing it build to their
+    observations, and its joint likelihood is built after the rest of the model.
+    Prior predictive sampling instead draws the latents forward when the equations
+    reach them, so only the checks apply. The checks run on construction, in both
+    cases, so a prior predictive check refuses what fitting would refuse.
+
+    Parameters
+    ----------
+    roots : sequence of Equation
+        The SCM's equations.
+    """
+
+    def __init__(self, roots: Sequence[Equation]) -> None:
+        nodes = list(walk(roots))
+        self._likelihoods = _plan(
+            [node for node in nodes if isinstance(node, Equation)],
+            [node for node in nodes if isinstance(node, LatentStateSpace)],
+        )
+
+    def attach(self, context: BuildContext) -> None:
+        """Make the observing equations build to their observations in ``context``."""
+        context.equation_builders.update(
+            {
+                id(obs.equation): _observed_value
+                for likelihood in self._likelihoods
+                for obs in likelihood.observations
+            }
+        )
+
+    def build(self, context: BuildContext) -> None:
+        """Add each latent's joint likelihood; call after building the equations."""
+        for likelihood in self._likelihoods:
+            likelihood.build(context)

@@ -28,6 +28,7 @@ import pytensor
 import xarray as xr
 import zarr
 
+from pymc_marketing.experimental.terms._latent import Marginalization
 from pymc_marketing.experimental.terms._serialize import spec_from_dict, spec_to_dict
 from pymc_marketing.names import Group
 from pymc_marketing.names.mmm import Dim
@@ -165,34 +166,13 @@ class SCM:
                 condition_on=condition_on,
                 history_length=history_length,
             )
-            from pymc_marketing.experimental.terms._latent import (
-                LatentStateSpace,
-                observed_value,
-                plan_marginalization,
-            )
-
-            # Every latent is integrated out when fitting. The plan is validated in both
-            # modes, so a prior predictive check refuses what training would refuse;
-            # the prior predictive itself draws the latents forward instead.
-            nodes = list(walk(self._roots))
-            plan = plan_marginalization(
-                [node for node in nodes if isinstance(node, Equation)],
-                [node for node in nodes if isinstance(node, LatentStateSpace)],
-            )
-            if simulate_latents:
-                plan = []
-            context.equation_builders.update(
-                {
-                    id(obs.equation): observed_value
-                    for likelihood in plan
-                    for obs in likelihood.observations
-                }
-            )
+            latents = Marginalization(self._roots)
+            if not simulate_latents:
+                latents.attach(context)
             for root in self._roots:
                 context.build(root)
-            # After the roots, so offsets that use observed equations are already built
-            for likelihood in plan:
-                likelihood.build(context)
+            if not simulate_latents:
+                latents.build(context)
         return model, context
 
     def _training_model(
