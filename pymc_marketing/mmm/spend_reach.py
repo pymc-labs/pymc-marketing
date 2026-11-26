@@ -724,7 +724,9 @@ def completeness_tolerance(
     *scale* cannot absorb that, and under float32 (``eps`` around 1.2e-7, a
     supported pytensor config) it does not have to be small before the
     accumulated rounding exceeds it.  The dtype is the one the compared arrays
-    produced, so a float64 model is not loosened by a float32-sized floor.
+    carry, so a float64 model is not loosened by a float32-sized floor; when
+    they carry several, :meth:`ProbeStatistics.tolerance` combines a floor per
+    dtype with one from the predictor's dtype over every compared node.
 
     The tradeoff cannot be avoided: under float32 a real discrepancy smaller
     than roughly ``COMPLETENESS_ACCUMULATION_SAFETY_FACTOR * eps * |node| /
@@ -738,8 +740,8 @@ def completeness_tolerance(
     magnitude : float
         The largest absolute value of any compared node, on either side.
     dtype : dtype
-        The result type of the compared arrays.  A dtype that is not inexact
-        is taken as float64.
+        The dtype of the compared arrays.  A dtype that is not inexact is
+        taken as float64.
 
     Returns
     -------
@@ -815,9 +817,16 @@ class ProbeStatistics:
         move's, made inexact.  ``None`` until a slice with a predictor is
         folded.
     node_magnitude : float
-        Largest ``|value|`` of any compared node, baseline or probed.
+        Largest ``|value|`` of any compared node, baseline or probed.  Sets
+        the rounding floor of the predictor's dtype.
     dtype : np.dtype or None
-        The result type of the compared arrays, which sets the rounding floor.
+        The result type of the compared arrays.  Kept for compatibility: the
+        tolerance does not read it, and takes its floor per dtype instead; see
+        :meth:`tolerance`.
+    magnitude_by_dtype : dict
+        Per dtype, the largest ``|value|`` of any compared node of that dtype,
+        baseline or probed.  Each dtype sets its own rounding floor: a float32
+        predictor rounds on float32's grid even when float64 nodes feed it.
     """
 
     FOLD_ELEMENTS: ClassVar[int] = 4_000_000
@@ -839,6 +848,7 @@ class ProbeStatistics:
     expected_dtype: np.dtype | None = None
     node_magnitude: float = 0.0
     dtype: np.dtype | None = None
+    magnitude_by_dtype: dict[np.dtype, float] = field(default_factory=dict)
 
     @classmethod
     def fold(
@@ -965,10 +975,15 @@ class ProbeStatistics:
             for name in (Var.MU, *self.accounted)
             for array in (baseline[name], probed[name])
         ]
+        magnitudes = [(array.dtype, float(np.abs(array).max())) for array in compared]
         self.node_magnitude = max(
-            self.node_magnitude, *(float(np.abs(array).max()) for array in compared)
+            self.node_magnitude, *(magnitude for _, magnitude in magnitudes)
         )
         self.dtype = np.result_type(*compared)
+        for dtype, magnitude in magnitudes:
+            self.magnitude_by_dtype[dtype] = max(
+                self.magnitude_by_dtype.get(dtype, 0.0), magnitude
+            )
 
     def residual_within(self, atol: float) -> bool:
         """Whether the largest residual is within *atol*, as :func:`numpy.allclose` decides it.
@@ -1004,17 +1019,28 @@ class ProbeStatistics:
         misattribution vacuously.  The magnitude is the largest baseline or
         probed value of every node the identity compares, which is where
         cancellation inside the accounted sum sets the true floor when large
-        terms offset; the predictor alone would understate it.
+        terms offset; the predictor alone would understate it.  Each dtype
+        gives a floor from its own ``eps`` and its own nodes' magnitude, and
+        the predictor's dtype gives one from every node's magnitude: every
+        term reaches the predictor in its dtype, so a float32 predictor rounds
+        each float64 term on float32's grid at that term's size.  The largest
+        floor wins.
 
         Returns
         -------
         float
             The tolerance, or ``0.0`` when nothing was folded to compare.
         """
-        return completeness_tolerance(
-            scale=max(self.max_expected, self.max_accounted),
-            magnitude=self.node_magnitude,
-            dtype=np.float64 if self.dtype is None else self.dtype,
+        scale = max(self.max_expected, self.max_accounted)
+        floors = list(self.magnitude_by_dtype.items())
+        if self.expected_dtype is not None:
+            floors.append((self.expected_dtype, self.node_magnitude))
+        return max(
+            (
+                completeness_tolerance(scale=scale, magnitude=magnitude, dtype=dtype)
+                for dtype, magnitude in floors
+            ),
+            default=0.0,
         )
 
     def accounting_gap(self) -> float | None:

@@ -36,6 +36,7 @@ from pymc_marketing.mmm.spend_reach import (
     SpendProbe,
     SpendReach,
     TemporalReach,
+    completeness_tolerance,
     linear_predictor,
     refuse_blocked_spend_paths,
     resolve_channel_dependent_effects,
@@ -1737,21 +1738,24 @@ class TestProbeStatistics:
             for atol, passes in zip(candidates, reference, strict=True)
         )
 
-    def test_the_tolerance_is_decided_as_allclose_for_float64_nodes(self):
+    @pytest.mark.parametrize("ulps_above", [0, 1])
+    def test_the_tolerance_is_decided_as_allclose_for_float64_nodes(self, ulps_above):
         """Float64 nodes feeding a float32 predictor get numpy.allclose's answer.
 
-        A float64 node of magnitude ``M`` sets the tolerance through
-        ``eps * M``, a quarter float32 ulp below the residual, so the tolerance
-        rounds up to the residual in float32.  ``allclose`` rounds a Python
-        float ``atol`` to the predictor's float32 and passes, as
-        ``residual_within`` does; a ``np.float64`` tolerance would not be
-        rounded and would refuse.
+        The predictor's float32 ``eps`` times the float64 node's magnitude sets
+        the tolerance, a float32 value.  A residual exactly at it passes and
+        one float32 ulp above it refuses, in ``residual_within`` as in
+        ``allclose``.
         """
-        residual = np.float32(0.1)
-        target = float(residual) - float(np.spacing(residual)) / 4
-        magnitude = target / (
-            COMPLETENESS_ACCUMULATION_SAFETY_FACTOR * np.finfo(np.float64).eps
+        magnitude = 1e4
+        atol = float(
+            COMPLETENESS_ACCUMULATION_SAFETY_FACTOR
+            * np.finfo(np.float32).eps
+            * magnitude
         )
+        residual = np.float32(atol)
+        for _ in range(ulps_above):
+            residual = np.nextafter(residual, np.float32(np.inf))
         n_dates = 3
         baseline = {
             CHANNEL_CONTRIBUTION: np.zeros((1, n_dates, 1), dtype="float64"),
@@ -1770,12 +1774,122 @@ class TestProbeStatistics:
             axis=-1
         )
         expected = probed[LINEAR_PREDICTOR] - baseline[LINEAR_PREDICTOR]
-        atol = stats.tolerance()
+
+        # Exact: atol is built as completeness_tolerance builds it, in the same
+        # order and dtype.
+        assert stats.tolerance() == atol
+        within = ulps_above == 0
+        assert stats.residual_within(stats.tolerance()) is within
+        assert (
+            bool(np.allclose(accounted, expected, rtol=0.0, atol=stats.tolerance()))
+            is within
+        )
+
+    def test_a_float64_tolerance_is_rounded_by_allclose_to_a_float32_predictor(self):
+        """A caller's float64 tolerance gets allclose's float32 answer.
+
+        ``completeness_tolerance`` with a float64 dtype puts the tolerance a
+        quarter float32 ulp below the residual.  ``allclose`` rounds a Python
+        float ``atol`` to the float32 predictor and passes; a ``np.float64``
+        would not be rounded and would refuse.
+        """
+        residual = np.float32(0.1)
+        target = float(residual) - float(np.spacing(residual)) / 4
+        magnitude = target / (
+            COMPLETENESS_ACCUMULATION_SAFETY_FACTOR * np.finfo(np.float64).eps
+        )
+        atol = completeness_tolerance(scale=0.0, magnitude=magnitude, dtype="float64")
 
         # The tolerance lies in the quarter ulp that rounds up to the residual.
         assert atol < float(residual) <= float(np.float32(atol))
-        assert stats.residual_within(atol)
-        assert np.allclose(accounted, expected, rtol=0.0, atol=atol)
+        assert np.allclose(
+            np.array([float(residual)]),
+            np.zeros(1, dtype="float32"),
+            rtol=0.0,
+            atol=atol,
+        )
+
+    def test_a_float32_predictor_over_float64_nodes_gets_a_float32_floor(self):
+        """A float32 predictor rounds on float32's grid, whatever feeds it.
+
+        The float64 channel move is reproduced in full by the predictor, but
+        rounding the predictor near 1e6 to float32 leaves a residual of about
+        1e-2, far above the float64 floor of the nodes.
+        """
+        n_dates = 4
+        offset = 1e6
+        baseline = {CHANNEL_CONTRIBUTION: np.full((1, n_dates, 1), 1e4)}
+        probed = {CHANNEL_CONTRIBUTION: baseline[CHANNEL_CONTRIBUTION].copy()}
+        probed[CHANNEL_CONTRIBUTION][0, 1, 0] += 0.3
+        for values in (baseline, probed):
+            values[LINEAR_PREDICTOR] = (
+                values[CHANNEL_CONTRIBUTION].sum(-1) + offset
+            ).astype(np.float32)
+        stats = ProbeStatistics.fold(
+            probed,
+            baseline,
+            accounted=(CHANNEL_CONTRIBUTION,),
+            non_date_dims=FakeEvaluator.non_date_dims,
+        )
+
+        assert stats.max_residual > 1e-3
+        assert stats.accounting_gap() is None
+
+    def test_float64_terms_that_cancel_in_a_float32_predictor_get_a_float32_floor(
+        self,
+    ):
+        """Each float64 term is rounded to float32 at its own size, not at mu's.
+
+        Two channels near +1e6 and -1e6 cancel, so ``|mu|`` stays small, but
+        each term is cast to float32 before the sum and carries float32
+        rounding of 1e6.
+        """
+        n_dates = 4
+        baseline = {CHANNEL_CONTRIBUTION: np.zeros((1, n_dates, 2))}
+        baseline[CHANNEL_CONTRIBUTION][..., 0] = 1e6
+        baseline[CHANNEL_CONTRIBUTION][..., 1] = -1e6
+        probed = {CHANNEL_CONTRIBUTION: baseline[CHANNEL_CONTRIBUTION].copy()}
+        probed[CHANNEL_CONTRIBUTION][0, 1, 0] += 0.3
+        for values in (baseline, probed):
+            values[LINEAR_PREDICTOR] = (
+                values[CHANNEL_CONTRIBUTION].astype(np.float32).sum(-1)
+            )
+        stats = ProbeStatistics.fold(
+            probed,
+            baseline,
+            accounted=(CHANNEL_CONTRIBUTION,),
+            non_date_dims=FakeEvaluator.non_date_dims,
+        )
+
+        assert stats.max_residual > 1e-3
+        assert stats.accounting_gap() is None
+
+    def test_float32_nodes_summed_in_float32_under_a_float64_predictor_get_a_float32_floor(
+        self,
+    ):
+        """Float32 terms summed before the upcast to a float64 mu round in float32.
+
+        float32 contributions plus a float64 term upcast mu to float64.  When
+        the channels are summed in float32 first, the sum carries float32
+        rounding of its size, far above mu's float64 floor.
+        """
+        n_dates = 4
+        baseline = {CHANNEL_CONTRIBUTION: np.full((1, n_dates, 3), 1e4, np.float32)}
+        probed = {CHANNEL_CONTRIBUTION: baseline[CHANNEL_CONTRIBUTION].copy()}
+        probed[CHANNEL_CONTRIBUTION][0, 1, 0] += np.float32(0.37)
+        for values in (baseline, probed):
+            values[LINEAR_PREDICTOR] = (
+                values[CHANNEL_CONTRIBUTION].sum(-1).astype(np.float64) + 1e6
+            )
+        stats = ProbeStatistics.fold(
+            probed,
+            baseline,
+            accounted=(CHANNEL_CONTRIBUTION,),
+            non_date_dims=FakeEvaluator.non_date_dims,
+        )
+
+        assert stats.max_residual > 1e-4
+        assert stats.accounting_gap() is None
 
     @pytest.mark.parametrize("with_predictor", [True, False])
     def test_one_probe_evaluation_alive_at_a_time(self, with_predictor):
