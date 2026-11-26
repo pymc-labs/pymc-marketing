@@ -28,7 +28,7 @@ import pytensor
 import xarray as xr
 import zarr
 
-from pymc_marketing.experimental.terms._latent import Marginalization
+from pymc_marketing.experimental.terms._latent import LatentStateSpace, Marginalization
 from pymc_marketing.experimental.terms._serialize import spec_from_dict, spec_to_dict
 from pymc_marketing.names import Group
 from pymc_marketing.names.mmm import Dim
@@ -482,7 +482,17 @@ class SCM:
             for identity, binding in self._bindings.items()
             if binding.name in condition_on
         }
-        return total_lookback(self._roots, stop=lambda node: id(node) in stopped)
+
+        def stop(node: Any) -> bool:
+            return id(node) in stopped
+
+        # A latent's matrices are built over the same dates as when fitting, so its
+        # time-varying ones line up; the forecast starts from the last fitted date
+        if any(
+            isinstance(node, LatentStateSpace) for node in walk(self._roots, stop=stop)
+        ):
+            return cast(xr.Dataset, self._training_data).sizes[Dim.DATE]
+        return total_lookback(self._roots, stop=stop)
 
     def _with_history(
         self, data: xr.Dataset, condition_on: Sequence[str]

@@ -38,10 +38,13 @@ import pytensor.tensor as pt
 import pytensor.xtensor as ptx
 import xarray as xr
 from pymc_extras.prior import Prior
+from pymc_extras.statespace.core.statespace import FILTER_FACTORY
 from pymc_extras.statespace.filters import StandardFilter
 from pymc_extras.statespace.filters.distributions import LinearGaussianStateSpace
+from pymc_extras.statespace.filters.kalman_filter import BaseFilter
 from pymc_extras.statespace.filters.utilities import scan_sequence_names
 from pymc_extras.statespace.utils.constants import (
+    ALL_STATE_AUX_DIM,
     ALL_STATE_DIM,
     MATRIX_DIMS,
     OBS_STATE_AUX_DIM,
@@ -51,6 +54,8 @@ from pytensor.graph.replace import graph_replace
 
 from pymc_marketing.names.mmm import (
     LATENT_EQUATION_SUFFIX,
+    LATENT_FINAL_STATE_COV_SUFFIX,
+    LATENT_FINAL_STATE_SUFFIX,
     LATENT_OBSERVATIONS_SUFFIX,
     Dim,
 )
@@ -71,7 +76,11 @@ class LatentStateSpace(GraphTerm):
     components, for example ``latent["baseline"]``. In training,
     fitting the SCM always integrates the states out with a Kalman
     filter. Prior predictive sampling instead draws the states forward from the
-    prior and each equation's observations around them. The model's own
+    prior and each equation's observations around them. Posterior prediction draws
+    them forward from where each posterior draw leaves them at the last fitted date,
+    or, without the training history, from the model's initial state. Conditioning a
+    prediction on an equation that observes the latent holds that equation's values
+    without informing the latent, as for any other equation. The model's own
     observation noise is added to that of the equations, so build it without
     measurement error unless both are wanted.
 
@@ -110,7 +119,9 @@ class LatentStateSpace(GraphTerm):
     The marginalized likelihood is one term per date, each date's observations
     given the past. Pointwise log-likelihoods, and LOO on them, are therefore
     one-step-ahead and not comparable with models that sample their latents;
-    use leave-future-out validation instead.
+    use leave-future-out validation instead. Fitting observes the equations jointly,
+    as ``{name}_observations``, because the filter's one-step predictions correlate
+    them; predictions return each equation under its own name.
 
     Examples
     --------
@@ -160,6 +171,11 @@ class LatentStateSpace(GraphTerm):
             raise ValueError(
                 f"{name!r} needs one term per model data name {sorted(ss.data_names)}, got {sorted(self.exog)}."
             )
+        # The univariate and convergent filters cannot take per-date intercepts
+        if ss.filter_type not in ("standard", "cholesky"):
+            raise ValueError(
+                f"{name!r} supports the 'standard' and 'cholesky' filters, not {ss.filter_type!r}."
+            )
 
     @property
     def components(self) -> tuple[str, ...]:
@@ -182,6 +198,23 @@ class LatentStateSpace(GraphTerm):
     def dependencies(self) -> tuple[Any, ...]:
         """Return the exogenous terms."""
         return tuple(self.exog.values())
+
+    def kalman_filter(self, system: SimpleNamespace) -> BaseFilter:
+        """Return the Kalman filter the model was built with, configured as its own ``make_filters`` does.
+
+        The intercepts are passed per date, so they are time-varying here even when
+        the model's are not.
+        """
+        ss = self._statespace
+        filter_class = FILTER_FACTORY[ss.filter_type]
+        settings = dict(
+            time_varying_names=system.time_varying,
+            cov_jitter=ss.cov_jitter,
+            missing_fill_value=ss.missing_fill_value,
+        )
+        if issubclass(filter_class, StandardFilter):
+            settings["use_joseph_form"] = ss.use_joseph_form
+        return filter_class(**settings)
 
     def filter_system(self, context: BuildContext) -> SimpleNamespace:
         """Return the model's system matrices bound to SCM variables.
@@ -391,19 +424,14 @@ class LatentStateSpace(GraphTerm):
         return tuple(self._dim(dim) for dim in dims)
 
     def _build(self, context: BuildContext) -> Any:
-        """Draw the states forward from the prior; used for prior predictive sampling.
+        """Draw the observed states forward, from the prior or for a forecast.
 
-        Uses pymc-extras' ``LinearGaussianStateSpace``, which follows the filter's
-        timing. The state path is ``{name}_latent`` and the observed states, with the
-        model's own noise, ``{name}_observed``.
+        The prior predictive uses pymc-extras' ``LinearGaussianStateSpace``, whose
+        draws are ``{name}_latent`` and ``{name}_observed``.
         """
-        if context.prediction:
-            # Forecasting starts from the state at the end of the fitted data instead
-            raise NotImplementedError(
-                f"Forecasting {self.name!r} needs its state at the end of the fitted "
-                "data, which is not supported yet."
-            )
         system = self.filter_system(context)
+        if context.prediction:
+            return self._forecast(context, system)
         # pymc-extras' LinearGaussianStateSpace names its draws after the latent
         for suffix in ("combined", "latent", "observed"):
             context._claim_name(f"{self.name}_{suffix}", self)
@@ -423,6 +451,53 @@ class LatentStateSpace(GraphTerm):
             dims=(Dim.DATE, self._dim(ALL_STATE_DIM), self.component_dim),
         )
         return pmd.as_xtensor(observed, dims=(Dim.DATE, self.component_dim))
+
+    def starting_state(
+        self, context: BuildContext, system: SimpleNamespace
+    ) -> tuple[int, pt.TensorVariable, pt.TensorVariable]:
+        """Return where a forecast starts: the date's row, and the state's mean and covariance.
+
+        With the training history, which prediction prepends whole so the matrices are
+        built over the same dates as when fitting, it is the last fitted date and the
+        filtered state fitting recorded there. Without it, it is the first date and the
+        model's initial state.
+        """
+        if not context.history_length:
+            return 0, system.a0, system.P0
+        mean_name = f"{self.name}{LATENT_FINAL_STATE_SUFFIX}"
+        cov_name = f"{self.name}{LATENT_FINAL_STATE_COV_SUFFIX}"
+        for name in (mean_name, cov_name):
+            context._claim_name(name, self)
+        # Stand-ins for the recorded values, which prediction takes from the posterior
+        state, state_aux = self._dim(ALL_STATE_DIM), self._dim(ALL_STATE_AUX_DIM)
+        mean = pmd.Flat(mean_name, dims=(state,)).values
+        cov = pmd.Flat(cov_name, dims=(state, state_aux)).values
+        return context.history_length - 1, mean, cov
+
+    def _forecast(self, context: BuildContext, system: SimpleNamespace) -> Any:
+        """Draw the observed states forward from the starting state, as pymc-extras' ``forecast`` does.
+
+        Earlier rows are NaN: the equations observing the latent keep their
+        observations there.
+        """
+        start, mean, cov = self.starting_state(context, system)
+        sequences = scan_sequence_names(system.time_varying)
+        _, observed = LinearGaussianStateSpace.dist(
+            mean,
+            cov,
+            *(
+                getattr(system, name)[start:]
+                if name in sequences
+                else getattr(system, name)
+                for name in ("c", "d", "T", "Z", "R", "H", "Q")
+            ),
+            steps=system.n_steps - start - 1,
+            sequence_names=sequences,
+        )
+        unknown = pt.full((start, len(self.components)), np.nan, dtype=observed.dtype)
+        return pmd.as_xtensor(
+            pt.concatenate([unknown, observed]), dims=(Dim.DATE, self.component_dim)
+        )
 
 
 class LatentState(GraphTerm):
@@ -517,7 +592,15 @@ class _KalmanLikelihood:
                 *([Dim.DATE] if Dim.DATE in value.dims else []), *dims
             ).values
 
-        predicted = StandardFilter(time_varying_names=system.time_varying).build_graph(
+        (
+            filtered_state,
+            _,
+            predicted_mean,
+            filtered_state_cov,
+            _,
+            predicted_cov,
+            _,
+        ) = latent.kalman_filter(system).build_graph(
             plain(data, equation),
             system.a0,
             system.P0,
@@ -529,7 +612,6 @@ class _KalmanLikelihood:
             plain(H, equation, equation_aux),
             system.Q,
         )
-        predicted_mean, predicted_cov = predicted[2], predicted[5]
 
         name = f"{latent.name}{LATENT_OBSERVATIONS_SUFFIX}"
         context._claim_name(name, latent)
@@ -541,6 +623,22 @@ class _KalmanLikelihood:
             observed=data,
             dims=(Dim.DATE, equation),
         )
+
+        # Where each posterior draw leaves the states at the last fitted date, given the
+        # data: forecasts start from there
+        state, state_aux = latent._dim(ALL_STATE_DIM), latent._dim(ALL_STATE_AUX_DIM)
+        final_cov = filtered_state_cov[-1]
+        for suffix, value, dims in (
+            (LATENT_FINAL_STATE_SUFFIX, filtered_state[-1], (state,)),
+            (
+                LATENT_FINAL_STATE_COV_SUFFIX,
+                (final_cov + final_cov.T) / 2,
+                (state, state_aux),
+            ),
+        ):
+            name = f"{latent.name}{suffix}"
+            context._claim_name(name, latent)
+            pmd.Deterministic(name, pmd.as_xtensor(value, dims=dims))
 
     @staticmethod
     def _offset(

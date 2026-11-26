@@ -37,6 +37,8 @@ MODULE_LEVEL = {
         "EFFECT_CONTRIBUTION_SUFFIX",
         "LATENT_OBSERVATIONS_SUFFIX",
         "LATENT_EQUATION_SUFFIX",
+        "LATENT_FINAL_STATE_SUFFIX",
+        "LATENT_FINAL_STATE_COV_SUFFIX",
         "original_scale_name",
         "effect_contribution_name",
     },
@@ -276,6 +278,8 @@ def test_mmm_module_level_names() -> None:
     assert mmm.EFFECT_CONTRIBUTION_SUFFIX == "_effect_contribution"
     assert mmm.LATENT_OBSERVATIONS_SUFFIX == "_observations"
     assert mmm.LATENT_EQUATION_SUFFIX == "_equation"
+    assert mmm.LATENT_FINAL_STATE_SUFFIX == "_final_state"
+    assert mmm.LATENT_FINAL_STATE_COV_SUFFIX == "_final_state_cov"
     assert mmm.original_scale_name("mu") == "mu_original_scale"
     assert mmm.effect_contribution_name("trend") == "trend_effect_contribution"
 
