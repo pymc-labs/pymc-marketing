@@ -270,6 +270,28 @@ def test_prior_predictive(mmm_with_prior_predictive, hdi_prob):
     assert all(isinstance(a, Axes) for a in ax.flat)
 
 
+def test_prior_predictive_labels():
+    """The prior predictive plot is labeled "Prior", not "Posterior" (#3503)."""
+    dates = pd.date_range("2025-01-06", periods=10, freq="W-MON")
+    y = xr.DataArray(
+        np.random.default_rng(0).normal(size=(1, 50, 10)),
+        dims=("chain", "draw", "date"),
+        coords={"chain": [0], "draw": np.arange(50), "date": dates},
+    )
+    idata = xr.DataTree.from_dict({"prior_predictive": xr.Dataset({"y": y})})
+
+    _, axes = MMMPlotSuite(idata=idata).prior_predictive()
+    ax = axes[0][0]
+    assert ax.get_title() == "Prior Predictive Time Series"
+    assert ax.get_ylabel() == "Prior Predictive"
+
+
+def test_prior_predictive_raises_for_missing_variable(mmm_with_prior_predictive):
+    """A variable that is not in the prior predictive data raises a ValueError."""
+    with pytest.raises(ValueError, match=r"Variable 'z' not found in the dataset"):
+        mmm_with_prior_predictive.plot.prior_predictive(var="z")
+
+
 def test_prior_predictive_raises_when_missing():
     """Plotting prior predictive without sampled data must give an actionable error."""
     suite = MMMPlotSuite(idata=xr.DataTree.from_dict({}))
