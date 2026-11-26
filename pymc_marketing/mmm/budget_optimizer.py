@@ -2077,13 +2077,14 @@ class BudgetOptimizer(BaseModel):
         # A Deterministic that only renames another one makes the second clone
         # below fail, frozen or not, with a message that does not say why.
         if renames := deterministic_renames(self.model):
+            # On a ``pm.do`` copy the pair is found under the later name, so the
+            # listing does not say which name renames which.
             listing = ", ".join(
-                f"{rename!r} (renames {renamed!r})"
-                for rename, renamed in renames.items()
+                f"{rename!r} and {renamed!r}" for rename, renamed in renames.items()
             )
             raise ValueError(
-                f"The model has Deterministics that only rename another "
-                f"Deterministic: {listing}.  When PyMC clones the model it keeps "
+                f"The model has Deterministics where one only renames the other: "
+                f"{listing}.  When PyMC clones the model it keeps "
                 "only one of the two names (pymc-devs/pymc#8608), and the "
                 "optimization model clones it twice, so it cannot be built whether "
                 "the rename is frozen or not.  Write each rename as an expression, "

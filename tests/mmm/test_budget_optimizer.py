@@ -2388,6 +2388,7 @@ def _renamed_path_optimizer(
     path_renames_walk: bool = False,
     objective_reads_path: bool = False,
     frozen: tuple[str, ...] = ("path",),
+    do_copy: bool = False,
 ) -> BudgetOptimizer:
     """An optimizer on a model where ``path`` is a Deterministic that only renames another variable.
 
@@ -2395,7 +2396,8 @@ def _renamed_path_optimizer(
     ``walk`` of their cumulative sum.  ``report`` reads ``path``; the objective
     reads ``steps`` directly, or through ``path`` with *objective_reads_path*.  The
     media response saturates, so the allocation is interior.  *frozen* is
-    ``frozen_deterministics``.
+    ``frozen_deterministics``.  With *do_copy* the optimizer is built on
+    ``pm.do(model, {})``.
     """
     channels, n_dates = ["a", "b"], 6
     with pm.Model(coords={"channel": channels}) as model:
@@ -2420,7 +2422,7 @@ def _renamed_path_optimizer(
         pmd.Deterministic("total_response_original_scale", media + read.sum("date"))
     prior = pm.sample_prior_predictive(draws=4, model=model, random_seed=1).prior
     return BudgetOptimizer(
-        model=model,
+        model=pm.do(model, {}) if do_copy else model,
         idata=xr.DataTree.from_dict({"posterior": prior}),
         num_periods=4,
         adstock_periods=2,
@@ -2461,10 +2463,23 @@ def test_a_rename_of_a_deterministic_is_refused_before_cloning(frozen):
     with pytest.raises(
         ValueError,
         # BudgetOptimizer is a pydantic model, so the error arrives as a ValidationError.
-        match=r"The model has Deterministics that only rename another "
-        r"Deterministic: 'path' \(renames 'walk'\)",
+        match=r"The model has Deterministics where one only renames the other: "
+        r"'path' and 'walk'\.",
     ):
         _renamed_path_optimizer(path_renames_walk=True, frozen=frozen)
+
+
+def test_a_rename_on_a_do_copy_is_refused_without_a_direction():
+    """``pm.do`` registers the pair under ``path``'s name, so the listing is reversed.
+
+    The message lists the two names without saying which one renames the other.
+    """
+    with pytest.raises(
+        ValueError,
+        match=r"The model has Deterministics where one only renames the other: "
+        r"'walk' and 'path'\.",
+    ):
+        _renamed_path_optimizer(path_renames_walk=True, frozen=(), do_copy=True)
 
 
 @pytest.mark.parametrize(

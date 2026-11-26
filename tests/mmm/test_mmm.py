@@ -3657,8 +3657,8 @@ def test_budget_optimizer_refuses_a_rename_of_a_deterministic(
     with pytest.raises(
         ValueError,
         # BudgetOptimizer is a pydantic model, so the error arrives as a ValidationError.
-        match=r"The model has Deterministics that only rename another "
-        r"Deterministic: 'scaled_rename_1' \(renames 'scaled_walk'\)",
+        match=r"The model has Deterministics where one only renames the other: "
+        r"'scaled_rename_1' and 'scaled_walk'\.",
     ):
         _optimize_budget(entry_point, mmm, "2023-01-10", "2023-01-14")
 
