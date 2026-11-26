@@ -580,9 +580,11 @@ def _deterministic_renames(pymc_model: Model) -> dict[str, str]:
     name its source model never froze, and cloning the clone again fails on the
     name.  Only renames of a Deterministic are returned: a rename of a data
     variable is merged the same way but is not checked, and a chain of renames
-    that ends at a free random variable is resolved by :func:`frozen_variables`.
-    On a model that is already a clone, a rename is found as a second name of the
-    variable it renames.
+    that ends at a random variable, free or observed, keeps every name, since each
+    Deterministic of the chain gets its own view.  A chain that ends at a free
+    random variable is resolved by :func:`frozen_variables`.  On a model that is
+    already a clone, a rename is found as a second name of the variable it
+    renames.
 
     Parameters
     ----------
@@ -596,20 +598,24 @@ def _deterministic_renames(pymc_model: Model) -> dict[str, str]:
         On a ``pm.do`` copy the two names of a pair can come the other way round.
     """
     deterministics = set(pymc_model.deterministics)
+    basic_rvs = set(pymc_model.basic_RVs)
+
+    def is_view(var: Variable) -> bool:
+        return var.owner is not None and isinstance(var.owner.op, ViewOp)
+
+    def chain_end(det: Variable) -> Variable:
+        while det in deterministics and is_view(det):
+            det = det.owner.inputs[0]
+        return det
+
     # shortcut: predicts PyMC's merge from the source graph; remove with the
     # refusals once test_pymc_merges_a_rename_of_a_deterministic_when_cloning fails.
-    candidates = [
-        det
-        for det in pymc_model.deterministics
-        if det.owner is not None
-        and isinstance(det.owner.op, ViewOp)
-        and det.owner.inputs[0] in deterministics
-    ]
-    held = frozen_variables(pymc_model, [det.name for det in candidates])
     renames = {
         det.name: det.owner.inputs[0].name
-        for det in candidates
-        if held[det.name] is det
+        for det in pymc_model.deterministics
+        if is_view(det)
+        and det.owner.inputs[0] in deterministics
+        and chain_end(det) not in basic_rvs
     }
     data_vars = set(pymc_model.data_vars)
     for name, var in pymc_model.named_vars.items():

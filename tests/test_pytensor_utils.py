@@ -1176,6 +1176,19 @@ def test_deterministic_renames_lists_a_rename_on_a_clone_but_not_a_data_rename()
     assert _deterministic_renames(clone_model(model)) == {"path": "walk"}
 
 
+def test_a_chain_of_renames_of_an_observed_variable_is_not_a_rename():
+    """Each Deterministic of a chain over ``y`` gets its own view, so a clone keeps both names."""
+    with pm.Model() as model:
+        mu = pm.Normal("mu")
+        y = pm.Normal("y", mu, observed=np.zeros(3))
+        pm.Deterministic("second", pm.Deterministic("first", y))
+
+    assert _deterministic_renames(model) == {}
+    _refuse_frozen_deterministic_renames(model, ["first", "second"])
+    clone = clone_model(clone_model(model))
+    assert clone["first"] is not clone["second"]
+
+
 def test_pymc_merges_a_rename_of_a_deterministic_when_cloning():
     """Remove the refusals built on ``_deterministic_renames`` once this fails (pymc-devs/pymc#8656).
 
