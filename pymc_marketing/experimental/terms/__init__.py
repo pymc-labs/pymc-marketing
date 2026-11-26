@@ -40,9 +40,8 @@ families or observation layouts are separate equations sharing terms by identity
     import xarray as xr
     from pymc_extras.prior import Prior
     from pymc_marketing.experimental.terms import SCM
-from pymc_marketing.terms import Data, Equation
+    from pymc_marketing.terms import Data, Equation, Intercept, Parameter
     from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
-    from pymc_marketing.terms import Intercept, Parameter
 
     response = (
         Data("spend")

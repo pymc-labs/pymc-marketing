@@ -27,8 +27,10 @@ once with every breakpoint inside the bounds blended, and uses that solve only t
 each entry is on. :class:`BreakpointSettler` then solves on those pieces, where no breakpoint is left to cross: an
 entry a pass leaves at a breakpoint end of its piece is pinned there, and :func:`entries_leaving_breakpoints` decides
 whether a pinned entry would gain by leaving it. Each :meth:`BreakpointSettler.settle` call keeps its state in a
-:class:`SettleRun`, and a pass's plan is a :class:`PiecewisePlan`. :func:`objective_scale_from_gradient` is the
-objective scale every solve of ``allocate_budget`` uses, here because the passes measure their progress on it.
+:class:`SettleRun`, and a pass's plan is a :class:`PiecewisePlan`. :func:`objective_scale_from_gradient`,
+:func:`constraint_scale_from_jacobian` and :func:`entry_sizes` are the scales and sizes every solve of
+``allocate_budget`` uses, here because the passes measure their progress, closeness to a bound and constraint slack
+on the same terms.
 """
 
 from __future__ import annotations
@@ -55,7 +57,9 @@ __all__ = [
     "PiecewisePlan",
     "ScheduleRows",
     "SettleRun",
+    "constraint_scale_from_jacobian",
     "entries_leaving_breakpoints",
+    "entry_sizes",
     "objective_scale_from_gradient",
 ]
 
@@ -234,6 +238,68 @@ def objective_scale_from_gradient(grad: np.ndarray) -> float:
     return steepest if np.isfinite(steepest) and steepest > 1.0 else 1.0
 
 
+def entry_sizes(
+    variables: OptimizationVariables,
+    low: np.ndarray,
+    high: np.ndarray,
+    total_budget: float,
+) -> np.ndarray:
+    """Return each flat entry's size, against which closeness to a bound and a constraint's scale are measured.
+
+    A spending entry is money, and its size is ``total_budget``. When ``total_budget`` is not positive, as a
+    minimum-spend problem may pass 0, it is the largest absolute value among the entry's finite bounds, at least 1.
+    Any other entry is in its own units, so the budget is no measure of how far it can move: its size is the largest
+    absolute value among its finite bounds, at least 1.
+
+    Parameters
+    ----------
+    variables : OptimizationVariables
+        The decision variables, which say which entries spend.
+    low, high : np.ndarray
+        The caller's bounds of every flat entry, ``-inf`` and ``inf`` where open.
+    total_budget : float
+        The budget passed to ``allocate_budget``.
+
+    Returns
+    -------
+    np.ndarray
+        Shape ``(n,)``: each flat entry's size.
+    """
+    bound = np.maximum(
+        np.where(np.isfinite(low), np.abs(low), 0.0),
+        np.where(np.isfinite(high), np.abs(high), 0.0),
+    )
+    size = np.maximum(1.0, bound)
+    if total_budget > 0:
+        for variable in variables.spending_variables():
+            size[variables.slices[variable.name]] = float(total_budget)
+    return size
+
+
+def constraint_scale_from_jacobian(jacobian: np.ndarray, size: np.ndarray) -> float:
+    """Return the largest change one entry makes in a constraint moving across its size, or one if not above one.
+
+    ``allocate_budget`` divides a constraint without a ``scale`` of its own by it, so that SLSQP's absolute ``ftol``,
+    which also bounds the summed constraint violation, is relative to how far the constraint moves rather than to
+    its units.
+
+    Parameters
+    ----------
+    jacobian : np.ndarray
+        The constraint's gradient with respect to the flat entries at the start of the solve.
+    size : np.ndarray
+        Each flat entry's size from :func:`entry_sizes`, 0 for an entry the solve's bounds hold fixed.
+
+    Returns
+    -------
+    float
+        The largest absolute entry of ``jacobian * size`` when it is finite and above one, else 1.0.
+    """
+    jacobian = np.abs(np.asarray(jacobian, dtype="float64").reshape(-1))
+    reach = float(np.max(jacobian * size, initial=0.0))
+    return reach if np.isfinite(reach) and reach > 1.0 else 1.0
+
+
 def entries_leaving_breakpoints(
     *,
     right: np.ndarray,
@@ -260,7 +326,9 @@ def entries_leaving_breakpoints(
     - an entry within ``rtol * size`` of one of its own bounds (``low``, ``high``) cannot move past it; a pinned
       entry may move one unit either way; any other open direction up to ``4 n`` units, so the program is bounded
       and zero is feasible;
-    - directions satisfy the linearised ``equalities`` and the ``active_inequalities`` (``jac @ d >= 0``);
+    - directions satisfy the linearised ``equalities`` and the ``active_inequalities`` (``jac @ d >= 0``), each row
+      divided by its largest absolute entry, so a constraint in large units does not push the program past HiGHS's
+      absolute tolerances;
     - costs are divided by the largest absolute cost among the open directions that improve, so a steep entry
       held on its bound does not shrink the others' costs below HiGHS's tolerances.
 
@@ -355,19 +423,26 @@ def _direction_constraints(
 ) -> dict[str, np.ndarray | None]:
     """``linprog``'s constraint arguments for the directions, where a Jacobian row acts on ``up - down``.
 
-    An equality stays put to first order; an active inequality may only grow, ``-jac @ d <= 0``.
+    An equality stays put to first order; an active inequality may only grow, ``-jac @ d <= 0``. Each row is divided
+    by its largest absolute entry, which leaves the directions it allows as they are.
     """
     arguments: dict[str, np.ndarray | None] = dict.fromkeys(
         ("A_eq", "b_eq", "A_ub", "b_ub")
     )
     if equalities:
         arguments["A_eq"] = np.array(
-            [np.concatenate([row, -row]) for row in equalities]
+            [
+                np.concatenate([row, -row]) / (np.max(np.abs(row), initial=0.0) or 1.0)
+                for row in equalities
+            ]
         )
         arguments["b_eq"] = np.zeros(len(equalities))
     if active_inequalities:
         arguments["A_ub"] = -np.array(
-            [np.concatenate([row, -row]) for row in active_inequalities]
+            [
+                np.concatenate([row, -row]) / (np.max(np.abs(row), initial=0.0) or 1.0)
+                for row in active_inequalities
+            ]
         )
         arguments["b_ub"] = np.zeros(len(active_inequalities))
     return arguments
@@ -603,7 +678,7 @@ class BreakpointSettler:
     low, high : np.ndarray
         The caller's bounds of every flat entry, ``-inf`` and ``inf`` where open.
     total_budget : float
-        The size of a monetary entry, against which closeness to a bound is measured.
+        The budget; with the bounds it sets each entry's size (:func:`entry_sizes`).
     ftol : float
         The objective change below which letting entries go bought nothing, on the scale of
         :func:`objective_scale_from_gradient`
@@ -616,13 +691,13 @@ class BreakpointSettler:
         Default 20.
     rtol : float
         How close, relative, an entry is to the bound or breakpoint that holds it, and a constraint value to
-        zero, when SLSQP leaves them; it leaves about ``8e-10``. Default ``1e-9``.
+        zero, when SLSQP leaves them: about ``8e-10`` of an entry's size, and under the default tolerance
+        ``ftol`` times a constraint's :func:`constraint_scale_from_jacobian`. Default ``1e-9``.
 
     Attributes
     ----------
     size : np.ndarray
-        Each flat entry's size, computed at construction: ``total_budget`` for money, and for a lever the largest
-        absolute value among its finite bounds, at least 1.
+        Each flat entry's size from :func:`entry_sizes`, computed at construction.
     """
 
     variables: OptimizationVariables
@@ -640,7 +715,7 @@ class BreakpointSettler:
 
     def __post_init__(self) -> None:
         """Measure every entry's size once: closeness to a bound and constraint slack are relative to it."""
-        self.size = self._entry_sizes()
+        self.size = entry_sizes(self.variables, self.low, self.high, self.total_budget)
 
     def record_skipped_passes(
         self, first: OptimizeResult, method: object
@@ -935,21 +1010,3 @@ class BreakpointSettler:
     def _constraint_tolerance(self, jacobian: np.ndarray) -> float:
         """Return ``rtol`` of what moving every entry across its size would move a constraint by."""
         return self.rtol * float(np.abs(jacobian) @ self.size)
-
-    def _entry_sizes(self) -> np.ndarray:
-        """Return each flat entry's size: ``total_budget`` for money, and for a lever its largest finite bound.
-
-        A lever's bounds are in its own units, so the budget is no measure of how far it can move; its size is the
-        largest absolute value among its finite bounds, at least 1, and 1 when it has none.
-        """
-        low, high = self.low, self.high
-        size = np.maximum(
-            1.0,
-            np.maximum(
-                np.where(np.isfinite(low), np.abs(low), 0.0),
-                np.where(np.isfinite(high), np.abs(high), 0.0),
-            ),
-        )
-        for variable in self.variables.spending_variables():
-            size[self.variables.slices[variable.name]] = float(self.total_budget)
-        return size

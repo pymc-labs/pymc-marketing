@@ -15,6 +15,6 @@ updates:
     groups:
       actions-all:
         patterns:
-          - "actions/*"
+          - "*"
     cooldown:
       default-days: 7

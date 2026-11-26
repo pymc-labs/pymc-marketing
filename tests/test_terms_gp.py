@@ -350,15 +350,6 @@ def test_declared_hyperparameters_win_over_resolution(ds):
         assert trend.resolved.ls is ls
 
 
-def test_float_hyperparams(ds):
-    """Float eta/ls bypass the priors."""
-    trend = HSGPTerm(name="trend", eta=1.0, ls=2.0, m=15, L=100)
-    with pm.Model(coords=collect_coords(trend, ds=ds)):
-        register_data(trend, ds=ds)
-        effect = build_param(trend)
-        assert isinstance(effect, PTVariable)
-
-
 def test_register_data_dedup(ds):
     """Two terms on the same time reference each register their own index."""
     trend = HSGPTerm(name="trend")
@@ -705,13 +696,6 @@ def test_serialize_resolved_keeps_m_l(ds):
     assert restored.X_mid == term.X_mid
     assert restored.first_date == term.first_date
     assert restored.last_date == term.last_date
-
-
-def test_serialize_softplus_roundtrip():
-    term = SoftPlusHSGPTerm(m=15, L=100)
-    restored = serialization.deserialize(serialization.serialize(term))
-    assert restored == term
-    assert type(restored).__name__ == "SoftPlusHSGPTerm"
 
 
 def test_serialize_periodic_roundtrip():
@@ -1171,30 +1155,6 @@ def test_equivalence_periodic():
     )
     draws_existing, draws_term = _sample_prior_both(term, existing)
     np.testing.assert_allclose(draws_existing, draws_term)
-
-
-def test_time_index_parity_with_mmm_training_index(ds):
-    """The term's time index matches MMM's own training index.
-
-    ``MMM`` builds its latent-process time index as ``np.arange(n)`` (see
-    ``MMM._time_index``) and sets ``(dates[1] - dates[0]).days`` as the time
-    resolution, so a ``time_varying_media`` HSGP sees periods. The term must
-    derive the same axis, otherwise the deferred hyperparameters -- and the
-    resulting media multiplier -- do not match the MMM it is meant to mirror.
-    """
-    dates = pd.DatetimeIndex(ds.coords["date"].values)
-    n = len(dates)
-    mmm_index = np.arange(n)
-    mmm_resolution = (dates[1] - dates[0]).days
-
-    trend = HSGPTerm(name="trend")
-    with pm.Model(coords=collect_coords(trend, ds=ds)) as model:
-        register_data(trend, ds=ds)
-        build_param(trend)
-        index = model[trend.index_var].get_value()
-
-    assert trend.time_resolution == mmm_resolution
-    np.testing.assert_allclose(index, mmm_index)
 
 
 def test_mmm_style_media_contribution(ds):

@@ -976,6 +976,7 @@ def _condition_outputs(
         model, idata, [built[name] for name in sampled]
     )
     result = dict(built)
+    # Every built output is an xtensor, and an xtensor response comes back as one.
     result.update(zip(sampled, cast(list[XTensorVariable], conditioned), strict=True))
     return result, _posterior_sample_major(idata).get_index("sample")
 

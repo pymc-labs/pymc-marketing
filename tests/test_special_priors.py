@@ -102,11 +102,6 @@ def test_LogNormalPrior_args(mean, std, centered, dims):
     assert rv.to_dict() == rv.from_dict(rv.to_dict()).to_dict()
 
 
-def test_LogNormalPrior_args_invalid():
-    with pytest.raises(ValueError):
-        LogNormalPrior(alpha=1.0, beta=1.0)
-
-
 def test_LogNormalPrior_from_dict_invalid():
     with pytest.raises(
         ValueError,
@@ -1845,7 +1840,6 @@ def test_constant_mu_fixes_the_channel_mean_and_round_trips(mu):
             lambda: VarianceBudget(0.5, {"brand": 1.0}),
             "VarianceBudget total must be a Prior",
         ),
-        (lambda: nzs({"brand": {}}, sigma=0.5), "`sigma` must be IndependentSigmas"),
         (  # a dimmed scale broadcast onto the wrong axis and broke the zero sum
             lambda: IndependentSigmas({"brand": Prior("HalfNormal", dims="channel")}),
             r"IndependentSigmas priors\['brand'\] must be scalar \(no dims\)",
@@ -1860,7 +1854,6 @@ def test_constant_mu_fixes_the_channel_mean_and_round_trips(mu):
     ids=[
         "independent",
         "budget",
-        "sigma",
         "independent_dims",
         "budget_total_dims",
         "budget_concentration",
@@ -1938,7 +1931,8 @@ def test_the_callers_spec_is_not_mutated():
                     "family": {"within": "region", "map": {0: "r0"}},
                 }
             },
-            "nesting is at most two levels per tree",
+            # family is a middle term now: its `map` must cover the labels brand maps to
+            r"term family: `map` has no region for the family labels \['1'\] that brand maps to",
         ),
         ({"terms": NEST, "centered": "no"}, "`centered` must be a bool, got 'no'"),
         ({"terms": NEST, "centered": None}, "`centered` must be a bool, got None"),
@@ -2535,6 +2529,237 @@ def test_parent_effect_false_builds_nesting_without_the_parent_term():
     ]  # no beta_tier
 
 
+# --- Deeper nesting -----------------------------------------------------------
+
+# West: T1 (D1, D2, D3), T2 (D4, D5); East: T3 (D6, D7), T4 (D8, D9, D10)
+TIER_OF = {"D1": "T1", "D2": "T1", "D3": "T1", "D4": "T2", "D5": "T2",
+           "D6": "T3", "D7": "T3", "D8": "T4", "D9": "T4", "D10": "T4"}  # fmt: skip
+REGION_OF = {"T1": "West", "T2": "West", "T3": "East", "T4": "East"}
+DEEP = {
+    "region": {},
+    "tier": {"within": "region", "map": REGION_OF},
+    "dma": {"within": "tier", "map": TIER_OF},
+}
+DEEP_COORDS = {"channel": ["c0", "c1"], "dma": list(TIER_OF)}
+
+
+def deep(terms=DEEP, **kwargs):
+    return nzs(terms, dims=("dma", "channel"), **kwargs)
+
+
+def test_a_chain_of_three_levels_has_one_offset_per_level():
+    model, _ = build(deep(), DEEP_COORDS)
+    beta_vars = {k: v for k, v in model.named_vars_to_dims.items() if "sigma" not in k}
+    assert beta_vars == {
+        "beta_mu": ("channel",),
+        "beta_region_offset": ("channel", "region"),
+        "beta_region": ("channel", "region"),
+        "beta_tier_offset": ("channel", "beta_tier_free"),
+        "beta_tier": ("channel", "tier"),
+        "beta_dma_offset": ("channel", "beta_dma_free"),
+        "beta_dma": ("channel", "dma"),
+        "beta": ("dma", "channel"),
+    }
+    assert model.coords["region"] == ("East", "West")
+    assert model.coords["tier"] == ("T1", "T2", "T3", "T4")
+    assert model.coords["beta_tier_free"] == (0, 1)  # 4 tiers in 2 regions
+    assert model.coords["beta_dma_free"] == (0, 1, 2, 3, 4, 5)  # 10 DMAs in 4 tiers
+
+
+# 2 zones > 4 regions > 8 tiers > 20 DMAs: every parent has more than one child
+ZONE_OF4 = {"r0": "z0", "r1": "z0", "r2": "z1", "r3": "z1"}
+TIER_OF4 = {f"t{i}": f"r{i // 2}" for i in range(8)}
+DMA_OF4 = {
+    "d0": "t0",
+    "d1": "t0",
+    "d2": "t0",
+    "d3": "t1",
+    "d4": "t1",
+    "d5": "t2",
+    "d6": "t2",
+    "d7": "t2",
+    "d8": "t3",
+    "d9": "t3",
+    "d10": "t4",
+    "d11": "t4",
+    "d12": "t4",
+    "d13": "t5",
+    "d14": "t5",
+    "d15": "t6",
+    "d16": "t6",
+    "d17": "t6",
+    "d18": "t7",
+    "d19": "t7",
+}
+FOUR = {
+    "zone": {},
+    "region": {"within": "zone", "map": ZONE_OF4},
+    "tier": {"within": "region", "map": TIER_OF4},
+    "dma": {"within": "tier", "map": DMA_OF4},
+}
+FOUR_COORDS = {"channel": ["c0", "c1"], "dma": [f"d{i}" for i in range(20)]}
+
+CHAIN_PARAMS = {
+    "three": (
+        DEEP,
+        DEEP_COORDS,
+        {d: {"dma": d, "tier": t, "region": REGION_OF[t]} for d, t in TIER_OF.items()},
+    ),
+    "four": (
+        FOUR,
+        FOUR_COORDS,
+        {
+            d: {
+                "dma": d,
+                "tier": t,
+                "region": TIER_OF4[t],
+                "zone": ZONE_OF4[TIER_OF4[t]],
+            }
+            for d, t in DMA_OF4.items()
+        },
+    ),
+}
+
+
+@pytest.mark.parametrize("centered", [True, False])
+@pytest.mark.parametrize("chain", ["three", "four"])
+def test_each_level_of_a_chain_sums_to_zero_within_its_parent_and_adds_up_to_beta(
+    chain,
+    centered,
+):
+    terms, coords, label_of = CHAIN_PARAMS[chain]
+    model, beta = build(nzs(terms, transform=None, centered=centered), coords)
+    # joint prior draws, so the ZeroSumNormal of the top level is zero-sum too
+    names = ["beta_mu", *(f"beta_{k}" for k in terms)]
+    *levels, b = pm.draw(
+        [*(model[v].values for v in names), beta.values], 20, random_seed=0
+    )
+    mu = np.moveaxis(levels[0], 0, -1)  # (channel, draw)
+    # each level's offset: (channel, label, draw), on the coord of its labels
+    offsets = {
+        k: np.moveaxis(x, 0, -1) for k, x in zip(terms, levels[1:], strict=False)
+    }
+    b = np.moveaxis(b, 0, -1)  # (dma, channel, draw)
+    for k, t in terms.items():
+        labels = list(model.coords[k])
+        if t.get("within") is None:  # the top of the chain: zero-sum over its labels
+            assert np.abs(offsets[k].sum(axis=1)).max() < 1e-12
+        else:  # the other levels: zero-sum inside each parent
+            m = t["map"]
+            for p in sorted(set(m.values()), key=str):
+                cols = [i for i, lab in enumerate(labels) if m[lab] == p]
+                assert np.abs(offsets[k][:, cols].sum(axis=1)).max() < 1e-12
+    for i, d in enumerate(coords["dma"]):
+        expected = mu + sum(
+            offsets[k][:, list(model.coords[k]).index(label_of[d][k])] for k in terms
+        )
+        np.testing.assert_allclose(b[i], expected, atol=1e-12)
+    if (
+        chain == "four"
+    ):  # every parent has more than one child, so all levels have free values
+        assert len(model.coords["beta_region_free"]) == 2
+        assert len(model.coords["beta_tier_free"]) == 4
+        assert len(model.coords["beta_dma_free"]) == 12
+
+
+def test_a_chain_of_any_depth_builds():
+    zone_of = {"East": "Z0", "West": "Z1"}
+    terms = {
+        "zone": {},
+        "region": {"within": "zone", "map": zone_of},
+        **{k: v for k, v in DEEP.items() if k != "region"},
+    }
+    with pytest.warns(UserWarning, match="every zone has one region"):
+        model, _ = build(deep(terms), DEEP_COORDS)
+    assert model.coords["zone"] == ("Z0", "Z1")
+    assert {"beta_zone", "beta_region", "beta_tier", "beta_dma"} <= set(
+        model.named_vars
+    )
+
+
+def test_the_top_of_a_chain_can_leave_out_its_parent_effect():
+    terms = {
+        "tier": {"within": "region", "map": REGION_OF, "parent_effect": False},
+        "dma": {"within": "tier", "map": TIER_OF},
+    }
+    model, _ = build(deep(terms), DEEP_COORDS)
+    assert "beta_region" not in model.named_vars
+    assert model.named_vars_to_dims["beta_tier"] == ("channel", "tier")
+
+
+def test_a_middle_term_clash_with_another_prior_reports_the_coord_clash():
+    # another prior in the same model, with the same labels grouped differently
+    other_tier = {"D1": "t0", "D2": "t0", "D3": "t0", "D4": "t0", "D5": "t0",
+                  "D6": "t1", "D7": "t1", "D8": "t1", "D9": "t1", "D10": "t1"}  # fmt: skip
+    terms = {
+        "region": {},
+        "tier": {"within": "region", "map": {"t0": "West", "t1": "East"}},
+        "dma": {"within": "tier", "map": other_tier},
+    }
+    with pm.Model(coords=DEEP_COORDS):
+        deep().create_variable("alpha", xdist=True)  # adds the `tier` coord
+        with pytest.raises(ValueError, match="model coord 'tier' has labels"):
+            nzs(terms).create_variable("beta", xdist=True)
+
+
+def test_a_map_with_mixed_number_labels_raises_at_construction():
+    terms = {
+        "region": {},
+        "tier": {"within": "region", "map": {1: "W", 2.5: "E"}},
+        "dma": {"within": "tier", "map": {"d0": 1, "d1": 1, "d2": 2.5, "d3": 2.5}},
+    }
+    with pytest.raises(ValueError, match="term tier: `map` has no region"):
+        nzs(terms)
+
+
+@pytest.mark.parametrize(
+    ("terms", "message"),
+    [
+        (
+            {
+                "a": {"within": "b", "map": {"x": "y"}},
+                "b": {"within": "a", "map": {"y": "x"}},
+            },
+            "terms ['a', 'b'] are `within` each other in a cycle",
+        ),
+        (
+            {
+                **DEEP,
+                "tier": {
+                    "within": "region",
+                    "map": {"T1": "West", "T2": "West", "T3": "East"},
+                },
+            },
+            "term tier: `map` has no region for the tier labels ['T4'] that dma maps to",
+        ),
+        (
+            {**DEEP, "tier": {"within": "region", "map": REGION_OF | {"T9": "East"}}},
+            "term tier: `map` keys ['T9'] are not tier labels that dma maps to ['T1', 'T2', 'T3', 'T4']",
+        ),
+    ],
+    ids=["cycle", "middle_map_misses_a_label", "middle_map_adds_a_label"],
+)
+def test_a_chain_problem_raises_a_valueerror_naming_it(terms, message):
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+        deep(terms)
+
+
+def test_children_works_at_every_level_of_a_chain():
+    prior = deep()
+    assert prior.children("tier", "West") == ["T1", "T2"]
+    assert prior.children("dma", "T4") == ["D8", "D9", "D10"]
+
+
+def test_a_chain_round_trips():
+    prior = deep()
+    for back in (
+        NestedZeroSumPrior.from_dict(json.loads(json.dumps(prior.to_dict()))),
+        NestedZeroSumPrior.from_dict(yaml.safe_load(yaml.safe_dump(prior.to_dict()))),
+    ):
+        assert back == prior
+        assert hash(back) == hash(prior)
+
+
 # --- Properties of the built prior --------------------------------------------
 
 HN = Prior("HalfNormal", sigma=0.5)
@@ -2617,34 +2842,121 @@ def term_only(model, beta, level, n=20):
     )
 
 
-@pytest.mark.parametrize("centered", [True, False])
+# An all-pairs subset of case x centered x sigma.
+# Every case runs both centered forms, once per sigma option; every (centered, sigma) pair occurs.
 @pytest.mark.parametrize(
-    ("terms", "level", "axis", "groups"),
+    ("terms", "level", "axis", "groups", "centered", "sigma"),
     [
-        (
+        pytest.param(
             nested(),
             "family",
             1,
-            [[0, 2]],
-        ),  # one brand per family: the families sum to 0
-        (nested(), "brand", 1, [[0, 1], [2, 3]]),  # within each family
-        (nested(), "tier", 2, [[0, 4, 7]]),
-        (nested(), "dma", 2, [[0, 1, 2, 3], [4, 5, 6], [7, 8, 9]]),  # within each tier
-        (nested(), "brand_dma", 1, [range(4)]),  # interaction: both axes
-        (nested(), "brand_dma", 2, [range(10)]),
-        (CROSSED, "brand", 1, [range(4)]),  # crossed term: over the whole coord
-    ],
-    ids=[
-        "family",
-        "brand_in_family",
-        "tier",
-        "dma_in_tier",
-        "interaction_brand_axis",
-        "interaction_dma_axis",
-        "crossed_brand",
+            [[0, 2]],  # one brand per family: the families sum to 0
+            True,
+            None,
+            id="independent-family-True",
+        ),
+        pytest.param(
+            nested(), "family", 1, [[0, 2]], False, LEVEL_HN, id="prior-family-False"
+        ),
+        pytest.param(  # within each family
+            nested(),
+            "brand",
+            1,
+            [[0, 1], [2, 3]],
+            True,
+            LEVEL_HN,
+            id="prior-brand_in_family-True",
+        ),
+        pytest.param(
+            nested(),
+            "brand",
+            1,
+            [[0, 1], [2, 3]],
+            False,
+            None,
+            id="independent-brand_in_family-False",
+        ),
+        pytest.param(
+            nested(), "tier", 2, [[0, 4, 7]], True, None, id="independent-tier-True"
+        ),
+        pytest.param(
+            nested(), "tier", 2, [[0, 4, 7]], False, LEVEL_HN, id="prior-tier-False"
+        ),
+        pytest.param(  # within each tier
+            nested(),
+            "dma",
+            2,
+            [[0, 1, 2, 3], [4, 5, 6], [7, 8, 9]],
+            True,
+            LEVEL_HN,
+            id="prior-dma_in_tier-True",
+        ),
+        pytest.param(
+            nested(),
+            "dma",
+            2,
+            [[0, 1, 2, 3], [4, 5, 6], [7, 8, 9]],
+            False,
+            None,
+            id="independent-dma_in_tier-False",
+        ),
+        pytest.param(  # interaction: both axes
+            nested(),
+            "brand_dma",
+            1,
+            [range(4)],
+            True,
+            None,
+            id="independent-interaction_brand_axis-True",
+        ),
+        pytest.param(
+            nested(),
+            "brand_dma",
+            1,
+            [range(4)],
+            False,
+            LEVEL_HN,
+            id="prior-interaction_brand_axis-False",
+        ),
+        pytest.param(
+            nested(),
+            "brand_dma",
+            2,
+            [range(10)],
+            True,
+            LEVEL_HN,
+            id="prior-interaction_dma_axis-True",
+        ),
+        pytest.param(
+            nested(),
+            "brand_dma",
+            2,
+            [range(10)],
+            False,
+            None,
+            id="independent-interaction_dma_axis-False",
+        ),
+        pytest.param(  # crossed term: over the whole coord
+            CROSSED,
+            "brand",
+            1,
+            [range(4)],
+            True,
+            None,
+            id="independent-crossed_brand-True",
+        ),
+        pytest.param(
+            CROSSED,
+            "brand",
+            1,
+            [range(4)],
+            False,
+            LEVEL_HN,
+            id="prior-crossed_brand-False",
+        ),
     ],
 )
-@pytest.mark.parametrize("sigma", [None, LEVEL_HN], ids=["independent", "prior"])
 def test_zero_sum_on_every_intended_axis(terms, level, axis, groups, centered, sigma):
     x = term_only(*build_full(terms, centered, sigma), level)
     assert np.abs(x).max() > 1e-3

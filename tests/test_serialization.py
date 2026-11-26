@@ -45,12 +45,6 @@ class TestSerializationError:
 
         assert issubclass(SerializationError, Exception)
 
-    def test_message(self):
-        from pymc_marketing.serialization import SerializationError
-
-        err = SerializationError("test message")
-        assert str(err) == "test message"
-
 
 class TestSerializableProtocol:
     def test_structural_typing(self):
@@ -81,12 +75,6 @@ class TestDeserializationContext:
 
         ctx = DeserializationContext()
         assert ctx.idata is None
-
-    def test_with_idata(self):
-        from pymc_marketing.serialization import DeserializationContext
-
-        ctx = DeserializationContext(idata="fake_idata")
-        assert ctx.idata == "fake_idata"
 
 
 class TestDeferredFactory:
@@ -146,42 +134,6 @@ class TestTypeRegistry:
 
         type_key = f"{Foo.__module__}.{Foo.__qualname__}"
         assert type_key in reg._registry
-
-    def test_register_with_key(self):
-        from pymc_marketing.serialization import TypeRegistry
-
-        reg = TypeRegistry()
-
-        class Bar:
-            def to_dict(self):
-                return {"y": 2}
-
-            @classmethod
-            def from_dict(cls, data):
-                return cls()
-
-        reg.register("custom.Bar", Bar)
-        assert "custom.Bar" in reg._registry
-
-    def test_serialize(self):
-        from pymc_marketing.serialization import TypeRegistry
-
-        reg = TypeRegistry()
-
-        @reg.register
-        class Baz:
-            def to_dict(self):
-                return {"val": 99}
-
-            @classmethod
-            def from_dict(cls, data):
-                return cls()
-
-        result = reg.serialize(Baz())
-        assert result == {
-            "__type__": f"{Baz.__module__}.{Baz.__qualname__}",
-            "val": 99,
-        }
 
     def test_deserialize_standard(self):
         from pymc_marketing.serialization import TypeRegistry

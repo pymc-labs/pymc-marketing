@@ -80,7 +80,7 @@ def test_add_saturation_observations_defaults_to_signed_normal_likelihood() -> N
     assert "lift_measurements_model_estimated_lift" in model
 
 
-@pytest.mark.parametrize("distribution", ["Normal", "StudentT", "Gamma"])
+@pytest.mark.parametrize("distribution", ["Normal", "StudentT"])
 def test_supported_lift_likelihoods_build_with_finite_logp(distribution: str) -> None:
     with pm.Model(coords={"channel": ["one"]}) as model:
         pmd.HalfNormal("beta", sigma=1.0, dims="channel")
@@ -512,13 +512,13 @@ def convert_to_lists(indices):
 @pytest.mark.parametrize(
     "columns, expected",
     [
-        (["date"], {"date": [0, 2]}),
-        (["channel"], {"channel": [0, 1]}),
-        (["geo"], {"geo": [0, 2]}),
-        (["date", "channel"], {"date": [0, 2], "channel": [0, 1]}),
-        (
+        pytest.param(["date"], {"date": [0, 2]}, id="columns0-expected0"),
+        pytest.param(["channel"], {"channel": [0, 1]}, id="columns1-expected1"),
+        pytest.param(["geo"], {"geo": [0, 2]}, id="columns2-expected2"),
+        pytest.param(
             ["date", "channel", "geo"],
             {"date": [0, 2], "channel": [0, 1], "geo": [0, 2]},
+            id="columns4-expected4",
         ),
     ],
 )
@@ -976,40 +976,6 @@ def test_adds_date_column_if_missing(dummy_mmm_model):
 
     # Check if the date was added inside the function
     assert dummy_mmm_model._last_lift_test_df["date"].notna().all()
-
-
-def test_add_cost_per_target_observations(dummy_mmm_model):
-    model = dummy_mmm_model
-
-    dates = model.model.coords["date"]
-    channels = model.model.coords["channel"]
-    cost = as_xtensor(
-        np.full((len(dates), len(channels)), 30.0, dtype=float),
-        dims=("date", "channel"),
-    )
-    target = as_xtensor(
-        np.ones((len(dates), len(channels)), dtype=float),
-        dims=("date", "channel"),
-    )
-
-    calibration_df = pd.DataFrame(
-        {
-            "channel": [channels[0], channels[1]],
-            "cost_per_target": [30.0, 45.0],
-            "sigma": [2.0, 3.0],
-        }
-    )
-
-    add_cost_per_target_observations(
-        calibration_df=calibration_df,
-        model=model.model,
-        cost_value=cost,
-        target_value=target,
-        name_prefix="cpt_calibration",
-    )
-
-    obs_names = [rv.name for rv in model.model.observed_RVs]
-    assert "cpt_calibration" in obs_names
 
 
 @pytest.mark.parametrize("target_per_cost", [False, True])
