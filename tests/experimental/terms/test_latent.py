@@ -37,6 +37,7 @@ from pymc_marketing.experimental.terms import (  # noqa: E402
     LatentStateSpace,
 )
 from pymc_marketing.terms import Data, Equation, Observed  # noqa: E402
+from pymc_marketing.terms._graph import walk  # noqa: E402
 
 N = 30
 A = np.array([[0.7, 0.2], [-0.1, 0.5]])
@@ -142,7 +143,7 @@ def observation_logp(model: pm.Model, name: str = "lat", **point) -> float:
 
 def test_marginal_likelihood_matches_numpy_filter(data):
     lat = latent()
-    model = SCM(*equations(lat), marginalize=[lat]).build_model(data)
+    model = SCM(*equations(lat)).build_model(data)
     assert not model.free_RVs
     # pymc-extras stabilises the observed covariance with a small jitter (cov_jitter)
     np.testing.assert_allclose(observation_logp(model), varmax_loglike(data), rtol=1e-6)
@@ -152,7 +153,7 @@ def test_observed_equations_are_marginalized(data):
     lat = latent()
     a = Observed("Normal", observed="a", mu=Data("z") + lat["a"], sigma=SIGMA[0])
     b = Observed("Normal", observed="b", mu=lat["b"], sigma=SIGMA[1])
-    model = SCM(a, b, marginalize=[lat]).build_model(data)
+    model = SCM(a, b).build_model(data)
     np.testing.assert_allclose(observation_logp(model), varmax_loglike(data), rtol=1e-6)
 
 
@@ -162,7 +163,7 @@ def test_equation_can_use_another_equation_of_the_same_latent(data):
     b = Equation(
         observed="b", mu=lat["b"] + a, likelihood=Prior("Normal", sigma=SIGMA[1])
     )
-    model = SCM(a, b, marginalize=[lat]).build_model(data)
+    model = SCM(a, b).build_model(data)
     # a's value is its observations, a known offset for b
     np.testing.assert_allclose(
         observation_logp(model),
@@ -177,7 +178,7 @@ def test_prior_dims_are_aligned_by_name(data):
             "Normal", dims=("lag_ar", "observed_state_aux", "observed_state")
         )
     )
-    model = SCM(*equations(lat), marginalize=[lat]).build_model(data)
+    model = SCM(*equations(lat)).build_model(data)
     assert model.named_vars_to_dims["lat_ar_params"] == (
         "lat_lag_ar",
         "lat_observed_state_aux",
@@ -199,7 +200,7 @@ def test_prior_function_returns_the_requested_dim_order(data):
         )
 
     lat = latent(ar_params=ar_params)
-    model = SCM(*equations(lat), marginalize=[lat]).build_model(data)
+    model = SCM(*equations(lat)).build_model(data)
     # A laid out along the prior's own dims: [source, lag, target]
     point = {"lat_ar_raw": A.T[:, None, :]}
     np.testing.assert_allclose(
@@ -211,7 +212,7 @@ def test_fixed_values_must_have_the_parameter_shape(data):
     # A diagonal given as a vector would broadcast to a non-symmetric covariance
     lat = latent(state_cov=np.array([0.2, 0.1]))
     with pytest.raises(ValueError):
-        SCM(*equations(lat), marginalize=[lat]).build_model(data)
+        SCM(*equations(lat)).build_model(data)
 
 
 def test_priors_use_prefixed_model_dims(data):
@@ -230,7 +231,7 @@ def test_priors_use_prefixed_model_dims(data):
         ),
         state_cov=state_cov,
     )
-    model = SCM(*equations(lat), marginalize=[lat]).build_model(data)
+    model = SCM(*equations(lat)).build_model(data)
     dims = model.named_vars_to_dims
     assert dims["lat_beta_exog"] == ("lat_observed_state",)
     assert dims["lat_shock_sd"] == ("lat_shock",)
@@ -247,7 +248,7 @@ def test_exogenous_labels_must_match_the_model(data):
         exog={"exogenous_data": Data("inputs")},
     )
     with pytest.raises(ValueError, match="must match the model's inputs"):
-        SCM(*equations(lat), marginalize=[lat]).build_model(data)
+        SCM(*equations(lat)).build_model(data)
 
 
 class _TimeVaryingLoading(PyMCStateSpace):
@@ -334,7 +335,7 @@ def test_prior_predictive_shock_uses_the_previous_dates_variance(data):
         exog={"v": Data("v")},
     )
     y = Equation(observed="c", mu=lat["y"], likelihood=Prior("Normal", sigma=0.1))
-    _, model, _ = SCM(y, marginalize=[lat])._training_model(
+    _, model, _ = SCM(y)._training_model(
         data.assign(v=("date", v)), simulate_latents=True
     )
     draws = pm.draw(model["lat_latent"], draws=50, random_seed=7)
@@ -352,7 +353,7 @@ def test_time_varying_design_matches_numpy_filter(data):
         exog={"x": Data("z")},
     )
     y = Equation(observed="c", mu=lat["y"], likelihood=Prior("Normal", sigma=0.4))
-    model = SCM(y, marginalize=[lat]).build_model(data)
+    model = SCM(y).build_model(data)
     z = data["z"].values
     expected = kalman_loglike(
         data["c"].values[:, None],
@@ -370,17 +371,13 @@ def test_time_varying_design_matches_numpy_filter(data):
 
 def test_prior_predictive_draws_states_forward(data):
     lat = latent()
-    draws = SCM(*equations(lat), marginalize=[lat]).sample_prior_predictive(
-        data, draws=20, random_seed=3
-    )
+    draws = SCM(*equations(lat)).sample_prior_predictive(data, draws=20, random_seed=3)
     assert {"a", "b"} <= set(draws["prior_predictive"].data_vars)
     assert draws["prior"]["lat_latent"].dims[-2:] == ("date", "lat_state")
 
     # Without initial or shock variance the path is the deterministic recursion
     still = latent(P0=np.zeros((2, 2)), state_cov=np.zeros((2, 2)))
-    _, model, _ = SCM(*equations(still), marginalize=[still])._training_model(
-        data, simulate_latents=True
-    )
+    _, model, _ = SCM(*equations(still))._training_model(data, simulate_latents=True)
     states = pm.draw(model["lat_latent"])
     inputs = data["inputs"].sel(input=["x", "w"]).values
     expected = [X0]
@@ -391,7 +388,7 @@ def test_prior_predictive_draws_states_forward(data):
 
 def test_prior_predictive_ignores_the_observations(data):
     lat = latent()
-    scm = SCM(*equations(lat), marginalize=[lat])
+    scm = SCM(*equations(lat))
     shifted = data.assign(a=data["a"] + 100.0, b=data["b"] - 100.0)
     first, second = (
         scm.sample_prior_predictive(ds, draws=10, random_seed=4)["prior_predictive"]
@@ -406,7 +403,7 @@ def test_nested_observed_equations_are_marginalized(data):
     downstream = Equation(
         observed="c", mu=Data("z") + a, likelihood=Prior("Normal", sigma=1.0)
     )
-    model = SCM(downstream, b, marginalize=[lat]).build_model(data)
+    model = SCM(downstream, b).build_model(data)
     assert set(model.coords["lat_equation"]) == {"a", "b"}
     assert "c" in model.named_vars
 
@@ -415,12 +412,16 @@ def test_save_and_load_keep_the_marginalized_latent(data, tmp_path):
     lat = latent(
         trend_params=Prior("Normal", sigma=1, dims=("observed_state", "trend"))
     )
-    scm = SCM(*equations(lat), marginalize=[lat])
+    scm = SCM(*equations(lat))
     scm.fit(data, draws=20, tune=20, chains=1, random_seed=5, progressbar=False)
     path = tmp_path / "model.zarr"
     scm.save(path)
     loaded = SCM.load(path)  # recomputes the joint log-density at saved draws
-    (restored,) = loaded._marginalize
+    (restored,) = {
+        id(node): node
+        for node in walk(loaded.equations)
+        if isinstance(node, LatentStateSpace)
+    }.values()
     assert restored.model is pmss.BayesianVARMAX
     assert restored.model_kwargs == VARMAX
     assert "lat_observations" in loaded.model.named_vars
@@ -444,14 +445,21 @@ def test_unknown_component_lists_the_observed_states():
         latent()["c"]
 
 
-def test_latent_must_be_marginalized_to_fit(data):
-    with pytest.raises(NotImplementedError, match="marginalized"):
-        SCM(*equations(latent())).build_model(data)
+def test_latent_can_only_enter_the_mean(data):
+    lat = latent()
+    a = Equation(
+        observed="a",
+        mu=lat["a"],
+        parameters={"sigma": lat["b"]},
+        likelihood=Prior("Normal"),
+    )
+    with pytest.raises(ValueError, match="must be Normal"):
+        SCM(a, equations(lat)[1]).build_model(data)
 
 
 def test_marginalization_needs_normal_likelihood(data):
     lat = latent()
-    scm = SCM(*equations(lat, likelihood="Logistic"), marginalize=[lat])
+    scm = SCM(*equations(lat, likelihood="Logistic"))
     with pytest.raises(ValueError, match="must be Normal"):
         scm.build_model(data)
     # The prior predictive refuses what training refuses
@@ -467,7 +475,7 @@ def test_marginalization_refuses_transformed_likelihood(data):
         likelihood=Prior("Normal", sigma=SIGMA[0], transform="exp"),
     )
     with pytest.raises(ValueError, match="transformed or noncentered"):
-        SCM(a, equations(lat)[1], marginalize=[lat]).build_model(data)
+        SCM(a, equations(lat)[1]).build_model(data)
 
 
 def test_equation_cannot_observe_two_latents(data):
@@ -476,4 +484,4 @@ def test_equation_cannot_observe_two_latents(data):
         observed="a", mu=first["a"] + second["a"], likelihood=Prior("Normal", sigma=1.0)
     )
     with pytest.raises(ValueError, match="more than one marginalized latent"):
-        SCM(both, marginalize=[first, second]).build_model(data)
+        SCM(both).build_model(data)

@@ -571,8 +571,6 @@ class BuildContext:
         # Equations an extension builds itself, such as one joint likelihood for
         # several equations, keyed by equation identity
         self.equation_builders: dict[int, Callable[[Equation, BuildContext], Any]] = {}
-        # Per-build state owned by extensions, keyed by the extension
-        self.extensions: dict[str, Any] = {}
         self._registered_inputs: dict[Variable, str] = {}
         self._input_arrays: dict[str, xr.DataArray] = {}
         self._registration_datasets: dict[int, xr.Dataset] = {}

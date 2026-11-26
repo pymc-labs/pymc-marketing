@@ -18,7 +18,7 @@ A :class:`LatentStateSpace` wraps a ``pymc_extras.statespace`` model, such as
 like any other term, for example
 ``Equation(observed="sales", mu=media + latent["baseline"])``.
 
-``SCM(..., marginalize=[latent])`` integrates the states out: every observed
+Fitting an SCM integrates the states out: every observed
 equation whose mean is one observed state plus other terms, with a Normal
 likelihood, becomes a row of the model's observation equation. Their joint
 likelihood is the prediction-error decomposition: given the past, each date's
@@ -72,14 +72,6 @@ _SHORT_NAMES = {
     "state_cov": "Q",
 }
 
-# Keys of this module's state in ``BuildContext.extensions``
-_SIMULATE = "latent_state_space.simulate"
-
-
-def simulate_latents(context: BuildContext, latents: Sequence[Any]) -> None:
-    """Draw ``latents`` forward from the prior in this build instead of filtering them."""
-    context.extensions[_SIMULATE] = {id(latent) for latent in latents}
-
 
 class LatentStateSpace(GraphTerm):
     """Latent states of a ``pymc_extras.statespace`` model, used inside an SCM.
@@ -87,7 +79,7 @@ class LatentStateSpace(GraphTerm):
     The statespace model supplies the system matrices; the SCM supplies its
     parameters and exogenous data. Observed equations use its observed states as
     components, for example ``latent["baseline"]``. In training,
-    ``SCM(..., marginalize=[latent])`` integrates the states out with a Kalman
+    fitting the SCM always integrates the states out with a Kalman
     filter. Prior predictive sampling instead draws the states forward from the
     prior and each equation's observations around them. The model's own
     observation noise is added to that of the equations, so build it without
@@ -148,7 +140,7 @@ class LatentStateSpace(GraphTerm):
             exog={"exogenous_data": Data("brand_spend")},
         )
         sales = Equation(observed="sales", mu=media + funnel["baseline"], ...)
-        scm = SCM(sales, ..., marginalize=[funnel])
+        scm = SCM(sales, ...)
     """
 
     def __init__(
@@ -396,10 +388,6 @@ class LatentStateSpace(GraphTerm):
         timing. The state path is ``{name}_latent`` and the observed states, with the
         model's own noise, ``{name}_observed``.
         """
-        if id(self) not in context.extensions.get(_SIMULATE, ()):
-            raise NotImplementedError(
-                f"{self.name!r} can only be fit marginalized: pass it to SCM(..., marginalize=[...])."
-            )
         system = self.filter_system(context)
         # pymc-extras' LinearGaussianStateSpace names its draws after the latent
         for suffix in ("combined", "latent", "observed"):
@@ -614,6 +602,7 @@ def _observation(equation: Equation, latent: LatentStateSpace) -> _Observation |
     sigma = equation.likelihood.parameters.get(
         "sigma", equation.parameters.get("sigma")
     )
+    # The latent may only enter the mean: its path is never built when fitting
     parameters = set(equation.parameters) | set(equation.likelihood.parameters)
     if (
         equation.likelihood.distribution != "Normal"
@@ -621,6 +610,7 @@ def _observation(equation: Equation, latent: LatentStateSpace) -> _Observation |
         or parameters - {"mu", "sigma"}
         or len(states) != 1
         or any(uses_latent(term) for term in rest)
+        or uses_latent(sigma)
     ):
         raise ValueError(
             f"Equation {equation.name or equation.observed!r} must be "

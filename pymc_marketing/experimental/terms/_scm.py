@@ -28,7 +28,7 @@ import pytensor
 import xarray as xr
 import zarr
 
-from pymc_marketing.experimental.terms._serialize import read_spec, spec_to_dict
+from pymc_marketing.experimental.terms._serialize import spec_from_dict, spec_to_dict
 from pymc_marketing.names import Group
 from pymc_marketing.names.mmm import Dim
 from pymc_marketing.terms._data import validate_dataset
@@ -111,10 +111,9 @@ class SCM:
         # scm.sample_posterior_predictive(future)
     """
 
-    def __init__(self, *equations: Equation, marginalize: Sequence[Any] = ()) -> None:
+    def __init__(self, *equations: Equation) -> None:
         self._roots = tuple({id(root): root for root in equations}.values())
         self._validate_roots()
-        self._marginalize = tuple(marginalize)
         self.model: pm.Model | None = None
         self.idata: xr.DataTree | None = None
         self._context: BuildContext | None = None
@@ -142,7 +141,6 @@ class SCM:
         return (
             specification_key(self._roots),
             tuple(id(node) for node in walk(self._roots)),
-            tuple(id(latent) for latent in self._marginalize),
         )
 
     def _new_model(
@@ -163,34 +161,29 @@ class SCM:
                 condition_on=condition_on,
                 history_length=history_length,
             )
-            plan = []
-            if self._marginalize:
-                from pymc_marketing.experimental.terms._latent import (
-                    observed_value,
-                    plan_marginalization,
-                )
-                from pymc_marketing.experimental.terms._latent import (
-                    simulate_latents as draw_latents_forward,
-                )
+            from pymc_marketing.experimental.terms._latent import (
+                LatentStateSpace,
+                observed_value,
+                plan_marginalization,
+            )
 
-                # Validated in both modes, so a prior predictive check refuses what
-                # training would refuse
-                plan = plan_marginalization(
-                    [node for node in walk(self._roots) if isinstance(node, Equation)],
-                    self._marginalize,
-                )
-                if simulate_latents:
-                    # Prior predictive draws marginalized latents forward instead
-                    draw_latents_forward(context, self._marginalize)
-                    plan = []
-                else:
-                    context.equation_builders.update(
-                        {
-                            id(obs.equation): observed_value
-                            for likelihood in plan
-                            for obs in likelihood.observations
-                        }
-                    )
+            # Every latent is integrated out when fitting. The plan is validated in both
+            # modes, so a prior predictive check refuses what training would refuse;
+            # the prior predictive itself draws the latents forward instead.
+            nodes = list(walk(self._roots))
+            plan = plan_marginalization(
+                [node for node in nodes if isinstance(node, Equation)],
+                [node for node in nodes if isinstance(node, LatentStateSpace)],
+            )
+            if simulate_latents:
+                plan = []
+            context.equation_builders.update(
+                {
+                    id(obs.equation): observed_value
+                    for likelihood in plan
+                    for obs in likelihood.observations
+                }
+            )
             for root in self._roots:
                 context.build(root)
             # After the roots, so offsets that use observed equations are already built
@@ -270,7 +263,7 @@ class SCM:
 
         Notes
         -----
-        Marginalized latents are drawn forward from the prior here rather than
+        Latent state-space terms are drawn forward from the prior here rather than
         filtered, so the draws never depend on the observations. Their state paths
         are in the ``prior`` group as ``{latent}_latent``.
         """
@@ -356,7 +349,7 @@ class SCM:
             }
         )
         tree.attrs = {
-            "spec": spec_to_dict(self._roots, self._marginalize),
+            "spec": spec_to_dict(self._roots),
             "versions": _versions(),
             "logp_check": _logp_check(
                 cast(pm.Model, self.model), idata["posterior"].to_dataset()
@@ -406,8 +399,7 @@ class SCM:
         )
         if "spec" not in tree.attrs or Group.FIT_DATA not in tree.children:
             raise ValueError(f"{str(path)!r} is not a model saved by SCM.save.")
-        roots, marginalize = read_spec(tree.attrs["spec"])
-        scm = cls(*roots, marginalize=marginalize)
+        scm = cls(*spec_from_dict(tree.attrs["spec"]))
         model = scm.build_model(_native_strings(tree[Group.FIT_DATA].to_dataset()))
         scm.idata = xr.DataTree.from_dict(
             {

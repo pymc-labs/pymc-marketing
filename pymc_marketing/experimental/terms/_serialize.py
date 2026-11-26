@@ -297,24 +297,18 @@ class _Reader:
         raise SerializationError(f"Unrecognized saved value tag {tag!r}.")
 
 
-def spec_to_dict(
-    roots: Sequence[Equation], marginalize: Sequence[Any] = ()
-) -> dict[str, Any]:
+def spec_to_dict(roots: Sequence[Equation]) -> dict[str, Any]:
     """Serialize equations to a JSON-safe node table, sharing terms by identity.
 
     Parameters
     ----------
     roots : sequence of Equation
         Observed equations of one model, in declaration order.
-    marginalize : sequence of LatentStateSpace, optional
-        Latents the model integrates out, stored as references to the same nodes
-        the equations use.
 
     Returns
     -------
     dict
-        ``{"format", "roots", "nodes"}`` plus ``"marginalize"`` when given,
-        JSON-serializable.
+        ``{"format", "roots", "nodes"}``, JSON-serializable.
 
     Raises
     ------
@@ -322,14 +316,11 @@ def spec_to_dict(
         If a term or value cannot be saved, for example a ``Transform`` of a lambda.
     """
     writer = _Writer()
-    spec: dict[str, Any] = {
+    return {
         "format": FORMAT,
         "roots": [writer.node(root)["$ref"] for root in roots],
+        "nodes": writer.nodes,
     }
-    if marginalize:
-        spec["marginalize"] = [writer.node(latent)["$ref"] for latent in marginalize]
-    spec["nodes"] = writer.nodes
-    return spec
 
 
 def spec_from_dict(data: Mapping[str, Any]) -> tuple[Equation, ...]:
@@ -350,29 +341,6 @@ def spec_from_dict(data: Mapping[str, Any]) -> tuple[Equation, ...]:
     SerializationError
         If the format is unknown or a node is invalid.
     """
-    return read_spec(data)[0]
-
-
-def read_spec(
-    data: Mapping[str, Any],
-) -> tuple[tuple[Equation, ...], tuple[Any, ...]]:
-    """Rebuild equations and marginalized latents from ``spec_to_dict`` output.
-
-    Parameters
-    ----------
-    data : mapping
-        Saved node table.
-
-    Returns
-    -------
-    tuple
-        Root equations and the latents to marginalize, sharing nodes.
-
-    Raises
-    ------
-    SerializationError
-        If the format is unknown or a node is invalid.
-    """
     if data.get("format") != FORMAT:
         raise SerializationError(
             f"Unsupported saved model format {data.get('format')!r}; expected {FORMAT!r}."
@@ -381,9 +349,4 @@ def read_spec(
     roots = tuple(reader.node(identifier) for identifier in data["roots"])
     if not all(isinstance(root, Equation) for root in roots):
         raise SerializationError("Saved model roots must be equations.")
-    marginalize = tuple(
-        reader.node(identifier) for identifier in data.get("marginalize", ())
-    )
-    if not all(isinstance(latent, LatentStateSpace) for latent in marginalize):
-        raise SerializationError("Saved marginalized nodes must be latents.")
-    return roots, marginalize
+    return roots
