@@ -119,14 +119,16 @@ def kalman_loglike(y, a0, P0, c, d, T, Z, H, Q) -> float:
     return total
 
 
-def varmax_loglike(ds: xr.Dataset) -> float:
+def varmax_loglike(ds: xr.Dataset, offset_b: np.ndarray | None = None) -> float:
     inputs = ds["inputs"].sel(input=["x", "w"]).values
     return kalman_loglike(
         np.column_stack([ds["a"].values, ds["b"].values]),
         X0,
         P0,
         TREND + inputs @ BETA.T,
-        np.column_stack([ds["z"].values, np.zeros(N)]),
+        np.column_stack(
+            [ds["z"].values, np.zeros(N) if offset_b is None else offset_b]
+        ),
         A,
         np.broadcast_to(np.eye(2), (N, 2, 2)),
         np.diag(SIGMA**2),
@@ -152,6 +154,21 @@ def test_observed_equations_are_marginalized(data):
     b = Observed("Normal", observed="b", mu=lat["b"], sigma=SIGMA[1])
     model = SCM(a, b, marginalize=[lat]).build_model(data)
     np.testing.assert_allclose(observation_logp(model), varmax_loglike(data), rtol=1e-6)
+
+
+def test_equation_can_use_another_equation_of_the_same_latent(data):
+    lat = latent()
+    a, _ = equations(lat)
+    b = Equation(
+        observed="b", mu=lat["b"] + a, likelihood=Prior("Normal", sigma=SIGMA[1])
+    )
+    model = SCM(a, b, marginalize=[lat]).build_model(data)
+    # a's value is its observations, a known offset for b
+    np.testing.assert_allclose(
+        observation_logp(model),
+        varmax_loglike(data, offset_b=data["a"].values),
+        rtol=1e-6,
+    )
 
 
 def test_prior_dims_are_aligned_by_name(data):

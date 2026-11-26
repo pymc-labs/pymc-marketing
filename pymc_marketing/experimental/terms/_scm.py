@@ -163,8 +163,10 @@ class SCM:
                 condition_on=condition_on,
                 history_length=history_length,
             )
+            plan = []
             if self._marginalize:
                 from pymc_marketing.experimental.terms._latent import (
+                    observed_value,
                     plan_marginalization,
                 )
                 from pymc_marketing.experimental.terms._latent import (
@@ -180,10 +182,20 @@ class SCM:
                 if simulate_latents:
                     # Prior predictive draws marginalized latents forward instead
                     draw_latents_forward(context, self._marginalize)
+                    plan = []
                 else:
-                    context.equation_builders.update(plan)
+                    context.equation_builders.update(
+                        {
+                            id(obs.equation): observed_value
+                            for likelihood in plan
+                            for obs in likelihood.observations
+                        }
+                    )
             for root in self._roots:
                 context.build(root)
+            # After the roots, so offsets that use observed equations are already built
+            for likelihood in plan:
+                likelihood.build(context)
         return model, context
 
     def _training_model(

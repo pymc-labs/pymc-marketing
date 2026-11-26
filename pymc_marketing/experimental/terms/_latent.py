@@ -442,35 +442,19 @@ class _Observation:
 class _KalmanLikelihood:
     """Joint likelihood of the equations observing one marginalized latent.
 
-    It is built once, when the first of its equations is built, and each equation
-    then returns its own column of it.
+    Built after the rest of the model: the equations' values are their observations
+    (see ``observed_value``), so every offset can be built first, including ones that
+    use another of these equations.
     """
 
     latent: LatentStateSpace
     observations: list[_Observation] = field(default_factory=list)
-    outputs: dict[int, Any] | None = None
 
-    def build(self, equation: Equation, context: BuildContext) -> Any:
-        if context.prediction:
-            raise NotImplementedError(
-                "Prediction with a marginalized latent is not supported yet."
-            )
-        if self.outputs is None:
-            self.outputs = self._build(context)
-        return self.outputs[id(equation)]
-
-    def _build(self, context: BuildContext) -> dict[int, Any]:
+    def build(self, context: BuildContext) -> None:
         latent = self.latent
         obs_dim = f"{latent.name}_observed"
         obs_aux_dim = f"{obs_dim}_aux"
-        bindings = [
-            context.register_equation(obs.equation) for obs in self.observations
-        ]
-        for binding in bindings:
-            if binding.dims != (Dim.DATE,):
-                raise ValueError(
-                    f"Equation {binding.name!r} must be indexed by {Dim.DATE!r} only."
-                )
+        bindings = [context.binding(obs.equation) for obs in self.observations]
         names = [binding.name for binding in bindings]
         context._add_model_coords({obs_dim: names, obs_aux_dim: names})
 
@@ -525,11 +509,6 @@ class _KalmanLikelihood:
             observed=data,
             dims=(Dim.DATE, obs_dim),
         )
-        # The joint conditions on the data, so each equation's value is its observations
-        return {
-            id(obs.equation): values
-            for obs, values in zip(self.observations, observed, strict=True)
-        }
 
     @staticmethod
     def _offset(
@@ -622,26 +601,43 @@ def _observation(equation: Equation, latent: LatentStateSpace) -> _Observation |
     return _Observation(equation, states[0].state, offset, sigma)
 
 
+def observed_value(equation: Equation, context: BuildContext) -> Any:
+    """Build an equation that observes a marginalized latent: its value is its data.
+
+    Its likelihood is built later with the latent's other equations, so building the
+    equation never depends on them.
+    """
+    if context.prediction:
+        raise NotImplementedError(
+            "Prediction with a marginalized latent is not supported yet."
+        )
+    binding = context.register_equation(equation)
+    if binding.dims != (Dim.DATE,):
+        raise ValueError(
+            f"Equation {binding.name!r} must be indexed by {Dim.DATE!r} only."
+        )
+    return context._observations(binding)
+
+
 def plan_marginalization(
     equations: Sequence[Equation], latents: Sequence[LatentStateSpace]
-) -> dict[int, Callable[[Equation, BuildContext], Any]]:
-    """Map each equation observing a marginalized latent to the builder of that latent's likelihood.
-
-    The result is meant for ``BuildContext.equation_builders``.
-    """
-    plan: dict[int, Callable[[Equation, BuildContext], Any]] = {}
+) -> list[_KalmanLikelihood]:
+    """Group the equations observing each marginalized latent into its likelihood."""
+    plan: list[_KalmanLikelihood] = []
+    seen: set[int] = set()
     for latent in latents:
         likelihood = _KalmanLikelihood(latent)
         for equation in equations:
             observation = _observation(equation, latent)
             if observation is None:
                 continue
-            if id(equation) in plan:
+            if id(equation) in seen:
                 raise ValueError(
                     f"Equation {equation.name or equation.observed!r} observes more than one marginalized latent."
                 )
+            seen.add(id(equation))
             likelihood.observations.append(observation)
-            plan[id(equation)] = likelihood.build
         if not likelihood.observations:
             raise ValueError(f"No equation observes {latent.name!r}.")
+        plan.append(likelihood)
     return plan
