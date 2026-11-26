@@ -14,30 +14,19 @@
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pymc_extras.statespace as pmss
 import pytensor.tensor as pt
 import pytest
 import xarray as xr
 from pymc_extras.prior import Prior
+from pymc_extras.statespace.core import PyMCStateSpace
+from pymc_extras.statespace.core.properties import Data as DataInfo
+from pymc_extras.statespace.core.properties import Parameter, Shock, State
 from scipy.stats import multivariate_normal
 
-pmss = pytest.importorskip("pymc_extras.statespace")
-
-from pymc_extras.statespace.core import PyMCStateSpace  # noqa: E402
-from pymc_extras.statespace.core.properties import (  # noqa: E402
-    Data as DataInfo,
-)
-from pymc_extras.statespace.core.properties import (  # noqa: E402
-    Parameter,
-    Shock,
-    State,
-)
-
-from pymc_marketing.experimental.terms import (  # noqa: E402
-    SCM,
-    LatentStateSpace,
-)
-from pymc_marketing.terms import Data, Equation, Observed  # noqa: E402
-from pymc_marketing.terms._graph import walk  # noqa: E402
+from pymc_marketing.experimental.terms import SCM, LatentStateSpace
+from pymc_marketing.terms import Data, Equation, Observed
+from pymc_marketing.terms._graph import walk
 
 N = 30
 A = np.array([[0.7, 0.2], [-0.1, 0.5]])
