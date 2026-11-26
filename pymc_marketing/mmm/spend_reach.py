@@ -725,8 +725,8 @@ def completeness_tolerance(
     supported pytensor config) it does not have to be small before the
     accumulated rounding exceeds it.  The dtype is the one the compared arrays
     carry, so a float64 model is not loosened by a float32-sized floor; when
-    they carry several, :meth:`ProbeStatistics.tolerance` takes the largest
-    floor over them, each from its own arrays' magnitude.
+    they carry several, :meth:`ProbeStatistics.tolerance` combines a floor per
+    dtype with one from the predictor's dtype over every compared node.
 
     The tradeoff cannot be avoided: under float32 a real discrepancy smaller
     than roughly ``COMPLETENESS_ACCUMULATION_SAFETY_FACTOR * eps * |node| /
