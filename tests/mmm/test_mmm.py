@@ -1816,6 +1816,13 @@ def test_create_fit_data_raises_when_labeled_y_misses_a_date_of_X():
         mmm.create_fit_data(X, y.isel(date=slice(1, None)))
 
 
+def test_create_fit_data_raises_when_labeled_y_lacks_a_dim_of_X():
+    mmm, X, y = _labeled_y_with_shuffled_X("panel_date_week")
+
+    with pytest.raises(ValueError, match="Cannot align y with X"):
+        mmm.create_fit_data(X, y.isel(geo=0, drop=True))
+
+
 def test_create_fit_data_joins_labeled_y_on_string_dates():
     """String dates in X match the datetime labels of y, as in ``build_model``."""
     mmm, X, y = _labeled_y_with_shuffled_X("no_dims")

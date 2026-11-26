@@ -5719,6 +5719,11 @@ class MMM(RegressionModelBuilder):
                 .rename(self.target_column)
                 .rename_axis(index={Dim.DATE: self.date_column})
             )
+            if not set(coord_cols).issubset(y_labeled.index.names):
+                raise ValueError(
+                    f"Cannot align y with X: y has dims {list(y_da.dims)}, X has "
+                    f"columns {coord_cols}"
+                )
             joined = keys.merge(
                 y_labeled.reset_index(),
                 on=coord_cols,
