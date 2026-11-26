@@ -1,0 +1,64 @@
+name: Multi-arm geo lift notebook
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "docs/source/notebooks/mmm/mmm_multi_arm_geolift_calibration.ipynb"
+      - "pymc_marketing/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "scripts/run_notebooks/**"
+      - ".github/workflows/test_notebook.yml"
+      - ".github/workflows/test_geolift_notebook.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: geolift-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  real-geolift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
+        id: changes
+        if: github.event_name == 'pull_request'
+        with:
+          filters: |
+            full:
+              - "docs/source/notebooks/mmm/mmm_multi_arm_geolift_calibration.ipynb"
+              - ".github/workflows/test_geolift_notebook.yml"
+      - uses: astral-sh/setup-uv@v8.3.2
+      - name: Install the locked notebook environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y graphviz
+          uv sync --locked --python 3.12 --group geolift-notebook
+          uv run --no-sync python -m ipykernel install --prefix .venv --name python3
+      - name: Execute with real sampling
+        shell: bash
+        env:
+          FULL_RUN: ${{ github.event_name == 'workflow_dispatch' || steps.changes.outputs.full == 'true' }}
+        run: |
+          mkdir -p notebook-artifacts
+          args=()
+          if [[ "$FULL_RUN" != "true" ]]; then
+            args=(-p ci_smoke True)
+          fi
+          uv run --no-sync papermill \
+            docs/source/notebooks/mmm/mmm_multi_arm_geolift_calibration.ipynb \
+            notebook-artifacts/executed.ipynb \
+            --kernel python3 --cwd docs/source/notebooks/mmm --execution-timeout 3600 \
+            --log-output --no-progress-bar "${args[@]}" 2>&1 | tee notebook-artifacts/execution.log
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: multi-arm-geolift-execution
+          path: notebook-artifacts/

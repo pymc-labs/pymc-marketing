@@ -233,3 +233,13 @@ dev = [
     "pandas-stubs>=3.0.3.260530",
     "pyyaml>=6.0.3",
 ]
+
+# Execute the multi-arm geo lift tutorial without adding CausalPy to the docs build.
+geolift-notebook = [
+    "causalpy==1.0.0rc1",
+    "graphviz",
+    "ipykernel",
+    "nutpie>=0.16.11",
+    "papermill",
+    "watermark",
+]
