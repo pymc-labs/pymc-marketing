@@ -147,8 +147,11 @@ ALLOWED: dict[str, dict[str, tuple[str, int]]] = {
     "data/fivetran.py": {
         "date": (_DEFAULT, 4),
     },
-    "experimental/terms/_graph.py": {
+    "terms/_graph.py": {
         "mu": (_PARAMETER, 5),
+    },
+    "experimental/terms/_latent.py": {
+        "mu": (_PARAMETER, 2),
     },
     "mlflow.py": {
         "model_type": ("name of an MLflow parameter", 1),
@@ -217,7 +220,7 @@ ALLOWED: dict[str, dict[str, tuple[str, int]]] = {
         "time_varying_intercept": (_KEYWORD, 1),
         "time_varying_media": (_KEYWORD, 1),
         "channel": (_COLUMN, 13),
-        "date": (_COLUMN + ", or " + _DEFAULT, 13),
+        "date": (_COLUMN + ", or " + _DEFAULT, 12),
         "y": (_DEFAULT, 1),
     },
     "mmm/optimization_variables.py": {

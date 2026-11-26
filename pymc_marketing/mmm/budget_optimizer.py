@@ -820,15 +820,15 @@ def merge_inference_data(
             use_every_n_draw=2,
         )
 
-        # Step 4 – optimize
+        # Step 4 – optimize. Both models span the same dates, so north's
+        # layout also describes the merged model's date axis.
+        layout = mmm_north.window_layout(m1, "2025-01-01")
         optimizer = BudgetOptimizer(
             model=merged_model,
             idata=merged_idata,
-            num_periods=13,
-            # The model's date axis is carry-in + decisions + carry-over, each
-            # flank effective_carryover_lags() wide.
-            carry_in_periods=mmm_north.effective_carryover_lags(),
-            adstock_periods=mmm_north.effective_carryover_lags(),
+            num_periods=layout.decisions,
+            carry_in_periods=layout.carry_in,
+            adstock_periods=layout.carry_over,
             response_variable="north_total_media_contribution_original_scale",
         )
         optimal, result = optimizer.allocate_budget(total_budget=100_000)
@@ -1000,14 +1000,15 @@ def merge_models_and_idata(
             use_every_n_draw=2,
         )
 
+        # Both models span the same dates, so north's layout also describes
+        # the merged model's date axis.
+        layout = mmm_north.window_layout(m1, "2025-01-01")
         optimizer = BudgetOptimizer(
             model=merged_model,
             idata=merged_idata,
-            num_periods=13,
-            # The model's date axis is carry-in + decisions + carry-over, each
-            # flank effective_carryover_lags() wide.
-            carry_in_periods=mmm_north.effective_carryover_lags(),
-            adstock_periods=mmm_north.effective_carryover_lags(),
+            num_periods=layout.decisions,
+            carry_in_periods=layout.carry_in,
+            adstock_periods=layout.carry_over,
             response_variable="north_total_media_contribution_original_scale",
         )
         optimal, result = optimizer.allocate_budget(total_budget=100_000)
@@ -1438,9 +1439,19 @@ class BudgetOptimizer(BaseModel):
         Fitted posterior inference data from the model.
     num_periods : int
         Number of time units at the desired time granularity to allocate budget for.
+        For a model from ``MMM.create_optimization_model``, pass
+        ``mmm.window_layout(model, start_date).decisions``.
     adstock_periods : int, optional
-        Number of extra warm-up periods prepended for adstock carryover.
-        Equivalent to ``adstock.l_max`` on the built-in MMM. Defaults to 0.
+        Number of zero-spend periods appended after the decisions to catch
+        their carryover. For a model from ``MMM.create_optimization_model``,
+        pass ``mmm.window_layout(model, start_date).carry_over``. Defaults to 0.
+    carry_in_periods : int, optional
+        Number of leading periods that hold spend already made before the
+        window, kept at the model's own channel data rather than optimized.
+        For a model from ``MMM.create_optimization_model``, pass
+        ``mmm.window_layout(model, start_date).carry_in``. Defaults to 0.
+        ``carry_in_periods + num_periods + adstock_periods`` must equal the
+        model's date axis.
     channel_scales : float or array-like, optional
         Per-channel scale factors used to convert monetary budgets into the
         model's native units. A scalar ``1.0`` means no scaling. Defaults to 1.0.
@@ -1544,14 +1555,15 @@ class BudgetOptimizer(BaseModel):
             start_date="2025-01-01",
             end_date="2025-03-31",
         )
+        # The model's date axis is carry-in + decisions + carry-over, and the
+        # three must add up to it; window_layout counts them.
+        layout = mmm.window_layout(pymc_model, start_date="2025-01-01")
         optimizer = pmm.mmm.BudgetOptimizer(
             model=pymc_model,
             idata=mmm.idata,
-            num_periods=13,
-            # The model's date axis is carry-in + decisions + carry-over, each
-            # flank effective_carryover_lags() wide; the three must add up to it.
-            carry_in_periods=mmm.effective_carryover_lags(),
-            adstock_periods=mmm.effective_carryover_lags(),
+            num_periods=layout.decisions,
+            carry_in_periods=layout.carry_in,
+            adstock_periods=layout.carry_over,
             frozen_deterministics=mmm.frozen_deterministics,
             response_variable="total_media_contribution_original_scale",
         )
@@ -1579,7 +1591,11 @@ class BudgetOptimizer(BaseModel):
         ge=0,
         description=(
             "Number of extra carry-over periods appended to the optimization horizon. "
-            "For built-in MMM this equals adstock.l_max; defaults to 0 (no carry-over)."
+            "Defaults to 0 (no carry-over). For a model from "
+            "MMM.create_optimization_model, take it from "
+            "mmm.window_layout(model, start_date).carry_over, which is the "
+            "adstock's l_max plus the widest additional carryover any of the "
+            "model's effects declares."
         ),
     )
 
@@ -1590,10 +1606,10 @@ class BudgetOptimizer(BaseModel):
             "Number of leading periods of the model's date axis that hold spend "
             "already made before the window. They are held at the model's own "
             "channel-data values rather than optimized, so the adstock does not "
-            "start cold. Defaults to 0. A model from "
-            "MMM.create_optimization_model carries mmm.effective_carryover_lags() "
-            "of them (fewer only when the window opens at the start of training), "
-            "and carry_in_periods + num_periods + adstock_periods must equal the "
+            "start cold. Defaults to 0. For a model from "
+            "MMM.create_optimization_model, take it from "
+            "mmm.window_layout(model, start_date).carry_in. "
+            "carry_in_periods + num_periods + adstock_periods must equal the "
             "model's date axis."
         ),
     )
@@ -2741,13 +2757,10 @@ class BudgetOptimizer(BaseModel):
                 f"carry_in_periods ({self.carry_in_periods}) + num_periods "
                 f"({self.num_periods}) + adstock_periods ({self.adstock_periods}) "
                 f"= {expected}. If this model came from "
-                "MMM.create_optimization_model, its date axis is carry-in + "
-                "decisions + carry-over with each flank "
-                "mmm.effective_carryover_lags() wide: pass "
-                "carry_in_periods=mmm.effective_carryover_lags() (or the number "
-                "of model dates before your start_date, when the window opens "
-                "at the start of training) and "
-                "adstock_periods=mmm.effective_carryover_lags(), or use "
+                "MMM.create_optimization_model, take the three from "
+                "layout = mmm.window_layout(model, start_date): "
+                "carry_in_periods=layout.carry_in, num_periods=layout.decisions "
+                "and adstock_periods=layout.carry_over. Or use "
                 "mmm.budget_optimizer(start_date, end_date), which sets all three."
             )
 

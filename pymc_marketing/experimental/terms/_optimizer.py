@@ -45,11 +45,6 @@ from pytensor.tensor.variable import TensorConstant
 from pytensor.xtensor.type import XTensorVariable, as_xtensor
 from scipy.optimize import Bounds, OptimizeResult, minimize
 
-from pymc_marketing.experimental.terms._data import (
-    _align_labels,
-    _dates,
-)
-from pymc_marketing.experimental.terms._graph import BuildContext
 from pymc_marketing.experimental.terms._optimizer_terms import (
     _LOWER,
     _bind_terms,
@@ -61,6 +56,11 @@ from pymc_marketing.experimental.terms._optimizer_terms import (
 from pymc_marketing.experimental.terms._scm import SCM
 from pymc_marketing.names.mmm import Dim
 from pymc_marketing.terms import ModelTerm, Product, Sum
+from pymc_marketing.terms._data import (
+    _align_labels,
+    _dates,
+)
+from pymc_marketing.terms._graph import BuildContext
 
 type _Term = ModelTerm | Product | Sum
 type _Callback = Callable[[Any, Mapping[str, Any]], Any]
