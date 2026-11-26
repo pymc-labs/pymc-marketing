@@ -76,6 +76,11 @@ sections:
             notebook: mmm/mmm_multi_objective_optimization
           - title: Combining an MMM and a Bayesian VAR in One Budget Decision
             notebook: mmm/mmm_var_budget_optimization
+      - title: Experiment Design
+        cards:
+          - title: "Experiment Designer: Posterior-Aware Lift Test Design"
+            notebook: mmm/mmm_experiment_designer
+            thumb: mmm_lift_test.png
       - title: Lift Test Calibration
         cards:
           - title: Introduction to Lift Test Calibration
