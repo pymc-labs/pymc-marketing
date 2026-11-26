@@ -108,7 +108,8 @@ class LatentStateSpace(GraphTerm):
         coords=None)``, which creates the variable ``{name}_{suffix}`` and returns
         it as a tensor in the order of ``dims``, and returns the parameter
         assembled from such variables, for example a covariance from per-state
-        scales. To save the model, register the callable with
+        scales. Covariance parameters (``state_cov``, ``P0``) take a fixed value or
+        a callable, not a ``Prior``. To save the model, register the callable with
         ``pymc_extras.prior.register_tensor_transform``.
     exog : mapping of str to term, optional
         One ``date``-indexed term per data name of the model. A term with another
@@ -248,6 +249,14 @@ class LatentStateSpace(GraphTerm):
         dims = tuple(self._statespace.param_dims.get(param, ()))
         shape = placeholder.type.shape
         if isinstance(spec, Prior):
+            # Entries drawn one by one can't make a covariance
+            if self._statespace.param_info[param].get("constraints") == (
+                "Positive Semi-definite"
+            ):
+                raise ValueError(
+                    f"{param!r} of {self.name!r} must be positive semi-definite; build "
+                    "it with a function of make(...), for example from per-state scales."
+                )
             variable = self._variable(context, param, spec, dims)
             wanted = self._dims(dims)
             if extra := set(variable.dims) - set(wanted):

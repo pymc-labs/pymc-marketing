@@ -219,6 +219,12 @@ def test_labeled_fixed_values_line_up_by_name(data, reorder):
     np.testing.assert_allclose(observation_logp(model), varmax_loglike(data), rtol=1e-6)
 
 
+def test_covariance_parameters_refuse_a_prior(data):
+    lat = latent(state_cov=Prior("HalfNormal", sigma=1))
+    with pytest.raises(ValueError, match="positive semi-definite"):
+        SCM(*equations(lat)).build_model(data)
+
+
 def test_fixed_values_must_have_the_parameter_shape(data):
     # A diagonal given as a vector would broadcast to a non-symmetric covariance
     lat = latent(state_cov=np.array([0.2, 0.1]))
