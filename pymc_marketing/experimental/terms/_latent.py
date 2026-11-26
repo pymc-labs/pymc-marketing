@@ -353,7 +353,7 @@ class LatentStateSpace(GraphTerm):
     ) -> pt.TensorVariable:
         """``make`` for prior callables: the variable as a tensor, in the order of ``dims``."""
         variable = self._variable(context, suffix, prior, dims, coords)
-        return variable.transpose(*self._dims(prior.dims or dims)).values
+        return variable.transpose(*self._dims(dims or prior.dims)).values
 
     def _prefixed(self, prior: Prior, dims: Sequence[str]) -> Prior:
         """Copy ``prior`` with its own dims, and those of labeled parameters, prefixed."""
