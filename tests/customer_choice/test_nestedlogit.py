@@ -273,3 +273,56 @@ def test_nest_probs_match_closed_form(nstL, sample_df, lam):
         expected[:, idx] = p_nest[:, [k]] * within / within.sum(axis=1, keepdims=True)
 
     np.testing.assert_allclose(p, expected, rtol=1e-6)
+
+
+@pytest.mark.parametrize(
+    "numpyro_installed, expected", [(True, "numpyro"), (False, None)]
+)
+def test_default_nuts_sampler(fake_numpyro, numpyro_installed, expected):
+    """The default sampler is NumPyro only when it is installed."""
+    fake_numpyro(numpyro_installed)
+
+    # ``default_sampler_config`` does not depend on the instance's data.
+    config = NestedLogit.default_sampler_config.fget(None)
+
+    assert config["nuts_sampler"] == expected
+
+
+class _SampleCalled(Exception):
+    """Raised by the patched ``pm.sample`` once it has recorded its arguments."""
+
+
+@pytest.mark.parametrize("numpyro_installed", [True, False])
+def test_sample_keeps_user_nuts_sampler(
+    monkeypatch,
+    fake_numpyro,
+    numpyro_installed,
+    sample_df,
+    utility_eqs,
+    nesting_structure_1,
+):
+    """``sample()`` passes the ``nuts_sampler`` from ``sampler_config`` to ``pm.sample``."""
+    fake_numpyro(numpyro_installed)
+    sampled_with = {}
+
+    def fake_sample(**kwargs):
+        sampled_with.update(kwargs)
+        raise _SampleCalled
+
+    monkeypatch.setattr(
+        NestedLogit, "sample_prior_predictive", lambda self, **kwargs: None
+    )
+    monkeypatch.setattr(pm, "sample", fake_sample)
+    model = NestedLogit(
+        choice_df=sample_df,
+        utility_equations=utility_eqs,
+        depvar="choice",
+        covariates=["X1", "X2"],
+        nesting_structure=nesting_structure_1,
+        sampler_config={"nuts_sampler": "blackjax"},
+    )
+
+    with pytest.raises(_SampleCalled):
+        model.sample()
+
+    assert sampled_with["nuts_sampler"] == "blackjax"

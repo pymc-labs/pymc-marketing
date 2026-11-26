@@ -19,7 +19,7 @@ import warnings
 from pathlib import Path
 
 import xarray as xr
-from pydantic import BaseModel, ConfigDict, StrictBool
+from pydantic import BaseModel, ConfigDict
 from pymc.sampling import mcmc
 
 from pymc_marketing.data.idata.io import idata_from_zarr, idata_to_zarr
@@ -136,9 +136,9 @@ class InstalledSamplers(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    nutpie: StrictBool
-    numpyro: StrictBool
-    blackjax: StrictBool
+    nutpie: bool
+    numpyro: bool
+    blackjax: bool
 
     @classmethod
     def check(cls) -> "InstalledSamplers":

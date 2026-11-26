@@ -158,9 +158,9 @@ class BayesianBLP(ModelBuilder):
     (Betancourt & Girolami 2015): centered is preferable when per-group
     data is informative, while non-centered helps in sparse-data regimes.
     The default sampler config runs NUTS with ``target_accept=0.95``, using
-    ``numpyro`` when it is installed; when residual correlations between variance components push tree depth
-    toward the cap, prefer ``nutpie`` (low-rank modified mass matrix by
-    default) or pass
+    ``numpyro`` when it is installed; when residual correlations between
+    variance components push tree depth toward the cap, prefer ``nutpie``
+    (low-rank modified mass matrix by default) or pass
     ``nuts_sampler_kwargs={"nuts_kwargs": {"dense_mass": True}}`` to
     ``fit`` for ``numpyro``. Set ``track_delta=True`` only if you actually
     need the per-cell mean utility in the trace — on a typical 100-week ×

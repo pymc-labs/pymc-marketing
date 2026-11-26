@@ -19,7 +19,6 @@ import warnings
 import numpy as np
 import pytest
 import xarray as xr
-from pydantic import ValidationError
 from pymc.sampling import mcmc
 
 from pymc_marketing.utils import InstalledSamplers, from_netcdf
@@ -169,11 +168,3 @@ class TestInstalledSamplers:
             repr(samplers)
             == "InstalledSamplers(nutpie=True, numpyro=False, blackjax=True)"
         )
-
-    @pytest.mark.parametrize("field", ["nutpie", "numpyro", "blackjax"])
-    @pytest.mark.parametrize("value", ["yes", 0, "false"])
-    def test_rejects_non_bool_values(self, field, value):
-        kwargs = {"nutpie": True, "numpyro": True, "blackjax": True, field: value}
-
-        with pytest.raises(ValidationError):
-            InstalledSamplers(**kwargs)

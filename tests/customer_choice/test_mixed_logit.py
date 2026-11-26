@@ -1098,3 +1098,55 @@ class TestModelConfig:
         assert "depvar" in attrs
         assert "utility_equations" in attrs
         assert "group_id" in attrs
+
+
+@pytest.mark.parametrize(
+    "numpyro_installed, expected", [(True, "numpyro"), (False, None)]
+)
+def test_default_nuts_sampler(fake_numpyro, numpyro_installed, expected):
+    """The default sampler is NumPyro only when it is installed."""
+    fake_numpyro(numpyro_installed)
+
+    # ``default_sampler_config`` does not depend on the instance's data.
+    config = MixedLogit.default_sampler_config.fget(None)
+
+    assert config["nuts_sampler"] == expected
+
+
+class _SampleCalled(Exception):
+    """Raised by the patched ``pm.sample`` once it has recorded its arguments."""
+
+
+@pytest.mark.parametrize("numpyro_installed", [True, False])
+def test_sample_keeps_user_nuts_sampler(
+    monkeypatch,
+    fake_numpyro,
+    numpyro_installed,
+    sample_df,
+    utility_eqs_basic,
+    covariates_list,
+):
+    """``sample()`` passes the ``nuts_sampler`` from ``sampler_config`` to ``pm.sample``."""
+    fake_numpyro(numpyro_installed)
+    sampled_with = {}
+
+    def fake_sample(**kwargs):
+        sampled_with.update(kwargs)
+        raise _SampleCalled
+
+    monkeypatch.setattr(
+        MixedLogit, "sample_prior_predictive", lambda self, **kwargs: None
+    )
+    monkeypatch.setattr(pm, "sample", fake_sample)
+    model = MixedLogit(
+        sample_df,
+        utility_eqs_basic,
+        "choice",
+        covariates_list,
+        sampler_config={"nuts_sampler": "blackjax"},
+    )
+
+    with pytest.raises(_SampleCalled):
+        model.sample()
+
+    assert sampled_with["nuts_sampler"] == "blackjax"

@@ -1489,3 +1489,16 @@ class TestFullCovariance:
         )
         assert corr_post[0, 1] > 0.3
         assert corr_post[0, 1] > corr_post[0, 3]
+
+
+@pytest.mark.parametrize(
+    "numpyro_installed, expected", [(True, "numpyro"), (False, None)]
+)
+def test_default_nuts_sampler(fake_numpyro, numpyro_installed, expected):
+    """The default sampler is NumPyro only when it is installed."""
+    fake_numpyro(numpyro_installed)
+
+    # ``default_sampler_config`` does not depend on the instance's data.
+    config = MaxDiffMixedLogit.default_sampler_config.fget(None)
+
+    assert config["nuts_sampler"] == expected
