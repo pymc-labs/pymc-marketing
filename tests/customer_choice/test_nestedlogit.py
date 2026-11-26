@@ -245,6 +245,14 @@ def test_make_change_plot_returns_figure(nstL, sample_change_df):
     assert isinstance(fig, plt.Figure)
 
 
+def test_prior_predictive_var_names_without_observed_raises(nstL, sample_df):
+    nstL._set_choice_inputs(sample_df)
+    nstL.build_model()
+    with pytest.raises(ValueError, match="observed variable"):
+        nstL.sample_prior_predictive(samples=5, var_names=[nstL.model.free_RVs[0].name])
+    assert nstL.idata is None
+
+
 @pytest.mark.parametrize("lam", [1.0, 0.5])
 def test_nest_probs_match_closed_form(nstL, sample_df, lam):
     nstL._set_choice_inputs(sample_df)
