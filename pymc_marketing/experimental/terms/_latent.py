@@ -53,7 +53,7 @@ from pymc_marketing.names.mmm import (
     LATENT_OBSERVATIONS_SUFFIX,
     Dim,
 )
-from pymc_marketing.terms import Sum
+from pymc_marketing.terms import ModelTerm, Product, Sum
 from pymc_marketing.terms._graph import (
     BuildContext,
     Equation,
@@ -434,8 +434,8 @@ class _Observation:
 
     equation: Equation
     state: str
-    offset: Any
-    sigma: Any
+    offset: ModelTerm | Sum | Product | None
+    sigma: Prior | float | ModelTerm | Sum | Product
 
 
 @dataclass
