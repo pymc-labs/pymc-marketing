@@ -63,6 +63,7 @@ See the [term-first optimization guide](../guide/mmm/experimental_optimizer.md) 
   :toctree: generated/
 
   SCM
+  LatentStateSpace
   MediaTransform
   OptimizationResult
   Problem

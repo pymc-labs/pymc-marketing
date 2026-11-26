@@ -62,6 +62,10 @@ class SCM:
 
     Notes
     -----
+    Equations can use the observed states of a :class:`LatentStateSpace`. Fitting
+    integrates its states out with a Kalman filter, and ``sample_prior_predictive``
+    draws them forward from the prior.
+
     Data enter only through ``fit``, ``sample_prior_predictive``, and
     ``sample_posterior_predictive`` as an ``xarray.Dataset`` whose every dimension
     carries unique labels. ``Data(name)`` terms reference dataset variables; nothing
