@@ -56,15 +56,11 @@ __all__ = [
     "blocked_between",
     "check_aligned_dims",
     "check_aligned_shape",
-    "deterministic_renames",
     "extract_response_distribution",
-    "frozen_renames_read_elsewhere",
     "frozen_variables",
     "merge_models",
     "needed_posterior_names",
     "non_sample_dims",
-    "reached_frozen_names",
-    "refuse_frozen_deterministic_renames",
     "reorder_to_model_coords",
     "transpose_to_model_dims",
     "validate_unique_value_vars",
@@ -541,8 +537,7 @@ def frozen_variables(
     Deterministic is registered again as a new view that nothing reads.  Mapping
     the name to the random variable gives the same answer on the source model
     and on a clone.  Any other name stands for its own variable, including a
-    Deterministic that only renames another Deterministic, see
-    :func:`deterministic_renames`.
+    Deterministic that only renames another Deterministic (pymc-devs/pymc#8608).
 
     Parameters
     ----------
@@ -574,7 +569,7 @@ def frozen_variables(
     return held
 
 
-def deterministic_renames(pymc_model: Model) -> dict[str, str]:
+def _deterministic_renames(pymc_model: Model) -> dict[str, str]:
     """Return each Deterministic that only renames another Deterministic.
 
     When PyMC clones a model, ``model_from_fgraph`` adds a view only for a variable
@@ -620,13 +615,13 @@ def deterministic_renames(pymc_model: Model) -> dict[str, str]:
     return renames
 
 
-def refuse_frozen_deterministic_renames(
+def _refuse_frozen_deterministic_renames(
     pymc_model: Model, frozen_deterministics: Sequence[str]
 ) -> None:
     """Refuse a frozen name that a Deterministic rename pairs with another Deterministic.
 
     A clone keeps only one of the two names of such a pair (see
-    :func:`deterministic_renames`), so freezing either of them cannot work until
+    ``_deterministic_renames``), so freezing either of them cannot work until
     PyMC keeps both.
 
     Parameters
@@ -643,7 +638,7 @@ def refuse_frozen_deterministic_renames(
         pairs with.
     """
     partners: dict[str, list[str]] = {}
-    for rename, renamed in deterministic_renames(pymc_model).items():
+    for rename, renamed in _deterministic_renames(pymc_model).items():
         partners.setdefault(rename, []).append(renamed)
         partners.setdefault(renamed, []).append(rename)
     paired = {
@@ -664,7 +659,7 @@ def refuse_frozen_deterministic_renames(
         )
 
 
-def frozen_renames_read_elsewhere(
+def _frozen_renames_read_elsewhere(
     pymc_model: Model,
     response_vars: Sequence[Variable],
     frozen_deterministics: Sequence[str],
@@ -708,7 +703,7 @@ def frozen_renames_read_elsewhere(
     return shared
 
 
-def reached_frozen_names(
+def _reached_frozen_names(
     pymc_model: Model,
     response_vars: Sequence[Variable],
     frozen_deterministics: Sequence[str],

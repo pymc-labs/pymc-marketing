@@ -294,7 +294,7 @@ from pymc_marketing.names.mmm import Attr, Dim, Var
 from pymc_marketing.pytensor_utils import (
     ConditionedModel,
     SharedPosterior,
-    deterministic_renames,
+    _deterministic_renames,
     extract_response_distribution,
     merge_models,
     reorder_to_model_coords,
@@ -2076,7 +2076,7 @@ class BudgetOptimizer(BaseModel):
 
         # A Deterministic that only renames another one makes the second clone
         # below fail, frozen or not, with a message that does not say why.
-        if renames := deterministic_renames(self.model):
+        if renames := _deterministic_renames(self.model):
             # On a ``pm.do`` copy the pair is found under the later name, so the
             # listing does not say which name renames which.
             listing = ", ".join(

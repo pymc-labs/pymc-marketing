@@ -376,10 +376,10 @@ from pymc_marketing.mmm.transformers import ConvMode
 from pymc_marketing.mmm.utils import infer_frequency
 from pymc_marketing.names.mmm import Dim, IncrementalityResult, Var
 from pymc_marketing.pytensor_utils import (
-    frozen_renames_read_elsewhere,
+    _frozen_renames_read_elsewhere,
+    _reached_frozen_names,
+    _refuse_frozen_deterministic_renames,
     needed_posterior_names,
-    reached_frozen_names,
-    refuse_frozen_deterministic_renames,
     reorder_to_model_coords,
     transpose_to_model_dims,
 )
@@ -5508,7 +5508,7 @@ class Incrementality:
         An unread frozen name changes nothing in the graphs, except a Deterministic
         that only renames a free random variable: on the evaluator's clone it would
         hold every read of the variable.  See
-        :func:`~pymc_marketing.pytensor_utils.reached_frozen_names`.  For the same
+        ``pymc_marketing.pytensor_utils._reached_frozen_names``.  For the same
         reason, a frozen rename of a free random variable over ``date`` that the
         responses also read without going through the rename is left out with a
         warning: on the clone, freezing it would cut every read of the variable to
@@ -5528,12 +5528,12 @@ class Incrementality:
         resolved = [
             model[var] if isinstance(var, str) else var for var in response_vars
         ]
-        reached = reached_frozen_names(
+        reached = _reached_frozen_names(
             model, resolved, self.model.frozen_deterministics
         )
         shared = {
             name: var
-            for name, var in frozen_renames_read_elsewhere(
+            for name, var in _frozen_renames_read_elsewhere(
                 model, resolved, reached
             ).items()
             if Dim.DATE in (model.named_vars_to_dims.get(var) or ())
@@ -5820,7 +5820,7 @@ class Incrementality:
             keeps one of the two names.
         """
         model = self.model.model
-        refuse_frozen_deterministic_renames(model, frozen)
+        _refuse_frozen_deterministic_renames(model, frozen)
         resolved = [
             model[var] if isinstance(var, str) else var for var in response_vars
         ]

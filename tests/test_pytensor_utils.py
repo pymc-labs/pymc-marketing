@@ -39,21 +39,21 @@ from pymc_marketing.pytensor_utils import (
     ModelSamplerEstimator,
     SharedPosterior,
     VariableLayout,
+    _deterministic_renames,
+    _frozen_renames_read_elsewhere,
     _prefix_model,
+    _reached_frozen_names,
+    _refuse_frozen_deterministic_renames,
     align_posterior_dim,
     aligned_posterior,
     blocked_between,
     check_aligned_dims,
     check_aligned_shape,
-    deterministic_renames,
     extract_response_distribution,
-    frozen_renames_read_elsewhere,
     frozen_variables,
     merge_models,
     needed_posterior_names,
     non_sample_dims,
-    reached_frozen_names,
-    refuse_frozen_deterministic_renames,
     reorder_to_model_coords,
     transpose_to_model_dims,
     validate_unique_value_vars,
@@ -1115,26 +1115,26 @@ def test_reached_frozen_names_leaves_out_a_rename_no_response_reads():
     model = _two_reader_model()
     frozen = ["renamed", "level", "missing", "renamed"]
 
-    assert reached_frozen_names(model, [model["direct"]], frozen) == ["level"]
-    assert reached_frozen_names(model, [model["one_reader"]], frozen) == ["renamed"]
-    assert reached_frozen_names(model, [model["resp"]], frozen) == ["renamed", "level"]
+    assert _reached_frozen_names(model, [model["direct"]], frozen) == ["level"]
+    assert _reached_frozen_names(model, [model["one_reader"]], frozen) == ["renamed"]
+    assert _reached_frozen_names(model, [model["resp"]], frozen) == ["renamed", "level"]
 
 
 def test_frozen_renames_read_elsewhere_lists_a_variable_read_another_way():
     """Freezing the rename would hold the cumulative sum's read too."""
     model = _two_reader_model()
 
-    assert frozen_renames_read_elsewhere(model, [model["resp"]], ["renamed"]) == {
+    assert _frozen_renames_read_elsewhere(model, [model["resp"]], ["renamed"]) == {
         "renamed": "level"
     }
     # Read only through the rename, listed by its own name, or frozen by its own name
     # alongside the rename: nothing to report.
     assert (
-        frozen_renames_read_elsewhere(model, [model["one_reader"]], ["renamed"]) == {}
+        _frozen_renames_read_elsewhere(model, [model["one_reader"]], ["renamed"]) == {}
     )
-    assert frozen_renames_read_elsewhere(model, [model["resp"]], ["level"]) == {}
+    assert _frozen_renames_read_elsewhere(model, [model["resp"]], ["level"]) == {}
     assert (
-        frozen_renames_read_elsewhere(model, [model["resp"]], ["renamed", "level"])
+        _frozen_renames_read_elsewhere(model, [model["resp"]], ["renamed", "level"])
         == {}
     )
 
@@ -1158,13 +1158,13 @@ def test_a_frozen_rename_of_a_deterministic_is_refused(name):
     with pytest.raises(
         ValueError, match=rf"frozen_deterministics includes {name!r} \(with '"
     ):
-        refuse_frozen_deterministic_renames(model, [name])
+        _refuse_frozen_deterministic_renames(model, [name])
 
 
 def test_deterministic_renames_lists_a_rename_but_not_an_expression():
     """``path`` only renames ``walk``; ``expr`` computes ``walk + 0``."""
-    assert deterministic_renames(_deterministic_rename_model()) == {"path": "walk"}
-    assert deterministic_renames(_renaming_model()) == {}
+    assert _deterministic_renames(_deterministic_rename_model()) == {"path": "walk"}
+    assert _deterministic_renames(_renaming_model()) == {}
 
 
 def test_deterministic_renames_lists_a_rename_on_a_clone_but_not_a_data_rename():
@@ -1173,11 +1173,15 @@ def test_deterministic_renames_lists_a_rename_on_a_clone_but_not_a_data_rename()
     with model:
         pmd.Deterministic("dview", pmd.Data("dat", np.ones(4), dims="date"))
 
-    assert deterministic_renames(clone_model(model)) == {"path": "walk"}
+    assert _deterministic_renames(clone_model(model)) == {"path": "walk"}
 
 
 def test_pymc_merges_a_rename_of_a_deterministic_when_cloning():
-    """Remove the refusals built on deterministic_renames once this fails (pymc-devs/pymc#8656)."""
+    """Remove the refusals built on ``_deterministic_renames`` once this fails (pymc-devs/pymc#8656).
+
+    Then a clone keeps ``path`` as a view that nothing reads, and its graphs read
+    ``walk``, so ``frozen_variables`` has to follow such a rename to ``walk``.
+    """
     with pm.Model() as model:
         steps = pm.Normal("steps", shape=3)
         walk = pm.Deterministic("walk", steps.cumsum())
@@ -1198,13 +1202,13 @@ def test_a_refusal_names_every_rename_of_a_frozen_deterministic():
         ValueError,
         match=r"frozen_deterministics includes 'walk' \(with 'first', 'second'\)",
     ):
-        refuse_frozen_deterministic_renames(model, ["walk"])
+        _refuse_frozen_deterministic_renames(model, ["walk"])
 
 
 def test_renames_that_end_at_a_free_variable_or_an_expression_are_not_refused():
     """A rename of a free variable is mapped, and an expression is its own variable."""
-    refuse_frozen_deterministic_renames(_renaming_model(), ["renamed", "chained"])
-    refuse_frozen_deterministic_renames(_deterministic_rename_model(), ["expr"])
+    _refuse_frozen_deterministic_renames(_renaming_model(), ["renamed", "chained"])
+    _refuse_frozen_deterministic_renames(_deterministic_rename_model(), ["expr"])
 
 
 def test_conditioned_model_keeps_a_name_that_was_not_mapped():
