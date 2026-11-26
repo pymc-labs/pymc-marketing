@@ -147,7 +147,7 @@ ALLOWED: dict[str, dict[str, tuple[str, int]]] = {
     "data/fivetran.py": {
         "date": (_DEFAULT, 4),
     },
-    "experimental/terms/_graph.py": {
+    "terms/_graph.py": {
         "mu": (_PARAMETER, 5),
     },
     "mlflow.py": {

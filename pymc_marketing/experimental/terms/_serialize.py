@@ -36,8 +36,6 @@ import pandas as pd
 import xarray as xr
 from pymc_extras.prior import Prior, VariableFactory
 
-from pymc_marketing.experimental.terms._graph import Data, Equation, GraphTerm
-from pymc_marketing.experimental.terms._terms import MediaTransform
 from pymc_marketing.mmm.components.base import Transformation
 from pymc_marketing.mmm.fourier import FourierBase
 from pymc_marketing.names import Key
@@ -55,6 +53,8 @@ from pymc_marketing.terms import (
     _resolve_func,
     _serialize_child,
 )
+from pymc_marketing.terms._graph import Data, Equation, GraphTerm
+from pymc_marketing.terms._media import MediaTransform
 
 FORMAT = "pymc_marketing.experimental.SCM/1"
 
@@ -65,9 +65,15 @@ def _standalone(*_: Any) -> Any:
     )
 
 
-for _graph_term in (Data, Equation, MediaTransform):
+# String keys make the saved ``__type__`` stable against module moves; the
+# derived keys would point at private module paths.
+for _key, _term in (
+    ("pymc_marketing.terms.Data", Data),
+    ("pymc_marketing.terms.Equation", Equation),
+    ("pymc_marketing.terms.MediaTransform", MediaTransform),
+):
     serialization.register(
-        _graph_term, serializer=_standalone, deserializer=_standalone
+        _key, _term, serializer=_standalone, deserializer=_standalone
     )
 
 

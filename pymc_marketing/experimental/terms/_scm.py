@@ -28,8 +28,11 @@ import pytensor
 import xarray as xr
 import zarr
 
-from pymc_marketing.experimental.terms._data import validate_dataset
-from pymc_marketing.experimental.terms._graph import (
+from pymc_marketing.experimental.terms._serialize import spec_from_dict, spec_to_dict
+from pymc_marketing.names import Group
+from pymc_marketing.names.mmm import Dim
+from pymc_marketing.terms._data import validate_dataset
+from pymc_marketing.terms._graph import (
     Binding,
     BuildContext,
     Equation,
@@ -37,9 +40,6 @@ from pymc_marketing.experimental.terms._graph import (
     total_lookback,
     walk,
 )
-from pymc_marketing.experimental.terms._serialize import spec_from_dict, spec_to_dict
-from pymc_marketing.names import Group
-from pymc_marketing.names.mmm import Dim
 from pymc_marketing.version import __version__
 
 _LOGP_DRAWS = 3

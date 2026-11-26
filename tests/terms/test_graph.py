@@ -28,14 +28,6 @@ from pymc_extras.prior import Prior
 from scipy.special import gammaln
 
 from pymc_marketing.experimental.terms import SCM
-from pymc_marketing.experimental.terms._graph import (
-    BuildContext,
-    Data,
-    Equation,
-    copy_prior,
-    specification_key,
-    walk,
-)
 from pymc_marketing.mmm.components.adstock import GeometricAdstock
 from pymc_marketing.terms import (
     Dot,
@@ -45,6 +37,14 @@ from pymc_marketing.terms import (
     build_param,
     get_coords,
     register_data,
+)
+from pymc_marketing.terms._graph import (
+    BuildContext,
+    Data,
+    Equation,
+    copy_prior,
+    specification_key,
+    walk,
 )
 
 
