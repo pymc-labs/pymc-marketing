@@ -173,6 +173,30 @@ def test_prior_dims_are_aligned_by_name(data):
     )
 
 
+def test_prior_function_returns_the_requested_dim_order(data):
+    def ar_params(make):
+        return make(
+            "ar_raw",
+            Prior("Normal", dims=("observed_state_aux", "lag_ar", "observed_state")),
+            dims=("observed_state", "lag_ar", "observed_state_aux"),
+        )
+
+    lat = latent(ar_params=ar_params)
+    model = SCM(*equations(lat), marginalize=[lat]).build_model(data)
+    # A laid out along the prior's own dims: [source, lag, target]
+    point = {"lat_ar_raw": A.T[:, None, :]}
+    np.testing.assert_allclose(
+        observation_logp(model, **point), varmax_loglike(data), rtol=1e-6
+    )
+
+
+def test_fixed_values_must_have_the_parameter_shape(data):
+    # A diagonal given as a vector would broadcast to a non-symmetric covariance
+    lat = latent(state_cov=np.array([0.2, 0.1]))
+    with pytest.raises(ValueError):
+        SCM(*equations(lat), marginalize=[lat]).build_model(data)
+
+
 def test_priors_use_prefixed_model_dims(data):
     def state_cov(make):
         sd = make(
