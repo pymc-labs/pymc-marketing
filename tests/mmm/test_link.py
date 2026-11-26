@@ -256,7 +256,6 @@ class TestLinkSpec:
             LinkFunction.LOG, Censored(Prior("LogNormal", sigma=1), lower=0)
         )
 
-    @pytest.mark.parametrize("link", [LinkFunction.IDENTITY, LinkFunction.LOG])
     @pytest.mark.parametrize(
         "likelihood",
         [
@@ -268,13 +267,29 @@ class TestLinkSpec:
         ],
         ids=["gamma", "inverse_gamma", "inverse_gamma_alpha_only", "beta", "censored"],
     )
-    def test_validate_likelihood_compat_rejects_params_that_drop_mu(
-        self, link, likelihood
-    ):
+    def test_validate_likelihood_compat_rejects_params_that_drop_mu(self, likelihood):
         # pymc reads alpha (and beta) before mu for these distributions, so
         # the linear predictor would never reach y (#3507).
         with pytest.raises(ValueError, match="ignores 'mu'"):
-            LinkSpec.validate_likelihood_compatibility(link, likelihood)
+            LinkSpec.validate_likelihood_compatibility(
+                LinkFunction.IDENTITY, likelihood
+            )
+
+    def test_build_model_rejects_params_that_drop_mu(self):
+        # The symptom in #3507 was a model that built with no error.
+        likelihood = Prior("Gamma", alpha=2, beta=1, dims=("date",))
+        mmm = _make_mmm(dims=None, model_config={"likelihood": likelihood})
+        X, y = _make_panel_with_target([5.0, 3.0, 7.0, 2.0, 9.0, 4.0, 6.0, 8.0])
+        with pytest.raises(ValueError, match="ignores 'mu'"):
+            mmm.build_model(X, y)
+
+    def test_validate_likelihood_compat_log_link_error_comes_first(self):
+        # Under link='log' the link error names the one fix needed, rather
+        # than sending the user through a second error after the first fix.
+        with pytest.raises(ValueError, match="not compatible with link='log'"):
+            LinkSpec.validate_likelihood_compatibility(
+                LinkFunction.LOG, Prior("Gamma", alpha=2, beta=1)
+            )
 
     @pytest.mark.parametrize(
         "likelihood",

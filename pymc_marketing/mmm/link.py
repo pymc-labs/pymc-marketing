@@ -225,16 +225,19 @@ def _reject_mu_overriding_parameters(likelihood: Prior) -> None:
     overriding = MU_OVERRIDING_PARAMETERS.get(dist_name)
     given = set(getattr(inner, "parameters", {}))
     if overriding and overriding <= given:
-        named = sorted(given & {"alpha", "beta"})
+        named = sorted(given & set().union(*MU_OVERRIDING_PARAMETERS.values()))
+        replacement = (
+            f"Prior('{dist_name}', sigma=Prior('HalfNormal', sigma=1), "
+            f"dims={getattr(inner, 'dims', ())!r})"
+        )
         raise ValueError(
             f"Likelihood '{dist_name}' with {named} ignores 'mu': pymc "
             "uses those parameters instead of the linear predictor, so no "
             "channel, control or intercept term would reach the target. "
-            f"Give '{dist_name}' a 'sigma' instead, for example "
-            f"Prior('{dist_name}', sigma=Prior('HalfNormal', sigma=1)). "
+            f"Give '{dist_name}' a 'sigma' instead, for example {replacement}. "
             "To repair an already saved model without refitting:\n"
             "    kwargs = MMM.idata_to_init_kwargs(idata)\n"
-            "    kwargs['model_config']['likelihood'] = ...\n"
+            f"    kwargs['model_config']['likelihood'] = {replacement}\n"
             "    mmm = MMM(**kwargs)"
         )
 
@@ -896,14 +899,16 @@ class LinkSpec(ABC):
         ------
         ValueError
             If the combination is known to produce incorrect downstream
-            decomposition or optimisation results.
+            decomposition or optimisation results, or if the likelihood is
+            given parameters that make pymc ignore ``mu`` (see
+            :data:`MU_OVERRIDING_PARAMETERS`), which would leave the linear
+            predictor with no path to the target.
 
         Warns
         -----
         UserWarning
             If the likelihood is not one whose ``mu`` scale is known.
         """
-        _reject_mu_overriding_parameters(likelihood)
         dist_name = _distribution_name(likelihood)
 
         if link == LinkFunction.IDENTITY:
@@ -924,6 +929,9 @@ class LinkSpec(ABC):
                     "kwargs['model_config']['likelihood']\n"
                     "    mmm = MMM(**kwargs)"
                 )
+            # The non-identity links accept none of these distributions, so
+            # their own error below already covers them.
+            _reject_mu_overriding_parameters(likelihood)
             if dist_name not in RESPONSE_SCALE_LIKELIHOODS:
                 warnings.warn(
                     f"Likelihood '{dist_name}' is "
