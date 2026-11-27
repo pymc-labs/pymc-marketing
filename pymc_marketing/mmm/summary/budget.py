@@ -13,14 +13,13 @@
 #   limitations under the License.
 """Summary DataFrame generation for budget allocation results.
 
-Access via budget optimizer wrapper::
+Call the factory directly on response samples (see the MMM data export guide)::
 
-    samples = optimizer.allocate_budget(...)
-    df = optimizer.summary.allocation_roas(samples=samples)
+    df = BudgetSummaryFactory.allocation_roas(samples=samples)
 
 Or via :class:`~pymc_marketing.mmm.plotting.budget.BudgetPlots`::
 
-    df = optimizer.plot.summary.allocation_roas(samples=samples)
+    df = BudgetPlots().summary.allocation_roas(samples=samples)
 """
 
 from __future__ import annotations
@@ -95,13 +94,13 @@ class BudgetSummaryFactory:
     Stateless namespace mirroring :class:`~pymc_marketing.mmm.plotting.budget.BudgetPlots`
     but returning tabular summaries with HDI statistics.
 
-    Obtain via ``optimizer.summary`` on :class:`~pymc_marketing.mmm.mmm.BudgetOptimizerWrapper`
-    or ``optimizer.plot.summary`` on :class:`~pymc_marketing.mmm.plotting.budget.BudgetPlots`.
+    Use the class directly, or reach it as ``BudgetPlots().summary`` on
+    :class:`~pymc_marketing.mmm.plotting.budget.BudgetPlots`. Build ``samples``
+    as in the MMM data export guide.
 
     Examples
     --------
-    >>> samples = optimizer.allocate_budget(...)
-    >>> df = optimizer.summary.allocation_roas(samples=samples)
+    >>> df = BudgetSummaryFactory.allocation_roas(samples=samples)
     >>> records = df.to_dict(orient="records")
     """
 
@@ -117,7 +116,10 @@ class BudgetSummaryFactory:
         Parameters
         ----------
         samples : xr.Dataset
-            Output of ``sample_response_distribution(...)`` or equivalent.
+            Response samples for an allocation, built from
+            :meth:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.evaluate_response_distribution`
+            as in the MMM data export guide, or the output of the deprecated
+            ``BudgetOptimizerWrapper.sample_response_distribution``.
             Must contain ``channel_contribution_original_scale``, ``allocation``,
             and ``total_allocation``.
         hdi_probs : sequence of float, default (0.94,)
@@ -151,7 +153,10 @@ class BudgetSummaryFactory:
         Parameters
         ----------
         samples : xr.Dataset
-            Output of ``sample_response_distribution(...)`` or equivalent.
+            Response samples for an allocation, built from
+            :meth:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.evaluate_response_distribution`
+            as in the MMM data export guide, or the output of the deprecated
+            ``BudgetOptimizerWrapper.sample_response_distribution``.
             Must contain ``channel_contribution_original_scale`` with ``channel``,
             ``date``, and ``sample`` or ``(chain, draw)`` dimensions.
         hdi_probs : sequence of float, default (0.94,)

@@ -86,8 +86,8 @@ If you know the matplotlib plot API, use the matching summary method for tabular
 | `mmm.plot.sensitivity.analysis` | `mmm.summary.sensitivity_analysis` |
 | `mmm.plot.sensitivity.uplift` | `mmm.summary.sensitivity_uplift` |
 | `mmm.plot.sensitivity.marginal` | `mmm.summary.sensitivity_marginal` |
-| `optimizer.plot.allocation_roas(samples)` | `optimizer.summary.allocation_roas(samples)` |
-| `optimizer.plot.contribution_over_time(samples)` | `optimizer.summary.contribution_over_time(samples)` |
+| `BudgetPlots().allocation_roas(samples)` | `BudgetSummaryFactory.allocation_roas(samples)` |
+| `BudgetPlots().contribution_over_time(samples)` | `BudgetSummaryFactory.contribution_over_time(samples)` |
 | `cv.plot.predictions(cv_idata)` | `cv.summary.predictions()` |
 | `cv.plot.param_stability(cv_idata)` | `cv.summary.param_stability()` |
 | `cv.plot.crps(cv_idata)` | `cv.summary.crps()` |
@@ -97,21 +97,32 @@ If you know the matplotlib plot API, use the matching summary method for tabular
 Budget plots are stateless: pass allocation samples to both plot and summary namespaces.
 
 ```python
-mmm.plot_suite = "new"
-optimizer = BudgetOptimizerWrapper(
-    model=mmm, start_date="2024-01-01", end_date="2024-12-31"
-)
-result = optimizer.optimize_budget(budget=100_000)
-samples = optimizer.sample_response_distribution(
-    allocation_strategy=result.budgets
+from pymc_marketing.mmm.plotting import BudgetPlots
+from pymc_marketing.mmm.summary import BudgetSummaryFactory
+
+start_date, end_date = "2024-01-01", "2024-12-31"
+mmm.add_original_scale_contribution_variable(["channel_contribution"])
+optimizer = mmm.budget_optimizer(start_date=start_date, end_date=end_date)
+result = optimizer.allocate_budget(total_budget=100_000)
+
+name = "channel_contribution_original_scale"
+response = optimizer.evaluate_response_distribution(result.budgets, name)
+baseline = optimizer.evaluate_response_distribution(result.budgets * 0, name)
+increment = (response - baseline).sel(date=slice(start_date, None))
+samples = increment.to_dataset(name=name).assign(
+    allocation=result.budgets,
+    total_allocation=result.budgets * optimizer.num_periods,
 )
 
-df_roas = optimizer.summary.allocation_roas(samples=samples)
-df_ts = optimizer.summary.contribution_over_time(samples=samples)
+df_roas = BudgetSummaryFactory.allocation_roas(samples=samples)
+df_ts = BudgetSummaryFactory.contribution_over_time(samples=samples)
+fig, axes = BudgetPlots().allocation_roas(samples=samples)
 records = df_roas.to_dict(orient="records")
 ```
 
-`samples` is an `xr.Dataset` from `sample_response_distribution()` (after `optimize_budget()`), not the optimization result object itself.
+`samples` is an `xr.Dataset` built from the posterior response at the optimized plan, not the optimization result object itself. The response covers the optimizer's whole date axis. When the window follows the training data, that axis starts with up to the model's carry-over lags of historical spend before `start_date`, and that spend also carries over into the window. Subtracting the response to a zero plan keeps only the contribution the plan causes, and the slice drops the earlier dates, where that difference is zero. The axis also ends with the carry-over periods after `end_date`. The slice keeps them, so ROAS counts the plan's carry-over. `result.budgets` is per-period money, so `total_allocation` multiplies it by the number of periods in the window.
+
+ROAS is NaN for a cell the plan does not fund, because both the contribution and `total_allocation` are zero there. The recipe covers an optimizer whose only decision variable is media spend. With `optimizable_vars` or `spend_vars`, `evaluate_response_distribution` takes the plan as a mapping of variable names to arrays (see its docstring).
 
 ## Cross-validation results
 

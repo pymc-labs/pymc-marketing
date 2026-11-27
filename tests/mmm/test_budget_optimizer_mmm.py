@@ -15,6 +15,7 @@ import warnings
 from types import SimpleNamespace
 
 import arviz as az
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -40,6 +41,8 @@ from pymc_marketing.mmm.mmm import (
     MMM,
     BudgetOptimizerWrapper,
 )
+from pymc_marketing.mmm.plotting import BudgetPlots
+from pymc_marketing.mmm.summary import BudgetSummaryFactory
 from pymc_marketing.mmm.utility import average_response
 from pymc_marketing.version import __version__
 
@@ -1351,6 +1354,62 @@ def test_sample_response_distribution_includes_total_allocation(
         expected = allocation_strategy * optimizable_model.num_periods
         xr.testing.assert_allclose(result["total_allocation"], expected)
         assert result.attrs.get("pymc_marketing_version") == __version__
+
+
+def test_evaluate_response_distribution_feeds_budget_plots_and_summary(
+    dummy_df, fitted_mmm
+):
+    """The data_export guide's recipe feeds BudgetPlots and BudgetSummaryFactory (issue #3004).
+
+    The samples hold only the contribution the plan causes.
+    """
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
+    fitted_mmm.add_original_scale_contribution_variable(["channel_contribution"])
+
+    start_date = X_dummy["date_week"].max() + pd.Timedelta(weeks=1)
+    optimizer = fitted_mmm.budget_optimizer(
+        start_date=start_date,
+        end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=4),
+    )
+    result = optimizer.allocate_budget(total_budget=100)
+    name = "channel_contribution_original_scale"
+
+    def recipe(plan):
+        # Same steps as the "Budget allocation samples" section of data_export.md.
+        response = optimizer.evaluate_response_distribution(plan, name)
+        baseline = optimizer.evaluate_response_distribution(plan * 0, name)
+        increment = (response - baseline).sel(date=slice(start_date, None))
+        return increment.to_dataset(name=name).assign(
+            allocation=plan, total_allocation=plan * optimizer.num_periods
+        )
+
+    samples = recipe(result.budgets)
+    assert samples.date.min() >= np.datetime64(start_date)
+
+    # Historical spend before the window must not count toward the plan: the
+    # contribution vanishes with the plan.
+    tiny = recipe(result.budgets * 1e-6)[name].sum("date")
+    full = samples[name].sum("date")
+    assert float(abs(tiny).max()) < 1e-3 * float(abs(full).max())
+
+    expected = (
+        (full / samples["total_allocation"]).mean("sample").to_series().rename("roas")
+    )
+    roas = BudgetSummaryFactory.allocation_roas(samples=samples)
+    merged = roas.merge(expected.reset_index(), on=list(expected.index.names))
+    np.testing.assert_allclose(merged["mean"], merged["roas"], rtol=1e-6)
+
+    for summary in (
+        BudgetSummaryFactory.allocation_roas(samples=samples),
+        BudgetSummaryFactory.contribution_over_time(samples=samples),
+    ):
+        assert isinstance(summary, pd.DataFrame)
+        assert len(summary) > 0
+        assert set(summary["channel"]) == {"channel_1", "channel_2"}
+
+    BudgetPlots().allocation_roas(samples=samples)
+    BudgetPlots().contribution_over_time(samples=samples)
+    plt.close("all")
 
 
 @compile_kwargs
