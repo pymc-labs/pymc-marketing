@@ -32,6 +32,7 @@ from pymc_marketing.mmm import (
     LogisticSaturation,
     PowerPriceResponse,
     TieredPriceResponse,
+    merge_models_and_idata,
 )
 from pymc_marketing.mmm.additive_effect import LinearTrendEffect, MuEffect
 from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer, BuildMergedModel
@@ -628,6 +629,95 @@ def test_budget_distribution_over_period_wrong_dims_multidimensional(
             response_variable="total_media_contribution_original_scale",
             compile_kwargs=compile_kwargs,
         )
+
+
+def _merged_mmm_windows(tmp_path, fitted_mmm, prefixes):
+    """Merge one optimization window per saved copy of ``fitted_mmm``."""
+    mmms = []
+    for prefix in prefixes:
+        path = tmp_path / f"{prefix}.nc"
+        fitted_mmm.save(str(path))
+        mmms.append(MMM.load(str(path)))
+
+    # Derive horizon from fixture's fit_data
+    date_col = mmms[0].date_column
+    last_date = pd.to_datetime(mmms[0].idata.fit_data[date_col].values).max()
+    start_date = last_date + pd.Timedelta(days=7)
+    end_date = start_date + pd.Timedelta(weeks=4)
+    pymc_models = [mmm.create_optimization_model(start_date, end_date) for mmm in mmms]
+
+    merged_model, merged_idata = merge_models_and_idata(
+        models=pymc_models,
+        idatas=[mmm.idata for mmm in mmms],
+        prefixes=prefixes,
+        merge_on="channel_data",
+    )
+    # All copies span the same dates, so the first layout describes the merge.
+    layout = mmms[0].window_layout(pymc_models[0], start_date)
+    return merged_model, merged_idata, layout
+
+
+def test_merged_mmms_with_budget_optimizer_and_prefixed_variables(tmp_path, fitted_mmm):
+    prefixes = ["model1", "model2", "model3"]
+    merged_model, merged_idata, layout = _merged_mmm_windows(
+        tmp_path, fitted_mmm, prefixes
+    )
+
+    posterior_vars = set(merged_idata.posterior.data_vars)
+    for p in prefixes:
+        assert f"{p}_total_media_contribution_original_scale" in posterior_vars
+        assert f"{p}_channel_contribution" in posterior_vars
+
+    for d in ("geo", "channel"):
+        assert d in merged_idata.posterior.dims
+
+    merged_idata["posterior/channel_contribution"] = merged_idata.posterior[
+        "model1_channel_contribution"
+    ].copy()
+
+    response_var = "model1_total_media_contribution_original_scale"
+    optimizer = BudgetOptimizer(
+        model=merged_model,
+        idata=merged_idata,
+        num_periods=layout.decisions,
+        carry_in_periods=layout.carry_in,
+        adstock_periods=layout.carry_over,
+        response_variable=response_var,
+    )
+    size = int(optimizer.budgets_to_optimize.sum().item())
+    resp = optimizer.extract_response_distribution(response_var)
+    eval_fun = function([optimizer._budgets_flat], resp)
+    out = eval_fun(np.zeros(size, dtype=float))
+    assert np.all(np.isfinite(np.asarray(out)))
+
+
+def test_merged_mmms_prefixed_channel_contribution_defaults_to_full_mask(
+    tmp_path, fitted_mmm
+):
+    merged_model, merged_idata, layout = _merged_mmm_windows(
+        tmp_path, fitted_mmm, ["model1", "model2"]
+    )
+
+    assert "channel_contribution" not in merged_idata.posterior.data_vars
+
+    optimizer = BudgetOptimizer(
+        model=merged_model,
+        idata=merged_idata,
+        num_periods=layout.decisions,
+        carry_in_periods=layout.carry_in,
+        adstock_periods=layout.carry_over,
+        response_variable="model1_total_media_contribution_original_scale",
+    )
+
+    mask = optimizer.budgets_to_optimize
+    assert mask.dims == tuple(optimizer._budget_dims)
+    for dim in optimizer._budget_dims:
+        assert list(mask.coords[dim].values) == optimizer._budget_coords[dim]
+    assert mask.dtype == bool
+    np.testing.assert_array_equal(
+        mask.values,
+        np.ones_like(mask.values, dtype=bool),
+    )
 
 
 def test_build_merged_model_with_budget_optimizer_and_prefixed_variables(
