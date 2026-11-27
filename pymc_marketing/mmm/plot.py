@@ -381,7 +381,7 @@ class MMMPlotSuite:
         if idata is not None:
             return idata
 
-        # Otherwise, check if self.idata has posterior_predictive
+        # Otherwise, check if self.idata has prior_predictive
         if (
             not hasattr(self.idata, "prior_predictive")  # type: ignore
             or self.idata.prior_predictive is None  # type: ignore
@@ -602,18 +602,18 @@ class MMMPlotSuite:
         idata: xr.Dataset | None = None,
         hdi_prob: float = 0.85,
     ) -> tuple[Figure, NDArray[Axes]]:
-        """Plot time series from the posterior predictive distribution.
+        """Plot time series from the prior predictive distribution.
 
         By default, if both `var` and `idata` are not provided, uses
-        `self.idata.posterior_predictive` and defaults the variable to `"y"`.
+        `self.idata.prior_predictive` and defaults the variable to `"y"`.
 
         Parameters
         ----------
         var : str, optional
             The variable name to plot. Default is "y" if not provided.
         idata : xarray.Dataset, optional
-            The posterior predictive dataset to plot. If not provided, tries to
-            use `self.idata.posterior_predictive`.
+            The prior predictive dataset to plot. If not provided, tries to
+            use `self.idata.prior_predictive`.
         hdi_prob: float, optional
             The probability mass of the highest density interval to be displayed. Default is 0.85.
 
@@ -627,13 +627,14 @@ class MMMPlotSuite:
         Raises
         ------
         ValueError
-            If no `idata` is provided and `self.idata.posterior_predictive` does
-            not exist, instructing the user to run `MMM.sample_posterior_predictive()`.
+            If no `idata` is provided and `self.idata.prior_predictive` does
+            not exist, instructing the user to run `MMM.sample_prior_predictive()`.
+            If `var` is not in the prior predictive data.
             If `hdi_prob` is not between 0 and 1, instructing the user to provide a valid value.
         """
         if not 0 < hdi_prob < 1:
             raise ValueError("HDI probability must be between 0 and 1.")
-        # 1. Retrieve or validate posterior_predictive data
+        # 1. Retrieve or validate prior_predictive data
         pp_data = self._get_prior_predictive_data(idata)
 
         # 2. Determine variable to plot
@@ -662,11 +663,6 @@ class MMMPlotSuite:
             )
 
             # 6. Plot the requested variable
-            if var not in pp_data:
-                raise ValueError(
-                    f"Variable '{var}' not in the posterior_predictive dataset."
-                )
-
             data = pp_data[var].sel(**indexers)
             # Sum leftover dims, stack chain+draw if needed
             data = self._reduce_and_stack(data, ignored_dims)
@@ -676,11 +672,11 @@ class MMMPlotSuite:
             title = self._build_subplot_title(
                 dims=additional_dims,
                 combo=combo,
-                fallback_title="Posterior Predictive Time Series",
+                fallback_title="Prior Predictive Time Series",
             )
             ax.set_title(title)
             ax.set_xlabel("Date")
-            ax.set_ylabel("Posterior Predictive")
+            ax.set_ylabel("Prior Predictive")
             ax.legend(loc="best")
 
         return fig, axes
