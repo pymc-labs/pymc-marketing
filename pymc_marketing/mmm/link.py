@@ -94,10 +94,13 @@ NON_RESPONSE_SCALE_LIKELIHOODS = {"LogNormal": "log"}
 #: passes in, by distribution name.  pymc reads them before ``mu``, so the
 #: linear predictor would have no path to the observed variable.
 #: ``InverseGamma`` defaults ``beta`` to 1 when only ``alpha`` is given.
+#: The second item is the parameter that keeps ``mu`` in use.  ``Beta`` takes
+#: ``nu`` rather than ``sigma``, since its ``sigma`` must stay below
+#: ``sqrt(mu * (1 - mu))``.
 MU_OVERRIDING_PARAMETERS = {
-    "Gamma": frozenset({"alpha", "beta"}),
-    "InverseGamma": frozenset({"alpha"}),
-    "Beta": frozenset({"alpha", "beta"}),
+    "Gamma": (frozenset({"alpha", "beta"}), "sigma"),
+    "InverseGamma": (frozenset({"alpha"}), "sigma"),
+    "Beta": (frozenset({"alpha", "beta"}), "nu"),
 }
 
 #: Likelihoods allowed for the non-identity links, which each need one specific
@@ -222,23 +225,20 @@ def _reject_mu_overriding_parameters(likelihood: Prior) -> None:
     while not isinstance(dist := getattr(inner, "distribution", None), str | None):
         inner = dist
     dist_name = _distribution_name(likelihood)
-    overriding = MU_OVERRIDING_PARAMETERS.get(dist_name)
+    entry = MU_OVERRIDING_PARAMETERS.get(dist_name)
+    if entry is None:
+        return
+    overriding, keeps_mu = entry
     given = set(getattr(inner, "parameters", {}))
-    if overriding and overriding <= given:
-        named = sorted(given & set().union(*MU_OVERRIDING_PARAMETERS.values()))
-        replacement = (
-            f"Prior('{dist_name}', sigma=Prior('HalfNormal', sigma=1), "
-            f"dims={getattr(inner, 'dims', ())!r})"
-        )
+    if overriding <= given:
+        named = sorted(given & {"alpha", "beta"})
         raise ValueError(
             f"Likelihood '{dist_name}' with {named} ignores 'mu': pymc "
             "uses those parameters instead of the linear predictor, so no "
             "channel, control or intercept term would reach the target. "
-            f"Give '{dist_name}' a 'sigma' instead, for example {replacement}. "
-            "To repair an already saved model without refitting:\n"
-            "    kwargs = MMM.idata_to_init_kwargs(idata)\n"
-            f"    kwargs['model_config']['likelihood'] = {replacement}\n"
-            "    mmm = MMM(**kwargs)"
+            f"Drop {named} and give '{dist_name}' a '{keeps_mu}' instead. "
+            "A model already fitted with this likelihood must be refit: its "
+            "posterior never saw the target through 'mu'."
         )
 
 

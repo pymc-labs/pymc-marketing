@@ -257,23 +257,36 @@ class TestLinkSpec:
         )
 
     @pytest.mark.parametrize(
-        "likelihood",
+        ("likelihood", "keeps_mu"),
         [
-            Prior("Gamma", alpha=2, beta=1),
-            Prior("InverseGamma", alpha=3, beta=1),
-            Prior("InverseGamma", alpha=3),
-            Prior("Beta", alpha=2, beta=2),
-            Censored(Prior("Gamma", alpha=2, beta=1), lower=0),
+            (Prior("Gamma", alpha=2, beta=1), "sigma"),
+            (Prior("InverseGamma", alpha=3, beta=1), "sigma"),
+            (Prior("InverseGamma", alpha=3), "sigma"),
+            # Beta's sigma must stay below sqrt(mu * (1 - mu)), so nu is the
+            # parameter that keeps mu without a hidden constraint.
+            (Prior("Beta", alpha=2, beta=2), "nu"),
+            (Censored(Prior("Gamma", alpha=2, beta=1), lower=0), "sigma"),
         ],
         ids=["gamma", "inverse_gamma", "inverse_gamma_alpha_only", "beta", "censored"],
     )
-    def test_validate_likelihood_compat_rejects_params_that_drop_mu(self, likelihood):
+    def test_validate_likelihood_compat_rejects_params_that_drop_mu(
+        self, likelihood, keeps_mu
+    ):
         # pymc reads alpha (and beta) before mu for these distributions, so
         # the linear predictor would never reach y (#3507).
-        with pytest.raises(ValueError, match="ignores 'mu'"):
+        with pytest.raises(ValueError, match="ignores 'mu'") as excinfo:
             LinkSpec.validate_likelihood_compatibility(
                 LinkFunction.IDENTITY, likelihood
             )
+        message = str(excinfo.value)
+        assert f"a '{keeps_mu}' instead" in message
+        # A fit with this likelihood never connected mu to y, so its
+        # posterior cannot be reused: the message must not offer a repair.
+        assert "must be refit" in message
+        assert "idata_to_init_kwargs" not in message
+        # Naming a parameter rather than printing a full Prior keeps a
+        # Censored wrapper intact when the user edits the config.
+        assert "Prior(" not in message
 
     def test_build_model_rejects_params_that_drop_mu(self):
         # The symptom in #3507 was a model that built with no error.
