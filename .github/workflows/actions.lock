@@ -20,10 +20,6 @@ workflows:
     '.github/workflows/first-pr-assignment.yml':
         - 'actions/checkout@v7.0.1'
         - 'actions/github-script@v9.0.0'
-    '.github/workflows/generate-test-durations.yml':
-        - 'actions/checkout@v7.0.1'
-        - 'astral-sh/setup-uv@v10.4.0'
-        - 'peter-evans/create-pull-request@v8.1.3'
     '.github/workflows/git-ai.yaml': []
     '.github/workflows/issue-automation-tests.yml':
         - 'actions/checkout@v7.0.1'
@@ -49,6 +45,7 @@ workflows:
     '.github/workflows/streamlit_url_health.yml':
         - 'jtalk/url-health-check-action@v5'
     '.github/workflows/test.yml':
+        - 'actions/cache@v6.1.0'
         - 'actions/checkout@v7.0.1'
         - 'astral-sh/setup-uv@v10.4.0'
         - 'codecov/codecov-action@v7.1.1'
