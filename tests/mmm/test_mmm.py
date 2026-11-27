@@ -2339,20 +2339,18 @@ class TestSerializationIntegration:
     def test_roundtrip_with_tvp(self, minimal_fit_data, tmp_path, mock_pymc_sample):
         """Save/load with time-varying parameters (HSGP) preserves HSGP config."""
         X, y = minimal_fit_data
-        mmm = self._base_mmm(time_varying_intercept=True)
+        hsgp = SoftPlusHSGP.parameterize_from_data(
+            X=np.arange(X.shape[0]), dims=("date",)
+        )
+        mmm = self._base_mmm(time_varying_intercept=hsgp)
         mmm.fit(X, y)
 
         fname = tmp_path / "tvp_model.nc"
         mmm.save(str(fname))
         loaded = MMM.load(str(fname))
 
-        assert loaded.time_varying_intercept is not None
-        assert loaded.time_varying_intercept is not False
-        if hasattr(loaded.time_varying_intercept, "to_dict"):
-            assert (
-                loaded.time_varying_intercept.to_dict()
-                == mmm.time_varying_intercept.to_dict()
-            )
+        assert isinstance(loaded.time_varying_intercept, SoftPlusHSGP)
+        assert loaded.time_varying_intercept.to_dict() == hsgp.to_dict()
 
     def test_roundtrip_with_mu_effects(
         self, minimal_fit_data, tmp_path, mock_pymc_sample
