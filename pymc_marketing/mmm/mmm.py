@@ -5625,8 +5625,9 @@ class MMM(RegressionModelBuilder):
             - If ``y`` is ``None`` and ``X`` does not carry the target.
             - If ``y`` is a ``np.ndarray`` and its length does not match ``X``.
             - If ``y`` cannot be aligned to ``X`` by index or position.
-            - If ``y`` has ``date`` labels and a row of ``X`` has no label in
-              ``y``.
+            - If ``y`` has ``date`` labels and a date or a dim label of ``X`` is
+              missing from ``y``. A MultiIndex ``y`` that only lacks a
+              combination of them stores NaN there, as ``build_model`` stores 0.
             - If ``y`` has ``date`` labels of another type than the labels of
               ``X``, for example time-zone dates on one side only.
         RuntimeError
