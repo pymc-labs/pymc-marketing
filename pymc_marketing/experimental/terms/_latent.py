@@ -561,12 +561,21 @@ class _KalmanLikelihood:
                 f"{name}_sigma", xdist=True
             )
         elif isinstance(obs.sigma, int | float | np.ndarray | np.generic):
-            _check_scalar_sigma(np.shape(obs.sigma), name)
+            # A scalar: _observation refuses any other shape
             sigma = ptx.as_xtensor(np.asarray(obs.sigma, dtype="float64"), dims=())
         else:
             sigma = context.build(obs.sigma, name=f"{name}_sigma")
         _check_scalar_sigma(sigma.dims, name)
         return sigma
+
+
+def _static_sigma_dims(sigma: Any) -> tuple[Any, ...] | None:
+    """Dims of a sigma known without building it, or None for a term."""
+    if isinstance(sigma, VariableFactory):
+        return tuple(sigma.dims or ())
+    if isinstance(sigma, int | float | np.ndarray | np.generic):
+        return np.shape(sigma)
+    return None
 
 
 def _check_scalar_sigma(dims: Sequence[Any], name: str) -> None:
@@ -643,6 +652,8 @@ def _observation(equation: Equation, latent: LatentStateSpace) -> _Observation |
             f"Equation {equation.name or equation.observed!r} must be "
             f"Normal(mu=<terms> + {latent.name}[<state>], sigma) to marginalize {latent.name!r}."
         )
+    if (dims := _static_sigma_dims(sigma)) is not None:
+        _check_scalar_sigma(dims, equation.name or equation.observed)
     offset = None if not rest else rest[0] if len(rest) == 1 else Sum(terms=rest)
     return _Observation(equation, states[0].state, offset, sigma)
 
@@ -724,15 +735,13 @@ class Marginalization:
         """Refuse what ``build`` would refuse, in a build that draws the latents forward.
 
         Call after building the equations, so a sigma term is already built.
+        Sigmas whose dims are known without building were checked on
+        construction.
         """
         for likelihood in self._likelihoods:
             for obs in likelihood.observations:
                 binding = context.binding(obs.equation)
                 _check_date_only(binding)
-                if isinstance(obs.sigma, VariableFactory):
-                    dims = obs.sigma.dims
-                elif isinstance(obs.sigma, int | float | np.ndarray | np.generic):
-                    dims = np.shape(obs.sigma)
-                else:
-                    dims = context.build(obs.sigma, name=f"{binding.name}_sigma").dims
-                _check_scalar_sigma(dims, binding.name)
+                if _static_sigma_dims(obs.sigma) is None:
+                    sigma = context.build(obs.sigma, name=f"{binding.name}_sigma")
+                    _check_scalar_sigma(sigma.dims, binding.name)
