@@ -26,7 +26,7 @@ from scipy.stats import multivariate_normal
 
 from pymc_marketing.experimental.terms import SCM, LatentStateSpace, Problem
 from pymc_marketing.special_priors import LogNormalPrior
-from pymc_marketing.terms import Data, Equation, Observed
+from pymc_marketing.terms import Data, Equation, Observed, SumOver
 from pymc_marketing.terms._graph import walk
 
 N = 30
@@ -561,6 +561,31 @@ def test_prior_predictive_accepts_a_sigma_recipe(data, sigma):
         data, draws=5, random_seed=1
     )
     assert "a_sigma" in prior["prior"].data_vars
+
+
+def test_sigma_using_another_observing_equation_is_fitted_marginalized(data):
+    # b's sigma reaches a, which observes the same latent: a must still build to
+    # its observations, not draw the latent forward inside the fitting model
+    def build(sigma):
+        lat = latent()
+        a = Equation(
+            observed="a", mu=lat["a"], likelihood=Prior("Normal", sigma=SIGMA[0])
+        )
+        b = Equation(
+            observed="b",
+            mu=lat["b"],
+            likelihood=Prior("Normal"),
+            parameters={"sigma": sigma(a)},
+        )
+        return SCM(a, b).build_model(data)
+
+    model = build(lambda a: SumOver(a, "date") * 0.0 + SIGMA[1])
+    assert "lat_latent" not in model.named_vars
+    np.testing.assert_allclose(
+        observation_logp(model),
+        observation_logp(build(lambda a: SIGMA[1])),
+        rtol=1e-10,
+    )
 
 
 def test_prior_predictive_refuses_an_equation_not_indexed_by_date_only(data):
