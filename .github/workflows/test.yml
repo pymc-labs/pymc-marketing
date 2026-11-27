@@ -95,9 +95,12 @@ jobs:
             pytensor-
       - name: Inspect PyTensor cache
         run: |
+          mkdir -p /tmp/pytensor-cache-stats
           echo "pytensor .so count after restore: $(find ~/.pytensor -name '*.so' 2>/dev/null | wc -l)"
           echo "numba .nbc count after restore: $(find ~/.pytensor -name '*.nbc' 2>/dev/null | wc -l)"
           ls ~/.pytensor 2>/dev/null || true
+          (find ~/.pytensor -name '*.so' 2>/dev/null || true) | wc -l > /tmp/pytensor-cache-stats/restore_so
+          (find ~/.pytensor -name '*.nbc' 2>/dev/null || true) | wc -l > /tmp/pytensor-cache-stats/restore_nbc
       - name: Run tests
         run: |
           uv run --no-sync --frozen pytest --splits 6 \
