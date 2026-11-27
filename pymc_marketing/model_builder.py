@@ -1596,10 +1596,17 @@ class RegressionModelBuilder(ModelBuilder):
         """
         X, y = self._validate_fit_inputs(X, y)
 
-        if not hasattr(self, "model"):
+        built_here = not hasattr(self, "model")
+        if built_here:
             self.build_model(X, y)
 
-        self._fit_data_group = self.create_fit_data(X, y)
+        try:
+            self._fit_data_group = self.create_fit_data(X, y)
+        except Exception:
+            if built_here:
+                # The next fit must build the model from its own y.
+                del self.model
+            raise
 
         return super().fit(
             method=method,

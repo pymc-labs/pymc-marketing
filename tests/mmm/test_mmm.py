@@ -1816,6 +1816,18 @@ def test_create_fit_data_raises_when_labeled_y_misses_a_date_of_X():
         mmm.create_fit_data(X, y.isel(date=slice(1, None)))
 
 
+def test_fit_after_failed_fit_builds_the_model_from_the_new_y(mock_pymc_sample):
+    """A fit that fails in ``create_fit_data`` does not leave its model behind."""
+    mmm, X, y = _labeled_y_with_shuffled_X("no_dims")
+    with pytest.raises(ValueError, match="no label in y"):
+        mmm.fit(X, y.isel(date=slice(1, None)))
+
+    mmm.fit(X, y)
+
+    np.testing.assert_array_equal(mmm.xarray_dataset["_target"].values, y.values)
+    np.testing.assert_array_equal(mmm.idata.fit_data["y"].values, y.values)
+
+
 def test_create_fit_data_raises_when_labeled_y_lacks_a_dim_of_X():
     mmm, X, y = _labeled_y_with_shuffled_X("panel_date_week")
 
