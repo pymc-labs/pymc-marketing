@@ -79,17 +79,25 @@ jobs:
         run: |
           OLDEST=$(grep '"pymc>=' pyproject.toml | head -1 | sed 's/.*>=//' | sed 's/[",].*//')
           uv run --no-sync --frozen python -c "import pymc; assert pymc.__version__ == '${OLDEST}', pymc.__version__"
-      - name: PyTensor compile cache
-        uses: $/.github/actions/pytensor-cache
+      - name: Compute PyTensor cache version key
+        id: pytensor-key
+        run: |
+          h=$({ uv run --no-sync python -V; uv pip freeze | grep -Ei '^(pytensor|numba|llvmlite|numpy|scipy)=='; echo "${PYTENSOR_FLAGS:?} ${NUMBA_CPU_NAME:?}"; } | sha256sum | cut -c1-16)
+          echo "hash=$h" >> "$GITHUB_OUTPUT"
+      - name: Restore and save PyTensor compile caches
+        uses: actions/cache@v6.1.0
         with:
-          lineage: ${{ matrix.config.oldest-pymc && 'oldest' || 'latest' }}-group${{ matrix.group }}
-      - name: Restore durations file
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-        with:
-          path: .test_durations
-          key: test-durations-restore-${{ github.run_id }}
+          path: ~/.pytensor
+          key: pytensor-${{ steps.pytensor-key.outputs.hash }}-${{ matrix.config.oldest-pymc && 'oldest' || 'latest' }}-group${{ matrix.group }}-${{ github.run_id }}
           restore-keys: |
-            test-durations-
+            pytensor-${{ steps.pytensor-key.outputs.hash }}-${{ matrix.config.oldest-pymc && 'oldest' || 'latest' }}-group${{ matrix.group }}-
+            pytensor-${{ steps.pytensor-key.outputs.hash }}-
+            pytensor-
+      - name: Inspect PyTensor cache
+        run: |
+          echo "pytensor .so count after restore: $(find ~/.pytensor -name '*.so' 2>/dev/null | wc -l)"
+          echo "numba .nbc count after restore: $(find ~/.pytensor -name '*.nbc' 2>/dev/null | wc -l)"
+          ls ~/.pytensor 2>/dev/null || true
       - name: Run tests
         run: |
           uv run --no-sync --frozen pytest --splits 6 \
@@ -121,17 +129,6 @@ jobs:
             echo "| C modules (.so) | $rso | $c_so | $aso | ${pct_so}% |"
             echo "| numba fragments (.nbc) | $rnbc | $c_nbc | $anbc | ${pct_nbc}% |"
           } >> "$GITHUB_STEP_SUMMARY"
-      - name: Save durations file to cache
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-        with:
-          path: .test_durations
-          key: test-durations-${{ github.run_id }}-${{ matrix.config.oldest-pymc && 'oldest' || 'latest' }}-group${{ matrix.group }}
-      - name: Upload durations file
-        if: always()
-        uses: actions/upload-artifact@v7.0.2
-        with:
-          name: durations-file-${{ matrix.config.oldest-pymc && 'oldest' || 'latest' }}-group${{ matrix.group }}
-          path: .test_durations
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v7.1.1
         with:
@@ -161,13 +158,6 @@ jobs:
         run: |
           sudo apt-get install graphviz graphviz-dev
           uv pip install -e .[test]
-      - name: Restore durations file
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-        with:
-          path: .test_durations
-          key: test-durations-restore-slow-${{ github.run_id }}
-          restore-keys: |
-            test-durations-
       - name: Run tests
         run: |
           uv run pytest --only-slow \
@@ -182,53 +172,6 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }} # use token for more robust uploads
           name: "test_slow"
           fail_ci_if_error: false
-      - name: Save durations file to cache
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-        with:
-          path: .test_durations
-          key: test-durations-${{ github.run_id }}-slow-group${{ matrix.group }}
-      - name: Upload durations file
-        if: always()
-        uses: actions/upload-artifact@v7.0.2
-        with:
-          name: durations-file-slow-group${{ matrix.group }}
-          path: .test_durations
-
-  durations-combine:
-    needs: [test, test_slow]
-    # Refresh the durations file from the shards on every main push; PRs
-    # run the shards but must not update the shared bookkeeping.
-    if: ${{ !cancelled() && needs.test.result == 'success' && needs.test_slow.result == 'success' && github.event_name == 'push' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/download-artifact@v8.0.2
-        with:
-          pattern: durations-file-*
-          path: durations-files
-      - name: Merge duration files
-        id: merge
-        run: |
-          python3 - <<'PY'
-          import glob
-          import json
-
-          merged = {}
-          files = sorted(glob.glob("durations-files/*/.test_durations"))
-          for f in files:
-              merged.update(json.load(open(f)))
-          with open(".test_durations", "w") as fh:
-              json.dump(merged, fh, indent=1)
-          print(f"merged {len(merged)} tests from {len(files)} files")
-          PY
-          echo "key=test-durations-${{ github.run_id }}-merged" >> "$GITHUB_OUTPUT"
-      - name: Save merged durations to cache
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-        with:
-          path: .test_durations
-          key: ${{ steps.merge.outputs.key }}
 
   all_tests:
     if: ${{ always() }}
