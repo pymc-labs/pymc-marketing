@@ -318,7 +318,8 @@ class TestToMmmDatasetWithDims:
         assert "_control" in ds.data_vars
         assert "control" in ds.coords
 
-    def test_dataframe_with_extra_columns_deduplicates_date(self):
+    def test_dataframe_with_extra_columns_rejects_repeated_dates(self):
+        # Keeping the first row per date would silently drop the UK row (#1753)
         X = pd.DataFrame(
             {
                 "date": ["2023-01-01", "2023-01-01", "2023-01-08"],
@@ -327,14 +328,33 @@ class TestToMmmDatasetWithDims:
             }
         )
         y = pd.Series([10, 20, 30])
-        ds = to_mmm_dataset(
-            X,
-            y,
-            date_column="date",
-            channel_columns=["channel_1"],
+        with pytest.raises(ValueError, match=r"1 rows repeat .*'date'"):
+            to_mmm_dataset(
+                X,
+                y,
+                date_column="date",
+                channel_columns=["channel_1"],
+            )
+
+    def test_panel_column_missing_from_dims_is_rejected(self):
+        # #1753: brand and geo in the data, only geo declared as a dim
+        X = pd.DataFrame(
+            {
+                "date": pd.to_datetime(["2023-01-02"] * 4),
+                "brand": ["a", "a", "b", "b"],
+                "geo": ["g1", "g2", "g1", "g2"],
+                "channel_1": [1.0, 2.0, 3.0, 4.0],
+            }
         )
-        assert "_target" in ds.data_vars
-        assert ds.sizes["date"] == 2  # deduplicated
+        y = pd.Series([10.0, 20.0, 30.0, 40.0])
+        with pytest.raises(ValueError, match=r"\('date', 'geo'\)"):
+            to_mmm_dataset(
+                X,
+                y,
+                date_column="date",
+                dims=("geo",),
+                channel_columns=["channel_1"],
+            )
 
 
 class TestToMmmDatasetDateCoercion:
@@ -572,8 +592,8 @@ class TestToMmmDatasetExtraVars:
         assert "_control" in ds.data_vars
         assert "lower_spend" in ds.data_vars
 
-    def test_extra_vars_dedupes_on_index_keys_not_values(self):
-        """Extra vars dedupe on date/dim keys, like channel and target paths."""
+    def test_extra_vars_reject_repeated_index_keys(self):
+        """Repeated date/dim keys are rejected before extra vars are built."""
         df = pd.DataFrame(
             {
                 "date": pd.to_datetime(
@@ -586,17 +606,15 @@ class TestToMmmDatasetExtraVars:
         )
         y = pd.Series([5.0, 6.0, 7.0, 8.0])
 
-        ds = to_mmm_dataset(
-            df,
-            y,
-            date_column="date",
-            dims=(),
-            channel_columns=["upper_spend"],
-            extra_vars=["lower_spend"],
-        )
-
-        assert ds.sizes == {"date": 2, "channel": 1}
-        assert ds["lower_spend"].dims == ("date",)
+        with pytest.raises(ValueError, match="2 rows repeat"):
+            to_mmm_dataset(
+                df,
+                y,
+                date_column="date",
+                dims=(),
+                channel_columns=["upper_spend"],
+                extra_vars=["lower_spend"],
+            )
 
     def test_extra_vars_panel_fillna_ragged_panel(self):
         dates = pd.date_range("2023-01-01", periods=3, freq="W")

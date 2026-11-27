@@ -47,6 +47,15 @@ def y_data():
     return pd.read_csv("data/processed/y.csv")
 
 
+def _one_market(X: pd.DataFrame, y: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Keep the US rows: X.csv holds two markets, a model without dims takes one."""
+    us = X["market"] == "US"
+    return (
+        X[us].drop(columns="market").reset_index(drop=True),
+        y[us].reset_index(drop=True),
+    )
+
+
 @pytest.fixture
 def _minimal_model_config():
     """Reusable minimal MMM config dict (no data/idata sections)."""
@@ -117,6 +126,9 @@ def test_build_mmm_from_yaml(config_path, X_data, y_data, model_kwargs):
     """Test that build_mmm_from_yaml can create models from all config files."""
     with open(config_path) as file:
         config = yaml.safe_load(file)
+
+    if not config["model"]["kwargs"].get("dims"):
+        X_data, y_data = _one_market(X_data, y_data)
 
     model = build_mmm_from_yaml(
         config_path=config_path,
@@ -759,6 +771,7 @@ def test_calibration_none_is_harmless(dummy_mmm):
 def test_original_scale_vars_ordering_does_not_matter(X_data, y_data):
     """The at-end config must create original_scale variables and apply lift test."""
     config_path = "data/config_files/original_scale_vars_at_end.yml"
+    X_data, y_data = _one_market(X_data, y_data)
 
     model = build_mmm_from_yaml(config_path, X=X_data, y=y_data.squeeze())
 

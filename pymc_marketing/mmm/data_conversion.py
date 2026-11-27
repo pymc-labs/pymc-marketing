@@ -159,11 +159,14 @@ def to_mmm_dataset(
         labelled ``control`` coordinate when *control_columns* is set; if *y*
         is passed and *X* already has a ``target`` / ``_target`` data variable;
         or if *y* has no ``date`` coordinate for a panel ``xr.Dataset`` or
-        ``xr.DataArray`` *X*.
+        ``xr.DataArray`` *X*. Also if two rows of a ``pd.DataFrame`` *X* share
+        the date and every column of *dims*, for example a ``brand`` column
+        missing from *dims*.
     """
     # 1. Coerce date column to datetime for DataFrame inputs.
     if isinstance(X, pd.DataFrame) and date_column in X.columns:
         X = X.assign(**{date_column: pd.to_datetime(X[date_column])})
+        _validate_unique_rows(X, date_column, dims)
 
     # 2. Normalise X.
     ds = _to_mmm_xarray(
@@ -211,6 +214,23 @@ def to_mmm_dataset(
             ds[DatasetVar.TARGET] = y_da
 
     return _to_canonical_layout(ds, dims)
+
+
+def _validate_unique_rows(
+    X: pd.DataFrame, date_column: str, dims: tuple[str, ...]
+) -> None:
+    # Rows that share a date and dims would otherwise be dropped silently,
+    # e.g. a brand column the model does not list in dims (#1753).
+    keys = [date_column, *(dim for dim in dims if dim in X.columns)]
+    repeated = X.duplicated(subset=keys)
+    if repeated.any():
+        examples = X.loc[repeated, keys].drop_duplicates().head(3)
+        raise ValueError(
+            f"{int(repeated.sum())} rows repeat a {tuple(keys)!r} combination "
+            f"of an earlier row, e.g. {examples.to_dict('records')}. Each "
+            "combination must appear once: add the column that tells these "
+            "rows apart to dims, or aggregate the rows first."
+        )
 
 
 def _dataset_has_target(ds: xr.Dataset) -> bool:
@@ -361,11 +381,8 @@ def _reshape_flat_target(
     xarray's sorted coordinate order.  The date column is normalised to
     the canonical name ``"date"`` to match ``_to_mmm_xarray``.
 
-    When *X* contains extra columns that are not included in *dims*
-    (e.g. a ``market`` column when only ``date`` is used), duplicate
-    dates may appear.  We deduplicate by keeping the first occurrence so
-    the resulting date coordinate aligns with the channel dataset, which
-    also deduplicates during the melt step.
+    ``to_mmm_dataset`` rejects rows that repeat a date and *dims*
+    combination before this runs, so no row is dropped here.
     """
     dim_cols = [d for d in dims if d in X.columns]
     idx_cols = [date_column, *dim_cols]
