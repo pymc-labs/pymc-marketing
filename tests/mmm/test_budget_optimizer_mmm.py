@@ -691,7 +691,7 @@ def test_merged_mmms_with_budget_optimizer_and_prefixed_variables(tmp_path, fitt
     assert np.all(np.isfinite(np.asarray(out)))
 
 
-def test_budget_optimizer_prefixed_channel_contribution_defaults_to_full_mask(
+def test_merged_mmms_prefixed_channel_contribution_defaults_to_full_mask(
     tmp_path, fitted_mmm
 ):
     merged_model, merged_idata, layout = _merged_mmm_windows(
@@ -706,6 +706,107 @@ def test_budget_optimizer_prefixed_channel_contribution_defaults_to_full_mask(
         num_periods=layout.decisions,
         carry_in_periods=layout.carry_in,
         adstock_periods=layout.carry_over,
+        response_variable="model1_total_media_contribution_original_scale",
+    )
+
+    mask = optimizer.budgets_to_optimize
+    assert mask.dims == tuple(optimizer._budget_dims)
+    for dim in optimizer._budget_dims:
+        assert list(mask.coords[dim].values) == optimizer._budget_coords[dim]
+    assert mask.dtype == bool
+    np.testing.assert_array_equal(
+        mask.values,
+        np.ones_like(mask.values, dtype=bool),
+    )
+
+
+def test_build_merged_model_with_budget_optimizer_and_prefixed_variables(
+    tmp_path, fitted_mmm
+):
+    # Clone the fitted fixture into three independent instances via save/load
+    p1 = tmp_path / "mmm1.nc"
+    p2 = tmp_path / "mmm2.nc"
+    p3 = tmp_path / "mmm3.nc"
+    fitted_mmm.save(str(p1))
+    fitted_mmm.save(str(p2))
+    fitted_mmm.save(str(p3))
+    m1 = MMM.load(str(p1))
+    m2 = MMM.load(str(p2))
+    m3 = MMM.load(str(p3))
+
+    # Derive horizon from fixture's fit_data
+    date_col = m1.date_column
+    last_date = pd.to_datetime(m1.idata.fit_data[date_col].values).max()
+    start_date = last_date + pd.Timedelta(days=7)
+    end_date = start_date + pd.Timedelta(weeks=4)
+    w1 = BudgetOptimizerWrapper(model=m1, start_date=start_date, end_date=end_date)
+    w2 = BudgetOptimizerWrapper(model=m2, start_date=start_date, end_date=end_date)
+    w3 = BudgetOptimizerWrapper(model=m3, start_date=start_date, end_date=end_date)
+
+    merged_wrapper = BuildMergedModel(
+        models=[w1, w2, w3],
+        prefixes=["model1", "model2", "model3"],
+        merge_on="channel_data",
+    )
+
+    posterior_vars = set(merged_wrapper.idata.posterior.data_vars)
+    for p in ("model1", "model2", "model3"):
+        assert f"{p}_total_media_contribution_original_scale" in posterior_vars
+        assert f"{p}_channel_contribution" in posterior_vars
+
+    for d in ("geo", "channel"):
+        assert d in merged_wrapper.idata.posterior.dims
+
+    if "channel_contribution" not in merged_wrapper.idata.posterior:
+        merged_wrapper.idata.posterior["channel_contribution"] = (
+            merged_wrapper.idata.posterior["model1_channel_contribution"].copy()
+        )
+
+    response_var = "model1_total_media_contribution_original_scale"
+    from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
+
+    optimizer = BudgetOptimizer(
+        num_periods=merged_wrapper.num_periods,
+        model=merged_wrapper,
+        response_variable=response_var,
+    )
+    size = int(optimizer.budgets_to_optimize.sum().item())
+    resp = optimizer.extract_response_distribution(response_var)
+    eval_fun = function([optimizer._budgets_flat], resp)
+    out = eval_fun(np.zeros(size, dtype=float))
+    assert np.all(np.isfinite(np.asarray(out)))
+
+
+def test_budget_optimizer_prefixed_channel_contribution_defaults_to_full_mask(
+    tmp_path, fitted_mmm
+):
+    p1 = tmp_path / "mmm1.nc"
+    p2 = tmp_path / "mmm2.nc"
+    fitted_mmm.save(str(p1))
+    fitted_mmm.save(str(p2))
+
+    m1 = MMM.load(str(p1))
+    m2 = MMM.load(str(p2))
+
+    date_col = m1.date_column
+    last_date = pd.to_datetime(m1.idata.fit_data[date_col].values).max()
+    start_date = last_date + pd.Timedelta(days=7)
+    end_date = start_date + pd.Timedelta(weeks=4)
+
+    w1 = BudgetOptimizerWrapper(model=m1, start_date=start_date, end_date=end_date)
+    w2 = BudgetOptimizerWrapper(model=m2, start_date=start_date, end_date=end_date)
+
+    merged_wrapper = BuildMergedModel(
+        models=[w1, w2],
+        prefixes=["model1", "model2"],
+        merge_on="channel_data",
+    )
+
+    assert "channel_contribution" not in merged_wrapper.idata.posterior.data_vars
+
+    optimizer = BudgetOptimizer(
+        num_periods=merged_wrapper.num_periods,
+        model=merged_wrapper,
         response_variable="model1_total_media_contribution_original_scale",
     )
 
