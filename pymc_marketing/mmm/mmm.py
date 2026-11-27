@@ -1541,16 +1541,11 @@ class MMM(RegressionModelBuilder):
     def attrs_to_init_kwargs(cls, attrs: dict[str, str]) -> dict[str, Any]:
         """Convert the idata attributes to the model initialization kwargs."""
 
-        def _deser(raw: str, fallback=None):
+        def _deser(raw: str):
             data = json.loads(raw)
             if isinstance(data, dict) and Key.TYPE in data:
                 return serialization.deserialize(data)
-            return fallback if fallback is not None else data
-
-        tvi_raw = attrs.get(Attr.TIME_VARYING_INTERCEPT, "false")
-        tvm_raw = attrs.get(Attr.TIME_VARYING_MEDIA, "false")
-        tvi_data = json.loads(tvi_raw)
-        tvm_data = json.loads(tvm_raw)
+            return data
 
         return {
             "model_config": cls._model_config_formatting(
@@ -1564,17 +1559,11 @@ class MMM(RegressionModelBuilder):
             "adstock_first": json.loads(attrs.get("adstock_first", "true")),
             "link": attrs.get(Attr.LINK, "identity"),
             "yearly_seasonality": json.loads(attrs["yearly_seasonality"]),
-            "time_varying_intercept": (
-                serialization.deserialize(tvi_data)
-                if isinstance(tvi_data, dict) and Key.TYPE in tvi_data
-                else tvi_data
+            "time_varying_intercept": _deser(
+                attrs.get(Attr.TIME_VARYING_INTERCEPT, "false")
             ),
             "target_column": attrs["target_column"],
-            "time_varying_media": (
-                serialization.deserialize(tvm_data)
-                if isinstance(tvm_data, dict) and Key.TYPE in tvm_data
-                else tvm_data
-            ),
+            "time_varying_media": _deser(attrs.get(Attr.TIME_VARYING_MEDIA, "false")),
             "sampler_config": json.loads(attrs[Attr.SAMPLER_CONFIG]),
             "dims": tuple(json.loads(attrs.get("dims", "[]"))),
             "scaling": _deser(attrs.get("scaling", "null")),
