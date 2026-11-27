@@ -5627,6 +5627,8 @@ class MMM(RegressionModelBuilder):
             - If ``y`` cannot be aligned to ``X`` by index or position.
             - If ``y`` has ``date`` labels and a row of ``X`` has no label in
               ``y``.
+            - If ``y`` has ``date`` labels of another type than the labels of
+              ``X``, for example time-zone dates on one side only.
         RuntimeError
             If the target column is missing after alignment.
 
@@ -5733,13 +5735,17 @@ class MMM(RegressionModelBuilder):
                 .rename(self.target_column)
                 .rename_axis(index={Dim.DATE: self.date_column})
             )
-            joined = keys.merge(
-                y_labeled.reset_index(),
-                on=coord_cols,
-                how="left",
-                validate="many_to_one",
-                indicator=True,
-            )
+            try:
+                joined = keys.merge(
+                    y_labeled.reset_index(),
+                    on=coord_cols,
+                    how="left",
+                    validate="many_to_one",
+                    indicator=True,
+                )
+            except ValueError as err:
+                # For example labels of different types in X and y.
+                raise ValueError(f"Cannot join y to X on {coord_cols}: {err}") from err
             if (joined["_merge"] == "left_only").any():
                 raise ValueError(
                     f"A row of X has no label in y on {coord_cols}; y must cover "

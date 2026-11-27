@@ -1816,6 +1816,24 @@ def test_create_fit_data_raises_when_labeled_y_misses_a_date_of_X():
         mmm.create_fit_data(X, y.isel(date=slice(1, None)))
 
 
+@pytest.mark.parametrize(
+    "mismatch", ["tz_aware_X_dates", "int_geo_in_y", "str_dates_in_y"]
+)
+def test_create_fit_data_names_the_join_when_label_types_differ(mismatch):
+    """Labels of different types in X and y raise a message about the join."""
+    case = "panel_date_week" if mismatch == "int_geo_in_y" else "no_dims"
+    mmm, X, y = _labeled_y_with_shuffled_X(case)
+    if mismatch == "tz_aware_X_dates":
+        X["date"] = X["date"].dt.tz_localize("UTC")
+    elif mismatch == "int_geo_in_y":
+        y = y.assign_coords(geo=[0, 1])
+    else:
+        y = y.assign_coords(date=y["date"].dt.strftime("%Y-%m-%d").values)
+
+    with pytest.raises(ValueError, match=r"Cannot join y to X on \["):
+        mmm.create_fit_data(X, y)
+
+
 def test_fit_after_failed_fit_builds_the_model_from_the_new_y(mock_pymc_sample):
     """A fit that fails in ``create_fit_data`` does not leave its model behind."""
     mmm, X, y = _labeled_y_with_shuffled_X("no_dims")
