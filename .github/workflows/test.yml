@@ -32,7 +32,7 @@ jobs:
             code:
               - ".github/workflows/test.yml"
               - "pyproject.toml"
-              - "tests/**.py"
+              - "tests/**/*.py"
               - "pymc_marketing/**"
 
   test:
