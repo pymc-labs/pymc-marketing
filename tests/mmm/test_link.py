@@ -256,6 +256,64 @@ class TestLinkSpec:
             LinkFunction.LOG, Censored(Prior("LogNormal", sigma=1), lower=0)
         )
 
+    @pytest.mark.parametrize(
+        ("likelihood", "keeps_mu"),
+        [
+            (Prior("Gamma", alpha=2, beta=1), "sigma"),
+            (Prior("InverseGamma", alpha=3, beta=1), "sigma"),
+            (Prior("InverseGamma", alpha=3), "sigma"),
+            # Beta's sigma must stay below sqrt(mu * (1 - mu)), so nu is the
+            # parameter that keeps mu without a hidden constraint.
+            (Prior("Beta", alpha=2, beta=2), "nu"),
+            (Censored(Prior("Gamma", alpha=2, beta=1), lower=0), "sigma"),
+        ],
+        ids=["gamma", "inverse_gamma", "inverse_gamma_alpha_only", "beta", "censored"],
+    )
+    def test_validate_likelihood_compat_rejects_params_that_drop_mu(
+        self, likelihood, keeps_mu
+    ):
+        # pymc reads alpha (and beta) before mu for these distributions, so
+        # the linear predictor would never reach y (#3507).
+        with pytest.raises(ValueError, match="ignores 'mu'") as excinfo:
+            LinkSpec.validate_likelihood_compatibility(
+                LinkFunction.IDENTITY, likelihood
+            )
+        message = str(excinfo.value)
+        assert f"a '{keeps_mu}' instead" in message
+        # A fit with this likelihood never connected mu to y, so its
+        # posterior cannot be reused: the message must not offer a repair.
+        assert "must be refit" in message
+        assert "idata_to_init_kwargs" not in message
+        # Naming a parameter rather than printing a full Prior keeps a
+        # Censored wrapper intact when the user edits the config.
+        assert "Prior(" not in message
+
+    def test_build_model_rejects_params_that_drop_mu(self):
+        # The symptom in #3507 was a model that built with no error.
+        likelihood = Prior("Gamma", alpha=2, beta=1, dims=("date",))
+        mmm = _make_mmm(dims=None, model_config={"likelihood": likelihood})
+        X, y = _make_panel_with_target([5.0, 3.0, 7.0, 2.0, 9.0, 4.0, 6.0, 8.0])
+        with pytest.raises(ValueError, match="ignores 'mu'"):
+            mmm.build_model(X, y)
+
+    def test_validate_likelihood_compat_log_link_error_comes_first(self):
+        # Under link='log' the link error names the one fix needed, rather
+        # than sending the user through a second error after the first fix.
+        with pytest.raises(ValueError, match="not compatible with link='log'"):
+            LinkSpec.validate_likelihood_compatibility(
+                LinkFunction.LOG, Prior("Gamma", alpha=2, beta=1)
+            )
+
+    @pytest.mark.parametrize(
+        "likelihood",
+        [Prior("Gamma", alpha=2), Prior("Gamma", beta=1)],
+        ids=["gamma_alpha_only", "gamma_beta_only"],
+    )
+    def test_validate_likelihood_compat_leaves_partial_gamma_to_pymc(self, likelihood):
+        # pymc already refuses these with "Incompatible parameterization", so
+        # claiming they ignore mu would be wrong.
+        LinkSpec.validate_likelihood_compatibility(LinkFunction.IDENTITY, likelihood)
+
     def test_validate_likelihood_compat_identity_unknown_warns(self):
         with pytest.warns(UserWarning, match="not a known response-scale likelihood"):
             LinkSpec.validate_likelihood_compatibility(

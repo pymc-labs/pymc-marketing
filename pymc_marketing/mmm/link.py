@@ -90,6 +90,19 @@ RESPONSE_SCALE_LIKELIHOODS = (
 #: of that scale.  Rejected under the identity link.
 NON_RESPONSE_SCALE_LIKELIHOODS = {"LogNormal": "log"}
 
+#: Parameters that, when all given, make pymc ignore the ``mu`` the model
+#: passes in, by distribution name.  pymc reads them before ``mu``, so the
+#: linear predictor would have no path to the observed variable.
+#: ``InverseGamma`` defaults ``beta`` to 1 when only ``alpha`` is given.
+#: The second item is the parameter that keeps ``mu`` in use.  ``Beta`` takes
+#: ``nu`` rather than ``sigma``, since its ``sigma`` must stay below
+#: ``sqrt(mu * (1 - mu))``.
+MU_OVERRIDING_PARAMETERS = {
+    "Gamma": (frozenset({"alpha", "beta"}), "sigma"),
+    "InverseGamma": (frozenset({"alpha"}), "sigma"),
+    "Beta": (frozenset({"alpha", "beta"}), "nu"),
+}
+
 #: Likelihoods allowed for the non-identity links, which each need one specific
 #: distributional form for their counterfactual decomposition to be correct.
 LINK_LIKELIHOODS = {LinkFunction.LOG: frozenset({"LogNormal"})}
@@ -200,6 +213,31 @@ def _distribution_name(likelihood: Prior) -> str:
     while dist is not None and not isinstance(dist, str):
         dist = getattr(dist, "distribution", None)
     return dist if dist is not None else type(likelihood).__name__
+
+
+def _reject_mu_overriding_parameters(likelihood: Prior) -> None:
+    """Raise if *likelihood* has parameters that make pymc ignore ``mu``.
+
+    ``Censored`` holds the parameters on the prior it wraps, which is always
+    a plain ``Prior``, so one level of unwrapping is enough.
+    """
+    inner = likelihood.distribution if isinstance(likelihood, Censored) else likelihood
+    entry = MU_OVERRIDING_PARAMETERS.get(getattr(inner, "distribution", ""))
+    if entry is None:
+        return
+    overriding, keeps_mu = entry
+    given = set(inner.parameters)
+    if overriding <= given:
+        dist_name = inner.distribution
+        named = sorted(given & {"alpha", "beta"})
+        raise ValueError(
+            f"Likelihood '{dist_name}' with {named} ignores 'mu': pymc "
+            "uses those parameters instead of the linear predictor, so no "
+            "channel, control or intercept term would reach the target. "
+            f"Drop {named} and give '{dist_name}' a '{keeps_mu}' instead. "
+            "A model already fitted with this likelihood must be refit: its "
+            "posterior never saw the target through 'mu'."
+        )
 
 
 def _reject_wrapped_likelihood(likelihood: Prior, *, calibration: bool = False) -> None:
@@ -859,7 +897,10 @@ class LinkSpec(ABC):
         ------
         ValueError
             If the combination is known to produce incorrect downstream
-            decomposition or optimisation results.
+            decomposition or optimisation results, or if the likelihood is
+            given parameters that make pymc ignore ``mu`` (see
+            :data:`MU_OVERRIDING_PARAMETERS`), which would leave the linear
+            predictor with no path to the target.
 
         Warns
         -----
@@ -886,6 +927,9 @@ class LinkSpec(ABC):
                     "kwargs['model_config']['likelihood']\n"
                     "    mmm = MMM(**kwargs)"
                 )
+            # The non-identity links accept none of these distributions, so
+            # their own error below already covers them.
+            _reject_mu_overriding_parameters(likelihood)
             if dist_name not in RESPONSE_SCALE_LIKELIHOODS:
                 warnings.warn(
                     f"Likelihood '{dist_name}' is "
