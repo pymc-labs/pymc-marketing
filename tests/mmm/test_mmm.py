@@ -1747,6 +1747,143 @@ def test_save_load_roundtrip_with_unnamed_y_series(
     )
 
 
+def _labeled_y_with_shuffled_X(case):
+    """MMM, ``X`` in a different row order than ``y``, and ``y`` on ``date``."""
+    dates = pd.date_range("2024-01-01", periods=6, freq="W-MON")
+    if case == "no_dims":
+        date_column, dims = "date", ()
+        X = pd.DataFrame({date_column: dates})
+        y = xr.DataArray(np.arange(1.0, 7.0), coords={"date": dates}, dims="date")
+        X = X.iloc[::-1]
+    else:
+        date_column, dims = "date_week", ("geo",)
+        index = pd.MultiIndex.from_product([dates, ["A", "B"]])
+        X = pd.DataFrame(
+            {date_column: index.get_level_values(0), "geo": index.get_level_values(1)}
+        )
+        y = xr.DataArray(
+            np.arange(12.0).reshape(6, 2),
+            coords={"date": dates, "geo": ["A", "B"]},
+            dims=("date", "geo"),
+        )
+        X = X.sort_values(["geo", date_column])
+    X = X.reset_index(drop=True).assign(
+        C1=np.linspace(1, 2, len(X)), C2=np.linspace(2, 3, len(X))
+    )
+    mmm = MMM(
+        date_column=date_column,
+        channel_columns=["C1", "C2"],
+        target_column="y",
+        dims=dims,
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+    return mmm, X, y
+
+
+@pytest.mark.parametrize(
+    "case, as_series",
+    [("no_dims", False), ("panel_date_week", False), ("panel_date_week", True)],
+    ids=["no_dims", "panel_date_week", "panel_date_week_multiindex_series"],
+)
+def test_create_fit_data_joins_labeled_y_by_date(case, as_series):
+    """A ``y`` with ``date`` labels is stored by label, as ``build_model`` uses it."""
+    mmm, X, y = _labeled_y_with_shuffled_X(case)
+
+    fit_data = mmm.create_fit_data(X, y.to_series() if as_series else y)
+
+    stored = fit_data["y"].rename({mmm.date_column: "date"})
+    xr.testing.assert_equal(stored, y.rename("y").transpose(*stored.dims))
+
+
+@pytest.mark.parametrize("case", ["no_dims", "panel_date_week"])
+def test_load_restores_labeled_y_with_shuffled_X(case, mock_pymc_sample, tmp_path):
+    """``MMM.load`` rebuilds the model on ``y``, not on ``y`` in the row order of X."""
+    mmm, X, y = _labeled_y_with_shuffled_X(case)
+    mmm.fit(X, y)
+    file = str(tmp_path / "model.nc")
+    mmm.save(file)
+
+    loaded = MMM.load(file)
+
+    np.testing.assert_array_equal(loaded.xarray_dataset["_target"].values, y.values)
+
+
+def test_create_fit_data_raises_when_labeled_y_misses_a_date_of_X():
+    mmm, X, y = _labeled_y_with_shuffled_X("no_dims")
+
+    with pytest.raises(ValueError, match="no label in y"):
+        mmm.create_fit_data(X, y.isel(date=slice(1, None)))
+
+
+@pytest.mark.parametrize(
+    "mismatch", ["tz_aware_X_dates", "int_geo_in_y", "str_dates_in_y"]
+)
+def test_create_fit_data_names_the_join_when_label_types_differ(mismatch):
+    """Labels of different types in X and y raise a message about the join."""
+    case = "panel_date_week" if mismatch == "int_geo_in_y" else "no_dims"
+    mmm, X, y = _labeled_y_with_shuffled_X(case)
+    if mismatch == "tz_aware_X_dates":
+        X["date"] = X["date"].dt.tz_localize("UTC")
+    elif mismatch == "int_geo_in_y":
+        y = y.assign_coords(geo=[0, 1])
+    else:
+        y = y.assign_coords(date=y["date"].dt.strftime("%Y-%m-%d").values)
+
+    with pytest.raises(ValueError, match=r"Cannot join y to X on \["):
+        mmm.create_fit_data(X, y)
+
+
+def test_fit_after_failed_fit_builds_the_model_from_the_new_y(mock_pymc_sample):
+    """A fit that fails in ``create_fit_data`` does not leave its model behind."""
+    mmm, X, y = _labeled_y_with_shuffled_X("no_dims")
+    with pytest.raises(ValueError, match="no label in y"):
+        mmm.fit(X, y.isel(date=slice(1, None)))
+
+    mmm.fit(X, y)
+
+    np.testing.assert_array_equal(mmm.xarray_dataset["_target"].values, y.values)
+    np.testing.assert_array_equal(mmm.idata.fit_data["y"].values, y.values)
+
+
+def test_create_fit_data_raises_when_labeled_y_lacks_a_dim_of_X():
+    mmm, X, y = _labeled_y_with_shuffled_X("panel_date_week")
+
+    with pytest.raises(ValueError, match="Cannot align y with X"):
+        mmm.create_fit_data(X, y.isel(geo=0, drop=True))
+
+
+def test_create_fit_data_raises_when_labeled_y_has_a_dim_X_lacks():
+    mmm, X, y = _labeled_y_with_shuffled_X("panel_date_week")
+
+    with pytest.raises(ValueError, match="Cannot align y with X"):
+        mmm.create_fit_data(X, y.expand_dims(extra=["e1", "e2"]))
+
+
+def test_create_fit_data_gives_unlabeled_dim_of_y_the_labels_of_X():
+    """A dim of y without labels takes the sorted labels of X, as in ``build_model``."""
+    mmm, X, y = _labeled_y_with_shuffled_X("panel_date_week")
+    y = y.drop_vars("geo")
+    mmm.build_model(X, y)
+
+    fit_data = mmm.create_fit_data(X, y)
+
+    built = mmm.xarray_dataset["_target"].transpose("date", "geo")
+    stored = fit_data["y"].rename({mmm.date_column: "date"}).transpose("date", "geo")
+    np.testing.assert_array_equal(stored.values, built.values)
+    np.testing.assert_array_equal(stored["geo"].values, built["geo"].values)
+
+
+def test_create_fit_data_joins_labeled_y_on_string_dates():
+    """String dates in X match the datetime labels of y, as in ``build_model``."""
+    mmm, X, y = _labeled_y_with_shuffled_X("no_dims")
+    X["date"] = X["date"].dt.strftime("%Y-%m-%d")
+
+    fit_data = mmm.create_fit_data(X, y)
+
+    np.testing.assert_array_equal(fit_data["y"].values, y.values)
+
+
 @pytest.mark.parametrize("path_factory", [str, Path], ids=["str", "path"])
 def test_save_load_zarr_roundtrip(fit_mmm: MMM, tmp_path, path_factory):
     """Roundtrip via MMM.save() / MMM.load() using a .zarr store.
