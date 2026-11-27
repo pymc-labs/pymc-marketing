@@ -17,6 +17,7 @@ import warnings
 from collections.abc import Sequence
 
 import matplotlib.pyplot as plt
+import narwhals.stable.v2 as nw
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -28,7 +29,11 @@ from arviz_stats.ecdf_utils import (
 from matplotlib.lines import Line2D
 
 from pymc_marketing.clv import BetaGeoModel, ParetoNBDModel
-from pymc_marketing.clv.utils import _expected_cumulative_transactions
+from pymc_marketing.clv._narwhals_utils import (
+    TIME_UNIT_DAYS,
+    _prepare_transactions,
+    _resolve_time_spec,
+)
 from pymc_marketing.names.clv import Col, Dim, Var
 
 __all__ = [
@@ -365,19 +370,151 @@ def plot_probability_alive_matrix(
     return ax
 
 
+# pandas period alias of each time unit, for the optional date index.
+_PERIOD_ALIASES = {"day": "D", "week": "W", "month": "M", "quarter": "Q", "year": "Y"}
+
+
+def _expected_cumulative_transactions(
+    model,
+    transactions,
+    customer_id_col: str,
+    datetime_col: str,
+    t: int,
+    granularity: str | None = None,
+    time_unit: str = "day",
+    set_index_date: bool = False,
+) -> pd.DataFrame:
+    """
+    Aggregate actual and expected cumulative transactions over time for a fitted ``BetaGeoModel`` or ``ParetoNBDModel``.
+
+    This function follows the formulation on page 8 of [1]_. Specifically, we take only customers who have made their
+    first transaction before the specified number of ``t`` time periods, run ``expected_purchases_new_customer()``
+    for all remaining time periods, then sum across the customer population.
+
+    Adapted from legacy ``lifetimes`` library:
+    https://github.com/CamDavidsonPilon/lifetimes/blob/master/lifetimes/utils.py#L506
+
+    Parameters
+    ----------
+    model:
+        A fitted ``BetaGeoModel`` or ``ParetoNBDModel``.
+    transactions : DataFrame
+        Any dataframe supported by Narwhals, containing *customer_id_col* and
+        *datetime_col*, which must have a datetime or date dtype.
+    customer_id_col : string
+        Column in the *transactions* DataFrame denoting the *customer_id*.
+    datetime_col :  string
+        Column in the *transactions* DataFrame denoting datetimes purchase were made.
+    t: int
+        Number of periods of ``granularity`` since the earliest transaction for which
+        we want to aggregate cumulative transactions.
+    granularity : string, optional
+        Calendar period in which a customer's purchases count as one transaction:
+        ``"1d"``, ``"1w"``, ``"1mo"``, ``"1q"`` or ``"1y"``. Defaults to the period
+        of ``time_unit``.
+    time_unit : {"day", "week", "month", "quarter", "year"}, optional
+        Unit the model was fitted in. Default ``"day"``. It must be the period of
+        ``granularity`` or a whole number of them, as with daily periods and a
+        model in weeks; the result then has one row per ``time_unit``.
+    set_index_date: bool, optional
+        Set to True to return a dataframe with a period index.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Dataframe containing columns for actual and predicted values, one row per
+        ``time_unit``.
+
+    References
+    ----------
+    .. [1] Fader, Peter S., Bruce G.S. Hardie, and Ka Lok Lee (2005),
+    A Note on Implementing the Pareto/NBD Model in MATLAB.
+    http://brucehardie.com/notes/008/
+    """
+    spec = _resolve_time_spec(granularity, time_unit, None)
+    period_days = TIME_UNIT_DAYS[spec.unit]
+    step = TIME_UNIT_DAYS[spec.time_unit] / period_days
+    if not step.is_integer():
+        raise ValueError(
+            f"time_unit {time_unit!r} is not a whole number of {spec.unit}s; use the "
+            "unit of the granularity or a multiple of it."
+        )
+    step = int(step)
+
+    frame, _ = _prepare_transactions(
+        transactions, customer_id_col, datetime_col, None, spec
+    )
+    # Two small tables, one row per period: the customers who buy in it, and those
+    # among them who buy for the first time.
+    active = (
+        frame.group_by("_period")
+        .agg(nw.col(customer_id_col).n_unique().alias("n"))
+        .collect()
+    )
+    first = (
+        frame.group_by(customer_id_col)
+        .agg(nw.col("_period").min())
+        .group_by("_period")
+        .agg(nw.len().alias("n"))
+        .collect()
+    )
+    start = int(first["_period"].min())
+
+    def per_period(counts: nw.DataFrame) -> np.ndarray:
+        """Return the counts of periods 0 to ``t`` after the log's first purchase."""
+        days = counts["_period"].to_numpy() - start
+        # Whole periods: starts of n calendar periods are within a few days of n
+        # times the mean period length.
+        index = np.rint(days / period_days).astype(int)
+        result = np.zeros(t + 1)
+        result[index[index <= t]] = counts["n"].to_numpy()[index <= t]
+        return result
+
+    new_customers = per_period(first)
+    repeat_purchases = per_period(active) - new_customers
+
+    # Expected purchases of one new customer after 1 to ``t`` periods, in the
+    # model's unit. The id column only labels the rows.
+    # TODO: This does not currently support a covariate model
+    horizons = np.arange(1, t + 1) / step
+    expected = (
+        model.expected_purchases_new_customer(
+            pd.DataFrame({Col.CUSTOMER_ID: horizons, Col.NEW_CUSTOMER_T: horizons})
+        )
+        .mean(dim=("chain", "draw"))
+        .to_numpy()
+    )
+    # At each period, every earlier cohort adds its size times the expected
+    # purchases of a customer of its age.
+    predicted = np.convolve(new_customers[:t], expected)[:t]
+    actual = np.cumsum(repeat_purchases[:t])
+
+    # One row per time unit: the last period of each.
+    index: pd.Index | range = range(t // step)
+    if set_index_date:
+        index = pd.period_range(
+            pd.Timestamp("1970-01-01") + pd.Timedelta(days=start),
+            periods=t,
+            freq=_PERIOD_ALIASES[spec.unit],
+        )[step - 1 :: step]
+    return pd.DataFrame(
+        {"actual": actual[step - 1 :: step], "predicted": predicted[step - 1 :: step]},
+        index=index,
+    )
+
+
 def plot_expected_purchases_over_time(
     model,
-    purchase_history: pd.DataFrame,
+    purchase_history,
     customer_id_col: str,
     datetime_col: str,
     t: int,
     plot_cumulative: bool = True,
     t_start_eval: int | None = None,
-    datetime_format: str | None = None,
-    time_unit: str = "D",
-    time_scaler: float | None = 1,
-    sort_purchases: bool | None = True,
-    set_index_date: bool | None = False,
+    *,
+    granularity: str | None = None,
+    time_unit: str = "day",
+    set_index_date: bool = False,
     title: str | None = None,
     xlabel: str = "Time Periods",
     ylabel: str = "Purchases",
@@ -398,35 +535,33 @@ def plot_expected_purchases_over_time(
     ----------
     model :
         A fitted ``BetaGeoModel`` or ``ParetoNBDModel``.
-    purchase_history : ~pandas.DataFrame
-        A Pandas DataFrame containing *customer_id_col* and *datetime_col*.
+    purchase_history : DataFrame
+        Any dataframe supported by Narwhals, containing *customer_id_col* and
+        *datetime_col*, which must have a datetime or date dtype.
     customer_id_col : string
         Column in the *purchases* DataFrame denoting the *customer_id*.
     datetime_col :  string
         Column in the *purchases* DataFrame denoting datetimes purchase were made.
     t : int
-        Number of time units since earliest purchase to include in plot.
+        Number of periods of ``granularity`` since the earliest purchase to include
+        in the plot.
     plot_cumulative : bool
         Default: *True*
         Plot cumulative purchases over time. Set to *False* to plot incremental purchases.
     t_start_eval : int, optional
         If testing model on unobserved data, specify number of time units in training data to add an indicator for
         the start of the testing period.
-    datetime_format : string, optional
-        A string that represents the timestamp format. Useful if Pandas doesn't recognize the provided format.
-    time_unit : string, optional
-        Time granularity for study.
-        Default: 'D' for days. Possible values listed here:
-        https://numpy.org/devdocs/reference/arrays.datetime.html#datetime-units
-    time_scaler : int, optional
-        Default: 1. Scales *recency* & *T* to a different time granularity.
-        This is useful for datasets spanning many years, and running predictions in different time scales.
-    sort_purchases : bool, optional
-        Default: *True*
-        If *purchase_history* DataFrame is already sorted in chronological order,
-        set to *False* to improve computational efficiency.
+    granularity : string, optional
+        Calendar period in which a customer's purchases count as one transaction:
+        ``"1d"``, ``"1w"``, ``"1mo"``, ``"1q"`` or ``"1y"``. Defaults to the period
+        of ``time_unit``. Use the values the model's data was summarized with in
+        :func:`~pymc_marketing.clv.rfm.rfm_summary`.
+    time_unit : {"day", "week", "month", "quarter", "year"}, optional
+        Unit the model was fitted in. Default ``"day"``. It must be the period of
+        ``granularity`` or a whole number of them; the plot then has one point per
+        ``time_unit``.
     set_index_date : bool, optional
-        Set to True to return a dataframe with a datetime index.
+        Set to True to plot against calendar periods instead of period numbers.
     title : str, optional
         Figure title
     xlabel : str, optional
@@ -457,10 +592,8 @@ def plot_expected_purchases_over_time(
         customer_id_col=customer_id_col,
         datetime_col=datetime_col,
         t=t,
-        datetime_format=datetime_format,
+        granularity=granularity,
         time_unit=time_unit,
-        time_scaler=time_scaler,
-        sort_transactions=sort_purchases,
         set_index_date=set_index_date,
     )
 
