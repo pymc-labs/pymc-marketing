@@ -100,14 +100,15 @@ Budget plots are stateless: pass allocation samples to both plot and summary nam
 from pymc_marketing.mmm.plotting import BudgetPlots
 from pymc_marketing.mmm.summary import BudgetSummaryFactory
 
+start_date, end_date = "2024-01-01", "2024-12-31"
 mmm.add_original_scale_contribution_variable(["channel_contribution"])
-optimizer = mmm.budget_optimizer(start_date="2024-01-01", end_date="2024-12-31")
+optimizer = mmm.budget_optimizer(start_date=start_date, end_date=end_date)
 result = optimizer.allocate_budget(total_budget=100_000)
 
 name = "channel_contribution_original_scale"
 response = optimizer.evaluate_response_distribution(result.budgets, name)
 baseline = optimizer.evaluate_response_distribution(result.budgets * 0, name)
-increment = (response - baseline).sel(date=slice("2024-01-01", None))
+increment = (response - baseline).sel(date=slice(start_date, None))
 samples = increment.to_dataset(name=name).assign(
     allocation=result.budgets,
     total_allocation=result.budgets * optimizer.num_periods,
@@ -119,7 +120,9 @@ fig, axes = BudgetPlots().allocation_roas(samples=samples)
 records = df_roas.to_dict(orient="records")
 ```
 
-`samples` is an `xr.Dataset` built from the posterior response at the optimized plan, not the optimization result object itself. The response covers the optimizer's whole date axis, which starts `l_max` periods before `start_date` with historical spend, and historical spend also carries over into the window. Subtracting the response to a zero plan keeps only the contribution the plan causes, and the slice drops the earlier dates, where that difference is zero. `result.budgets` is per-period money, so `total_allocation` multiplies it by the number of periods in the window.
+`samples` is an `xr.Dataset` built from the posterior response at the optimized plan, not the optimization result object itself. The response covers the optimizer's whole date axis. When the window follows the training data, that axis starts with up to the model's carry-over lags of historical spend before `start_date`, and that spend also carries over into the window. Subtracting the response to a zero plan keeps only the contribution the plan causes, and the slice drops the earlier dates, where that difference is zero. The axis also ends with the carry-over periods after `end_date`. The slice keeps them, so ROAS counts the plan's carry-over. `result.budgets` is per-period money, so `total_allocation` multiplies it by the number of periods in the window.
+
+ROAS is NaN for a cell the plan does not fund, because both the contribution and `total_allocation` are zero there. The recipe covers an optimizer whose only decision variable is media spend. With `optimizable_vars` or `spend_vars`, `evaluate_response_distribution` takes the plan as a mapping of variable names to arrays (see its docstring).
 
 ## Cross-validation results
 
