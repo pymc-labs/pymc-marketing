@@ -3334,6 +3334,18 @@ def fit_mmm_with_effect(simple_mmm_data, mock_pymc_sample):
     return fit
 
 
+class _FrozenRenamedDateLevelEffect(_DateLevelEffect):
+    """``_DateLevelEffect`` with its contribution frozen.
+
+    The contribution is a Deterministic that only renames the free variable.
+    """
+
+    @property
+    def frozen_deterministics(self) -> list[str]:
+        """The contribution, a view of the free random variable."""
+        return [self.contribution_var_name]
+
+
 @pytest.mark.parametrize(
     "max_batch_elements",
     [
@@ -3342,9 +3354,18 @@ def fit_mmm_with_effect(simple_mmm_data, mock_pymc_sample):
         pytest.param(1, id="a-block-per-draw"),
     ],
 )
-@pytest.mark.parametrize("freeze", [False, True], ids=["unfrozen", "frozen"])
+@pytest.mark.parametrize(
+    "make_effect",
+    [
+        pytest.param(_DateLevelEffect, id="unfrozen"),
+        pytest.param(lambda: _DateLevelEffect(freeze=True), id="frozen"),
+        # A Deterministic that only renames the variable; PyMC drops the view when
+        # it clones the model, and freezing it used to raise ``KeyError``.
+        pytest.param(_FrozenRenamedDateLevelEffect, id="frozen-renamed"),
+    ],
+)
 def test_monthly_incrementality_on_a_date_variable(
-    fit_mmm_with_effect, monkeypatch, freeze, max_batch_elements
+    fit_mmm_with_effect, monkeypatch, make_effect, max_batch_elements
 ):
     """A free random variable over the dates gives each month's contribution.
 
@@ -3354,7 +3375,7 @@ def test_monthly_incrementality_on_a_date_variable(
     carryover, so each channel's increment on a month is its contribution summed
     over that month.
     """
-    mmm = fit_mmm_with_effect(_DateLevelEffect(freeze=freeze))
+    mmm = fit_mmm_with_effect(make_effect())
     if max_batch_elements is not None:
         monkeypatch.setattr(
             CounterfactualEvaluator, "MAX_BATCH_ELEMENTS", max_batch_elements
@@ -3407,9 +3428,15 @@ class _ScaledByDateLevelEffect(_ZeroEffect):
 
     With ``walk``, the variable holds the steps of a random walk, and the walk, their
     cumulative sum over ``date``, is a Deterministic whether frozen or not.  With
-    ``classic``, the variable is declared with ``pymc`` and wrapped with
-    ``as_xtensor``, over ``dims="date"`` or, without ``classic_dims``, over a bare
-    ``shape``.  With ``classic_contribution``, the contribution is registered with
+    ``renames``, the variable reaches spend through that many Deterministics that
+    only rename it, and the last of them is the one frozen.  With
+    ``second_reader``, the cumulative sum of the free variable reaches spend too,
+    without going through the renames.  With ``renames_unread``, only a
+    ``report`` Deterministic reads the renames, and spend reads the free variable
+    directly.  With ``classic``, the variable is declared with ``pymc`` and wrapped
+    with ``as_xtensor``, over ``dims="date"`` or, without ``classic_dims``, over a
+    bare ``shape``, and the renames are ``pm.Deterministic`` before ``as_xtensor``.
+    With ``classic_contribution``, the contribution is registered with
     ``pm.Deterministic``.  With ``scalar``, the variable is one value for every date,
     declared with ``pymc.dims`` or, with ``classic``, with ``pymc``.
     """
@@ -3417,6 +3444,9 @@ class _ScaledByDateLevelEffect(_ZeroEffect):
     prefix: str = "scaled"
     walk: bool = False
     freeze: bool = False
+    renames: int = 0
+    second_reader: bool = False
+    renames_unread: bool = False
     classic: bool = False
     classic_dims: bool = True
     classic_contribution: bool = False
@@ -3435,6 +3465,8 @@ class _ScaledByDateLevelEffect(_ZeroEffect):
         """
         if not self.freeze:
             return []
+        if self.renames:
+            return [f"{self.prefix}_rename_{self.renames}"]
         return [f"{self.prefix}_walk" if self.walk else f"{self.prefix}_level"]
 
     def create_effect(self, mmm):
@@ -3451,6 +3483,10 @@ class _ScaledByDateLevelEffect(_ZeroEffect):
             )
         elif self.classic and self.classic_dims:
             draws = pm.Normal(name, mu=1.0, sigma=0.5, dims="date")
+            for index in range(1, self.renames + 1):
+                draws = pm.Deterministic(
+                    f"{self.prefix}_rename_{index}", draws, dims="date"
+                )
             level = as_xtensor(draws, dims=("date",))
         elif self.classic:
             n_dates = mmm.model.dim_lengths["date"]
@@ -3458,8 +3494,17 @@ class _ScaledByDateLevelEffect(_ZeroEffect):
             level = as_xtensor(draws, dims=("date",))
         else:
             level = pmd.Normal(name, mu=1.0, sigma=0.5, dims="date")
+        free = level
         if self.walk:
             level = pmd.Deterministic(f"{self.prefix}_walk", level.cumsum("date"))
+        if not self.classic:
+            for index in range(1, self.renames + 1):
+                level = pmd.Deterministic(f"{self.prefix}_rename_{index}", level)
+        if self.renames_unread:
+            pmd.Deterministic(f"{self.prefix}_report", level * 2)
+            level = free
+        if self.second_reader:
+            level = level + free.cumsum("date")
         contribution = mmm.model["channel_contribution"].sum("channel")
         if self.classic_contribution:
             classic = pm.Deterministic(
@@ -3525,6 +3570,171 @@ def test_yearly_incrementality_on_a_variable_that_scales_spend(
     )
     assert json.loads(unfrozen_split.attrs["assumptions"])["evaluation"] == "full_axis"
     assert "'scaled_level'" in unfrozen_split.attrs["warnings"]
+
+
+@pytest.mark.parametrize("renames", [1, 2], ids=["renamed", "chained"])
+def test_monthly_incrementality_on_a_frozen_renaming_deterministic_that_scales_spend(
+    fit_mmm_with_effect, renames
+):
+    """Freezing a Deterministic that renames the variable is freezing the variable.
+
+    The variable multiplies the channel contribution, so the increments read its
+    values on each window's own dates.  The months keep their windows.
+    """
+    frozen = fit_mmm_with_effect(_ScaledByDateLevelEffect(freeze=True))
+    renamed = fit_mmm_with_effect(
+        _ScaledByDateLevelEffect(freeze=True, renames=renames)
+    )
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "error", message=".*full date axis", category=UserWarning
+        )
+        expected = frozen.incrementality.compute_incremental_contribution(
+            frequency="monthly"
+        )
+        actual = renamed.incrementality.compute_incremental_contribution(
+            frequency="monthly"
+        )
+        split = renamed.incrementality.split_incremental_contribution_over_time(
+            frequency="monthly"
+        )
+
+    np.testing.assert_allclose(actual, expected.transpose(*actual.dims))
+    assert json.loads(split.attrs["assumptions"])["evaluation"] == "window"
+
+
+def test_monthly_incrementality_leaves_out_a_frozen_rename_read_another_way(
+    fit_mmm_with_effect,
+):
+    """Freezing the rename would cut the cumulative sum's read of the variable too.
+
+    The rename is left out with a warning, so the increments are those of freezing
+    nothing.
+    """
+    unfrozen = fit_mmm_with_effect(
+        _ScaledByDateLevelEffect(renames=1, second_reader=True)
+    )
+    frozen = fit_mmm_with_effect(
+        _ScaledByDateLevelEffect(freeze=True, renames=1, second_reader=True)
+    )
+
+    with warnings.catch_warnings():
+        # Also silences the full-axis warning pytest.warns re-emits for the left-out
+        # variable.
+        warnings.simplefilter("ignore", UserWarning)
+        expected = unfrozen.incrementality.compute_incremental_contribution(
+            frequency="monthly"
+        )
+        with pytest.warns(
+            UserWarning,
+            match=r"^frozen_deterministics includes 'scaled_rename_1' \(a view of "
+            r"'scaled_level'\), but the responses also read the variable without "
+            r"going through the rename\..* freeze the variable itself instead: "
+            r"'scaled_level'\.  Otherwise, see MuEffect\.frozen_deterministics for "
+            r"the paths to freeze\.$",
+        ):
+            actual = frozen.incrementality.compute_incremental_contribution(
+                frequency="monthly"
+            )
+
+    np.testing.assert_allclose(actual, expected.transpose(*actual.dims))
+
+
+def test_monthly_incrementality_refuses_a_frozen_rename_of_a_deterministic(
+    fit_mmm_with_effect,
+):
+    """The rename only renames the walk, and a clone keeps one of the two names."""
+    mmm = fit_mmm_with_effect(
+        _ScaledByDateLevelEffect(freeze=True, walk=True, renames=1)
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"^frozen_deterministics includes 'scaled_rename_1' \(with "
+        r"'scaled_walk'\): one of each pair only renames the other Deterministic",
+    ):
+        mmm.incrementality.compute_incremental_contribution(frequency="monthly")
+
+
+@pytest.mark.parametrize("entry_point", BUDGET_ENTRY_POINTS)
+@pytest.mark.parametrize("freeze", [False, True], ids=["unfrozen", "frozen"])
+def test_budget_optimizer_refuses_a_rename_of_a_deterministic(
+    single_dim_data, mock_pymc_sample, entry_point, freeze
+):
+    """A rename of the walk is refused however the optimizer is built.
+
+    The MMM routes build it on a clone, where the two names share one variable.
+    """
+    X, y = single_dim_data
+    mmm = _mmm_with_effects(
+        _ScaledByDateLevelEffect(walk=True, renames=1, freeze=freeze)
+    )
+    mmm.fit(X.iloc[:9], y.iloc[:9], draws=50, chains=1, random_seed=42)
+
+    with pytest.raises(
+        ValueError,
+        # BudgetOptimizer is a pydantic model, so the error arrives as a ValidationError.
+        match=r"The model has Deterministics where one only renames the other: "
+        r"'scaled_rename_1' and 'scaled_walk'\.",
+    ):
+        _optimize_budget(entry_point, mmm, "2023-01-10", "2023-01-14")
+
+
+@pytest.mark.parametrize("walk", [False, True], ids=["level", "random-walk"])
+def test_monthly_incrementality_on_a_frozen_rename_no_response_reads(
+    fit_mmm_with_effect, walk
+):
+    """A frozen rename that only a report reads is left out of the evaluation.
+
+    On the evaluator's clone a rename of the variable would stand for every read
+    of it, so it would cut the read that scales spend to the windows.  A rename of
+    the walk is not refused either, although a clone keeps one of the two names.
+    """
+    unfrozen = fit_mmm_with_effect(
+        _ScaledByDateLevelEffect(walk=walk, renames=1, renames_unread=True)
+    )
+    frozen = fit_mmm_with_effect(
+        _ScaledByDateLevelEffect(walk=walk, freeze=True, renames=1, renames_unread=True)
+    )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        expected = unfrozen.incrementality.compute_incremental_contribution(
+            frequency="monthly"
+        )
+        actual = frozen.incrementality.compute_incremental_contribution(
+            frequency="monthly"
+        )
+
+    np.testing.assert_allclose(actual, expected.transpose(*actual.dims))
+
+
+def test_monthly_incrementality_on_a_frozen_classic_rename(fit_mmm_with_effect):
+    """A ``pm.Deterministic`` renaming a ``pymc`` variable stands for that variable.
+
+    Frozen, it is cut to each window, and the increments are those of the variable
+    evaluated on the full date axis.
+    """
+    unfrozen = fit_mmm_with_effect(_ScaledByDateLevelEffect(classic=True, renames=1))
+    frozen = fit_mmm_with_effect(
+        _ScaledByDateLevelEffect(classic=True, renames=1, freeze=True)
+    )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        expected = unfrozen.incrementality.compute_incremental_contribution(
+            frequency="monthly"
+        )
+        actual = frozen.incrementality.compute_incremental_contribution(
+            frequency="monthly"
+        )
+        split = frozen.incrementality.split_incremental_contribution_over_time(
+            frequency="monthly"
+        )
+
+    np.testing.assert_allclose(actual, expected.transpose(*actual.dims))
+    assert json.loads(split.attrs["assumptions"])["evaluation"] == "window"
 
 
 @pytest.mark.parametrize(

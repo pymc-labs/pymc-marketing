@@ -294,6 +294,7 @@ from pymc_marketing.names.mmm import Attr, Dim, Var
 from pymc_marketing.pytensor_utils import (
     ConditionedModel,
     SharedPosterior,
+    _deterministic_renames,
     extract_response_distribution,
     merge_models,
     reorder_to_model_coords,
@@ -2073,6 +2074,23 @@ class BudgetOptimizer(BaseModel):
             self._variables.variable_slice(self.channel_data_var)
         )
 
+        # A Deterministic that only renames another one makes the second clone
+        # below fail, frozen or not, with a message that does not say why.
+        if renames := _deterministic_renames(self.model):
+            # On a ``pm.do`` copy the pair is found under the later name, so the
+            # listing does not say which name renames which.
+            listing = ", ".join(
+                f"{rename!r} and {renamed!r}" for rename, renamed in renames.items()
+            )
+            raise ValueError(
+                f"The model has Deterministics where one only renames the other: "
+                f"{listing}.  When PyMC clones the model it keeps "
+                "only one of the two names (pymc-devs/pymc#8608), and the "
+                "optimization model clones it twice, so it cannot be built whether "
+                "the rename is frozen or not.  Write each rename as an expression, "
+                "such as 'Deterministic(name, other + 0)'."
+            )
+
         # The frozen model before the substitutions: every conditioned model
         # applies them to it itself, which keeps the decision vector an input
         # of its clone (cloning the intervened model would copy the vector).
@@ -2158,7 +2176,11 @@ class BudgetOptimizer(BaseModel):
 
         The traversal stops at every frozen deterministic, as the evaluation does
         when it substitutes their posterior draws, so a path that enters the
-        objective only through another frozen deterministic is not reached.
+        objective only through another frozen deterministic is not reached.  A
+        deterministic that only renames a free random variable is never reached:
+        on the clone it is a view that nothing reads.  Freezing it is harmless
+        here, since conditioning holds every free random variable at its
+        posterior draws anyway.
 
         Parameters
         ----------

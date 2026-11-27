@@ -814,13 +814,22 @@ class MuEffect(SerializableBaseModel, ABC):
         as the cumulative sum of a random walk's steps. A listed path is cut to
         each window before the graph reads it, so a sum, cumulative sum or mean
         over ``date`` taken after it covers only the window: list the variable
-        itself only when the graph reads it date by date up to that point. Listing
-        a deterministic that only renames the variable, such as
-        ``Deterministic(name, rv)``, currently raises a ``KeyError`` in
-        incrementality. Only a dimension named ``date`` counts: incrementality does
-        not notice a variable over the fitted dates declared under another
-        dimension name and can read it at the wrong dates, so declare such a
-        variable over ``date`` or list its path here.
+        itself only when the graph reads it date by date up to that point. A
+        deterministic that only renames the variable, such as
+        ``Deterministic(name, rv)``, or a chain of them, is frozen as the variable
+        itself, so it holds every read of the variable: incrementality leaves it
+        out, with a warning, when the variable is over ``date`` and the graph also
+        reads it without going through the rename.
+        When PyMC clones the model, it keeps only one of the two names of a
+        deterministic that only renames another deterministic
+        (pymc-devs/pymc#8608). Incrementality refuses to freeze either name of
+        such a pair when a response reads it, and the budget optimizer refuses
+        such a model whether the rename is frozen or not. Write such a rename as
+        an expression, such as ``Deterministic(name, other + 0)``. Only a
+        dimension named ``date`` counts: incrementality does not notice a
+        variable over the fitted dates declared under another dimension name and
+        can read it at the wrong dates, so declare such a variable over ``date``
+        or list its path here.
         """
         return []
 

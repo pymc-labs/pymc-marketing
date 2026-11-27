@@ -376,6 +376,9 @@ from pymc_marketing.mmm.transformers import ConvMode
 from pymc_marketing.mmm.utils import infer_frequency
 from pymc_marketing.names.mmm import Dim, IncrementalityResult, Var
 from pymc_marketing.pytensor_utils import (
+    _frozen_renames_read_elsewhere,
+    _reached_frozen_names,
+    _refuse_frozen_deterministic_renames,
     needed_posterior_names,
     reorder_to_model_coords,
     transpose_to_model_dims,
@@ -5497,8 +5500,64 @@ class Incrementality:
         """
         return constant_data_fingerprint(self.idata)
 
-    def _evaluator_cache_key(
+    def _evaluator_frozen(
         self, response_vars: Sequence[str | Variable]
+    ) -> tuple[str, ...]:
+        """Return the frozen deterministics the evaluator holds fixed.
+
+        An unread frozen name changes nothing in the graphs, except a Deterministic
+        that only renames a free random variable: on the evaluator's clone it would
+        hold every read of the variable.  See
+        ``pymc_marketing.pytensor_utils._reached_frozen_names``.  For the same
+        reason, a frozen rename of a free random variable over ``date`` that the
+        responses also read without going through the rename is left out with a
+        warning: on the clone, freezing it would cut every read of the variable to
+        the evaluation windows.
+
+        Parameters
+        ----------
+        response_vars : sequence of str or Variable
+            Responses the evaluator is built for.
+
+        Returns
+        -------
+        tuple of str
+            The names, in the order of the MMM's ``frozen_deterministics``.
+        """
+        model = self.model.model
+        resolved = [
+            model[var] if isinstance(var, str) else var for var in response_vars
+        ]
+        reached = _reached_frozen_names(
+            model, resolved, self.model.frozen_deterministics
+        )
+        shared = {
+            name: var
+            for name, var in _frozen_renames_read_elsewhere(
+                model, resolved, reached
+            ).items()
+            if Dim.DATE in (model.named_vars_to_dims.get(var) or ())
+        }
+        if shared:
+            listing = ", ".join(
+                f"{name!r} (a view of {var!r})" for name, var in shared.items()
+            )
+            warnings.warn(
+                f"frozen_deterministics includes {listing}, but the responses also "
+                "read the variable without going through the rename.  A "
+                "Deterministic that only renames a variable cannot be frozen apart "
+                "from it, so the rename is left out, as if it were not listed.  When "
+                "every read of the variable is date by date, freeze the variable "
+                "itself instead: "
+                f"{', '.join(map(repr, dict.fromkeys(shared.values())))}.  Otherwise, "
+                "see MuEffect.frozen_deterministics for the paths to freeze.",
+                UserWarning,
+                skip_file_prefixes=(_PKG_PREFIX,),
+            )
+        return tuple(name for name in reached if name not in shared)
+
+    def _evaluator_cache_key(
+        self, response_vars: Sequence[str | Variable], frozen: tuple[str, ...]
     ) -> EvaluatorCacheKey:
         """Return the cache identity of the evaluator :meth:`_compute_increments` needs.
 
@@ -5510,6 +5569,9 @@ class Incrementality:
         response_vars : sequence of str or Variable
             Responses in order.  A node is keyed by its name, which is how the
             evaluator resolves it against its intervened clone.
+        frozen : tuple of str
+            The frozen deterministics the evaluator holds fixed, from
+            :meth:`_evaluator_frozen`.
 
         Returns
         -------
@@ -5535,7 +5597,7 @@ class Incrementality:
             response_vars=cast(tuple[str, ...], names),
             intervention_target=Var.CHANNEL_DATA,
             intervention_mode="replace",
-            frozen_deterministics=tuple(self.model.frozen_deterministics),
+            frozen_deterministics=frozen,
             dates=tuple(self.data.dates),
             data_fingerprint=self._data_fingerprint,
         )
@@ -5712,7 +5774,10 @@ class Incrementality:
         )
 
     def _evaluator_posterior(
-        self, posterior: xr.Dataset, response_vars: Sequence[str | Variable]
+        self,
+        posterior: xr.Dataset,
+        response_vars: Sequence[str | Variable],
+        frozen: tuple[str, ...],
     ) -> xr.Dataset:
         """Return the posterior variables the evaluator's graphs read.
 
@@ -5731,6 +5796,9 @@ class Incrementality:
             Responses the evaluator is built for.  A response given as a raw node
             is resolved against the model for the traversal only; the evaluator
             still receives the node.
+        frozen : tuple of str
+            The frozen deterministics the evaluator holds fixed, from
+            :meth:`_evaluator_frozen`.
 
         Returns
         -------
@@ -5742,14 +5810,20 @@ class Incrementality:
             every channel parameter being fixed in the model config -- the result
             holds no variable, only the ``chain`` and ``draw`` coordinates the
             evaluator still broadcasts over; an empty selection would drop them.
+
+        Raises
+        ------
+        ValueError
+            If a frozen name the responses read only renames another
+            Deterministic, or is renamed by one: the clone the evaluator reads
+            keeps one of the two names.
         """
         model = self.model.model
+        _refuse_frozen_deterministic_renames(model, frozen)
         resolved = [
             model[var] if isinstance(var, str) else var for var in response_vars
         ]
-        read = set(
-            needed_posterior_names(model, resolved, self.model.frozen_deterministics)
-        )
+        read = set(needed_posterior_names(model, resolved, frozen))
         names = [name for name in posterior.data_vars if name in read]
         if names:
             return posterior[names]
@@ -5861,13 +5935,16 @@ class Incrementality:
         # evaluator is leased for the whole request: it leaves the cache here and
         # comes back below, so a concurrent call misses and compiles its own
         # rather than rebinding the draws under this one.
-        posterior_for_evaluator = self._evaluator_posterior(posterior, response_vars)
+        frozen = self._evaluator_frozen(response_vars)
+        posterior_for_evaluator = self._evaluator_posterior(
+            posterior, response_vars, frozen
+        )
         build_evaluator = partial(
             CounterfactualEvaluator,
             pymc_model=posterior_predictive_model,
             posterior=posterior_for_evaluator,
             response_vars=response_vars,
-            frozen_deterministics=self.model.frozen_deterministics,
+            frozen_deterministics=list(frozen),
             dates=dates,
             expected_aux_values=(
                 self.idata.constant_data
@@ -5876,7 +5953,9 @@ class Incrementality:
             ),
         )
         cache = self.model._incrementality_evaluator_cache()
-        lease = cache.lease(self._evaluator_cache_key(response_vars), build_evaluator)
+        lease = cache.lease(
+            self._evaluator_cache_key(response_vars, frozen), build_evaluator
+        )
         evaluator = lease.evaluator
         # A hit carries the draws of the request that built it; a miss was just
         # conditioned on this request's posterior, so rebinding it would copy the

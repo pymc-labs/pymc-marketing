@@ -2383,6 +2383,105 @@ def test_objective_reaching_a_frozen_path_over_date_raises():
         _frozen_path_optimizer("total_response_original_scale")
 
 
+def _renamed_path_optimizer(
+    *,
+    path_renames_walk: bool = False,
+    objective_reads_path: bool = False,
+    frozen: tuple[str, ...] = ("path",),
+    do_copy: bool = False,
+) -> BudgetOptimizer:
+    """An optimizer on a model where ``path`` is a Deterministic that only renames another variable.
+
+    ``path`` renames the free ``steps``, or with *path_renames_walk* the Deterministic
+    ``walk`` of their cumulative sum.  ``report`` reads ``path``; the objective
+    reads ``steps`` directly, or through ``path`` with *objective_reads_path*.  The
+    media response saturates, so the allocation is interior.  *frozen* is
+    ``frozen_deterministics``.  With *do_copy* the optimizer is built on
+    ``pm.do(model, {})``.
+    """
+    channels, n_dates = ["a", "b"], 6
+    with pm.Model(coords={"channel": channels}) as model:
+        model.add_coord("date", length=n_dates)
+        channel_data = pmd.Data(
+            "channel_data", np.ones((n_dates, len(channels))), dims=("date", "channel")
+        )
+        beta = pmd.Normal("beta", 1.0, 0.1, dims="channel")
+        media = pmd.Deterministic(
+            "total_media_contribution_original_scale",
+            pmd.math.log1p(channel_data * beta).sum(),
+        )
+        steps = pmd.Normal("steps", sigma=0.1, dims="date")
+        inner = (
+            pmd.Deterministic("walk", steps.cumsum("date"))
+            if path_renames_walk
+            else steps
+        )
+        path = pmd.Deterministic("path", inner)
+        pmd.Deterministic("report", path * 2)
+        read = path if objective_reads_path else steps
+        pmd.Deterministic("total_response_original_scale", media + read.sum("date"))
+    prior = pm.sample_prior_predictive(draws=4, model=model, random_seed=1).prior
+    return BudgetOptimizer(
+        model=pm.do(model, {}) if do_copy else model,
+        idata=xr.DataTree.from_dict({"posterior": prior}),
+        num_periods=4,
+        adstock_periods=2,
+        frozen_deterministics=list(frozen),
+        response_variable="total_response_original_scale",
+    )
+
+
+@pytest.mark.parametrize(
+    "objective_reads_path", [False, True], ids=["steps", "through-path"]
+)
+def test_objective_on_a_frozen_rename_of_a_free_variable_is_optimized(
+    objective_reads_path,
+):
+    """``path`` only renames ``steps``, and the objective reads ``steps`` with or without it.
+
+    Freezing ``path`` holds ``steps`` at its posterior draws, which conditioning
+    does anyway, so the allocation is the one without it, even though ``path`` is
+    over ``date``.
+    """
+    frozen = _renamed_path_optimizer(objective_reads_path=objective_reads_path)
+    unfrozen = _renamed_path_optimizer(
+        objective_reads_path=objective_reads_path, frozen=()
+    )
+
+    result = frozen.allocate_budget(total_budget=10.0)
+    expected = unfrozen.allocate_budget(total_budget=10.0)
+
+    np.testing.assert_allclose(result.budgets.sum(), 10.0)
+    np.testing.assert_allclose(result.budgets, expected.budgets)
+
+
+@pytest.mark.parametrize(
+    "frozen", [pytest.param((), id="unfrozen"), pytest.param(("path",), id="frozen")]
+)
+def test_a_rename_of_a_deterministic_is_refused_before_cloning(frozen):
+    """Cloning registers ``path`` and ``walk`` on one variable, frozen or not."""
+    with pytest.raises(
+        ValueError,
+        # BudgetOptimizer is a pydantic model, so the error arrives as a ValidationError.
+        match=r"The model has Deterministics where one only renames the other: "
+        r"'path' and 'walk'\.",
+    ):
+        _renamed_path_optimizer(path_renames_walk=True, frozen=frozen)
+
+
+def test_a_rename_on_a_do_copy_is_refused_without_a_direction():
+    """``pm.do`` registers the pair under ``path``'s name, so the listing is reversed.
+
+    The message lists the two names without saying which one renames the other.
+    """
+    with pytest.raises(
+        ValueError,
+        match=r"The model has Deterministics where one only renames the other: "
+        r"'walk' and 'path'\.",
+    ):
+        _renamed_path_optimizer(path_renames_walk=True, frozen=(), do_copy=True)
+
+
 @pytest.mark.parametrize(
     "response_variable",
     [
