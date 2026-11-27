@@ -13,11 +13,38 @@
 #   limitations under the License.
 """Shared fixtures for customer-choice tests."""
 
+import importlib.metadata
 import warnings
 
 import pytest
 
 from pymc_marketing.customer_choice import BayesianBLP, generate_blp_panel
+
+
+@pytest.fixture
+def fake_numpyro(monkeypatch):
+    """Return a function that makes NumPyro look installed or missing.
+
+    It fakes the ``importlib.metadata`` versions of ``numpyro`` and ``jax`` only,
+    so the default-sampler tests don't depend on what is really installed.
+    """
+    real_version = importlib.metadata.version
+
+    def fake(installed: bool) -> None:
+        versions = (
+            {"numpyro": "0.19.0", "jax": "0.7.0"} if installed else {"numpyro": None}
+        )
+
+        def version(name):
+            if name not in versions:
+                return real_version(name)
+            if versions[name] is None:
+                raise importlib.metadata.PackageNotFoundError(name)
+            return versions[name]
+
+        monkeypatch.setattr(importlib.metadata, "version", version)
+
+    return fake
 
 
 @pytest.fixture(scope="session")

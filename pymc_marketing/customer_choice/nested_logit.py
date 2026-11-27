@@ -35,6 +35,7 @@ from pymc_marketing.model_builder import (
 )
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.names.customer_choice import Attr, Dim, Var
+from pymc_marketing.utils import InstalledSamplers
 from pymc_marketing.version import __version__
 
 
@@ -273,7 +274,10 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
     @property
     def default_sampler_config(self) -> dict:
         """Default sampler configuration."""
-        return {}
+        return {
+            "nuts_sampler": "numpyro" if InstalledSamplers.check().numpyro else None,
+            "idata_kwargs": {"log_likelihood": True},
+        }
 
     @property
     def output_var(self) -> str:
@@ -1135,10 +1139,8 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
 
         """
         sample_prior_predictive_kwargs = sample_prior_predictive_kwargs or {}
-        fit_kwargs = fit_kwargs or {
-            "nuts_sampler": "numpyro",
-            "idata_kwargs": {"log_likelihood": True},
-        }
+        # ``fit`` merges ``self.sampler_config``, so the user's choice (or the default) wins.
+        fit_kwargs = fit_kwargs or {}
         sample_posterior_predictive_kwargs = sample_posterior_predictive_kwargs or {}
 
         if (
