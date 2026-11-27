@@ -37,7 +37,7 @@ import pymc.dims as pmd
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
 import xarray as xr
-from pymc_extras.prior import Prior
+from pymc_extras.prior import Prior, VariableFactory
 from pymc_extras.statespace.filters import StandardFilter
 from pymc_extras.statespace.filters.distributions import LinearGaussianStateSpace
 from pymc_extras.statespace.filters.utilities import scan_sequence_names
@@ -560,15 +560,36 @@ class _KalmanLikelihood:
             sigma = context._recipe(obs.sigma).create_variable(
                 f"{name}_sigma", xdist=True
             )
-        elif isinstance(obs.sigma, int | float):
-            sigma = ptx.as_xtensor(float(obs.sigma), dims=())
+        elif isinstance(obs.sigma, int | float | np.ndarray | np.generic):
+            # A scalar: _observation refuses any other shape
+            sigma = ptx.as_xtensor(np.asarray(obs.sigma, dtype="float64"), dims=())
         else:
             sigma = context.build(obs.sigma, name=f"{name}_sigma")
-        if sigma.dims:
-            raise ValueError(
-                f"The sigma of {name!r} must be a scalar when its latent is marginalized."
-            )
+        _check_scalar_sigma(sigma.dims, name)
         return sigma
+
+
+def _static_sigma_dims(sigma: Any) -> tuple[Any, ...] | None:
+    """Dims of a sigma known without building it, or None for a term."""
+    if isinstance(sigma, VariableFactory):
+        return tuple(sigma.dims or ())
+    if isinstance(sigma, int | float | np.ndarray | np.generic):
+        return np.shape(sigma)
+    return None
+
+
+def _check_scalar_sigma(dims: Sequence[Any], name: str) -> None:
+    if dims:
+        raise ValueError(
+            f"The sigma of {name!r} must be a scalar when its latent is marginalized."
+        )
+
+
+def _check_date_only(binding: Any) -> None:
+    if binding.dims != (Dim.DATE,):
+        raise ValueError(
+            f"Equation {binding.name!r} must be indexed by {Dim.DATE!r} only."
+        )
 
 
 def _per_date(value: pt.TensorVariable, n_steps: int) -> pt.TensorVariable:
@@ -631,6 +652,8 @@ def _observation(equation: Equation, latent: LatentStateSpace) -> _Observation |
             f"Equation {equation.name or equation.observed!r} must be "
             f"Normal(mu=<terms> + {latent.name}[<state>], sigma) to marginalize {latent.name!r}."
         )
+    if (dims := _static_sigma_dims(sigma)) is not None:
+        _check_scalar_sigma(dims, equation.name or equation.observed)
     offset = None if not rest else rest[0] if len(rest) == 1 else Sum(terms=rest)
     return _Observation(equation, states[0].state, offset, sigma)
 
@@ -642,10 +665,7 @@ def _observed_value(equation: Equation, context: BuildContext) -> Any:
     equation never depends on them.
     """
     binding = context.register_equation(equation)
-    if binding.dims != (Dim.DATE,):
-        raise ValueError(
-            f"Equation {binding.name!r} must be indexed by {Dim.DATE!r} only."
-        )
+    _check_date_only(binding)
     return context._observations(binding)
 
 
@@ -680,7 +700,8 @@ class Marginalization:
     observations, and its joint likelihood is built after the rest of the model.
     Prior predictive sampling instead draws the latents forward when the equations
     reach them, so only the checks apply. The checks run on construction, in both
-    cases, so a prior predictive check refuses what fitting would refuse.
+    cases, and ``check`` runs the ones that need the built model, so a prior
+    predictive check refuses what fitting would refuse.
 
     Parameters
     ----------
@@ -709,3 +730,18 @@ class Marginalization:
         """Add each latent's joint likelihood; call after building the equations."""
         for likelihood in self._likelihoods:
             likelihood.build(context)
+
+    def check(self, context: BuildContext) -> None:
+        """Refuse what ``build`` would refuse, in a build that draws the latents forward.
+
+        Call after building the equations, so a sigma term is already built.
+        Sigmas whose dims are known without building were checked on
+        construction.
+        """
+        for likelihood in self._likelihoods:
+            for obs in likelihood.observations:
+                binding = context.binding(obs.equation)
+                _check_date_only(binding)
+                if _static_sigma_dims(obs.sigma) is None:
+                    sigma = context.build(obs.sigma, name=f"{binding.name}_sigma")
+                    _check_scalar_sigma(sigma.dims, binding.name)
