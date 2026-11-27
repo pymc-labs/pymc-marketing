@@ -45,6 +45,7 @@ from pytensor.xtensor.shape import Transpose
 from pytensor.xtensor.type import XTensorSharedVariable, XTensorVariable, as_xtensor
 from pytensor.xtensor.vectorization import XBlockwise, XElemwise
 
+from pymc_marketing.experimental.terms._latent import LatentStateSpace
 from pymc_marketing.experimental.terms._scm import SCM
 from pymc_marketing.experimental.terms._terms import MediaTransform
 from pymc_marketing.mmm.components.adstock import (
@@ -1237,6 +1238,10 @@ def _bind_terms(
     if any(isinstance(node, Equation) for node in admitted):
         raise ValueError(
             "Optimizer targets and dependencies must be deterministic terms, not stochastic Equations."
+        )
+    if any(isinstance(node, LatentStateSpace) for node in admitted):
+        raise NotImplementedError(
+            "The optimizer does not support latent state-space terms yet."
         )
     required = _data_dependencies(terms, scm)
     scenario, templates = _scenario_data(scm, required, data)

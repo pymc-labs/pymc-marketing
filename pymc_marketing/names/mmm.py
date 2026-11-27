@@ -224,3 +224,9 @@ LATENT_OBSERVATIONS_SUFFIX: Final = "_observations"
 
 LATENT_EQUATION_SUFFIX: Final = "_equation"
 """Suffix, after a marginalized latent's name, of the dim of the equations observing it."""
+
+LATENT_FINAL_STATE_SUFFIX: Final = "_final_state"
+"""Suffix, after a marginalized latent's name, of its filtered state mean at the last fitted date."""
+
+LATENT_FINAL_STATE_COV_SUFFIX: Final = "_final_state_cov"
+"""Suffix, after a marginalized latent's name, of its filtered state covariance at the last fitted date."""

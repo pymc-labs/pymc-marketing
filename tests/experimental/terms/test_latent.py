@@ -11,6 +11,8 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+from types import SimpleNamespace
+
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -25,6 +27,7 @@ from pymc_extras.statespace.core.properties import Parameter, Shock, State
 from scipy.stats import multivariate_normal
 
 from pymc_marketing.experimental.terms import SCM, LatentStateSpace, Problem
+from pymc_marketing.mmm import GeometricAdstock
 from pymc_marketing.terms import Data, Equation, Observed
 from pymc_marketing.terms._graph import walk
 
@@ -73,11 +76,11 @@ def data() -> xr.Dataset:
     )
 
 
-def latent(name="lat", **priors) -> LatentStateSpace:
+def latent(name="lat", model_kwargs=None, **priors) -> LatentStateSpace:
     return LatentStateSpace(
         name,
         pmss.BayesianVARMAX,
-        model_kwargs=VARMAX,
+        model_kwargs={**VARMAX, **(model_kwargs or {})},
         priors={**FIXED, **priors},
         exog={"exogenous_data": Data("inputs")},
     )
@@ -130,12 +133,52 @@ def observation_logp(model: pm.Model, name: str = "lat", **point) -> float:
     return model.compile_logp(vars=[model[f"{name}_observations"]])(point)
 
 
-def test_marginal_likelihood_matches_numpy_filter(data):
-    lat = latent()
+@pytest.mark.parametrize(
+    "filter_settings",
+    [
+        {"filter_type": "standard"},
+        {"filter_type": "standard", "use_joseph_form": True},
+        {"filter_type": "cholesky"},
+    ],
+    ids=["standard", "joseph", "cholesky"],
+)
+def test_marginal_likelihood_matches_numpy_filter(data, filter_settings):
+    lat = latent(model_kwargs=filter_settings)
     model = SCM(*equations(lat)).build_model(data)
     assert not model.free_RVs
     # pymc-extras stabilises the observed covariance with a small jitter (cov_jitter)
     np.testing.assert_allclose(observation_logp(model), varmax_loglike(data), rtol=1e-6)
+
+
+def test_filter_follows_the_model():
+    lat = latent(model_kwargs={"filter_type": "cholesky", "cov_jitter": 1e-4})
+    kalman_filter = lat.kalman_filter(SimpleNamespace(time_varying=()))
+    assert type(kalman_filter).__name__ == "SquareRootFilter"
+    assert kalman_filter.cov_jitter == 1e-4
+    lat = latent(model_kwargs={"use_joseph_form": True})
+    assert lat.kalman_filter(SimpleNamespace(time_varying=())).use_joseph_form
+
+
+@pytest.mark.parametrize("filter_type", ["univariate", "convergent"])
+def test_filters_that_cannot_take_per_date_intercepts_are_refused(filter_type):
+    with pytest.raises(ValueError, match="'standard' and 'cholesky'"):
+        latent(model_kwargs={"filter_type": filter_type})
+
+
+def test_fit_records_the_final_filtered_state(data):
+    lat = latent()
+    exact = {"sigma": 1e-6}
+    a = Equation(
+        observed="a", mu=Data("z") + lat["a"], likelihood=Prior("Normal", **exact)
+    )
+    b = Equation(observed="b", mu=lat["b"], likelihood=Prior("Normal", **exact))
+    model = SCM(a, b).build_model(data)
+    last = data.isel(date=-1)
+    # Observed exactly, the state at the last date is the last observation minus the offset
+    np.testing.assert_allclose(
+        pm.draw(model["lat_final_state"]), [last["a"] - last["z"], last["b"]], atol=1e-5
+    )
+    np.testing.assert_allclose(pm.draw(model["lat_final_state_cov"]), 0, atol=1e-5)
 
 
 def test_observed_equations_are_marginalized(data):
@@ -469,9 +512,281 @@ def test_optimizer_runs_on_terms_that_do_not_touch_the_latent(data, fitted_with_
     assert "z" in problem.evaluate(plan)
 
 
-def test_forecasting_a_latent_is_refused(data, fitted_with_latent):
+def future(data: xr.Dataset, n: int = 4) -> xr.Dataset:
+    """Inputs for the n dates after the data."""
+    rng = np.random.default_rng(2)
+    dates = pd.date_range(data.get_index("date")[-1], periods=n + 1, freq="W")[1:]
+    return xr.Dataset(
+        {
+            "z": ("date", rng.normal(size=n)),
+            "inputs": (("date", "input"), rng.normal(size=(n, 2))),
+        },
+        coords={"date": dates, "input": ["w", "x"]},
+    )
+
+
+NOISE = Prior("Normal", sigma=Prior("HalfNormal", sigma=1))
+
+
+def fit_without_noise(data, *equations_):
+    """Fit, then zero the equations' noise and the recorded state's uncertainty.
+
+    With no shocks either, a forecast is then exactly its expected path.
+    """
+    scm = SCM(*equations_)
+    scm.fit(data, draws=5, tune=5, chains=1, random_seed=1, progressbar=False)
+    posterior = scm.idata["posterior"]
+    for name in posterior.data_vars:
+        if name.endswith(("_sigma", "_final_state_cov")):
+            posterior[name] = posterior[name] * 0
+    return scm
+
+
+@pytest.fixture(scope="module")
+def fitted_without_shocks(data):
+    """Fitted with no initial-state or shock variance, so the states are a recursion."""
+    lat = latent(
+        P0=np.zeros((2, 2)),
+        state_cov=np.zeros((2, 2)),
+        trend_params=Prior("Normal", sigma=1, dims=("observed_state", "trend")),
+    )
+    return fit_without_noise(
+        data,
+        Equation(observed="a", mu=Data("z") + lat["a"], likelihood=NOISE),
+        Equation(observed="b", mu=lat["b"], likelihood=NOISE),
+    )
+
+
+def recursion(start, trend, inputs):
+    """States x_t = A x_{t-1} + trend + BETA u_t, for each draw, from ``start``."""
+    states, x = [], start
+    for u in inputs.sel(input=["x", "w"]).values:
+        x = x @ A.T + trend + u @ BETA.T
+        states.append(x)
+    return np.stack(states, axis=1)
+
+
+def test_forecast_starts_from_the_recorded_state(data, fitted_without_shocks):
+    scm = fitted_without_shocks
+    posterior = scm.idata["posterior"].isel(chain=0)
+    new = future(data)
+    draws = scm.sample_posterior_predictive(new).isel(chain=0)
+    expected = recursion(
+        posterior["lat_final_state"].values,
+        posterior["lat_trend_params"].values[..., 0],
+        new["inputs"],
+    )
+    np.testing.assert_allclose(
+        draws["a"].values, new["z"].values + expected[..., 0], atol=1e-8
+    )
+    np.testing.assert_allclose(draws["b"].values, expected[..., 1], atol=1e-8)
+
+
+def test_forecast_carries_the_recorded_state_uncertainty(data):
+    # Noisy observations and small shocks make the state at the last fitted date
+    # uncertain; zeroing the equations' noise after fitting leaves that uncertainty
+    lat = latent(
+        state_cov=0.01 * np.eye(2),
+        trend_params=Prior("Normal", sigma=1, dims=("observed_state", "trend")),
+    )
+    scm = SCM(
+        Equation(observed="a", mu=Data("z") + lat["a"], likelihood=NOISE),
+        Equation(observed="b", mu=lat["b"], likelihood=NOISE),
+    )
+    scm.fit(data, draws=1000, tune=200, chains=1, random_seed=1, progressbar=False)
+    posterior = scm.idata["posterior"]
+    for name in ("a_sigma", "b_sigma"):
+        posterior[name] = posterior[name] * 0
+    posterior = posterior.isel(chain=0)
+    new = future(data)
+    draws = scm.sample_posterior_predictive(new, random_seed=2).isel(chain=0, date=0)
+    mean, cov = (
+        posterior["lat_final_state"].values,
+        posterior["lat_final_state_cov"].values,
+    )
+    trend = posterior["lat_trend_params"].values[..., 0]
+    inputs = new["inputs"].sel(input=["x", "w"]).values[0]
+    forecast = np.column_stack(
+        [draws["a"].values - new["z"].values[0], draws["b"].values]
+    )
+    residual = forecast - (mean @ A.T + trend + inputs @ BETA.T)
+    # One step ahead: the recorded uncertainty moved forward, plus one shock
+    expected = (A @ cov @ A.T).mean(axis=0) + 0.01 * np.eye(2)
+    np.testing.assert_allclose(np.cov(residual.T), expected, atol=0.01)
+
+
+def test_forecast_continues_a_time_trend(data):
+    lat = latent(
+        model_kwargs={"trend": "ct"},
+        P0=np.zeros((2, 2)),
+        state_cov=np.zeros((2, 2)),
+        trend_params=Prior("Normal", sigma=0.1, dims=("observed_state", "trend")),
+    )
+    scm = fit_without_noise(
+        data,
+        Equation(observed="a", mu=Data("z") + lat["a"], likelihood=NOISE),
+        Equation(observed="b", mu=lat["b"], likelihood=NOISE),
+    )
+    new = future(data)
+    draws = scm.sample_posterior_predictive(new).isel(chain=0)
+    posterior = scm.idata["posterior"].isel(chain=0)
+    trend = posterior["lat_trend_params"].values  # (draw, state, [constant, slope])
+    # The trend's time keeps counting from the first fitted date, as when fitting
+    x, expected = posterior["lat_final_state"].values, []
+    for k, u in enumerate(new["inputs"].sel(input=["x", "w"]).values):
+        time = N + k + 1  # pymc-extras' trend_offset=1, one date ahead like the inputs
+        x = x @ A.T + trend[..., 0] + trend[..., 1] * time + u @ BETA.T
+        expected.append(x)
+    np.testing.assert_allclose(
+        draws["b"].values, np.stack(expected, axis=1)[..., 1], atol=1e-8
+    )
+
+
+def test_forecast_without_history_starts_from_the_initial_state(
+    data, fitted_without_shocks
+):
+    scm = fitted_without_shocks
+    trend = scm.idata["posterior"].isel(chain=0)["lat_trend_params"].values[..., 0]
+    new = future(data)
+    draws = scm.sample_posterior_predictive(new, include_last_observations=False)
+    # The first date is the initial state; nothing is carried over from training
+    first = np.broadcast_to(X0, trend.shape)
+    expected = np.concatenate(
+        [
+            first[:, None],
+            recursion(first, trend, new["inputs"].isel(date=slice(1, None))),
+        ],
+        axis=1,
+    )
+    np.testing.assert_allclose(
+        draws["b"].isel(chain=0).values, expected[..., 1], atol=1e-8
+    )
+
+
+def test_forecast_returns_the_equations_on_the_new_dates(data, fitted_with_latent):
+    scm, _, _ = fitted_with_latent
+    new = future(data)
+    draws = scm.sample_posterior_predictive(new, random_seed=2)
+    assert set(draws.data_vars) == {"a", "b"}
+    assert draws.get_index("date").equals(new.get_index("date"))
+    assert np.isfinite(draws["a"]).all() and np.isfinite(draws["b"]).all()
+
+
+def test_forecast_after_save_and_load(data, fitted_with_latent, tmp_path):
+    scm, _, _ = fitted_with_latent
+    scm.save(tmp_path / "scm.zarr")
+    loaded = SCM.load(tmp_path / "scm.zarr")
+    new = future(data)
+    xr.testing.assert_allclose(
+        loaded.sample_posterior_predictive(new, random_seed=2),
+        scm.sample_posterior_predictive(new, random_seed=2),
+    )
+
+
+def test_conditioning_on_an_observing_equation_does_not_inform_the_latent(
+    data, fitted_with_latent
+):
+    scm, _, _ = fitted_with_latent
+    draws = [
+        scm.sample_posterior_predictive(
+            future(data).assign(a=("date", np.full(4, value))),
+            condition_on=["a"],
+            random_seed=2,
+        )
+        for value in (0.0, 5.0)
+    ]
+    np.testing.assert_array_equal(draws[1]["a"].isel(chain=0, draw=0), 5.0)
+    # a is held, as for any other equation: b is forecast from the fitted data alone
+    xr.testing.assert_equal(draws[0]["b"], draws[1]["b"])
+
+
+def test_both_filters_record_the_same_final_state(data):
+    models = [
+        SCM(*equations(latent(model_kwargs={"filter_type": kind}))).build_model(data)
+        for kind in ("standard", "cholesky")
+    ]
+    for name in ("lat_final_state", "lat_final_state_cov"):
+        standard, cholesky = (pm.draw(model[name]) for model in models)
+        assert np.abs(standard).max() > 1e-3
+        np.testing.assert_allclose(cholesky, standard, rtol=1e-6, atol=1e-10)
+
+
+def test_forecast_with_a_time_varying_loading(data):
+    lat = LatentStateSpace(
+        "lat",
+        _TimeVaryingLoading,
+        priors={"x0": X0, "P0": np.zeros((2, 2)), "sigma_state": np.zeros(2)},
+        exog={"x": Data("z")},
+    )
+    scm = fit_without_noise(data, Equation(observed="c", mu=lat["y"], likelihood=NOISE))
+    new = future(data)
+    draws = scm.sample_posterior_predictive(new).isel(chain=0)
+    level, loading = scm.idata["posterior"]["lat_final_state"].isel(chain=0).values.T
+    # Constant states, observed through each forecast date's own loading
+    np.testing.assert_allclose(
+        draws["c"].values,
+        level[:, None] + loading[:, None] * new["z"].values,
+        atol=1e-8,
+    )
+
+
+def test_forecast_through_an_adstock_on_the_latent_input(data):
+    adstock = GeometricAdstock(
+        l_max=3, priors={"alpha": Prior("Beta", alpha=2, beta=2)}
+    )
+    lat = LatentStateSpace(
+        "lat",
+        pmss.BayesianVARMAX,
+        model_kwargs=VARMAX,
+        priors={
+            **FIXED,
+            "P0": np.zeros((2, 2)),
+            "state_cov": np.zeros((2, 2)),
+            "trend_params": Prior("Normal", sigma=1, dims=("observed_state", "trend")),
+        },
+        exog={"exogenous_data": Data("inputs") >> adstock},
+    )
+    scm = fit_without_noise(
+        data,
+        Equation(observed="a", mu=Data("z") + lat["a"], likelihood=NOISE),
+        Equation(observed="b", mu=lat["b"], likelihood=NOISE),
+    )
+    new = future(data)
+    draws = scm.sample_posterior_predictive(new).isel(chain=0)
+
+    posterior = scm.idata["posterior"].isel(chain=0)
+    alpha = next(
+        posterior[name] for name in posterior.data_vars if name.endswith("alpha")
+    )
+    alpha = (
+        alpha.broadcast_like(data["inputs"].isel(date=0))
+        .sel(input=["x", "w"])
+        .transpose("draw", "input")
+    )
+    # The adstocked inputs on the forecast dates carry over the last fitted ones
+    inputs = (
+        xr.concat([data["inputs"], new["inputs"]], dim="date")
+        .sel(input=["x", "w"])
+        .values
+    )
+    weights = alpha.values[..., None] ** np.arange(3)  # (draw, input, lag)
+    weights /= weights.sum(axis=-1, keepdims=True)
+    adstocked = sum(
+        weights[:, None, :, lag] * inputs[None, N - lag : N + 4 - lag]
+        for lag in range(3)
+    )  # (draw, date, input)
+    states, x = [], posterior["lat_final_state"].values
+    trend = posterior["lat_trend_params"].values[..., 0]
+    for t in range(4):
+        x = x @ A.T + trend + np.einsum("di,si->ds", adstocked[:, t], BETA)
+        states.append(x)
+    expected = np.stack(states, axis=1)
+    np.testing.assert_allclose(draws["b"].values, expected[..., 1], atol=1e-8)
+
+
+def test_optimizing_through_a_latent_is_refused(data, fitted_with_latent):
     scm, lat, _ = fitted_with_latent
-    with pytest.raises(NotImplementedError, match="end of the fitted data"):
+    with pytest.raises(NotImplementedError, match="latent state-space terms"):
         Problem(
             model=scm,
             terms={"state": lat["a"]},
