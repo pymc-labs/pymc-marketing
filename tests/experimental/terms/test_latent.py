@@ -18,13 +18,14 @@ import pymc_extras.statespace as pmss
 import pytensor.tensor as pt
 import pytest
 import xarray as xr
-from pymc_extras.prior import Prior
+from pymc_extras.prior import Censored, Prior, Scaled
 from pymc_extras.statespace.core import PyMCStateSpace
 from pymc_extras.statespace.core.properties import Data as DataInfo
 from pymc_extras.statespace.core.properties import Parameter, Shock, State
 from scipy.stats import multivariate_normal
 
 from pymc_marketing.experimental.terms import SCM, LatentStateSpace, Problem
+from pymc_marketing.special_priors import LogNormalPrior
 from pymc_marketing.terms import Data, Equation, Observed
 from pymc_marketing.terms._graph import walk
 
@@ -535,6 +536,31 @@ def test_prior_predictive_refuses_a_time_varying_sigma(data):
         scm.build_model(ds)
     with pytest.raises(ValueError, match="must be a scalar"):
         scm.sample_prior_predictive(ds, draws=5)
+
+
+@pytest.mark.parametrize(
+    "sigma",
+    [
+        {"likelihood": Prior("Normal", sigma=Scaled(Prior("HalfNormal"), 2.0))},
+        {"likelihood": Prior("Normal", sigma=Censored(Prior("HalfNormal"), upper=5.0))},
+        {
+            "likelihood": Prior("Normal"),
+            "parameters": {"sigma": Scaled(Prior("HalfNormal"), 2.0)},
+        },
+        {
+            "likelihood": Prior("Normal"),
+            "parameters": {"sigma": LogNormalPrior(mean=0.3, std=0.1)},
+        },
+    ],
+    ids=["likelihood-scaled", "likelihood-censored", "scaled", "lognormal"],
+)
+def test_prior_predictive_accepts_a_sigma_recipe(data, sigma):
+    lat = latent()
+    a = Equation(observed="a", mu=lat["a"], **sigma)
+    prior = SCM(a, equations(lat)[1]).sample_prior_predictive(
+        data, draws=5, random_seed=1
+    )
+    assert "a_sigma" in prior["prior"].data_vars
 
 
 def test_prior_predictive_refuses_an_equation_not_indexed_by_date_only(data):

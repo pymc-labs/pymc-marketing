@@ -37,7 +37,7 @@ import pymc.dims as pmd
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
 import xarray as xr
-from pymc_extras.prior import Prior
+from pymc_extras.prior import Prior, VariableFactory
 from pymc_extras.statespace.filters import StandardFilter
 from pymc_extras.statespace.filters.distributions import LinearGaussianStateSpace
 from pymc_extras.statespace.filters.utilities import scan_sequence_names
@@ -729,7 +729,7 @@ class Marginalization:
             for obs in likelihood.observations:
                 binding = context.binding(obs.equation)
                 _check_date_only(binding)
-                if isinstance(obs.sigma, Prior):
+                if isinstance(obs.sigma, VariableFactory):
                     dims = obs.sigma.dims
                 elif isinstance(obs.sigma, int | float | np.ndarray | np.generic):
                     dims = np.shape(obs.sigma)
