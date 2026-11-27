@@ -335,8 +335,9 @@ class TimeSliceCrossValidator:
     def _create_metadata(self, cv_coord: pd.Index) -> xr.Dataset:
         """Build a cv_metadata Dataset that stores per-fold metadata.
 
-        The dataset stores per-fold metadata as Python objects (DataFrames/Series)
-        under a single DataArray named 'metadata' indexed by the same 'cv' labels.
+        The dataset stores per-fold metadata as Python objects (DataFrames/Series,
+        and the ``date_column`` naming the dates in ``X_train``/``X_test``) under a
+        single DataArray named 'metadata' indexed by the same 'cv' labels.
         Consumers can access fold metadata via ``cv_idata.cv_metadata.metadata.sel(cv=...)``.
 
         Parameters
@@ -356,6 +357,8 @@ class TimeSliceCrossValidator:
                 "y_train": getattr(r, "y_train", None),
                 "X_test": getattr(r, "X_test", None),
                 "y_test": getattr(r, "y_test", None),
+                # The summary and plots read the fold dates from X_train/X_test.
+                "date_column": self.date_column,
             }
             metadata_list.append(meta)
 

@@ -3227,7 +3227,7 @@ def test_filter_df_by_indexer_behaviour():
     assert int(out.iloc[0]["id"]) == 1
 
 
-def _build_cv_results_for_cv_predictions():
+def _build_cv_results_for_cv_predictions(date_column: str = "date"):
     """Helper to build a minimal xarray.DataTree suitable for cv_predictions tests."""
     # Single CV fold and a single extra dim 'country' with one country value
     cv_labels = ["cv1"]
@@ -3249,15 +3249,17 @@ def _build_cv_results_for_cv_predictions():
     # Build per-fold metadata dicts stored in a DataArray of dtype object
     # Include X_train/X_test with a 'date' and 'country' column so filtering works
     meta = {
-        "X_train": pd.DataFrame({"date": dates[:2], "country": ["A", "A"]}).reset_index(
-            drop=True
-        ),
+        "X_train": pd.DataFrame(
+            {date_column: dates[:2], "country": ["A", "A"]}
+        ).reset_index(drop=True),
         "y_train": pd.Series([1.0, 2.0]),
-        "X_test": pd.DataFrame({"date": dates[2:], "country": ["A"]}).reset_index(
+        "X_test": pd.DataFrame({date_column: dates[2:], "country": ["A"]}).reset_index(
             drop=True
         ),
         "y_test": pd.Series([3.0]),
     }
+    if date_column != "date":
+        meta["date_column"] = date_column
     meta_da = xr.DataArray(
         np.array([meta], dtype=object),
         dims=("cv",),
@@ -3270,6 +3272,18 @@ def _build_cv_results_for_cv_predictions():
         {"/posterior_predictive": ds_pp, "/cv_metadata": ds_meta}
     )
     return results
+
+
+def test_cv_predictions_reads_the_validators_date_column():
+    """A fold whose frames name the dates "week" plots without a KeyError (#3358)."""
+    suite = MMMPlotSuite(idata=None)
+    results = _build_cv_results_for_cv_predictions(date_column="week")
+
+    fig, axes = suite.cv_predictions(results, dims=None)
+
+    assert fig is not None
+    assert len(axes) >= 1
+    plt.close(fig)
 
 
 def test_cv_predictions_unsupported_dims_raises_value_error():
