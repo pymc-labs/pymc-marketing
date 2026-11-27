@@ -663,11 +663,6 @@ class MMMPlotSuite:
             )
 
             # 6. Plot the requested variable
-            if var not in pp_data:
-                raise ValueError(
-                    f"Variable '{var}' not in the prior_predictive dataset."
-                )
-
             data = pp_data[var].sel(**indexers)
             # Sum leftover dims, stack chain+draw if needed
             data = self._reduce_and_stack(data, ignored_dims)
