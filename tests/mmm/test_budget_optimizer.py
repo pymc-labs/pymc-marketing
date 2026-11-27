@@ -2179,6 +2179,24 @@ class TestDateAxisMustMatchTheBlocks:
         )
         assert optimizer.num_periods == layout.decisions
 
+    def test_window_layout_refuses_a_later_start_date(self, funnel_identity_fitted_mmm):
+        """A start_date later than the model's would turn decisions into carry-in.
+
+        The three blocks would still add up to the date axis, so
+        ``BudgetOptimizer`` could not catch it (#3491).
+        """
+        mmm = funnel_identity_fitted_mmm
+        training_end = pd.Timestamp(mmm.xarray_dataset.coords["date"].values[-1])
+        start = training_end + pd.Timedelta(weeks=1)
+        model = mmm.create_optimization_model(
+            start, training_end + pd.Timedelta(weeks=self.N_PERIODS)
+        )
+
+        with pytest.raises(
+            ValueError, match="later than the window this model was built for"
+        ):
+            mmm.window_layout(model, start + pd.Timedelta(weeks=2))
+
     def test_the_private_window_layout_name_warns(self, funnel_identity_fitted_mmm):
         """The private name released up to 1.5.0 still works, with a warning."""
         mmm = funnel_identity_fitted_mmm
