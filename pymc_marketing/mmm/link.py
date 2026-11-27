@@ -218,19 +218,17 @@ def _distribution_name(likelihood: Prior) -> str:
 def _reject_mu_overriding_parameters(likelihood: Prior) -> None:
     """Raise if *likelihood* has parameters that make pymc ignore ``mu``.
 
-    Wrappers such as ``Censored`` hold the parameters on the inner prior, so
-    unwrap the same way :func:`_distribution_name` does.
+    ``Censored`` holds the parameters on the prior it wraps, which is always
+    a plain ``Prior``, so one level of unwrapping is enough.
     """
-    inner = likelihood
-    while not isinstance(dist := getattr(inner, "distribution", None), str | None):
-        inner = dist
-    dist_name = _distribution_name(likelihood)
-    entry = MU_OVERRIDING_PARAMETERS.get(dist_name)
+    inner = likelihood.distribution if isinstance(likelihood, Censored) else likelihood
+    entry = MU_OVERRIDING_PARAMETERS.get(getattr(inner, "distribution", ""))
     if entry is None:
         return
     overriding, keeps_mu = entry
-    given = set(getattr(inner, "parameters", {}))
+    given = set(inner.parameters)
     if overriding <= given:
+        dist_name = inner.distribution
         named = sorted(given & {"alpha", "beta"})
         raise ValueError(
             f"Likelihood '{dist_name}' with {named} ignores 'mu': pymc "
