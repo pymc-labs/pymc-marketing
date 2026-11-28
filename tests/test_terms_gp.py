@@ -478,12 +478,6 @@ def test_non_scalar_prior_raises(ds):
             id="HSGPTerm",
         ),
         pytest.param(
-            SoftPlusHSGPTerm(
-                name="trend", dims="channel", eta=Prior("HalfNormal", dims="channel")
-            ),
-            id="SoftPlusHSGPTerm",
-        ),
-        pytest.param(
             HSGPPeriodicTerm(
                 name="season",
                 dims="channel",

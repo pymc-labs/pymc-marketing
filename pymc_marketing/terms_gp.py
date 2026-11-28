@@ -625,7 +625,7 @@ class HSGPTerm(GPDataTerm):
         ``"hsgp"``.
     eta : VariableFactory or float, optional
         Prior for the GP amplitude (standard deviation). It can vary over the
-        extra ``dims`` and must be positive. Defaults to the Exponential prior from
+        extra ``dims``. Defaults to the Exponential prior from
         :func:`pymc_marketing.mmm.hsgp.create_eta_prior`.
     ls : VariableFactory or float, optional
         Prior for the lengthscale. Defaults to the complexity-penalizing

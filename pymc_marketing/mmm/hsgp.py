@@ -195,14 +195,15 @@ def approx_hsgp_hyperparams(
 
 
 def create_eta_prior(mass: float = 0.05, upper: float = 1.0) -> Prior:
-    """Create prior for the variance.
+    """Create prior for the amplitude (standard deviation).
 
     Parameters
     ----------
     mass : float
-        Mass of the variance. Default is 0.05 or 5%.
+        Prior probability that the amplitude is above ``upper``. Default is
+        0.05 or 5%.
     upper : float
-        Upper bound for the variance. Default is 1.0.
+        Upper bound for the amplitude. Default is 1.0.
 
     """
     return Prior(
@@ -801,9 +802,7 @@ class HSGP(HSGPBase):
         plt.show()
 
     Amplitude that varies by channel. The ``eta`` prior can use any of the
-    dims after the first one, while the lengthscale stays shared. ``eta``
-    scales the standard deviation of the basis coefficients, so it must be
-    positive: use a prior with positive support.
+    dims after the first one, while the lengthscale stays shared.
 
     .. code-block:: python
 
@@ -833,9 +832,7 @@ class HSGP(HSGPBase):
         ...,
         description=(
             "Prior for the amplitude (standard deviation). It can vary over any of "
-            "the dims after the first one, e.g. one amplitude per channel. It must "
-            "be positive: a non-negative float, or a prior with positive support "
-            "such as HalfNormal, Exponential or Gamma."
+            "the dims after the first one, e.g. one amplitude per channel."
         ),
     )
     L: float = Field(..., gt=0, description="Extent of basis functions")
@@ -857,11 +854,6 @@ class HSGP(HSGPBase):
 
     @model_validator(mode="after")
     def _eta_dims_are_compatible(self) -> Self:
-        # eta scales the standard deviation of the basis coefficients, so a
-        # negative value would give a negative sigma.
-        if isinstance(self.eta, int | float) and self.eta < 0:
-            raise ValueError(f"eta must be positive, got {self.eta}.")
-
         self._check_prior_dims(self.eta, "eta")
 
         return self
@@ -992,7 +984,8 @@ class HSGP(HSGPBase):
 
         # eta is left out of the covariance function. It scales the standard
         # deviation of every basis coefficient instead, which lets it broadcast
-        # over any of the non-input dims of the HSGP.
+        # over any of the non-input dims of the HSGP. abs(eta) keeps the old
+        # sqrt(eta**2 * psd) for any sign of eta.
         cov_func = cov_funcs[self.cov_func.lower()](input_dim=1, ls=ls)
         gp = pm.gp.HSGP(
             m=[self.m],
@@ -1018,7 +1011,7 @@ class HSGP(HSGPBase):
         hsgp_coefs = Prior(
             "Normal",
             mu=0,
-            sigma=sqrt_psd * eta,
+            sigma=sqrt_psd * abs(eta),
             dims=hsgp_dims,
             centered=self.centered,
         ).create_variable(add_suffix("hsgp_coefs"), xdist=True)
